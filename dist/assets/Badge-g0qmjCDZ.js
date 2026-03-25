@@ -1,1 +1,0 @@
-import{j as g}from"./index-QIp0FPrc.js";const b={blue:"badge-blue",green:"badge-green",yellow:"badge-yellow",red:"badge-red",purple:"badge-purple",gray:"badge-gray"};function l({variant:e="blue",children:a,className:r=""}){return g.jsx("span",{className:`badge ${b[e]||"badge-gray"} ${r}`,children:a})}export{l as B};
