@@ -16146,6 +16146,13 @@ function toggleTheme(){
   try{ localStorage.setItem('acadflow_theme', next ? 'dark' : 'light'); }catch(e){}
   _applyTheme(next);
 }
+// Hook: called whenever the user manually toggles the theme.
+// Persists the preference to localStorage so it survives page reloads.
+// Not wired up yet — call _onThemeToggle(isDark) from toggleTheme() when ready.
+function _onThemeToggle(dark){
+  try{ localStorage.setItem('acadflow_theme', dark ? 'dark' : 'light'); }catch(e){}
+}
+
 // Load saved theme on startup
 (function(){
   try{
