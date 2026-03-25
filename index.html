@@ -4297,11 +4297,11 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 // ═══════════════════════════════════════════════════════════════════════════
 const COLLEGE_PORTAL_CONFIG = {
   firebase: {
-    apiKey:            "AIzaSyDXHkKZlDPs1oSWWtELXqXF2YVT9T73CJA",   // ← PASTE your apiKey here
-    projectId:         "collegeportal-d2b98",   // ← PASTE your projectId here
-    authDomain:        "collegeportal-d2b98.firebaseapp.com",   // ← PASTE your authDomain here (or leave blank — auto-filled)
-    appId:             "1:219297076744:web:825a6c587dbaee327e23bd",   // ← PASTE your appId here
-    messagingSenderId: "219297076744"    // ← PASTE your messagingSenderId here
+    apiKey:            "",   // ← PASTE your apiKey here
+    projectId:         "",   // ← PASTE your projectId here
+    authDomain:        "",   // ← PASTE your authDomain here (or leave blank — auto-filled)
+    appId:             "",   // ← PASTE your appId here
+    messagingSenderId: ""    // ← PASTE your messagingSenderId here
   }
 };
 
@@ -8318,7 +8318,7 @@ function renderGradeArea(){
   const cls = classes.find(c=>c.id===_selGradeClass2);
   if(!cls){ area.innerHTML=''; return; }
   const q = (document.getElementById('grade-search')?.value||'').toLowerCase();
-  let studs = sortByLastName(students.filter(s=>s.classId===_selGradeClass2));
+  let studs = studentsInClass(_selGradeClass2);
   if(q) studs = studs.filter(s=>s.name.toLowerCase().includes(q)||s.id.toLowerCase().includes(q));
 
   // Store subject list on the element so onclick handlers can look them up by index
@@ -8640,7 +8640,7 @@ function computeFinalGradeFromTerms(midtermTerm, finalsTerm){
 
 function openGradeModal(classId, subject){
   _gradeCtx = {classId, subject};
-  const studs = sortByLastName(students.filter(s=>s.classId===classId));
+  const studs = studentsInClass(classId);
   const cls   = classes.find(c=>c.id===classId);
 
   // Last upload timestamp for this subject
@@ -8759,7 +8759,7 @@ function openGradeModal(classId, subject){
   openModal('modal-grades');
   // Auto-compute final grades for any rows that are already fully filled
   setTimeout(()=>{
-    const studsLen = sortByLastName(students.filter(s=>s.classId===classId)).length;
+    const studsLen = studentsInClass(classId).length;
     for(let i=0;i<studsLen;i++) computeFinalGrade(i);
   }, 50);
 }
@@ -8797,7 +8797,7 @@ function updateGradePreview(i){
 
 async function saveGrades(){
   const {classId, subject} = _gradeCtx;
-  const studs  = sortByLastName(students.filter(s=>s.classId===classId));
+  const studs  = studentsInClass(classId);
   const now    = Date.now();
   let hasGrade = false;
 
@@ -8932,7 +8932,7 @@ async function saveGrades(){
 // ── Clear all grade data for a subject (all students) ──────────────────────────
 async function clearSubjectGrades(classId, subject){
   const cls   = classes.find(c=>c.id===classId);
-  const studs = students.filter(s=>s.classId===classId);
+  const studs = studentsInClass(classId);
   if(!cls || !studs.length) return;
 
   const confirmed = await uiConfirm(
@@ -15215,6 +15215,16 @@ let _exportCtx = null;
 
 // ── Helpers ──────────────────────────────────────────────
 function getClassStudents(classId){ return sortByLastName(students.filter(s=>s.classId===classId)); }
+
+// Returns ALL students enrolled in a class — checks both the primary classId
+// and the classIds array (populated when a student is added to extra classes).
+// Use this for grades/attendance panels so multi-enrolled students always appear.
+function studentsInClass(classId){
+  return sortByLastName(students.filter(s=>
+    s.classId === classId ||
+    (Array.isArray(s.classIds) && s.classIds.includes(classId))
+  ));
+}
 
 function buildGradesData(classId){
   const cls = classes.find(c=>c.id===classId);
