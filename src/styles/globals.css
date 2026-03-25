@@ -120,22 +120,24 @@
 /* ══════════════════════════════════════════
    BASE
 ══════════════════════════════════════════ */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-html { scroll-behavior: smooth; }
+  html { scroll-behavior: smooth; }
 
-body {
-  font-family: var(--font-body);
-  background: var(--bg);
-  color: var(--ink);
-  min-height: 100vh;
-  font-size: 14px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-  transition: background .3s, color .3s;
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    transition: background .3s, color .3s;
+  }
+
+  h1, h2, h3, .serif { font-family: var(--font-display); }
 }
-
-h1, h2, h3, .serif { font-family: var(--font-display); }
 
 /* ══════════════════════════════════════════
    KEYFRAMES
@@ -210,6 +212,8 @@ h1, h2, h3, .serif { font-family: var(--font-display); }
 }
 
 @keyframes onAutoFillStart { from {} to {} }
+
+@layer components {
 
 /* ══════════════════════════════════════════
    TOAST
@@ -2208,3 +2212,5 @@ textarea.input { resize: vertical; }
    NOTIFICATION TAB (Admin)
 ══════════════════════════════════════════ */
 .student-notifications { }
+
+} /* end @layer components */
