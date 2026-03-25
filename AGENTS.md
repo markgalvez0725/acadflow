@@ -1,5 +1,3 @@
-<!-- BEGIN:nextjs-agent-rules -->
-# This is NOT the Next.js you know
+# AcadFlow is NOT a Next.js project
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
-<!-- END:nextjs-agent-rules -->
+This is a **React + Vite** app. There is no App Router, no `pages/` directory, no server components, and no `next/*` imports. See `CLAUDE.md` for the full agent guide.
