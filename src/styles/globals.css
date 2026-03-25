@@ -1,8 +1,48 @@
+@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@theme {
+  --color-navy:      #0a1628;
+  --color-royal:     #0d2f6e;
+  --color-c-blue:    #1a4a9e;
+  --color-sky:       #3b7dd8;
+  --color-gold:      #c8a84b;
+  --color-gold-d:    #9a7a28;
+
+  --color-bg:        var(--bg);
+  --color-bg2:       var(--bg2);
+  --color-surface:   var(--surface);
+  --color-surface2:  var(--surface2);
+  --color-ink:       var(--ink);
+  --color-ink2:      var(--ink2);
+  --color-ink3:      var(--ink3);
+  --color-accent:    var(--accent);
+  --color-accent-l:  var(--accent-l);
+  --color-accent-m:  var(--accent-m);
+  --color-border:    var(--border);
+  --color-border2:   var(--border2);
+  --color-red:       var(--red);
+  --color-red-l:     var(--red-l);
+  --color-green:     var(--green);
+  --color-green-l:   var(--green-l);
+  --color-yellow:    var(--yellow);
+  --color-yellow-l:  var(--yellow-l);
+  --color-purple:    var(--purple);
+  --color-purple-l:  var(--purple-l);
+  --color-gold-var:  var(--gold-var);
+  --color-gold-l:    var(--gold-l);
+
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-body:    'DM Sans', system-ui, sans-serif;
+
+  --radius:    12px;
+  --radius-lg: 18px;
+
+  --spacing-sidebar: var(--sidebar-w);
+
+  --shadow:    0 1px 4px rgba(13,26,54,.05), 0 6px 20px rgba(13,26,54,.08);
+  --shadow-lg: 0 8px 32px rgba(13,26,54,.14);
+}
 
 /* ══════════════════════════════════════════
    DESIGN TOKENS — Light & Dark
