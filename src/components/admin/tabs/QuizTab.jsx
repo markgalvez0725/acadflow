@@ -63,7 +63,7 @@ Respond ONLY with a valid JSON array. No markdown, no explanation. Example forma
     generationConfig: { temperature: 0.7, maxOutputTokens: 4096 },
   })
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`
   let res
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt > 0) await new Promise(r => setTimeout(r, attempt * 15000))
