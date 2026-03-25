@@ -6,7 +6,7 @@ import Modal from '@/components/primitives/Modal'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY
 
 function quizId() {
   return 'quiz_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7)
@@ -59,7 +59,7 @@ Respond ONLY with a valid JSON array. No markdown, no explanation. Example forma
 ]`
 
   const body = JSON.stringify({
-    model: 'gpt-4o-mini',
+    model: 'llama3-8b-8192',
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.7,
     max_tokens: 4096,
@@ -68,11 +68,11 @@ Respond ONLY with a valid JSON array. No markdown, no explanation. Example forma
   let res
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt > 0) await new Promise(r => setTimeout(r, attempt * 5000))
-    res = await fetch('https://api.openai.com/v1/chat/completions', {
+    res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
       },
       body,
     })
@@ -83,8 +83,8 @@ Respond ONLY with a valid JSON array. No markdown, no explanation. Example forma
     const err = await res.json().catch(() => ({}))
     throw new Error(
       res.status === 429
-        ? 'OpenAI rate limit reached. Please wait a moment and try again.'
-        : err?.error?.message || `OpenAI API error ${res.status}`
+        ? 'Rate limit reached. Please wait a moment and try again.'
+        : err?.error?.message || `API error ${res.status}`
     )
   }
 
