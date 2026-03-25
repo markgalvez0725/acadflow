@@ -2,22 +2,24 @@
 import { initializeApp, getApps, deleteApp } from 'firebase/app'
 import { initializeFirestore } from 'firebase/firestore'
 
+/** Hardcoded Firebase config — always available on any device. */
+const HARDCODED_FB_CONFIG = {
+  apiKey:            'AIzaSyDXHkKZlDPs1oSWWtELXqXF2YVT9T73CJA',
+  authDomain:        'collegeportal-d2b98.firebaseapp.com',
+  databaseURL:       'https://collegeportal-d2b98-default-rtdb.firebaseio.com',
+  projectId:         'collegeportal-d2b98',
+  storageBucket:     'collegeportal-d2b98.firebasestorage.app',
+  messagingSenderId: '219297076744',
+  appId:             '1:219297076744:web:825a6c587dbaee327e23bd',
+  measurementId:     'G-H7DFETRXSX',
+}
+
 /**
- * Load Firebase config from Vite env vars (VITE_FB_*).
- * Returns null if the required fields are not set.
+ * Returns the hardcoded Firebase config, falling back to Vite env vars
+ * only if the hardcoded config is somehow overridden.
  */
 export function getFbConfigFromEnv() {
-  const apiKey     = import.meta.env.VITE_FB_API_KEY
-  const projectId  = import.meta.env.VITE_FB_PROJECT_ID
-  if (!apiKey || !projectId) return null
-  return {
-    apiKey,
-    authDomain:        import.meta.env.VITE_FB_AUTH_DOMAIN        || `${projectId}.firebaseapp.com`,
-    projectId,
-    storageBucket:     import.meta.env.VITE_FB_STORAGE_BUCKET     || `${projectId}.appspot.com`,
-    messagingSenderId: import.meta.env.VITE_FB_MESSAGING_SENDER_ID || '',
-    appId:             import.meta.env.VITE_FB_APP_ID              || '',
-  }
+  return HARDCODED_FB_CONFIG
 }
 
 const FB_WRITE_TIMEOUT = 20000;
