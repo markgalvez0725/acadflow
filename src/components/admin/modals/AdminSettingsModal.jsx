@@ -488,9 +488,11 @@ function FirebaseTab() {
       ) : (
         /* ── Manual config (no env vars set) ── */
         <>
-          <div style={{ fontSize: 12, color: 'var(--yellow)', background: 'var(--surface2)', borderRadius: 8, padding: '8px 12px' }}>
-            No <code>VITE_FB_*</code> env vars detected. Enter credentials below, or add them to your <code>.env</code> file for automatic persistent connection.
-          </div>
+          {!fbConfig && (
+            <div style={{ fontSize: 12, color: 'var(--yellow)', background: 'var(--surface2)', borderRadius: 8, padding: '8px 12px' }}>
+              No <code>VITE_FB_*</code> env vars detected. Enter credentials below, or add them to your <code>.env</code> file for automatic persistent connection.
+            </div>
+          )}
           <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {FB_FIELDS.map(({ key, label, placeholder }) => (
               <div key={key}>

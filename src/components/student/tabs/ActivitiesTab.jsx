@@ -102,9 +102,10 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
           const sub = (act.submissions || {})[s.id] || {}
           const hasLink  = !!sub.link
           const score    = sub.score ?? null
-          const isPast   = act.dueAt ? Date.now() > act.dueAt : false
-          const tl       = act.dueAt ? timeLeft(act.dueAt) : null
+          const isPast   = act.deadline ? Date.now() > act.deadline : false
+          const tl       = act.deadline ? timeLeft(act.deadline) : null
           const maxScore = act.maxScore || 100
+          const hasRubric = !!(act.rubric?.length)
 
           // Status badge
           let badgeCls = 'badge-gray'
@@ -134,13 +135,40 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                 <div className="sa-act-meta">{act.subject}</div>
               )}
 
-              {act.description && (
-                <div className="sa-act-desc">{act.description}</div>
+              {act.instructions && (
+                <div className="sa-act-desc">{act.instructions}</div>
               )}
 
-              {act.dueAt && (
+              {act.deadline && (
                 <div className="sa-act-due">
-                  Due: {new Date(act.dueAt).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}
+                  Due: {new Date(act.deadline).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}
+                </div>
+              )}
+
+              {/* Rubric criteria */}
+              {hasRubric && (
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink2)', marginBottom: 4 }}>Grading Rubric</div>
+                  <div className="flex flex-wrap gap-1">
+                    {act.rubric.map(c => {
+                      const met = sub.rubricChecks?.[c.id]
+                      return (
+                        <span
+                          key={c.id}
+                          style={{
+                            fontSize: 11,
+                            padding: '2px 8px',
+                            borderRadius: 4,
+                            border: '1px solid var(--border)',
+                            background: met ? 'var(--green-l)' : 'var(--c-surface2)',
+                            color: met ? 'var(--c-green)' : 'var(--ink3)',
+                          }}
+                        >
+                          {met ? '✓' : '○'} {c.name} ({c.points}pt{c.points !== 1 ? 's' : ''})
+                        </span>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
 

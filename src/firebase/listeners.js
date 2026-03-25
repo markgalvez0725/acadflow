@@ -2,7 +2,7 @@
 // This module owns the _fbWriting flag so it can suppress onSnapshot echoes
 // during in-flight writes. It never imports React.
 import {
-  collection, doc, onSnapshot, getDoc, setDoc,
+  collection, doc, onSnapshot, getDoc, getDocs, setDoc,
 } from 'firebase/firestore'
 import { deserializeStudents } from '@/utils/attendance'
 import { decryptEJS, encryptEJS } from '@/utils/crypto'
@@ -127,13 +127,23 @@ export function fbStartListening(db, callbacks) {
   );
   _unsub.push(u4);
 
+  // ── notifications collection ──────────────────────────────────────────
+  const u6 = onSnapshot(
+    collection(db, 'notifications'),
+    snap => {
+      const notifs = [];
+      snap.forEach(d => notifs.push({ id: d.id, ...d.data() }));
+      onAdminNotifUpdate(notifs);
+    },
+    e => console.error('[Firebase] notifications listener error:', e.message)
+  );
+  _unsub.push(u6);
+
   // ── portal/settings (equiv scale, grade weights) ──────────────────────
-  let _settingsFirst = true;
   let _settingsWriteInFlight = false;
   const u5 = onSnapshot(
     doc(db, 'portal', 'settings'),
     snap => {
-      if (_settingsFirst) { _settingsFirst = false; return; }
       if (_settingsWriteInFlight) { _settingsWriteInFlight = false; return; }
       if (!snap.exists()) return;
       onSettingsUpdate(snap.data());
@@ -149,6 +159,10 @@ export function fbStartListening(db, callbacks) {
   };
 
   console.log('[Firebase] ✅ All listeners active.');
+
+  // Eager fetch — populate all collections immediately without waiting for
+  // onSnapshot warm-up. Each fetch is fire-and-forget; listeners stay live.
+  _eagerFetchAll(db, { onStudentsUpdate, onClassesUpdate, onMessagesUpdate, onActivitiesUpdate, onAdminNotifUpdate, onSettingsUpdate });
 }
 
 export function stopListening() {
@@ -168,6 +182,47 @@ export function startAdminNotifListener(db, onAdminNotifUpdate) {
     e => console.error('[Firebase] admin notif listener error:', e.message)
   );
   _unsub.push(u);
+}
+
+// ── Eager fetch for all collections on connect ────────────────────────────
+async function _eagerFetchAll(db, { onStudentsUpdate, onClassesUpdate, onMessagesUpdate, onActivitiesUpdate, onAdminNotifUpdate, onSettingsUpdate }) {
+  try {
+    const [studentsSnap, classesSnap, messagesSnap, activitiesSnap, notifsSnap, settingsSnap] = await Promise.all([
+      getDocs(collection(db, 'students')),
+      getDoc(doc(db, 'portal', 'classes')),
+      getDocs(collection(db, 'messages')),
+      getDocs(collection(db, 'activities')),
+      getDocs(collection(db, 'notifications')),
+      getDoc(doc(db, 'portal', 'settings')),
+    ]);
+
+    const students = [];
+    studentsSnap.forEach(d => students.push(d.data()));
+    if (students.length) onStudentsUpdate(deserializeStudents(students));
+
+    if (classesSnap.exists()) {
+      const list = classesSnap.data()?.list;
+      if (Array.isArray(list)) onClassesUpdate(list);
+    }
+
+    const messages = [];
+    messagesSnap.forEach(d => messages.push(d.data()));
+    onMessagesUpdate(messages);
+
+    const activities = [];
+    activitiesSnap.forEach(d => activities.push(d.data()));
+    onActivitiesUpdate(activities);
+
+    const notifs = [];
+    notifsSnap.forEach(d => notifs.push({ id: d.id, ...d.data() }));
+    onAdminNotifUpdate(notifs);
+
+    if (settingsSnap.exists()) onSettingsUpdate(settingsSnap.data());
+
+    console.log('[Firebase] ✅ Eager fetch complete.');
+  } catch (e) {
+    console.warn('[Firebase] Eager fetch failed (listeners will still deliver data):', e.message);
+  }
 }
 
 // ── Eager config fetch (retries on SDK warm-up errors) ───────────────────

@@ -91,9 +91,10 @@ export default function StudentLayout() {
   }, [students])
 
   // Force change password modal
-  const [forcePassOpen, setForcePassOpen] = useState(false)
+  const [forcePassOpen,    setForcePassOpen]    = useState(false)
+  const [forcePassIsForced, setForcePassIsForced] = useState(false)
   useEffect(() => {
-    if (student?.forceChangePassword) setForcePassOpen(true)
+    if (student?.forceChangePassword) { setForcePassIsForced(true); setForcePassOpen(true) }
   }, [student?.forceChangePassword])
 
   // Profile modal

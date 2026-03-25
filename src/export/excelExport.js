@@ -136,10 +136,10 @@ export function exportGradingSheet({ classId, subject, students, classes, eqScal
   const A_FTAVG = 3 + actCount * 2 + 1  // col 14
 
   // Quizzes sheet
-  const Q_NAME = 1
+  const Q_NAME = 1, Q_SNUM = 2
   const qzCount  = 5
-  const Q_QZ = Array.from({ length: qzCount }, (_, i) => 2 + i)  // cols 2..6 quizzes
-  const Q_AVG = 2 + qzCount  // col 7
+  const Q_QZ = Array.from({ length: qzCount }, (_, i) => 3 + i)  // cols 3..7 quizzes
+  const Q_AVG = 3 + qzCount  // col 8
 
   // Exams & Attendance sheet
   const E_NAME = 1, E_SNUM = 2
@@ -211,7 +211,7 @@ export function exportGradingSheet({ classId, subject, students, classes, eqScal
   freeze(wsAct, 2, 3)
 
   // ── Quizzes Sheet ─────────────────────────────────────────────────────────
-  const qzHdr1 = ['Student Name', ...Q_QZ.map((_, i) => `Quiz ${i + 1}`), 'Average']
+  const qzHdr1 = ['Student Name', 'Student No.', ...Q_QZ.map((_, i) => `Quiz ${i + 1}`), 'Average']
   const qzRows = [
     [`QUIZZES — ${subject}`],
     [`Class: ${cls.name || cls.id}`],
@@ -223,14 +223,15 @@ export function exportGradingSheet({ classId, subject, students, classes, eqScal
     const qzScores = comp.quizzes || []
     const row = [
       s.name,
+      s.id,
       ...Q_QZ.map((_, i) => qzScores[i] ?? ''),
       { f: `IFERROR(AVERAGE(${CL(Q_QZ[0])}${r}:${CL(Q_QZ[qzCount - 1])}${r}),"")` },
     ]
     qzRows.push(row)
   })
   const wsQz = mkWS(qzRows)
-  setColWidths(wsQz, [28, ...Array(qzCount).fill(10), 10])
-  freeze(wsQz, 1, 3)
+  setColWidths(wsQz, [28, 14, ...Array(qzCount).fill(10), 10])
+  freeze(wsQz, 2, 3)
 
   // ── Exams & Attendance Sheet ──────────────────────────────────────────────
   const examHdr = ['Student Name', 'Student No.',
@@ -305,7 +306,7 @@ export function exportGradingSheet({ classId, subject, students, classes, eqScal
     const exSet  = s.excuse?.[subject]     || new Set()
     const held   = getHeldDays(classId, subject, students)
     const attScore = held > 0
-      ? Math.round(((attSet.size + exSet.size * 0.5) / held) * 100)
+      ? Math.min(100, parseFloat(((attSet.size / held) * 100).toFixed(2)))
       : ''
 
     gsRows.push([
@@ -376,6 +377,91 @@ export function exportGradingSheet({ classId, subject, students, classes, eqScal
   const safeSub  = subject.replace(/[/\\:*?[\]]/g, '_').slice(0, 28)
   const safeDate = new Date().toISOString().slice(0, 10)
   XLSX.writeFile(wb, `GradingSheet_${safeSub}_${safeDate}.xlsx`)
+}
+
+// ── parseGradingSheetImport ───────────────────────────────────────────────
+/**
+ * Reads a grading-sheet XLSX workbook (produced by exportGradingSheet) and
+ * extracts per-student score data for re-import into the system.
+ *
+ * Column layout (0-based indices, post-fix layout):
+ *   Activities:         0=name, 1=studentId, 2–6=MT acts, 7–11=FT acts, 12=MT avg, 13=FT avg
+ *   Quizzes:            0=name, 1=studentId, 2–6=quiz scores, 7=avg
+ *   Exams & Attendance: 0=name, 1=studentId, 8=MT exam, 9=FT exam
+ *
+ * Data rows start at 0-based row index 3 (rows 0–2 are title/header rows).
+ *
+ * @param {object} workbook — SheetJS workbook object
+ * @returns {{ studentId:string, actAvg:number|null, qzAvg:number|null, mtExam:number|null, ftExam:number|null }[]}
+ */
+export function parseGradingSheetImport(workbook) {
+  const XLSX = window.XLSX
+  if (!XLSX) throw new Error('SheetJS not loaded')
+
+  const DATA_ROW = 3
+
+  function toAoa(sheetName) {
+    const ws = workbook.Sheets[sheetName]
+    if (!ws) return []
+    return XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+  }
+
+  function toN(v) {
+    const n = parseFloat(v)
+    return isNaN(n) ? null : n
+  }
+
+  function avgNonNull(vals) {
+    const nums = vals.map(toN).filter(x => x !== null)
+    if (!nums.length) return null
+    return parseFloat((nums.reduce((s, x) => s + x, 0) / nums.length).toFixed(2))
+  }
+
+  const actRows  = toAoa('Activities').slice(DATA_ROW)
+  const qzRows   = toAoa('Quizzes').slice(DATA_ROW)
+  const examRows = toAoa('Exams & Attendance').slice(DATA_ROW)
+
+  if (!examRows.length) throw new Error('Missing required sheet "Exams & Attendance"')
+  if (!actRows.length)  throw new Error('Missing required sheet "Activities"')
+
+  // Build lookup maps keyed by studentId
+  const actMap  = {}
+  const qzMap   = {}
+  const examMap = {}
+
+  // Activities: cols 2–6 = MT acts, 7–11 = FT acts; fallback to formula cells at 12/13
+  for (const row of actRows) {
+    const id = String(row[1] ?? '').trim()
+    if (!id) continue
+    const allActs = row.slice(2, 12)       // MT acts (2–6) + FT acts (7–11)
+    const computed = avgNonNull(allActs)
+    actMap[id] = computed !== null ? computed : (toN(row[12]) ?? toN(row[13]) ?? null)
+  }
+
+  // Quizzes: cols 2–6 = quiz scores; fallback to formula cell at col 7
+  for (const row of qzRows) {
+    const id = String(row[1] ?? '').trim()
+    if (!id) continue
+    const computed = avgNonNull(row.slice(2, 7))
+    qzMap[id] = computed !== null ? computed : (toN(row[7]) ?? null)
+  }
+
+  // Exams & Attendance: col 8 = MT exam, col 9 = FT exam (static values)
+  for (const row of examRows) {
+    const id = String(row[1] ?? '').trim()
+    if (!id) continue
+    examMap[id] = { mtExam: toN(row[8]), ftExam: toN(row[9]) }
+  }
+
+  const allIds = new Set([...Object.keys(actMap), ...Object.keys(qzMap), ...Object.keys(examMap)])
+
+  return [...allIds].map(studentId => ({
+    studentId,
+    actAvg: actMap[studentId]  ?? null,
+    qzAvg:  qzMap[studentId]   ?? null,
+    mtExam: examMap[studentId]?.mtExam ?? null,
+    ftExam: examMap[studentId]?.ftExam ?? null,
+  }))
 }
 
 // ── exportStudentRosterExcel ──────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, lazy, Suspense } from 'react'
+import React, { useState, useMemo, useCallback, useRef } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { sortByLastName } from '@/utils/format'
@@ -6,11 +6,10 @@ import {
   gradeInfo, combineEquiv, computeGrade, computeFinalGradeFromTerms,
   getHeldDays, gradeInfoForStudent, getGradeScaleLabel,
 } from '@/utils/grades'
+import { exportGradingSheet, parseGradingSheetImport } from '@/export/excelExport'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
-
-const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
 
 const GRADE_PER_PAGE = 10
 
@@ -395,7 +394,7 @@ function SortIcon({ col, sort }) {
 }
 
 // ── SubjectCard ───────────────────────────────────────────────────────────────
-function SubjectCard({ cls, sub, studs, eqScale, onEdit, onClear, onExport }) {
+function SubjectCard({ cls, sub, studs, eqScale, onEdit, onClear, onExport, onImport }) {
   const [sort, setSort]   = useState({ col: 'name', dir: 'asc' })
   const [page, setPage]   = useState(1)
 
@@ -479,7 +478,8 @@ function SubjectCard({ cls, sub, studs, eqScale, onEdit, onClear, onExport }) {
         </div>
         <div className="flex gap-1.5 flex-wrap flex-shrink-0">
           <button className="btn btn-primary btn-sm" onClick={() => onEdit(sub)}>✏️ Edit Grades</button>
-          <button className="btn btn-ghost btn-sm" onClick={() => onExport(sub)} title="Export grades">📤 Export</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => onExport(sub)} title="Export grading sheet">📤 Export</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => onImport(sub)} title="Import grading sheet">📥 Import</button>
           <button className="btn btn-warning btn-sm" onClick={() => onClear(sub)}
             title="Clear all grade data for this subject">🗑 Clear Grades</button>
         </div>
@@ -634,10 +634,11 @@ export default function GradesTab() {
   const { classes, students, eqScale, saveStudents } = useData()
   const { toast, openDialog } = useUI()
 
-  const [selClassId, setSelClassId]   = useState(() => classes[0]?.id || null)
-  const [search,     setSearch]       = useState('')
-  const [editModal,  setEditModal]    = useState(null) // subject string
-  const [exportModal, setExportModal] = useState(null) // subject string
+  const [selClassId, setSelClassId] = useState(() => classes[0]?.id || null)
+  const [search,     setSearch]     = useState('')
+  const [editModal,  setEditModal]  = useState(null) // subject string
+  const [importSub,  setImportSub]  = useState(null) // subject string for import
+  const importFileRef = useRef(null)
 
   // Auto-select first class if current selection no longer exists
   const cls = classes.find(c => c.id === selClassId) || classes[0] || null
@@ -678,6 +679,116 @@ export default function GradesTab() {
     }
   }
 
+  function handleExport(sub) {
+    exportGradingSheet({ classId: effectiveId, subject: sub, students, classes, eqScale })
+  }
+
+  async function handleImportFile(e) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow re-selecting same file
+    if (!file || !importSub) return
+
+    const XLSX = window.XLSX
+    if (!XLSX) { toast('SheetJS not loaded.', 'red'); return }
+
+    let entries
+    try {
+      const buf = await file.arrayBuffer()
+      const wb  = XLSX.read(buf, { type: 'array' })
+      entries   = parseGradingSheetImport(wb)
+    } catch (err) {
+      toast('Could not read file: ' + err.message, 'red')
+      return
+    }
+
+    if (!entries.length) {
+      toast('No student data found in this file.', 'red')
+      return
+    }
+
+    const sub = importSub
+    const ok  = await openDialog({
+      title: `Import grades for "${sub}"?`,
+      msg: `${entries.length} student record(s) found. Grade components will be updated and grades recomputed for matched students in ${cls?.name} ${cls?.section}.\n\nThis will overwrite existing grade data.`,
+      type: 'warning',
+      confirmLabel: 'Import Grades',
+      showCancel: true,
+    })
+    if (!ok) { setImportSub(null); return }
+
+    const now       = Date.now()
+    const entryMap  = Object.fromEntries(entries.map(en => [en.studentId, en]))
+    const clamp     = v => v !== null ? Math.min(100, Math.max(0, v)) : null
+
+    const updatedStudents = students.map(s => {
+      if (s.classId !== effectiveId && !s.classIds?.includes(effectiveId)) return s
+      const entry = entryMap[s.id]
+      if (!entry) return s
+
+      const ns   = { ...s, grades: { ...s.grades }, gradeComponents: { ...(s.gradeComponents || {}) }, gradeUploadedAt: { ...(s.gradeUploadedAt || {}) } }
+      const comp = { ...(ns.gradeComponents[sub] || {}) }
+
+      // Attendance — auto from records (matches system formula)
+      const attSet = s.attendance?.[sub] || new Set()
+      const held   = getHeldDays(effectiveId, sub, students)
+      const attV   = held > 0 ? Math.min(100, parseFloat(((attSet.size / held) * 100).toFixed(2))) : null
+
+      // Score components — from import file; fall back to existing stored values
+      const actV     = entry.actAvg !== null ? clamp(entry.actAvg)  : (comp.activities   ?? null)
+      const qzV      = entry.qzAvg  !== null ? clamp(entry.qzAvg)   : (comp.quizzes      ?? null)
+      const midExamV = entry.mtExam !== null ? clamp(entry.mtExam)  : (comp.midtermExam  ?? null)
+      const finExamV = entry.ftExam !== null ? clamp(entry.ftExam)  : (comp.finalsExam   ?? null)
+
+      // Persist raw inputs
+      if (actV     != null) comp.activities  = actV
+      if (qzV      != null) comp.quizzes     = qzV
+      if (midExamV != null) comp.midtermExam = midExamV
+      if (finExamV != null) comp.finalsExam  = finExamV
+
+      // Class Standing = avg(activities, quizzes, attendance)
+      const csParts = [actV, qzV, attV].filter(x => x !== null)
+      const cs = csParts.length
+        ? parseFloat((csParts.reduce((a, x) => a + x, 0) / csParts.length).toFixed(2))
+        : null
+
+      // Midterm Term = avg(CS, Midterm Exam)
+      if (midExamV !== null) {
+        const p = [cs, midExamV].filter(x => x !== null)
+        comp.midtermCS = cs
+        comp.midterm   = parseFloat((p.reduce((a, x) => a + x, 0) / p.length).toFixed(2))
+      }
+
+      // Finals Term = avg(CS, Finals Exam)
+      if (finExamV !== null) {
+        const p = [cs, finExamV].filter(x => x !== null)
+        comp.finalsCS = cs
+        comp.finals   = parseFloat((p.reduce((a, x) => a + x, 0) / p.length).toFixed(2))
+      }
+
+      // Final Grade % = avg(Midterm Term, Finals Term)
+      let finalGrade = null
+      if (comp.midterm != null || comp.finals != null) {
+        finalGrade = computeFinalGradeFromTerms(comp.midterm ?? null, comp.finals ?? null)
+      }
+
+      ns.grades[sub]          = finalGrade
+      ns.gradeComponents[sub] = comp
+      if (finalGrade !== null) ns.gradeUploadedAt[sub] = now
+
+      return ns
+    })
+
+    const studsInClass = students.filter(s => s.classId === effectiveId || s.classIds?.includes(effectiveId))
+    const changedIds   = studsInClass.map(s => s.id)
+    try {
+      await saveStudents(updatedStudents, changedIds)
+      toast(`Grades imported for "${sub}"!`, 'green')
+    } catch (err) {
+      toast('Saved locally — Firebase sync failed: ' + err.message, 'red')
+    }
+    setImportSub(null)
+  }
+
   return (
     <div>
       {/* Header */}
@@ -715,7 +826,8 @@ export default function GradesTab() {
             eqScale={eqScale}
             onEdit={sub => setEditModal(sub)}
             onClear={handleClear}
-            onExport={sub => setExportModal(sub)}
+            onExport={handleExport}
+            onImport={sub => { setImportSub(sub); importFileRef.current?.click() }}
           />
         ))
       )}
@@ -727,16 +839,14 @@ export default function GradesTab() {
           onClose={() => setEditModal(null)}
         />
       )}
-      {exportModal && (
-        <Suspense fallback={null}>
-          <ExportPreviewModal
-            type="grades"
-            classId={effectiveId}
-            subject={exportModal}
-            onClose={() => setExportModal(null)}
-          />
-        </Suspense>
-      )}
+
+      <input
+        type="file"
+        accept=".xlsx"
+        ref={importFileRef}
+        style={{ display: 'none' }}
+        onChange={handleImportFile}
+      />
     </div>
   )
 }

@@ -77,6 +77,11 @@ function buildUpdatedStudent(s, subject, classId, allActivities, allStudents) {
   }
 }
 
+// ── Rubric helpers ────────────────────────────────────────────────────
+function newCriterion() {
+  return { id: 'c' + Date.now() + Math.random().toString(36).slice(2, 5), name: '', points: 10 }
+}
+
 // ── Create / Edit Modal ───────────────────────────────────────────────
 function ActivityFormModal({ act, onClose }) {
   const { classes, db, fbReady } = useData()
@@ -86,7 +91,6 @@ function ActivityFormModal({ act, onClose }) {
   const [title,    setTitle]    = useState(act?.title || '')
   const [classId,  setClassId]  = useState(act?.classId || '')
   const [subject,  setSubject]  = useState(act?.subject || '')
-  const [maxScore, setMaxScore] = useState(String(act?.maxScore ?? 100))
   const [deadline, setDeadline] = useState(() => {
     if (act?.deadline) {
       const d = new Date(act.deadline)
@@ -96,39 +100,70 @@ function ActivityFormModal({ act, onClose }) {
     return defaultDeadlineStr()
   })
   const [instructions, setInstructions] = useState(act?.instructions || '')
+  const [rubric, setRubric] = useState(() => act?.rubric?.length ? act.rubric : [])
   const [err,     setErr]     = useState('')
   const [saving,  setSaving]  = useState(false)
 
   const selectedClass = classes.find(c => c.id === classId)
+
+  // maxScore is derived from rubric total if rubric exists, else 100
+  const maxScore = rubric.length
+    ? rubric.reduce((s, c) => s + (parseFloat(c.points) || 0), 0)
+    : 100
 
   function handleClassChange(id) {
     setClassId(id)
     setSubject('')
   }
 
+  function addCriterion() {
+    setRubric(prev => [...prev, newCriterion()])
+  }
+
+  function removeCriterion(id) {
+    setRubric(prev => prev.filter(c => c.id !== id))
+  }
+
+  function updateCriterion(id, field, val) {
+    setRubric(prev => prev.map(c => c.id === id ? { ...c, [field]: val } : c))
+  }
+
   async function handleSave() {
     setErr('')
-    const ms = parseFloat(maxScore) || 100
     if (!title.trim())   { setErr('Activity title is required.'); return }
     if (!classId)        { setErr('Please select a class.'); return }
     if (!subject)        { setErr('Please select a subject.'); return }
     if (!deadline)       { setErr('Please set a deadline.'); return }
-    if (ms < 1 || ms > 100) { setErr('Max score must be between 1 and 100.'); return }
     const dlTs = new Date(deadline).getTime()
     if (isNaN(dlTs))     { setErr('Invalid deadline date.'); return }
+
+    // Validate rubric if used
+    if (rubric.length) {
+      for (const c of rubric) {
+        if (!c.name.trim()) { setErr('Each rubric criterion must have a name.'); return }
+        const pts = parseFloat(c.points)
+        if (isNaN(pts) || pts < 1) { setErr('Each criterion must have at least 1 point.'); return }
+      }
+      if (maxScore < 1 || maxScore > 1000) { setErr('Rubric total must be between 1 and 1000.'); return }
+    }
+
     if (!fbReady || !db.current) { setErr('Firebase is required to post activities.'); return }
+
+    const cleanRubric = rubric.map(c => ({ id: c.id, name: c.name.trim(), points: parseFloat(c.points) || 0 }))
 
     setSaving(true)
     try {
       if (isEdit) {
         await updateDoc(doc(db.current, 'activities', act.id), {
-          title: title.trim(), classId, subject, maxScore: ms, deadline: dlTs, instructions: instructions.trim(),
+          title: title.trim(), classId, subject, maxScore, deadline: dlTs,
+          instructions: instructions.trim(), rubric: cleanRubric,
         })
       } else {
         const id = actId()
         await setDoc(doc(db.current, 'activities', id), {
-          id, title: title.trim(), classId, subject, maxScore: ms, deadline: dlTs,
-          instructions: instructions.trim(), createdAt: Date.now(), createdBy: 'admin', submissions: {},
+          id, title: title.trim(), classId, subject, maxScore, deadline: dlTs,
+          instructions: instructions.trim(), rubric: cleanRubric,
+          createdAt: Date.now(), createdBy: 'admin', submissions: {},
         })
       }
       toast(isEdit ? 'Activity updated!' : 'Activity posted!', 'green')
@@ -169,20 +204,58 @@ function ActivityFormModal({ act, onClose }) {
         </div>
       </div>
 
-      <div className="input-row mb-3">
-        <div className="field flex-1">
-          <label className="text-xs font-semibold text-ink2 mb-1 block">Max Score (1–100)</label>
-          <input className="input w-full" type="number" min="1" max="100" value={maxScore} onChange={e => setMaxScore(e.target.value)} />
-        </div>
-        <div className="field flex-1">
-          <label className="text-xs font-semibold text-ink2 mb-1 block">Deadline <span className="text-red-500">*</span></label>
-          <input className="input w-full" type="datetime-local" value={deadline} onChange={e => setDeadline(e.target.value)} />
-        </div>
+      <div className="field mb-3">
+        <label className="text-xs font-semibold text-ink2 mb-1 block">Deadline <span className="text-red-500">*</span></label>
+        <input className="input w-full" type="datetime-local" value={deadline} onChange={e => setDeadline(e.target.value)} />
       </div>
 
       <div className="field mb-3">
         <label className="text-xs font-semibold text-ink2 mb-1 block">Instructions <span className="font-normal text-ink3">(optional)</span></label>
         <textarea className="input w-full" rows={3} value={instructions} onChange={e => setInstructions(e.target.value)} placeholder="Brief instructions for students…" />
+      </div>
+
+      {/* Rubric builder */}
+      <div className="field mb-3">
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-xs font-semibold text-ink2">
+            Grading Rubric <span className="font-normal text-ink3">(optional)</span>
+          </label>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={addCriterion}>+ Add Criterion</button>
+        </div>
+
+        {rubric.length === 0 ? (
+          <p className="text-xs text-ink3">No rubric set — max score defaults to 100.</p>
+        ) : (
+          <>
+            <div className="flex flex-col gap-2">
+              {rubric.map((c, i) => (
+                <div key={c.id} className="flex gap-2 items-center">
+                  <span className="text-xs text-ink3 w-4">{i + 1}.</span>
+                  <input
+                    className="input flex-1"
+                    placeholder="Criterion name (e.g. Clarity)"
+                    value={c.name}
+                    onChange={e => updateCriterion(c.id, 'name', e.target.value)}
+                  />
+                  <input
+                    className="input"
+                    type="number"
+                    min="1"
+                    style={{ width: 70 }}
+                    placeholder="pts"
+                    value={c.points}
+                    onChange={e => updateCriterion(c.id, 'points', e.target.value)}
+                  />
+                  <span className="text-xs text-ink3">pts</span>
+                  <button type="button" className="btn btn-ghost btn-sm text-red-500" onClick={() => removeCriterion(c.id)}>✕</button>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-ink2 mt-2">
+              Total: <strong>{maxScore} pts</strong> (max score set automatically from rubric)
+            </p>
+          </>
+        )}
       </div>
 
       {err && <div className="err-msg mb-2">{err}</div>}
@@ -201,8 +274,11 @@ function ActivityFormModal({ act, onClose }) {
 function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
   const { students, activities, saveStudents, db, fbReady } = useData()
   const { toast, openDialog } = useUI()
-  const [scores, setScores] = useState({})
-  const [saving, setSaving] = useState({})
+  const [scores,        setScores]       = useState({})
+  const [rubricChecks,  setRubricChecks] = useState({}) // { [studentId]: { [criterionId]: bool } }
+  const [saving,        setSaving]       = useState({})
+
+  const hasRubric = !!(act.rubric?.length)
 
   const now    = Date.now()
   const isPast = act.deadline < now
@@ -225,6 +301,16 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
     return mins + 'm'
   }, [act.deadline, isPast])
 
+  function toggleRubricCheck(studentId, criterionId) {
+    setRubricChecks(prev => {
+      const cur = prev[studentId] || {}
+      const updated = { ...cur, [criterionId]: !cur[criterionId] }
+      const autoScore = act.rubric.reduce((s, c) => s + (updated[c.id] ? (parseFloat(c.points) || 0) : 0), 0)
+      setScores(s => ({ ...s, [studentId]: String(autoScore) }))
+      return { ...prev, [studentId]: updated }
+    })
+  }
+
   async function handleSaveScore(s) {
     const raw = scores[s.id]
     if (raw === undefined || raw === '') return
@@ -235,12 +321,16 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
     }
     if (!fbReady || !db.current) { toast('Firebase not connected.', 'red'); return }
 
+    const rubricSnapshot = hasRubric ? (rubricChecks[s.id] || {}) : undefined
+
     setSaving(prev => ({ ...prev, [s.id]: true }))
     try {
-      await updateDoc(doc(db.current, 'activities', act.id), {
+      const update = {
         [`submissions.${s.id}.score`]:  score,
         [`submissions.${s.id}.graded`]: true,
-      })
+      }
+      if (rubricSnapshot !== undefined) update[`submissions.${s.id}.rubricChecks`] = rubricSnapshot
+      await updateDoc(doc(db.current, 'activities', act.id), update)
       // Update local student grade components
       const updated = buildUpdatedStudent(s, act.subject, act.classId, activities, students)
       if (updated) await saveStudents(students.map(x => x.id === s.id ? updated : x), [s.id])
@@ -328,7 +418,6 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
         <div>
           <h3 className="text-lg font-bold text-ink">📋 {act.title}</h3>
           <p className="text-xs text-ink2 mt-0.5">
-            {(() => { const c = students.find(s => s.classId === act.classId); const cls2 = c ? null : null; return '' })()}
             {act.subject} · Max {act.maxScore} pts · Deadline: {dlLabel}
           </p>
           <p className="text-xs text-ink2">
@@ -355,6 +444,20 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
         </div>
       )}
 
+      {/* Rubric summary */}
+      {hasRubric && (
+        <div className="mb-3" style={{ background: 'var(--c-surface2)', borderRadius: 6, padding: '10px 14px' }}>
+          <div className="text-xs font-semibold text-ink2 mb-1">📊 Grading Rubric</div>
+          <div className="flex flex-wrap gap-2">
+            {act.rubric.map(c => (
+              <span key={c.id} style={{ fontSize: 11, background: 'var(--c-surface)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 8px', color: 'var(--ink2)' }}>
+                {c.name} <strong>{c.points}pt{c.points !== 1 ? 's' : ''}</strong>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Submissions table */}
       {!enrolledStudents.length ? (
         <div className="empty">No registered students in this class yet.</div>
@@ -366,6 +469,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                 <th>Student</th>
                 <th>Status</th>
                 <th>Submission</th>
+                {hasRubric && <th>Rubric</th>}
                 <th>Score /{act.maxScore}</th>
                 <th>Save</th>
               </tr>
@@ -379,6 +483,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                   ? new Date(sub.submittedAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
                   : '—'
                 const inputVal = scores[s.id] !== undefined ? scores[s.id] : String(curScore)
+                const checks = rubricChecks[s.id] || {}
                 return (
                   <tr key={s.id}>
                     <td>
@@ -410,6 +515,23 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                         <span style={{ color: 'var(--ink3)', fontSize: 11 }}>No submission</span>
                       )}
                     </td>
+                    {hasRubric && (
+                      <td>
+                        <div className="flex flex-col gap-1">
+                          {act.rubric.map(c => (
+                            <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                              <input
+                                type="checkbox"
+                                checked={!!(checks[c.id])}
+                                onChange={() => toggleRubricCheck(s.id, c.id)}
+                                style={{ accentColor: 'var(--c-accent)' }}
+                              />
+                              {c.name} <span style={{ color: 'var(--ink3)' }}>({c.points}pt{c.points !== 1 ? 's' : ''})</span>
+                            </label>
+                          ))}
+                        </div>
+                      </td>
+                    )}
                     <td>
                       <input
                         type="number"
