@@ -4280,18 +4280,59 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 // Leave empty strings to run in local-only / demo mode (no real-time sync).
 // NEVER commit real credentials to a public repository.
 // ── Firebase project configuration ──
-// Credentials are entered via Admin → Settings → Firebase and stored encrypted.
-// This object is kept as a no-op placeholder for compatibility.
-const COLLEGE_PORTAL_CONFIG = { firebase: {} };
+// ═══════════════════════════════════════════════════════════════════════════
+// HOW TO MAKE FIREBASE WORK ON ALL BROWSERS / DEVICES:
+//
+// Fill in your Firebase credentials below. These act as the default config
+// for ALL users on ANY device — no per-browser setup needed.
+//
+// Get them from: Firebase Console → ⚙️ Project Settings → Your apps → Web app → firebaseConfig
+//
+// Example:
+//   apiKey:            "AIzaSyABC123...",
+//   projectId:         "my-school-portal",
+//   authDomain:        "my-school-portal.firebaseapp.com",
+//   appId:             "1:123456789:web:abc123...",
+//   messagingSenderId: "123456789"
+// ═══════════════════════════════════════════════════════════════════════════
+const COLLEGE_PORTAL_CONFIG = {
+  firebase: {
+    apiKey:            "AIzaSyDXHkKZlDPs1oSWWtELXqXF2YVT9T73CJA",   // ← PASTE your apiKey here
+    projectId:         "collegeportal-d2b98",   // ← PASTE your projectId here
+    authDomain:        "collegeportal-d2b98.firebaseapp.com",   // ← PASTE your authDomain here (or leave blank — auto-filled)
+    appId:             "1:219297076744:web:825a6c587dbaee327e23bd",   // ← PASTE your appId here
+    messagingSenderId: "219297076744"    // ← PASTE your messagingSenderId here
+  }
+};
 
 (function seedDeployConfig(){
-  // Firebase credentials are now entered via the Developer Console (Ctrl+Shift+D).
-  // This function only checks whether a config exists and sets the missing flag.
+  // Priority order for Firebase config:
+  //   1. Encrypted localStorage (set via Dev Console on this device)
+  //   2. Hardcoded COLLEGE_PORTAL_CONFIG above ← NEW: works on ALL devices/browsers
+  //   3. Missing — user must configure via Dev Console
   try{
     const hasEnc = !!localStorage.getItem('cp_firebase_enc');
-    if(!hasEnc){
-      window._fbConfigMissing = true;
-      console.warn('[AcadFlow] ⚠️ No Firebase config found. Open Dev Console (Ctrl+Shift+D) to connect.');
+    const hasPlain = !!localStorage.getItem('cp_firebase');
+    const hardcoded = COLLEGE_PORTAL_CONFIG?.firebase;
+    const hasHardcoded = hardcoded?.apiKey && hardcoded?.projectId;
+
+    if(!hasEnc && !hasPlain){
+      if(hasHardcoded){
+        // Hardcoded credentials found — pre-populate FB so any browser works
+        window._hardcodedFbConfig = {
+          configured:        true,
+          apiKey:            hardcoded.apiKey,
+          projectId:         hardcoded.projectId,
+          authDomain:        hardcoded.authDomain || (hardcoded.projectId + '.firebaseapp.com'),
+          appId:             hardcoded.appId             || '',
+          messagingSenderId: hardcoded.messagingSenderId || ''
+        };
+        window._fbConfigMissing = false;
+        console.log('[AcadFlow] ✅ Using hardcoded Firebase config — project:', hardcoded.projectId);
+      } else {
+        window._fbConfigMissing = true;
+        console.warn('[AcadFlow] ⚠️ No Firebase config found. Fill in COLLEGE_PORTAL_CONFIG in index.html OR open Dev Console (Ctrl+Shift+D) to connect.');
+      }
     }
   }catch(e){ window._fbConfigMissing = true; }
 })();
@@ -4425,7 +4466,7 @@ async function decryptFbConfig(blob){
 
 // Load FB config from encrypted storage (cp_firebase_enc) or fallback plaintext (cp_firebase)
 async function loadFbConfigFromStorage(){
-  // Primary: encrypted storage only
+  // Priority 1: encrypted localStorage (device-specific, set via Dev Console)
   const enc = localStorage.getItem('cp_firebase_enc');
   if(enc){
     const obj = await decryptFbConfig(enc);
@@ -4448,6 +4489,11 @@ async function loadFbConfigFromStorage(){
     }catch(e){}
     // Invalid plaintext — remove it
     localStorage.removeItem('cp_firebase');
+  }
+  // Priority 2: hardcoded config in COLLEGE_PORTAL_CONFIG (works on ALL browsers/devices)
+  if(window._hardcodedFbConfig){
+    console.log('[AcadFlow] Using hardcoded Firebase config.');
+    return window._hardcodedFbConfig;
   }
   return null;
 }
