@@ -2,7 +2,7 @@ import React from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { LayoutDashboard, School, Users, BookOpen, CalendarCheck, Bell, ClipboardList, Settings, LogOut } from 'lucide-react'
+import { LayoutDashboard, School, Users, BookOpen, CalendarCheck, Bell, ClipboardList, Settings, LogOut, FileQuestion } from 'lucide-react'
 
 const NAV_GROUPS = [
   {
@@ -23,6 +23,7 @@ const NAV_GROUPS = [
     items: [
       { id: 'grades',     label: 'Grades',     Icon: BookOpen },
       { id: 'attendance', label: 'Attendance', Icon: CalendarCheck },
+      { id: 'quizzes',    label: 'Quizzes',    Icon: FileQuestion },
     ],
   },
   {

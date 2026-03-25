@@ -32,6 +32,7 @@ let _unsub = [];
  *   onMessagesUpdate: (msgs: any[])     => void,
  *   onActivitiesUpdate: (acts: any[])   => void,
  *   onAdminNotifUpdate: (notifs: any[]) => void,
+ *   onQuizzesUpdate: (quizzes: any[])   => void,
  * }} callbacks
  */
 export function fbStartListening(db, callbacks) {
@@ -43,6 +44,7 @@ export function fbStartListening(db, callbacks) {
     onMessagesUpdate,
     onActivitiesUpdate,
     onAdminNotifUpdate,
+    onQuizzesUpdate,
   } = callbacks;
 
   // Stop any previous listeners
@@ -144,6 +146,20 @@ export function fbStartListening(db, callbacks) {
   );
   _unsub.push(u6);
 
+  // ── quizzes collection ────────────────────────────────────────────────
+  if (onQuizzesUpdate) {
+    const u7 = onSnapshot(
+      collection(db, 'quizzes'),
+      snap => {
+        const quizzes = [];
+        snap.forEach(d => quizzes.push(d.data()));
+        onQuizzesUpdate(quizzes);
+      },
+      e => console.error('[Firebase] quizzes listener error:', e.message)
+    );
+    _unsub.push(u7);
+  }
+
   // ── portal/settings (equiv scale, grade weights) ──────────────────────
   let _settingsWriteInFlight = false;
   const u5 = onSnapshot(
@@ -167,7 +183,7 @@ export function fbStartListening(db, callbacks) {
 
   // Eager fetch — populate all collections immediately without waiting for
   // onSnapshot warm-up. Each fetch is fire-and-forget; listeners stay live.
-  _eagerFetchAll(db, { onStudentsUpdate, onClassesUpdate, onMessagesUpdate, onActivitiesUpdate, onAdminNotifUpdate, onSettingsUpdate });
+  _eagerFetchAll(db, { onStudentsUpdate, onClassesUpdate, onMessagesUpdate, onActivitiesUpdate, onAdminNotifUpdate, onSettingsUpdate, onQuizzesUpdate });
 }
 
 export function stopListening() {
@@ -190,12 +206,12 @@ export function startAdminNotifListener(db, onAdminNotifUpdate) {
 }
 
 // ── Eager fetch for all collections on connect ────────────────────────────
-async function _eagerFetchAll(db, { onStudentsUpdate, onClassesUpdate, onMessagesUpdate, onActivitiesUpdate, onAdminNotifUpdate, onSettingsUpdate }) {
+async function _eagerFetchAll(db, { onStudentsUpdate, onClassesUpdate, onMessagesUpdate, onActivitiesUpdate, onAdminNotifUpdate, onSettingsUpdate, onQuizzesUpdate }) {
   try {
     const timeout = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('eager fetch timeout')), 20000)
     );
-    const [studentsSnap, classesSnap, messagesSnap, activitiesSnap, notifsSnap, settingsSnap] = await Promise.race([
+    const [studentsSnap, classesSnap, messagesSnap, activitiesSnap, notifsSnap, settingsSnap, quizzesSnap] = await Promise.race([
       Promise.all([
         getDocs(collection(db, 'students')),
         getDoc(doc(db, 'portal', 'classes')),
@@ -203,6 +219,7 @@ async function _eagerFetchAll(db, { onStudentsUpdate, onClassesUpdate, onMessage
         getDocs(collection(db, 'activities')),
         getDocs(collection(db, 'notifications')),
         getDoc(doc(db, 'portal', 'settings')),
+        getDocs(collection(db, 'quizzes')),
       ]),
       timeout,
     ]);
@@ -228,6 +245,12 @@ async function _eagerFetchAll(db, { onStudentsUpdate, onClassesUpdate, onMessage
     onAdminNotifUpdate(adminDoc ? (adminDoc.data().items || []) : []);
 
     if (settingsSnap.exists()) onSettingsUpdate(settingsSnap.data());
+
+    if (onQuizzesUpdate) {
+      const quizzes = [];
+      quizzesSnap.forEach(d => quizzes.push(d.data()));
+      onQuizzesUpdate(quizzes);
+    }
 
     console.log('[Firebase] ✅ Eager fetch complete.');
   } catch (e) {

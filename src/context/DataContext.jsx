@@ -14,6 +14,7 @@ export function DataProvider({ children }) {
   const [messages, setMessages]         = useState([])
   const [activities, setActivities]     = useState([])
   const [adminNotifs, setAdminNotifs]   = useState([])
+  const [quizzes, setQuizzes]           = useState([])
   const [fbReady, setFbReady]           = useState(false)
   const [fbConfig, setFbConfig]         = useState(null) // decrypted config object
   const dbRef = useRef(null)
@@ -80,6 +81,7 @@ export function DataProvider({ children }) {
       onMessagesUpdate:   setMessages,
       onActivitiesUpdate: setActivities,
       onAdminNotifUpdate: setAdminNotifs,
+      onQuizzesUpdate:    setQuizzes,
       onConfigUpdate: async ({ ejsConfig }) => {
         if (ejsConfig) {
           setEjs({ ...ejsConfig, configured: true })
@@ -116,6 +118,7 @@ export function DataProvider({ children }) {
       onMessagesUpdate:   setMessages,
       onActivitiesUpdate: setActivities,
       onAdminNotifUpdate: setAdminNotifs,
+      onQuizzesUpdate:    setQuizzes,
       onConfigUpdate: async ({ ejsConfig }) => {
         if (ejsConfig) {
           setEjs({ ...ejsConfig, configured: true })
@@ -187,6 +190,7 @@ export function DataProvider({ children }) {
       messages, setMessages,
       activities, setActivities,
       adminNotifs, setAdminNotifs,
+      quizzes, setQuizzes,
       fbReady, fbConfig, reinitFirebase,
       db: dbRef,
       ejs, setEjs, saveEjs,

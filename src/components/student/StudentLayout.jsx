@@ -7,7 +7,7 @@ import ThemeToggle from '@/components/primitives/ThemeToggle'
 import ToastManager from '@/components/primitives/ToastManager'
 import Dialog from '@/components/primitives/Dialog'
 import FloatingMessenger from './FloatingMessenger'
-import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell } from 'lucide-react'
+import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion } from 'lucide-react'
 
 // Lazy-load tabs
 const OverviewTab      = lazy(() => import('./tabs/OverviewTab'))
@@ -15,6 +15,7 @@ const GradesTab        = lazy(() => import('./tabs/GradesTab'))
 const AttendanceTab    = lazy(() => import('./tabs/AttendanceTab'))
 const ActivitiesTab    = lazy(() => import('./tabs/ActivitiesTab'))
 const NotificationsTab = lazy(() => import('./tabs/NotificationsTab'))
+const StudentQuizTab   = lazy(() => import('./tabs/QuizTab'))
 
 // Lazy-load modals
 const EditProfileModal         = lazy(() => import('./modals/EditProfileModal'))
@@ -26,12 +27,13 @@ const NAV_ITEMS = [
   { id: 'grades',        label: 'Grades',         Icon: BookOpen },
   { id: 'attendance',    label: 'Attendance',     Icon: CalendarCheck },
   { id: 'activities',    label: 'Activities',     Icon: ClipboardList },
+  { id: 'quizzes',       label: 'Quizzes',        Icon: FileQuestion },
   { id: 'notifications', label: 'Notifications',  Icon: Bell },
 ]
 
 export default function StudentLayout() {
   const { studentTab, setStudentTab, toastQueue, dismissToast, dialog, resolveDialog, toast } = useUI()
-  const { students, classes, messages, activities, db, fbReady } = useData()
+  const { students, classes, messages, activities, quizzes, db, fbReady } = useData()
   const { currentStudent, setCurrentStudent, logout } = useAuth()
 
   // Resolve pending student (session restore — only id is known until students load)
@@ -102,6 +104,18 @@ export default function StudentLayout() {
   const [actionSheetOpen, setActionSheetOpen] = useState(false)
 
   const unreadNotifCount = studentNotifs.filter(n => !n.read).length
+
+  // Open quizzes the student hasn't taken yet
+  const openQuizCount = (() => {
+    if (!student) return 0
+    const now = Date.now()
+    const studentClassIds = student.classIds?.length ? student.classIds : (student.classId ? [student.classId] : [])
+    return quizzes.filter(q =>
+      q.classIds?.some(id => studentClassIds.includes(id)) &&
+      now >= q.openAt && now <= q.closeAt &&
+      !q.submissions?.[student.id]
+    ).length
+  })()
   const unreadMsgCount = messages.filter(m => {
     if (!student) return false
     const id = student.id
@@ -180,6 +194,7 @@ export default function StudentLayout() {
           {studentTab === 'grades'        && <GradesTab        student={student} viewClassId={effectiveClassId} classes={classes} />}
           {studentTab === 'attendance'    && <AttendanceTab    student={student} viewClassId={effectiveClassId} classes={classes} />}
           {studentTab === 'activities'    && <ActivitiesTab    student={student} viewClassId={effectiveClassId} activities={activities} />}
+          {studentTab === 'quizzes'       && <StudentQuizTab   student={student} viewClassId={effectiveClassId} />}
           {studentTab === 'notifications' && <NotificationsTab student={student} notifs={studentNotifs} setNotifs={setStudentNotifs} />}
         </Suspense>
       </div>
@@ -187,7 +202,7 @@ export default function StudentLayout() {
       {/* Bottom nav */}
       <nav className="student-bottom-nav">
         {NAV_ITEMS.map(item => {
-          const badge = item.id === 'notifications' ? unreadNotifCount : 0
+          const badge = item.id === 'notifications' ? unreadNotifCount : item.id === 'quizzes' ? openQuizCount : 0
           return (
             <button
               key={item.id}
