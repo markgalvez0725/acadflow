@@ -1,4 +1,4 @@
-import React, { useState, useMemo, lazy, Suspense } from 'react'
+import React, { useState, useMemo, useRef, lazy, Suspense } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { sortByLastName } from '@/utils/format'
@@ -11,6 +11,301 @@ const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPr
 
 const ATT_PER_PAGE = 10
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+// ── ImportAttendanceModal ──────────────────────────────────────────────────────
+// Accepts an Excel file (.xlsx / .xls / .csv) where:
+//   - Column A  : Student No. (matches student.id)
+//   - Column B+ : Date columns (header = YYYY-MM-DD)
+//                 Cell values: "P" / "present"  → present
+//                              "E" / "excuse"   → excused
+//                              "A" / "absent"   → absent (or empty)
+// The sheet name should be the subject name, or the user selects the subject.
+function ImportAttendanceModal({ classId, subject, onClose }) {
+  const { students, saveStudents } = useData()
+  const { toast } = useUI()
+  const fileRef = useRef(null)
+
+  const [file,    setFile]    = useState(null)
+  const [preview, setPreview] = useState(null)  // { rows, dates, matched, unmatched }
+  const [error,   setError]   = useState(null)
+  const [mode,    setMode]    = useState('merge') // 'merge' | 'replace'
+  const [saving,  setSaving]  = useState(false)
+  const [parsing, setParsing] = useState(false)
+
+  const studs = useMemo(
+    () => students.filter(s => s.classId === classId || s.classIds?.includes(classId)),
+    [students, classId]
+  )
+
+  function reset() {
+    setFile(null); setPreview(null); setError(null)
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
+  function normaliseStatus(raw) {
+    if (!raw) return 'absent'
+    const v = String(raw).trim().toLowerCase()
+    if (v === 'p' || v === 'present' || v === '1') return 'present'
+    if (v === 'e' || v === 'excuse' || v === 'excused') return 'excuse'
+    return 'absent'
+  }
+
+  function isDateHeader(val) {
+    if (!val) return false
+    // Accept YYYY-MM-DD, M/D/YYYY, D/M/YYYY, or Excel date serials (number)
+    if (typeof val === 'number') return val > 1000  // Excel serial
+    const s = String(val).trim()
+    return /^\d{4}-\d{2}-\d{2}$/.test(s) || /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)
+  }
+
+  function toDateStr(val) {
+    if (typeof val === 'number') {
+      // Excel serial → JS Date
+      const d = new Date(Math.round((val - 25569) * 86400 * 1000))
+      return d.toISOString().slice(0, 10)
+    }
+    const s = String(val).trim()
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+    // M/D/YYYY or D/M/YYYY — treat as M/D/YYYY (common in PH Excel exports)
+    const parts = s.split('/')
+    if (parts.length === 3) {
+      const [m, d, y] = parts
+      return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+    }
+    return null
+  }
+
+  async function handleFile(e) {
+    const f = e.target.files[0]
+    if (!f) return
+    setFile(f); setError(null); setPreview(null)
+    setParsing(true)
+    try {
+      const XLSX = window.XLSX
+      if (!XLSX) throw new Error('SheetJS not loaded. Check your internet connection.')
+
+      const buf  = await f.arrayBuffer()
+      const wb   = XLSX.read(buf, { type: 'array', cellDates: false })
+
+      // Try to find the sheet matching the subject name; fallback to first sheet
+      const sheetName = wb.SheetNames.find(n => n.toLowerCase() === subject.toLowerCase())
+        ?? wb.SheetNames[0]
+      const ws = wb.Sheets[sheetName]
+      const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+
+      if (raw.length < 2) throw new Error('Sheet appears empty.')
+
+      const header = raw[0]
+      // Find student-id column (first column with "id", "no", "student no", or column index 0)
+      let idCol = header.findIndex(h => /student.?no|id|student.?id/i.test(String(h)))
+      if (idCol < 0) idCol = 0
+
+      // Find date columns
+      const dateCols = []
+      header.forEach((h, i) => {
+        if (i === idCol) return
+        const ds = toDateStr(h)
+        if (ds) dateCols.push({ col: i, date: ds })
+      })
+
+      if (dateCols.length === 0) throw new Error('No date columns found. Headers must be YYYY-MM-DD or M/D/YYYY.')
+
+      // Build preview rows
+      const byId = {}
+      studs.forEach(s => { byId[s.id] = s })
+
+      const rows     = []
+      const matched  = new Set()
+      const unmatched = []
+
+      for (let r = 1; r < raw.length; r++) {
+        const row = raw[r]
+        const sid = String(row[idCol] || '').trim()
+        if (!sid) continue
+
+        const student = byId[sid]
+        const statuses = {}
+        dateCols.forEach(({ col, date }) => {
+          statuses[date] = normaliseStatus(row[col])
+        })
+
+        if (student) {
+          matched.add(sid)
+          rows.push({ student, statuses })
+        } else {
+          unmatched.push(sid)
+        }
+      }
+
+      setPreview({ rows, dates: dateCols.map(d => d.date), matched: [...matched], unmatched })
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setParsing(false)
+    }
+  }
+
+  async function applyImport() {
+    if (!preview || preview.rows.length === 0) return
+    setSaving(true)
+    try {
+      const changedIds = new Set()
+      const studentsMap = {}
+      students.forEach(s => { studentsMap[s.id] = { ...s, attendance: { ...(s.attendance || {}) }, excuse: { ...(s.excuse || {}) } } })
+
+      preview.rows.forEach(({ student, statuses }) => {
+        const ns = studentsMap[student.id]
+        if (!ns) return
+
+        const attSet = new Set(mode === 'merge' ? (ns.attendance[subject] || new Set()) : [])
+        const excSet = new Set(mode === 'merge' ? (ns.excuse[subject]    || new Set()) : [])
+
+        Object.entries(statuses).forEach(([date, status]) => {
+          // Always clear the date first, then re-apply
+          attSet.delete(date)
+          excSet.delete(date)
+          if (status === 'present') attSet.add(date)
+          else if (status === 'excuse') excSet.add(date)
+        })
+
+        ns.attendance[subject] = attSet
+        ns.excuse[subject]     = excSet
+        changedIds.add(student.id)
+      })
+
+      const updated = students.map(s => studentsMap[s.id] || s)
+      await saveStudents(updated, [...changedIds])
+      toast(`Imported attendance for ${changedIds.size} student(s) — ${preview.dates.length} date(s).`, 'green')
+      onClose()
+    } catch (err) {
+      toast('Import failed: ' + err.message, 'red')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const STATUS_COLORS = { present: 'var(--green)', excuse: 'var(--purple)', absent: 'var(--red)' }
+  const STATUS_LABELS = { present: 'P', excuse: 'E', absent: 'A' }
+
+  return (
+    <Modal onClose={onClose} size="xl">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h3 className="mb-0">📥 Import Attendance</h3>
+          <p className="modal-sub mb-0">{subject}</p>
+        </div>
+      </div>
+
+      {/* Format hint */}
+      <div className="rounded-lg p-3 mb-4 text-xs" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
+        <strong>Expected format:</strong> Column A = Student No., remaining columns = dates (header: YYYY-MM-DD or M/D/YYYY).
+        Cell values: <strong>P</strong> / Present, <strong>E</strong> / Excuse, <strong>A</strong> / Absent (or blank).
+        Sheet name should match the subject name for auto-detection.
+      </div>
+
+      {/* File picker */}
+      <div className="mb-3">
+        <label className="block text-xs font-semibold text-ink2 mb-1">Select Excel / CSV file</label>
+        <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv"
+          className="input" style={{ paddingTop: 6, paddingBottom: 6 }}
+          onChange={handleFile} />
+      </div>
+
+      {parsing && <div className="text-sm text-ink2 mb-3">Parsing file…</div>}
+      {error   && <div className="rounded-lg p-3 mb-3 text-sm" style={{ background: 'var(--red-l)', color: 'var(--red)' }}>⚠ {error}</div>}
+
+      {preview && (
+        <>
+          {/* Match summary */}
+          <div className="flex gap-3 mb-3 flex-wrap">
+            <div className="rounded-lg p-2.5 text-xs flex-1" style={{ background: 'var(--green-l)', border: '1px solid var(--green)' }}>
+              <strong style={{ color: 'var(--green)' }}>{preview.matched.length}</strong>
+              <span className="text-ink2 ml-1">student(s) matched</span>
+            </div>
+            <div className="rounded-lg p-2.5 text-xs flex-1" style={{ background: preview.unmatched.length ? 'var(--yellow-l)' : 'var(--bg)', border: `1px solid ${preview.unmatched.length ? 'var(--yellow)' : 'var(--border)'}` }}>
+              <strong style={{ color: preview.unmatched.length ? 'var(--yellow)' : 'var(--ink2)' }}>{preview.unmatched.length}</strong>
+              <span className="text-ink2 ml-1">unmatched ID(s)</span>
+              {preview.unmatched.length > 0 && (
+                <div className="mt-1 text-ink3">{preview.unmatched.join(', ')}</div>
+              )}
+            </div>
+            <div className="rounded-lg p-2.5 text-xs flex-1" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
+              <strong className="text-ink">{preview.dates.length}</strong>
+              <span className="text-ink2 ml-1">date(s) detected</span>
+            </div>
+          </div>
+
+          {/* Import mode */}
+          <div className="flex gap-3 mb-3">
+            {[
+              { val: 'merge',   label: '🔀 Merge',   desc: 'Add imported dates; keep existing records' },
+              { val: 'replace', label: '♻ Replace',  desc: 'Overwrite this subject\'s attendance entirely' },
+            ].map(opt => (
+              <label key={opt.val} className="flex items-start gap-2 cursor-pointer flex-1 rounded-lg p-2.5"
+                style={{ border: `1.5px solid ${mode === opt.val ? 'var(--accent)' : 'var(--border)'}`, background: mode === opt.val ? 'var(--accent-l)' : 'var(--surface)' }}>
+                <input type="radio" name="att-import-mode" value={opt.val}
+                  checked={mode === opt.val} onChange={() => setMode(opt.val)}
+                  className="mt-0.5" />
+                <div>
+                  <div className="text-sm font-semibold">{opt.label}</div>
+                  <div className="text-xs text-ink2">{opt.desc}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+
+          {/* Preview table (first 5 students, first 8 dates) */}
+          {preview.rows.length > 0 && (
+            <div className="mb-3">
+              <div className="text-xs font-bold text-ink2 mb-1 uppercase tracking-wider">Preview (first {Math.min(5, preview.rows.length)} rows)</div>
+              <div className="tbl-wrap" style={{ maxHeight: 200, overflowY: 'auto' }}>
+                <table className="tbl" style={{ fontSize: 11 }}>
+                  <thead>
+                    <tr>
+                      <th>Student</th>
+                      {preview.dates.slice(0, 8).map(d => <th key={d}>{fmtDateShort(d)}</th>)}
+                      {preview.dates.length > 8 && <th>+{preview.dates.length - 8} more</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.rows.slice(0, 5).map(({ student, statuses }) => (
+                      <tr key={student.id}>
+                        <td><strong>{student.name}</strong><br /><small className="text-ink2">{student.id}</small></td>
+                        {preview.dates.slice(0, 8).map(d => (
+                          <td key={d} style={{ textAlign: 'center' }}>
+                            <span style={{
+                              display: 'inline-block', width: 22, height: 22, borderRadius: 4,
+                              background: STATUS_COLORS[statuses[d]] + '33',
+                              color: STATUS_COLORS[statuses[d]],
+                              fontSize: 11, fontWeight: 700, lineHeight: '22px'
+                            }}>{STATUS_LABELS[statuses[d]]}</span>
+                          </td>
+                        ))}
+                        {preview.dates.length > 8 && <td className="text-ink3">…</td>}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      <div className="modal-footer">
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        {preview && preview.matched.length > 0 && (
+          <button className="btn btn-primary" onClick={applyImport} disabled={saving}>
+            {saving ? 'Importing…' : `Import ${preview.matched.length} Student(s)`}
+          </button>
+        )}
+        {!preview && (
+          <button className="btn btn-ghost" onClick={reset} disabled={!file}>Clear</button>
+        )}
+      </div>
+    </Modal>
+  )
+}
 
 // ── AttendanceCalendarModal ────────────────────────────────────────────────────
 // Two views: 'calendar' and 'day'
@@ -307,7 +602,7 @@ function SortIcon({ col, sort }) {
 }
 
 // ── SubjectAttCard ─────────────────────────────────────────────────────────────
-function SubjectAttCard({ classId, sub, studs, onCalendar, onExport }) {
+function SubjectAttCard({ classId, sub, studs, onCalendar, onExport, onImport }) {
   const [sort, setSort] = useState({ col: 'name', dir: 'asc' })
   const [page, setPage] = useState(1)
 
@@ -362,6 +657,7 @@ function SubjectAttCard({ classId, sub, studs, onCalendar, onExport }) {
         <strong style={{ fontSize: 15 }}>{sub}</strong>
         <div className="flex gap-1.5">
           <button className="btn btn-primary btn-sm" onClick={() => onCalendar(sub)}>📅 Calendar</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => onImport(sub)} title="Import attendance from Excel">📥 Import</button>
           <button className="btn btn-ghost btn-sm" onClick={() => onExport(sub)} title="Export attendance">📤 Export</button>
         </div>
       </div>
@@ -448,6 +744,7 @@ export default function AttendanceTab() {
   const [search,       setSearch]       = useState('')
   const [calModal,     setCalModal]     = useState(null) // subject string
   const [exportModal,  setExportModal]  = useState(null) // subject string
+  const [importModal,  setImportModal]  = useState(null) // subject string
 
   const cls = classes.find(c => c.id === selClassId) || classes[0] || null
   const effectiveId = cls?.id || null
@@ -493,6 +790,7 @@ export default function AttendanceTab() {
             studs={filteredStuds}
             onCalendar={sub => setCalModal(sub)}
             onExport={sub => setExportModal(sub)}
+            onImport={sub => setImportModal(sub)}
           />
         ))
       )}
@@ -513,6 +811,13 @@ export default function AttendanceTab() {
             onClose={() => setExportModal(null)}
           />
         </Suspense>
+      )}
+      {importModal && (
+        <ImportAttendanceModal
+          classId={effectiveId}
+          subject={importModal}
+          onClose={() => setImportModal(null)}
+        />
       )}
     </div>
   )
