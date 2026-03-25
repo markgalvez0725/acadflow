@@ -144,6 +144,8 @@ export function exportGradingSheet({ classId, subject, students, classes, eqScal
   // Exams & Attendance sheet
   const E_NAME = 1, E_SNUM = 2
   const E_MT_ATT = 3, E_MT_EX = 4, E_FT_ATT = 5, E_FT_EX = 6
+  const E_MT_EXAM = 9   // MT Exam score column in Exams & Attendance sheet
+  const E_FT_EXAM = 10  // FT Exam score column in Exams & Attendance sheet
 
   // Grading Sheet columns (1-based)
   const G_NAME = 1, G_SNUM = 2, G_COURSE = 3, G_YEAR = 4
@@ -319,8 +321,8 @@ export function exportGradingSheet({ classId, subject, students, classes, eqScal
       attScore,                          // Attendance score (static)
       // Class Standing: average of available components
       { f: `IFERROR(AVERAGE(IF(ISNUMBER(${CL(G_ACT)}${r}),${CL(G_ACT)}${r}),IF(ISNUMBER(${CL(G_QZ)}${r}),${CL(G_QZ)}${r}),IF(ISNUMBER(${attRef}),${attRef})),"")` },
-      comp.midtermExam ?? '',  // Midterm exam (static)
-      comp.finalsExam  ?? '',  // Finals exam (static)
+      { f: `IFERROR(${xref('Exams & Attendance', E_MT_EXAM, r)},"")` },  // Midterm exam (from Exams sheet)
+      { f: `IFERROR(${xref('Exams & Attendance', E_FT_EXAM, r)},"")` },  // Finals exam (from Exams sheet)
       // Midterm term: avg(CS, MT Exam)
       { f: `IFERROR(AVERAGE(${csRef},${mtExRef}),"")` },
       // Finals term: avg(CS, FT Exam)
@@ -356,8 +358,13 @@ export function exportGradingSheet({ classId, subject, students, classes, eqScal
     [''],
     ['• Activities tab   — Enter scores for each activity (midterm & finals columns).'],
     ['• Quizzes tab      — Enter quiz scores.'],
-    ['• Exams tab        — Attendance and exam scores are pre-filled from the portal.'],
-    ['• Grading Sheet    — Protected. Formulas auto-compute all grades.'],
+    ['• Exams tab        — Enter Midterm Exam and Finals Exam scores in the MT Exam / FT Exam columns.'],
+    ['                     Attendance data is pre-filled from the portal.'],
+    ['• Grading Sheet    — Protected. All grades auto-compute from your inputs above.'],
+    ['                     Class Standing = AVG(Activities, Quizzes)'],
+    ['                     Midterm Grade  = AVG(Class Standing, Midterm Exam)'],
+    ['                     Finals Grade   = AVG(Class Standing, Finals Exam)'],
+    ['                     Final Grade    = AVG(Midterm Grade, Finals Grade)'],
     ['  Password: acadflow'],
     [''],
     ['Grade Scale:'],
