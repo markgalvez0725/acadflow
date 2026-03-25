@@ -6,8 +6,7 @@ import Modal from '@/components/primitives/Modal'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 
-const GEMINI_API_KEY = 'AIzaSyD_doAmP2u11QavAa_kbRSH4FykcPbSz2E'
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`
 
 function quizId() {
   return 'quiz_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7)
@@ -59,18 +58,29 @@ Respond ONLY with a valid JSON array. No markdown, no explanation. Example forma
   }
 ]`
 
-  const res = await fetch(GEMINI_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 4096 },
-    }),
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.7, maxOutputTokens: 4096 },
   })
+
+  let res
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise(r => setTimeout(r, attempt * 15000))
+    res = await fetch(GEMINI_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    })
+    if (res.status !== 429) break
+  }
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error(err?.error?.message || `Gemini API error ${res.status}`)
+    throw new Error(
+      res.status === 429
+        ? 'Gemini rate limit reached. Please wait a moment and try again.'
+        : err?.error?.message || `Gemini API error ${res.status}`
+    )
   }
 
   const data = await res.json()
