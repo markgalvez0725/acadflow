@@ -5325,9 +5325,6 @@ async function studentLogin(){
   if(bn) bn.style.display='';
   // Start notification listener for this student
   try{ startStudentNotifListener(s.id); }catch(e){}
-
-  // Start student notification listener
-  startStudentNotifListener(s.id);
   // If this is a temp password set by admin, force the student to change it
   if(s.account._tempPass){
     setTimeout(()=>{ showForceChangePassword(); }, 600);
@@ -6181,9 +6178,7 @@ let _fbWriting = false; // true while a local write is in flight — suppresses 
     }
   });
 
-  // Remove duplicate async config load — we do it once inside restoreOrShowLogin below
-
-  // Remove duplicate async config load — we do it once inside restoreOrShowLogin below
+  // EJS config is loaded once inside restoreOrShowLogin below (after Firebase is ready)
   initEJSFromStorage().then(ok=>{
     if(ok) console.log('[AcadFlow] ✅ EJS ready from local storage on boot.');
   });
@@ -6326,6 +6321,8 @@ let _fbWriting = false; // true while a local write is in flight — suppresses 
           if(loginScreen){ loginScreen.style.opacity=''; loginScreen.style.pointerEvents=''; }
           switchLoginMode('student');
           showAdminLogin();
+          showScreen('login-screen');
+          hideSplash();
         }
       }, 300);
       return;
@@ -13033,6 +13030,7 @@ async function fbInit(){
         // Same project — reuse it, just get a fresh Firestore reference
         _fbApp  = existing;
         _fbDb   = firebase.firestore(_fbApp);
+        try{ _fbDb.settings({ experimentalAutoDetectLongPolling: true, merge: true }); }catch(e){}
         _fbReady = true;
         window._fbReady = true; // expose for dev console status panel
         window._fbDb    = _fbDb;
@@ -13460,7 +13458,7 @@ function fbWaitForData(){
     // If Firebase is configured but SDK not ready yet, kick off fbInit now
     // (idempotent — fbInit() is a no-op if already initialising or ready)
     if(FB.configured && !_fbReady && !_fbInitializing){
-      fbInit().then(ok=>{ if(ok && !_fbReady) _fbReady = ok; }).catch(()=>{});
+      fbInit().catch(()=>{});
     }
 
     function doFetch(){
@@ -16146,13 +16144,6 @@ function toggleTheme(){
   try{ localStorage.setItem('acadflow_theme', next ? 'dark' : 'light'); }catch(e){}
   _applyTheme(next);
 }
-// Hook: called whenever the user manually toggles the theme.
-// Persists the preference to localStorage so it survives page reloads.
-// Not wired up yet — call _onThemeToggle(isDark) from toggleTheme() when ready.
-function _onThemeToggle(dark){
-  try{ localStorage.setItem('acadflow_theme', dark ? 'dark' : 'light'); }catch(e){}
-}
-
 // Load saved theme on startup
 (function(){
   try{
@@ -17658,16 +17649,6 @@ window.devClearAllStorage = async function(){
   setTimeout(() => location.reload(), 1800);
 };
 
-
-window.devClearAllStorage = async function(){
-  if(!await uiConfirm(
-    'This clears ALL localStorage including Firebase config, EJS config, admin credentials, and session. The page will reload.',
-    { title:'⚠️ Clear All Storage?', type:'danger', confirmLabel:'Clear Everything' }
-  )) return;
-  localStorage.clear();
-  toast('All localStorage cleared. Reloading…', 'dark', 2000);
-  setTimeout(() => location.reload(), 1800);
-};
 
 // ── Clear Firebase config ─────────────────────────────────
 window.devClearFb = async function(){
