@@ -6,7 +6,7 @@ import Modal from '@/components/primitives/Modal'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY
+const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY
 
 function quizId() {
   return 'quiz_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7)
@@ -59,17 +59,21 @@ Respond ONLY with a valid JSON array. No markdown, no explanation. Example forma
 ]`
 
   const body = JSON.stringify({
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.7, maxOutputTokens: 4096 },
+    model: 'gpt-4o-mini',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.7,
+    max_tokens: 4096,
   })
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`
   let res
   for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt > 0) await new Promise(r => setTimeout(r, attempt * 15000))
-    res = await fetch(url, {
+    if (attempt > 0) await new Promise(r => setTimeout(r, attempt * 5000))
+    res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      },
       body,
     })
     if (res.status !== 429) break
@@ -79,15 +83,15 @@ Respond ONLY with a valid JSON array. No markdown, no explanation. Example forma
     const err = await res.json().catch(() => ({}))
     throw new Error(
       res.status === 429
-        ? 'Gemini rate limit reached. Please wait a moment and try again.'
-        : err?.error?.message || `Gemini API error ${res.status}`
+        ? 'OpenAI rate limit reached. Please wait a moment and try again.'
+        : err?.error?.message || `OpenAI API error ${res.status}`
     )
   }
 
   const data = await res.json()
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+  const text = data?.choices?.[0]?.message?.content || ''
   const jsonMatch = text.match(/\[[\s\S]*\]/)
-  if (!jsonMatch) throw new Error('No valid JSON array in Gemini response')
+  if (!jsonMatch) throw new Error('No valid JSON array in OpenAI response')
   return JSON.parse(jsonMatch[0])
 }
 
