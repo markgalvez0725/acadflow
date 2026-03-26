@@ -156,7 +156,7 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
         />
       </div>
 
-      <div style={{ background: 'var(--c-surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 12, color: 'var(--ink2)' }}>
+      <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 12, color: 'var(--ink2)' }}>
         <strong style={{ color: 'var(--ink)' }}>How it works:</strong>
         <ol style={{ margin: '6px 0 0 16px', lineHeight: 1.8 }}>
           <li>Click <strong>Export Template</strong> to download a <code>.json</code> file</li>
@@ -166,13 +166,13 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
         </ol>
       </div>
 
-      <div style={{ background: 'var(--c-surface2)', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 16, overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px', borderBottom: '1px solid var(--border)', background: 'var(--c-surface3)' }}>
+      <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 16, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px', borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
           <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink2)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Prompt to paste into AI</span>
           <button
             type="button"
             onClick={handleCopyPrompt}
-            style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, border: '1px solid var(--border)', background: copied ? 'var(--c-primary)' : 'var(--c-surface)', color: copied ? '#fff' : 'var(--ink)', cursor: 'pointer', fontWeight: 600, transition: 'all 0.15s' }}
+            style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, border: '1px solid var(--border)', background: copied ? 'var(--accent)' : 'var(--surface)', color: copied ? '#fff' : 'var(--ink)', cursor: 'pointer', fontWeight: 600, transition: 'all 0.15s' }}
           >
             {copied ? '✓ Copied!' : '📋 Copy'}
           </button>
@@ -418,7 +418,7 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
         </div>
         <div className="flex flex-col gap-3" style={{ maxHeight: 320, overflowY: 'auto', paddingRight: 4 }}>
           {questions.map((q, i) => (
-            <div key={q.id} style={{ background: 'var(--c-surface2)', borderRadius: 8, padding: '10px 12px', border: '1px solid var(--border)' }}>
+            <div key={q.id} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '10px 12px', border: '1px solid var(--border)' }}>
               <div className="flex items-center justify-between mb-2">
                 <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink2)' }}>
                   Q{i + 1} · {TYPE_LABELS[q.type] || q.type}
@@ -438,8 +438,8 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
                   {q.options.map((opt, oi) => (
                     <span key={oi} style={{
                       fontSize: 11, padding: '2px 8px', borderRadius: 4,
-                      background: opt === q.answer ? 'var(--green-l)' : 'var(--c-surface)',
-                      color: opt === q.answer ? 'var(--c-green)' : 'var(--ink2)',
+                      background: opt === q.answer ? 'var(--green-l)' : 'var(--surface)',
+                      color: opt === q.answer ? 'var(--green)' : 'var(--ink2)',
                       border: '1px solid var(--border)',
                     }}>
                       {String.fromCharCode(65 + oi)}. {opt}
@@ -448,7 +448,7 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
                 </div>
               )}
               {q.type !== 'multiple_choice' && (
-                <span style={{ fontSize: 11, color: 'var(--c-green)', fontWeight: 600 }}>
+                <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 600 }}>
                   Answer: {q.answer}
                 </span>
               )}
@@ -476,8 +476,8 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
                             onChange={e => updateOption(q.id, oi, e.target.value)} />
                           <button type="button" onClick={() => updateQuestion(q.id, 'answer', opt)}
                             style={{ fontSize: 10, padding: '3px 7px', borderRadius: 4, border: '1px solid var(--border)',
-                              background: q.answer === opt ? 'var(--green-l)' : 'var(--c-surface)',
-                              color: q.answer === opt ? 'var(--c-green)' : 'var(--ink2)', cursor: 'pointer', flexShrink: 0 }}>
+                              background: q.answer === opt ? 'var(--green-l)' : 'var(--surface)',
+                              color: q.answer === opt ? 'var(--green)' : 'var(--ink2)', cursor: 'pointer', flexShrink: 0 }}>
                             {q.answer === opt ? '✓ Correct' : 'Set Correct'}
                           </button>
                         </div>
@@ -574,17 +574,17 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
       </div>
 
       {isUpcoming && (
-        <div style={{ background: 'var(--c-surface2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12, color: 'var(--ink2)' }}>
+        <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12, color: 'var(--ink2)' }}>
           🕐 Upcoming — opens {openLabel}
         </div>
       )}
       {isOpen && (
-        <div style={{ background: 'var(--green-l)', color: 'var(--c-green)', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12 }}>
+        <div style={{ background: 'var(--green-l)', color: 'var(--green)', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12 }}>
           🟢 Open — closes {closeLabel}
         </div>
       )}
       {isClosed && (
-        <div style={{ background: 'var(--red-l)', color: 'var(--c-red)', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12 }}>
+        <div style={{ background: 'var(--red-l)', color: 'var(--red)', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12 }}>
           🔒 Closed — {attempted}/{enrolledStudents.length} attempted · {graded} auto-graded
         </div>
       )}
@@ -622,7 +622,7 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
                   <td>{score != null ? `${score}/${total}` : '—'}</td>
                   <td>
                     {pct != null ? (
-                      <span style={{ fontWeight: 700, color: pct >= 75 ? 'var(--c-green)' : pct >= 50 ? '#f59e0b' : 'var(--c-red)' }}>
+                      <span style={{ fontWeight: 700, color: pct >= 75 ? 'var(--green)' : pct >= 50 ? '#f59e0b' : 'var(--red)' }}>
                         {pct}%
                       </span>
                     ) : '—'}

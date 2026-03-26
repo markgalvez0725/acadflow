@@ -429,28 +429,28 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
 
       {/* Deadline banner */}
       {isPast ? (
-        <div style={{ background: 'var(--red-l)', color: 'var(--c-red)', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12 }}>
+        <div style={{ background: 'var(--red-l)', color: 'var(--red)', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12 }}>
           ⏰ <strong>Deadline passed.</strong> Students can no longer submit.
         </div>
       ) : (
-        <div style={{ background: 'var(--green-l)', color: 'var(--c-green)', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12 }}>
+        <div style={{ background: 'var(--green-l)', color: 'var(--green)', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12 }}>
           🟢 <strong>Open — {timeLeft} remaining.</strong> Students can still submit.
         </div>
       )}
 
       {act.instructions && (
-        <div className="text-xs text-ink2 mb-3 p-2 rounded" style={{ background: 'var(--c-surface2)', borderRadius: 6 }}>
+        <div className="text-xs text-ink2 mb-3 p-2 rounded" style={{ background: 'var(--surface2)', borderRadius: 6 }}>
           {act.instructions}
         </div>
       )}
 
       {/* Rubric summary */}
       {hasRubric && (
-        <div className="mb-3" style={{ background: 'var(--c-surface2)', borderRadius: 6, padding: '10px 14px' }}>
+        <div className="mb-3" style={{ background: 'var(--surface2)', borderRadius: 6, padding: '10px 14px' }}>
           <div className="text-xs font-semibold text-ink2 mb-1">📊 Grading Rubric</div>
           <div className="flex flex-wrap gap-2">
             {act.rubric.map(c => (
-              <span key={c.id} style={{ fontSize: 11, background: 'var(--c-surface)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 8px', color: 'var(--ink2)' }}>
+              <span key={c.id} style={{ fontSize: 11, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 8px', color: 'var(--ink2)' }}>
                 {c.name} <strong>{c.points}pt{c.points !== 1 ? 's' : ''}</strong>
               </span>
             ))}
@@ -539,7 +539,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                         max={act.maxScore}
                         value={inputVal}
                         onChange={e => setScores(prev => ({ ...prev, [s.id]: e.target.value }))}
-                        style={{ width: 70, padding: '5px 7px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, textAlign: 'center', background: 'var(--c-surface)', color: 'var(--ink)' }}
+                        style={{ width: 70, padding: '5px 7px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, textAlign: 'center', background: 'var(--surface)', color: 'var(--ink)' }}
                         placeholder="—"
                       />
                     </td>

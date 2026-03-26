@@ -139,7 +139,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
           <p className="text-ink2 text-sm mb-6">{quiz.title}</p>
           <div style={{
             background: passed ? 'var(--green-l)' : 'var(--red-l)',
-            color: passed ? 'var(--c-green)' : 'var(--c-red)',
+            color: passed ? 'var(--green)' : 'var(--red)',
             borderRadius: 12, padding: '20px 32px', marginBottom: 20, display: 'inline-block',
           }}>
             <div style={{ fontSize: 36, fontWeight: 800 }}>{score}/{total}</div>
@@ -163,8 +163,8 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
         </div>
         <div style={{
           fontSize: 20, fontWeight: 800, fontVariantNumeric: 'tabular-nums',
-          color: remaining <= 60 ? 'var(--c-red)' : remaining <= 300 ? '#f59e0b' : 'var(--c-green)',
-          background: 'var(--c-surface2)', borderRadius: 8, padding: '6px 14px',
+          color: remaining <= 60 ? 'var(--red)' : remaining <= 300 ? '#f59e0b' : 'var(--green)',
+          background: 'var(--surface2)', borderRadius: 8, padding: '6px 14px',
         }}>
           ⏱ {formatted}
         </div>
@@ -173,7 +173,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
       {/* Progress bar */}
       <div style={{ height: 4, background: 'var(--border)', borderRadius: 4, marginBottom: 20, overflow: 'hidden' }}>
         <div style={{
-          height: '100%', borderRadius: 4, background: 'var(--c-primary)',
+          height: '100%', borderRadius: 4, background: 'var(--accent)',
           width: `${((currentQ + 1) / total) * 100}%`, transition: 'width 0.3s',
         }} />
       </div>
@@ -187,9 +187,9 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
             style={{
               width: 28, height: 28, borderRadius: 6, border: '1.5px solid',
               fontSize: 11, fontWeight: 700, cursor: 'pointer',
-              borderColor: i === currentQ ? 'var(--c-primary)' : answers[i] ? 'var(--c-green)' : 'var(--border)',
-              background: i === currentQ ? 'var(--c-primary)' : answers[i] ? 'var(--green-l)' : 'var(--c-surface)',
-              color: i === currentQ ? '#fff' : answers[i] ? 'var(--c-green)' : 'var(--ink2)',
+              borderColor: i === currentQ ? 'var(--accent)' : answers[i] ? 'var(--green)' : 'var(--border)',
+              background: i === currentQ ? 'var(--accent)' : answers[i] ? 'var(--green-l)' : 'var(--surface)',
+              color: i === currentQ ? '#fff' : answers[i] ? 'var(--green)' : 'var(--ink2)',
             }}
           >
             {i + 1}
@@ -198,7 +198,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
       </div>
 
       {/* Current question */}
-      <div style={{ background: 'var(--c-surface2)', borderRadius: 10, padding: '16px 18px', marginBottom: 20, minHeight: 180 }}>
+      <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '16px 18px', marginBottom: 20, minHeight: 180 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', marginBottom: 8 }}>
           Question {currentQ + 1} of {total} · {q.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
         </div>
@@ -219,8 +219,8 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
                 }}
                 style={{
                   textAlign: 'left', padding: '10px 14px', borderRadius: 8,
-                  border: `2px solid ${answers[currentQ] === opt ? 'var(--c-primary)' : 'var(--border)'}`,
-                  background: answers[currentQ] === opt ? 'color-mix(in srgb, var(--c-primary) 10%, transparent)' : 'var(--c-surface)',
+                  border: `2px solid ${answers[currentQ] === opt ? 'var(--accent)' : 'var(--border)'}`,
+                  background: answers[currentQ] === opt ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : 'var(--surface)',
                   color: 'var(--ink)', fontSize: 13, cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'flex-start',
                   transition: 'all 0.15s',
                 }}
@@ -228,7 +228,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
                 <span style={{
                   width: 22, height: 22, borderRadius: '50%', flexShrink: 0, display: 'flex',
                   alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700,
-                  background: answers[currentQ] === opt ? 'var(--c-primary)' : 'var(--border)',
+                  background: answers[currentQ] === opt ? 'var(--accent)' : 'var(--border)',
                   color: answers[currentQ] === opt ? '#fff' : 'var(--ink2)',
                 }}>
                   {String.fromCharCode(65 + oi)}
@@ -253,8 +253,8 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
                 style={{
                   flex: 1, padding: '12px', borderRadius: 8, fontSize: 14, fontWeight: 700,
                   border: `2px solid ${answers[currentQ] === opt ? (opt === 'True' ? '#22c55e' : '#ef4444') : 'var(--border)'}`,
-                  background: answers[currentQ] === opt ? (opt === 'True' ? 'var(--green-l)' : 'var(--red-l)') : 'var(--c-surface)',
-                  color: answers[currentQ] === opt ? (opt === 'True' ? 'var(--c-green)' : 'var(--c-red)') : 'var(--ink2)',
+                  background: answers[currentQ] === opt ? (opt === 'True' ? 'var(--green-l)' : 'var(--red-l)') : 'var(--surface)',
+                  color: answers[currentQ] === opt ? (opt === 'True' ? 'var(--green)' : 'var(--red)') : 'var(--ink2)',
                   cursor: 'pointer', transition: 'all 0.15s',
                 }}
               >
@@ -342,7 +342,7 @@ function QuizReviewModal({ quiz, submission, onClose }) {
 
           return (
             <div key={i} style={{
-              background: 'var(--c-surface2)', borderRadius: 8, padding: '12px 14px',
+              background: 'var(--surface2)', borderRadius: 8, padding: '12px 14px',
               borderLeft: `4px solid ${isCorrect ? '#22c55e' : '#ef4444'}`,
             }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', marginBottom: 4 }}>
@@ -350,12 +350,12 @@ function QuizReviewModal({ quiz, submission, onClose }) {
               </div>
               <p style={{ fontSize: 13, color: 'var(--ink)', marginBottom: 6 }}>{q.question}</p>
               <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
-                Your answer: <span style={{ fontWeight: 600, color: isCorrect ? 'var(--c-green)' : 'var(--c-red)' }}>
+                Your answer: <span style={{ fontWeight: 600, color: isCorrect ? 'var(--green)' : 'var(--red)' }}>
                   {studentAns || '—'}
                 </span>
               </div>
               {!isCorrect && (
-                <div style={{ fontSize: 12, color: 'var(--c-green)', marginTop: 2 }}>
+                <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 2 }}>
                   Correct answer: <strong>{q.answer}</strong>
                 </div>
               )}
@@ -452,7 +452,7 @@ export default function StudentQuizTab({ student, viewClassId }) {
                     Open: {openLabel} · Close: {closeLabel}
                   </div>
                   {status.done && sub && (
-                    <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: status.score / status.total >= 0.75 ? 'var(--c-green)' : 'var(--c-red)' }}>
+                    <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: status.score / status.total >= 0.75 ? 'var(--green)' : 'var(--red)' }}>
                       Score: {sub.score}/{q.questions?.length || 0} ({((sub.score / (q.questions?.length || 1)) * 100).toFixed(1)}%)
                     </div>
                   )}

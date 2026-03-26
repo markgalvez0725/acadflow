@@ -160,8 +160,8 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                             padding: '2px 8px',
                             borderRadius: 4,
                             border: '1px solid var(--border)',
-                            background: met ? 'var(--green-l)' : 'var(--c-surface2)',
-                            color: met ? 'var(--c-green)' : 'var(--ink3)',
+                            background: met ? 'var(--green-l)' : 'var(--surface2)',
+                            color: met ? 'var(--green)' : 'var(--ink3)',
                           }}
                         >
                           {met ? '✓' : '○'} {c.name} ({c.points}pt{c.points !== 1 ? 's' : ''})
