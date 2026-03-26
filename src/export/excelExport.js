@@ -9,6 +9,7 @@ import {
   getHeldDays,
   gradeInfo,
   equivInfo,
+  combineEquiv,
   DEFAULT_EQ_SCALE,
 } from '@/utils/grades.js'
 import { sortByLastName } from '@/utils/format.js'
@@ -469,6 +470,149 @@ export function parseGradingSheetImport(workbook) {
     mtExam: examMap[studentId]?.mtExam ?? null,
     ftExam: examMap[studentId]?.ftExam ?? null,
   }))
+}
+
+// ── exportCurrentGrades ───────────────────────────────────────────────────
+/**
+ * Exports the currently stored grade data for one class+subject as an XLSX.
+ * Includes per-student: activity scores, quiz scores, attendance, exams, computed terms, final grade.
+ *
+ * @param {{ classId: string, subject: string, students: object[], classes: object[], activities: object[], eqScale?: object[] }} opts
+ */
+export function exportCurrentGrades({ classId, subject, students, classes, activities = [], eqScale = DEFAULT_EQ_SCALE }) {
+  const XLSX = window.XLSX
+  if (!XLSX) { alert('SheetJS not loaded.'); return }
+
+  const cls = classes.find(c => c.id === classId)
+  if (!cls) return
+  const roster = sortByLastName(getClassStudents(classId, students))
+
+  // Get panel activities for this class+subject
+  const panelActs = (activities || []).filter(a => a.classId === classId && a.subject === subject)
+
+  const exportDate = new Date().toLocaleDateString('en-PH', { dateStyle: 'long' })
+  const title = `GRADE SUMMARY — ${subject}`
+  const meta  = `Class: ${cls.name || cls.id}  |  Section: ${cls.section || ''}  |  S.Y. ${cls.sy || ''}  |  Exported: ${exportDate}`
+
+  // Build dynamic activity headers
+  const actHeaders = panelActs.length > 0
+    ? panelActs.map((a, i) => a.title || `Activity ${i + 1}`)
+    : ['Activities Avg']
+
+  const quizMax = roster.reduce((max, s) => {
+    const qz = s.gradeComponents?.[subject]?.quizScores || {}
+    return Math.max(max, Object.keys(qz).length)
+  }, 0)
+  const qzCount = Math.max(quizMax, 1)
+  const qzHeaders = Array.from({ length: qzCount }, (_, i) => `Quiz ${i + 1}`)
+
+  const headers = [
+    'Student Name', 'Student No.', 'Course', 'Year Level',
+    ...actHeaders, 'Act Avg',
+    ...qzHeaders, 'Quiz Avg',
+    'Attendance (%)', 'MT Exam', 'FT Exam',
+    'CS Midterm', 'CS Finals',
+    'Midterm Term', 'Finals Term',
+    'Final Grade (%)', 'Midterm Equiv', 'Finals Equiv', 'Final Equiv', 'Remark',
+    'Uploaded At',
+  ]
+
+  const dataRows = roster.map(s => {
+    const comp   = s.gradeComponents?.[subject] || {}
+    const attSet = s.attendance?.[subject] || new Set()
+    const held   = getHeldDays(classId, subject, students)
+    const attPct = held > 0 ? parseFloat(((attSet.size / held) * 100).toFixed(2)) : ''
+
+    // Activity scores — from panel submissions or stored activityScores
+    let actVals
+    if (panelActs.length > 0) {
+      actVals = panelActs.map(a => {
+        const sc = (a.submissions || {})[s.id]?.score
+        return sc != null ? sc : ''
+      })
+    } else {
+      actVals = [comp.activities != null ? comp.activities : '']
+    }
+    const actNums = actVals.filter(v => v !== '' && !isNaN(v))
+    const actAvg  = actNums.length > 0
+      ? parseFloat((actNums.reduce((a, b) => a + Number(b), 0) / actNums.length).toFixed(2))
+      : (comp.activities != null ? comp.activities : '')
+
+    // Quiz scores — from stored quizScores map
+    const qzScoresMap = comp.quizScores || {}
+    const qzVals = Array.from({ length: qzCount }, (_, i) => {
+      const v = qzScoresMap[`q${i + 1}`]
+      return v != null ? v : ''
+    })
+    const qzNums = qzVals.filter(v => v !== '')
+    const qzAvg  = qzNums.length > 0
+      ? parseFloat((qzNums.reduce((a, b) => a + Number(b), 0) / qzNums.length).toFixed(2))
+      : (comp.quizzes != null ? comp.quizzes : '')
+
+    const midG = comp.midterm   != null ? comp.midterm   : ''
+    const finG = comp.finals    != null ? comp.finals    : ''
+    const fg   = s.grades?.[subject]    != null ? s.grades[subject] : ''
+
+    const { eq: midEq } = gradeInfo(typeof midG === 'number' ? midG : null, eqScale)
+    const { eq: finEq } = gradeInfo(typeof finG === 'number' ? finG : null, eqScale)
+
+    let finalEq = '—', rem = 'Pending'
+    if (typeof midG === 'number' || typeof finG === 'number') {
+      const combined = combineEquiv(midEq, finEq)
+      finalEq = combined.eq
+      rem     = combined.rem
+    } else if (typeof fg === 'number') {
+      const gi = gradeInfo(fg, eqScale)
+      finalEq  = gi.eq
+      rem      = gi.rem
+    }
+
+    const ts = s.gradeUploadedAt?.[subject]
+    const tsLabel = ts ? new Date(ts).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }) : ''
+
+    return [
+      s.name, s.id, s.course || '', s.year || '',
+      ...actVals, actAvg,
+      ...qzVals, qzAvg,
+      attPct,
+      comp.midtermExam != null ? comp.midtermExam : '',
+      comp.finalsExam  != null ? comp.finalsExam  : '',
+      comp.midtermCS   != null ? comp.midtermCS   : '',
+      comp.finalsCS    != null ? comp.finalsCS    : '',
+      midG, finG,
+      fg,
+      typeof midG === 'number' ? midEq : '—',
+      typeof finG === 'number' ? finEq : '—',
+      finalEq, rem,
+      tsLabel,
+    ]
+  })
+
+  const aoa = [
+    [title],
+    [meta],
+    [],
+    headers,
+    ...dataRows,
+  ]
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa)
+  const colCount = headers.length
+  ws['!cols'] = [
+    28, 14, 16, 10,
+    ...Array(actHeaders.length).fill(13), 10,
+    ...Array(qzCount).fill(10), 10,
+    13, 10, 10,
+    12, 12, 13, 12, 14, 13, 13, 12, 12,
+    20,
+  ].slice(0, colCount).map(w => ({ wch: w }))
+  ws['!freeze'] = { xSplit: 2, ySplit: 4 }
+
+  const safeSub  = subject.replace(/[/\\:*?[\]]/g, '_').slice(0, 28)
+  const safeDate = new Date().toISOString().slice(0, 10)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Grades')
+  XLSX.writeFile(wb, `Grades_${safeSub}_${safeDate}.xlsx`)
 }
 
 // ── exportStudentRosterExcel ──────────────────────────────────────────────

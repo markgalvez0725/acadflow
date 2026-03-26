@@ -6,7 +6,7 @@ import {
   gradeInfo, combineEquiv, computeGrade, computeFinalGradeFromTerms,
   getHeldDays, gradeInfoForStudent, getGradeScaleLabel,
 } from '@/utils/grades'
-import { exportGradingSheet, parseGradingSheetImport } from '@/export/excelExport'
+import { exportGradingSheet, parseGradingSheetImport, exportCurrentGrades } from '@/export/excelExport'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
@@ -47,26 +47,56 @@ function GradeEntryModal({ classId, subject, onClose }) {
   const cls   = classes.find(c => c.id === classId)
   const studs = useMemo(() => sortByLastName(students.filter(s => s.classId === classId || s.classIds?.includes(classId))), [students, classId])
 
+  // Panel activities for this class+subject
+  const panelActs = useMemo(
+    () => (activities || []).filter(a => a.classId === classId && a.subject === subject),
+    [activities, classId, subject]
+  )
+
+  // Max quiz count across all students (min 1 so there's always at least one input)
+  const quizInputCount = useMemo(() => {
+    const max = studs.reduce((m, s) => {
+      const qz = s.gradeComponents?.[subject]?.quizScores || {}
+      return Math.max(m, Object.keys(qz).length)
+    }, 0)
+    return Math.max(max, 1)
+  }, [studs, subject])
+
   // Build initial row values from existing student data + activities panel
   const initRows = useMemo(() => {
     return studs.map(s => {
       const comp = s.gradeComponents?.[subject] || {}
 
-      // Auto-compute activities from Activities panel
-      const panelActs = (activities || []).filter(a => a.classId === classId && a.subject === subject)
-      const actScores = panelActs.map(a => (a.submissions || {})[s.id]?.score).filter(v => v != null)
-      const actFromPanel = actScores.length > 0
-      const actAvg = actFromPanel
-        ? parseFloat((actScores.reduce((a, b) => a + b, 0) / actScores.length).toFixed(2))
+      // Per-activity scores — from panel submissions
+      const actInputs = panelActs.length > 0
+        ? panelActs.map(a => {
+            const sc = (a.submissions || {})[s.id]?.score
+            return sc != null ? String(sc) : ''
+          })
+        : [comp.activities != null ? String(comp.activities) : '']
+
+      // Compute activity avg from inputs
+      const actNums = actInputs.map(v => toNum(v)).filter(v => v !== null)
+      const actAvg  = actNums.length > 0
+        ? parseFloat((actNums.reduce((a, b) => a + b, 0) / actNums.length).toFixed(2))
         : null
+
+      // Per-quiz scores from stored quizScores
+      const qzScoresMap = comp.quizScores || {}
+      const qzInputs = Array.from({ length: quizInputCount }, (_, i) => {
+        const v = qzScoresMap[`q${i + 1}`]
+        return v != null ? String(v) : ''
+      })
+      const qzNums = qzInputs.map(v => toNum(v)).filter(v => v !== null)
+      const qzAvg  = qzNums.length > 0
+        ? parseFloat((qzNums.reduce((a, b) => a + b, 0) / qzNums.length).toFixed(2))
+        : (comp.quizzes != null ? comp.quizzes : null)
 
       // Auto-compute attendance
       const attSet = s.attendance?.[subject] || new Set()
       const held   = getHeldDays(classId, subject, students)
       const attRate = held > 0 ? Math.min(100, parseFloat(((attSet.size / held) * 100).toFixed(2))) : null
 
-      const actDisplay = actAvg !== null ? actAvg : (comp.activities ?? '')
-      const qz  = comp.quizzes     ?? ''
       const mid = comp.midtermExam ?? ''
       const fin = comp.finalsExam  ?? ''
 
@@ -78,12 +108,10 @@ function GradeEntryModal({ classId, subject, onClose }) {
         : gradeInfo(s.grades?.[subject] ?? null, eqScale).eq
 
       return {
-        actFromPanel,
-        actAvg,
-        actScores,
-        panelActCount: panelActs.length,
-        activities: actFromPanel ? String(actAvg) : String(actDisplay),
-        quizzes:    String(qz),
+        actInputs,   // per-activity score strings
+        actAvg,      // computed avg of actInputs
+        qzInputs,    // per-quiz score strings
+        qzAvg,       // computed avg of qzInputs (fallback to stored quizzes avg)
         midtermExam: String(mid),
         finalsExam:  String(fin),
         finalGrade: s.grades?.[subject] != null ? String(s.grades[subject]) : '',
@@ -93,7 +121,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
         equivPreview: eqPreview,
       }
     })
-  }, [studs, subject, classId, activities, students, eqScale])
+  }, [studs, subject, classId, panelActs, students, eqScale, quizInputCount])
 
   const [rows, setRows] = useState(initRows)
   const [saving, setSaving] = useState(false)
@@ -103,34 +131,59 @@ function GradeEntryModal({ classId, subject, onClose }) {
     studs.map(s => s.gradeUploadedAt?.[subject]).filter(Boolean).sort().pop()
   , [studs, subject])
 
+  // Recompute actAvg and qzAvg from individual inputs, then recompute final grade
+  function recomputeRow(r) {
+    const actNums = r.actInputs.map(v => toNum(v)).filter(v => v !== null)
+    const actAvg  = actNums.length > 0
+      ? parseFloat((actNums.reduce((a, b) => a + b, 0) / actNums.length).toFixed(2))
+      : null
+
+    const qzNums = r.qzInputs.map(v => toNum(v)).filter(v => v !== null)
+    const qzAvg  = qzNums.length > 0
+      ? parseFloat((qzNums.reduce((a, b) => a + b, 0) / qzNums.length).toFixed(2))
+      : null
+
+    const actV = actAvg
+    const qzV  = qzAvg
+    const attV = r.attRate
+    const midV = toNum(r.midtermExam)
+    const finV = toNum(r.finalsExam)
+
+    let fg = r.finalGrade
+    if (midV !== null || finV !== null) {
+      const computed = computeGrade(actV, qzV, attV, midV, finV)
+      if (computed !== null) fg = String(computed)
+    }
+
+    const fgN = toNum(fg)
+    return { ...r, actAvg, qzAvg, finalGrade: fg, equivPreview: gradeInfo(fgN, eqScale).eq }
+  }
+
+  // Update an activity input by index
+  const updateActInput = useCallback((rowIdx, actIdx, val) => {
+    setRows(prev => prev.map((r, i) => {
+      if (i !== rowIdx) return r
+      const actInputs = r.actInputs.map((v, j) => j === actIdx ? val : v)
+      return recomputeRow({ ...r, actInputs })
+    }))
+  }, [eqScale]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Update a quiz input by index
+  const updateQzInput = useCallback((rowIdx, qzIdx, val) => {
+    setRows(prev => prev.map((r, i) => {
+      if (i !== rowIdx) return r
+      const qzInputs = r.qzInputs.map((v, j) => j === qzIdx ? val : v)
+      return recomputeRow({ ...r, qzInputs })
+    }))
+  }, [eqScale]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Live recompute row equiv
   const updateRow = useCallback((i, field, val) => {
-    setRows(prev => {
-      const next = prev.map((r, idx) => idx === i ? { ...r, [field]: val } : r)
-      const r = next[i]
-
-      const actV = r.actFromPanel ? r.actAvg : toNum(r.activities)
-      const qzV  = toNum(r.quizzes)
-      const attV = r.attRate
-      const midV = toNum(r.midtermExam)
-      const finV = toNum(r.finalsExam)
-
-      // Auto-compute if at least one exam is present
-      let fg = r.finalGrade
-      if (midV !== null || finV !== null) {
-        const computed = computeGrade(actV, qzV, attV, midV, finV)
-        if (computed !== null) {
-          fg = String(computed)
-        }
-      }
-
-      // Compute equiv preview from manual final grade field
-      const fgN = toNum(fg)
-      const equivPreview = gradeInfo(fgN, eqScale).eq
-
-      return next.map((r2, idx) => idx === i ? { ...r2, finalGrade: fg, equivPreview } : r2)
-    })
-  }, [eqScale])
+    setRows(prev => prev.map((r, idx) => {
+      if (idx !== i) return r
+      return recomputeRow({ ...r, [field]: val })
+    }))
+  }, [eqScale]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // When finalGrade is manually edited, just update equiv
   const updateFinalGrade = useCallback((i, val) => {
@@ -153,8 +206,8 @@ function GradeEntryModal({ classId, subject, onClose }) {
       const ns   = { ...s, grades: { ...s.grades }, gradeComponents: { ...(s.gradeComponents || {}) }, gradeUploadedAt: { ...(s.gradeUploadedAt || {}) } }
       const comp = { ...(ns.gradeComponents[subject] || {}) }
 
-      const actV     = r.actFromPanel ? r.actAvg : clamp(toNum(r.activities))
-      const qzV      = clamp(toNum(r.quizzes))
+      const actV     = r.actAvg !== null ? clamp(r.actAvg) : null
+      const qzV      = r.qzAvg  !== null ? clamp(r.qzAvg)  : null
       const midExamV = clamp(toNum(r.midtermExam))
       const finExamV = clamp(toNum(r.finalsExam))
       const attV     = r.attRate
@@ -191,29 +244,29 @@ function GradeEntryModal({ classId, subject, onClose }) {
         comp.finals   = parseFloat((p.reduce((s, x) => s + x, 0) / p.length).toFixed(2))
       }
 
-      // Sync activityScores from panel
-      const panelActs = (activities || []).filter(a => a.classId === classId && a.subject === subject)
-      if (panelActs.length) {
+      // Sync activityScores from individual inputs or panel
+      if (panelActs.length > 0) {
         const actScoresMap = {}
         panelActs.forEach((a, idx) => {
-          const sc = (a.submissions || {})[s.id]?.score
+          const sc = toNum(r.actInputs[idx])
           if (sc != null) {
             actScoresMap['a' + (idx + 1)] = sc
             actScoresMap[a.id] = sc
           }
         })
         if (Object.keys(actScoresMap).length) comp.activityScores = actScoresMap
-      } else if (actV !== null && !comp.activityScores) {
+      } else if (actV !== null) {
         comp.activityScores = { a1: actV }
       }
 
-      // Sync quizScores
-      if (qzV !== null) {
-        if (!comp.quizScores || !Object.keys(comp.quizScores).length) {
-          comp.quizScores = { q1: qzV }
-        } else {
-          comp.quizzes = qzV
-        }
+      // Sync quizScores from individual inputs
+      if (r.qzInputs.length > 0) {
+        const qzMap = {}
+        r.qzInputs.forEach((v, idx) => {
+          const sc = toNum(v)
+          if (sc != null) qzMap[`q${idx + 1}`] = sc
+        })
+        if (Object.keys(qzMap).length) comp.quizScores = qzMap
       }
 
       // Final Grade % = avg(Midterm Term, Finals Term)
@@ -284,15 +337,27 @@ function GradeEntryModal({ classId, subject, onClose }) {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="tbl" style={{ minWidth: 860 }}>
+        <table className="tbl" style={{ minWidth: 900 }}>
           <thead>
             <tr>
-              <th>Student</th>
-              <th title="Activities average — used in both CS Midterm and CS Finals">
-                Activities<br /><small className="font-normal text-ink3">avg</small>
+              <th rowSpan={2} style={{ verticalAlign: 'bottom' }}>Student</th>
+              {panelActs.length > 0
+                ? panelActs.map((a, i) => (
+                    <th key={a.id} title={a.title || `Activity ${i + 1}`}>
+                      {a.title ? a.title.length > 10 ? a.title.slice(0, 10) + '…' : a.title : `Act ${i + 1}`}
+                      <br /><small className="font-normal text-ink3">activity</small>
+                    </th>
+                  ))
+                : <th title="Activity score (manual avg)">Activity<br /><small className="font-normal text-ink3">score</small></th>
+              }
+              <th title="Activities average — computed from individual scores">
+                Act Avg<br /><small className="font-normal text-ink3">auto</small>
               </th>
-              <th title="Quizzes average">
-                Quizzes<br /><small className="font-normal text-ink3">avg</small>
+              {Array.from({ length: quizInputCount }, (_, i) => (
+                <th key={i}>Quiz {i + 1}<br /><small className="font-normal text-ink3">score</small></th>
+              ))}
+              <th title="Quizzes average — computed from individual scores">
+                Quiz Avg<br /><small className="font-normal text-ink3">auto</small>
               </th>
               <th title="Attendance % — auto from records">
                 Attendance<br /><small className="font-normal text-ink3">auto · CS</small>
@@ -323,28 +388,37 @@ function GradeEntryModal({ classId, subject, onClose }) {
                     <strong>{s.name}</strong><br />
                     <small className="text-ink2">{s.id}</small>
                   </td>
-                  <td>
-                    {r.actFromPanel ? (
-                      <div className="px-2 py-1.5 rounded-md text-sm font-bold text-center"
-                        style={{ background: 'var(--green-l)', color: 'var(--green)' }}
-                        title={`Auto-computed from Activities panel (${r.panelActCount} activit${r.panelActCount === 1 ? 'y' : 'ies'})`}>
-                        {r.actAvg ?? '—'}
-                        <br /><small className="text-xs font-normal" style={{ color: 'var(--green)' }}>
-                          {r.panelActCount} activit{r.panelActCount === 1 ? 'y' : 'ies'} · auto
-                        </small>
-                      </div>
-                    ) : (
+                  {/* Per-activity inputs */}
+                  {r.actInputs.map((val, ai) => (
+                    <td key={ai}>
                       <input className="grade-input" type="number" min="0" max="100"
-                        value={r.activities} placeholder="0–100"
-                        title="Activities (avg)"
-                        onChange={e => updateRow(i, 'activities', e.target.value)} />
-                    )}
-                  </td>
+                        value={val} placeholder="—"
+                        title={panelActs[ai]?.title || `Activity ${ai + 1}`}
+                        onChange={e => updateActInput(i, ai, e.target.value)} />
+                    </td>
+                  ))}
+                  {/* Act avg (read-only) */}
                   <td>
-                    <input className="grade-input" type="number" min="0" max="100"
-                      value={r.quizzes} placeholder="0–100"
-                      title="Quizzes (avg)"
-                      onChange={e => updateRow(i, 'quizzes', e.target.value)} />
+                    <div className="px-2 py-1.5 rounded-md text-sm font-bold text-center"
+                      style={{ background: 'var(--green-l)', color: 'var(--green)' }}>
+                      {r.actAvg ?? '—'}
+                    </div>
+                  </td>
+                  {/* Per-quiz inputs */}
+                  {r.qzInputs.map((val, qi) => (
+                    <td key={qi}>
+                      <input className="grade-input" type="number" min="0" max="100"
+                        value={val} placeholder="—"
+                        title={`Quiz ${qi + 1}`}
+                        onChange={e => updateQzInput(i, qi, e.target.value)} />
+                    </td>
+                  ))}
+                  {/* Quiz avg (read-only) */}
+                  <td>
+                    <div className="px-2 py-1.5 rounded-md text-sm font-bold text-center"
+                      style={{ background: 'var(--bg)', color: 'var(--ink)' }}>
+                      {r.qzAvg ?? '—'}
+                    </div>
                   </td>
                   <td>
                     <div className="px-2 py-1.5 rounded-md text-sm font-semibold"
@@ -426,7 +500,7 @@ function SortIcon({ col, sort }) {
 }
 
 // ── SubjectCard ───────────────────────────────────────────────────────────────
-function SubjectCard({ cls, sub, studs, eqScale, onEdit, onClear, onExport, onImport }) {
+function SubjectCard({ cls, sub, studs, eqScale, onEdit, onClear, onExport, onExportGrades, onImport }) {
   const [sort, setSort]   = useState({ col: 'name', dir: 'asc' })
   const [page, setPage]   = useState(1)
 
@@ -510,7 +584,8 @@ function SubjectCard({ cls, sub, studs, eqScale, onEdit, onClear, onExport, onIm
         </div>
         <div className="flex gap-1.5 flex-wrap flex-shrink-0">
           <button className="btn btn-primary btn-sm" onClick={() => onEdit(sub)}>✏️ Edit Grades</button>
-          <button className="btn btn-ghost btn-sm" onClick={() => onExport(sub)} title="Export grading sheet">📤 Export</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => onExportGrades(sub)} title="Export current grade data">📊 Export Grades</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => onExport(sub)} title="Export blank grading sheet template">📤 Template</button>
           <button className="btn btn-ghost btn-sm" onClick={() => onImport(sub)} title="Import grading sheet">📥 Import</button>
           <button className="btn btn-warning btn-sm" onClick={() => onClear(sub)}
             title="Clear all grade data for this subject">🗑 Clear Grades</button>
@@ -678,7 +753,7 @@ function SubjectCard({ cls, sub, studs, eqScale, onEdit, onClear, onExport, onIm
 
 // ── GradesTab ─────────────────────────────────────────────────────────────────
 export default function GradesTab() {
-  const { classes, students, eqScale, saveStudents } = useData()
+  const { classes, students, activities, eqScale, saveStudents } = useData()
   const { toast, openDialog } = useUI()
 
   const [selClassId, setSelClassId] = useState(() => classes[0]?.id || null)
@@ -728,6 +803,10 @@ export default function GradesTab() {
 
   function handleExport(sub) {
     exportGradingSheet({ classId: effectiveId, subject: sub, students, classes, eqScale })
+  }
+
+  function handleExportGrades(sub) {
+    exportCurrentGrades({ classId: effectiveId, subject: sub, students, classes, activities, eqScale })
   }
 
   async function handleImportFile(e) {
@@ -874,6 +953,7 @@ export default function GradesTab() {
             onEdit={sub => setEditModal(sub)}
             onClear={handleClear}
             onExport={handleExport}
+            onExportGrades={handleExportGrades}
             onImport={sub => { setImportSub(sub); importFileRef.current?.click() }}
           />
         ))
