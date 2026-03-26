@@ -501,7 +501,9 @@ export function exportCurrentGrades({ classId, subject, students, classes, activ
 
   const quizMax = roster.reduce((max, s) => {
     const qz = s.gradeComponents?.[subject]?.quizScores || {}
-    return Math.max(max, Object.keys(qz).length)
+    // Count only positional keys (q1, q2, …) to avoid counting panel quiz id keys
+    const positional = Object.keys(qz).filter(k => /^q\d+$/.test(k))
+    return Math.max(max, positional.length)
   }, 0)
   const qzCount = Math.max(quizMax, 1)
   const qzHeaders = Array.from({ length: qzCount }, (_, i) => `Quiz ${i + 1}`)
@@ -526,9 +528,18 @@ export function exportCurrentGrades({ classId, subject, students, classes, activ
     // Activity scores — from panel submissions or stored activityScores
     let actVals
     if (panelActs.length > 0) {
-      actVals = panelActs.map(a => {
+      actVals = panelActs.map((a, idx) => {
         const sc = (a.submissions || {})[s.id]?.score
-        return sc != null ? sc : ''
+        if (sc != null) return sc
+        // Fallback to manually-entered scores saved by the grade modal
+        const stored = comp.activityScores
+        if (stored) {
+          const byId  = stored[a.id]
+          const byIdx = stored[`a${idx + 1}`]
+          const val   = byId ?? byIdx
+          if (val != null) return val
+        }
+        return ''
       })
     } else {
       actVals = [comp.activities != null ? comp.activities : '']
