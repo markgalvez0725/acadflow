@@ -628,15 +628,29 @@ function SubjectCard({ cls, sub, studs, eqScale, onEdit, onClear, onExport, onIm
                     <ToggleBadge pct={midPct} equiv={midEquiv} badgeCls={midBadgeCls} />
                   </td>
                   <td>
-                    <div className="inline-flex flex-col items-center" style={{ minWidth: 54 }}>
-                      <ToggleBadge pct={finPct} equiv={finEquiv} badgeCls={finBadgeCls} />
-                      {finG == null && ftHasAnyData && (
-                        <div className="mt-1 w-full h-1 rounded overflow-hidden" style={{ background: 'var(--border)' }}
-                          title={`FT Activities graded: ${ftActTotal}/${total} students`}>
-                          <div style={{ height: '100%', background: 'var(--accent)', width: `${ftActPct}%`, transition: 'width .4s' }} />
+                    {finG != null
+                      ? <ToggleBadge pct={finPct} equiv={finEquiv} badgeCls={finBadgeCls} />
+                      : <div style={{ minWidth: 72 }}>
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="text-xs text-ink3" style={{ fontSize: 10 }}>
+                              {withFinals}/{total}
+                            </span>
+                            <span className="text-xs font-semibold" style={{ fontSize: 10, color: finUploadPct === 100 ? 'var(--green)' : 'var(--ink2)' }}>
+                              {finUploadPct}%
+                            </span>
+                          </div>
+                          <div className="w-full rounded overflow-hidden" style={{ height: 6, background: 'var(--border)' }}
+                            title={`Finals graded: ${withFinals}/${total} students`}>
+                            <div style={{
+                              height: '100%',
+                              borderRadius: 4,
+                              background: finUploadPct === 100 ? 'var(--green)' : finUploadPct >= 50 ? 'var(--accent)' : 'var(--c-gold, #f59e0b)',
+                              width: `${finUploadPct}%`,
+                              transition: 'width .4s',
+                            }} />
+                          </div>
                         </div>
-                      )}
-                    </div>
+                    }
                   </td>
                   <td>
                     {gradeFullyUploaded
