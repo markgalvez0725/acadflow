@@ -978,6 +978,30 @@ export default function GradesTab() {
       if (midExamV != null) comp.midtermExam = midExamV
       if (finExamV != null) comp.finalsExam  = finExamV
 
+      // Persist individual activity scores so the edit modal knows the count and values
+      if (entry.actScores?.length) {
+        const actSc = { ...(comp.activityScores || {}) }
+        entry.actScores.forEach((score, i) => {
+          if (score !== null) actSc[`a${i + 1}`] = score
+        })
+        if (Object.keys(actSc).length) comp.activityScores = actSc
+      } else if (actV !== null && !comp.activityScores?.a1) {
+        // No individual scores in the sheet — store the avg as a single slot
+        comp.activityScores = { ...(comp.activityScores || {}), a1: actV }
+      }
+
+      // Persist individual quiz scores so the edit modal knows the count and values
+      if (entry.qzScores?.length) {
+        const qzSc = { ...(comp.quizScores || {}) }
+        entry.qzScores.forEach((score, i) => {
+          if (score !== null) qzSc[`q${i + 1}`] = score
+        })
+        if (Object.keys(qzSc).length) comp.quizScores = qzSc
+      } else if (qzV !== null && !comp.quizScores?.q1) {
+        // No individual scores in the sheet — store the avg as a single slot
+        comp.quizScores = { ...(comp.quizScores || {}), q1: qzV }
+      }
+
       // Class Standing = avg(activities, quizzes, attendance)
       const csParts = [actV, qzV, attV].filter(x => x !== null)
       const cs = csParts.length

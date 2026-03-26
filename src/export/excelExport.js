@@ -473,16 +473,24 @@ export function parseGradingSheetImport(workbook) {
     const id = String(row[1] ?? '').trim()
     if (!id) continue
     const allActs = row.slice(2, 12)       // MT acts (2–6) + FT acts (7–11)
+    const scores  = allActs.map(toN)
     const computed = avgNonNull(allActs)
-    actMap[id] = computed !== null ? computed : (toN(row[12]) ?? toN(row[13]) ?? null)
+    actMap[id] = {
+      avg:    computed !== null ? computed : (toN(row[12]) ?? toN(row[13]) ?? null),
+      scores,                              // individual per-column scores (may contain nulls)
+    }
   }
 
   // Quizzes: cols 2–6 = quiz scores; fallback to formula cell at col 7
   for (const row of qzRows) {
     const id = String(row[1] ?? '').trim()
     if (!id) continue
+    const scores  = row.slice(2, 7).map(toN)
     const computed = avgNonNull(row.slice(2, 7))
-    qzMap[id] = computed !== null ? computed : (toN(row[7]) ?? null)
+    qzMap[id] = {
+      avg:    computed !== null ? computed : (toN(row[7]) ?? null),
+      scores,
+    }
   }
 
   // Exams & Attendance: col 8 = MT exam, col 9 = FT exam (static values)
@@ -496,10 +504,12 @@ export function parseGradingSheetImport(workbook) {
 
   return [...allIds].map(studentId => ({
     studentId,
-    actAvg: actMap[studentId]  ?? null,
-    qzAvg:  qzMap[studentId]   ?? null,
-    mtExam: examMap[studentId]?.mtExam ?? null,
-    ftExam: examMap[studentId]?.ftExam ?? null,
+    actAvg:    actMap[studentId]?.avg    ?? null,
+    actScores: actMap[studentId]?.scores ?? [],   // individual activity scores array
+    qzAvg:     qzMap[studentId]?.avg     ?? null,
+    qzScores:  qzMap[studentId]?.scores  ?? [],   // individual quiz scores array
+    mtExam:    examMap[studentId]?.mtExam ?? null,
+    ftExam:    examMap[studentId]?.ftExam ?? null,
   }))
 }
 
