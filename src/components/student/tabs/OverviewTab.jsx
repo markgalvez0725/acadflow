@@ -196,7 +196,17 @@ function SubjectRow({ sub, student: s, classes, activities, eqScale, toggleMap, 
         </div>
       )
     })
-  } else if (comp.quizzes != null) {
+  } else if (Array.isArray(comp.quizzes) && comp.quizzes.length) {
+    qzContent = comp.quizzes.map((q, i) => {
+      const col = q.pct >= 75 ? 'var(--green)' : q.pct >= 60 ? 'var(--yellow)' : 'var(--red)'
+      return (
+        <div key={q.quizId || i} style={{ fontSize: 11, display: 'flex', gap: 3, alignItems: 'center' }}>
+          <span style={{ color: 'var(--ink2)', fontWeight: 600 }}>Q{i + 1}:</span>
+          <span style={{ color: col, fontWeight: 700 }}>{q.pct}%</span>
+        </div>
+      )
+    })
+  } else if (comp.quizzes != null && !Array.isArray(comp.quizzes)) {
     qzContent = <span style={{ fontSize: 12 }}>{comp.quizzes}%</span>
   } else {
     qzContent = '—'
