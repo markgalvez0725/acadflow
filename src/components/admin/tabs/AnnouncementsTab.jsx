@@ -3,7 +3,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Modal from '@/components/primitives/Modal'
 import Badge from '@/components/primitives/Badge'
-import { Megaphone, Plus, Trash2, CalendarOff, Video, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Megaphone, Plus, Trash2, CalendarOff, Video, ToggleLeft, ToggleRight, Link } from 'lucide-react'
 
 // ── Helpers ───────────────────────────────────────────────────────────
 function annId() {
@@ -29,6 +29,7 @@ function AnnouncementFormModal({ ann, onClose }) {
   const [title,       setTitle]       = useState(ann?.title       || '')
   const [message,     setMessage]     = useState(ann?.message     || '')
   const [meetingLink, setMeetingLink] = useState(ann?.meetingLink || '')
+  const [moduleLink,  setModuleLink]  = useState(ann?.moduleLink  || '')
   const [expiresAt,   setExpiresAt]   = useState(() => {
     if (ann?.expiresAt) {
       const d = new Date(ann.expiresAt)
@@ -70,6 +71,9 @@ function AnnouncementFormModal({ ann, onClose }) {
     if (type === 'online_class' && meetingLink && !meetingLink.startsWith('http')) {
       setErr('Meeting link must start with http:// or https://'); return
     }
+    if (moduleLink && !moduleLink.startsWith('http')) {
+      setErr('Module link must start with http:// or https://'); return
+    }
 
     setSaving(true)
     try {
@@ -80,6 +84,7 @@ function AnnouncementFormModal({ ann, onClose }) {
         title:       finalTitle,
         message:     message.trim(),
         meetingLink: type === 'online_class' ? (meetingLink.trim() || null) : null,
+        moduleLink:  moduleLink.trim() || null,
         createdAt:   ann?.createdAt || Date.now(),
         active:      ann?.active ?? true,
         expiresAt:   expiresAt ? new Date(expiresAt).getTime() : null,
@@ -182,6 +187,17 @@ function AnnouncementFormModal({ ann, onClose }) {
             />
           </div>
         )}
+
+        {/* Module link */}
+        <div>
+          <label className="form-label">Module link <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(optional)</span></label>
+          <input
+            className="form-input"
+            value={moduleLink}
+            placeholder="https://drive.google.com/... or any module URL"
+            onChange={e => setModuleLink(e.target.value)}
+          />
+        </div>
 
         {/* Expiry */}
         <div>
@@ -326,6 +342,16 @@ export default function AnnouncementsTab() {
                         style={{ fontSize: 12, color: 'var(--accent)', marginTop: 4, display: 'inline-block' }}
                       >
                         Join Meeting →
+                      </a>
+                    )}
+                    {ann.moduleLink && (
+                      <a
+                        href={ann.moduleLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: 12, color: 'var(--green)', marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                      >
+                        <Link size={12} /> View Module →
                       </a>
                     )}
                     <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 6, display: 'flex', gap: 12, flexWrap: 'wrap' }}>

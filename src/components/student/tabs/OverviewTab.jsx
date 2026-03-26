@@ -3,7 +3,7 @@ import {
   gradeInfo, combineEquiv, getGWA, getAttRate, computeFinalGradeFromTerms,
 } from '@/utils/grades'
 import { useData } from '@/context/DataContext'
-import { BookOpen, Clock, CalendarOff, Video } from 'lucide-react'
+import { BookOpen, Clock, CalendarOff, Video, Link } from 'lucide-react'
 
 export default function OverviewTab({ student: s, viewClassId, classes }) {
   const { activities, students, eqScale, announcements } = useData()
@@ -112,6 +112,16 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
                     style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600, marginTop: 4, display: 'inline-block' }}
                   >
                     Join Meeting →
+                  </a>
+                )}
+                {ann.moduleLink && (
+                  <a
+                    href={ann.moduleLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600, marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                  >
+                    <Link size={12} /> View Module →
                   </a>
                 )}
               </div>
