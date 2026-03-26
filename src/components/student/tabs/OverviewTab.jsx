@@ -207,7 +207,8 @@ function SubjectRow({ sub, student: s, classes, activities, eqScale, toggleMap, 
       )
     })
   } else if (comp.quizzes != null && !Array.isArray(comp.quizzes)) {
-    qzContent = <span style={{ fontSize: 12 }}>{comp.quizzes}%</span>
+    const qzVal = typeof comp.quizzes === 'object' ? comp.quizzes.pct : comp.quizzes
+    qzContent = <span style={{ fontSize: 12 }}>{qzVal}%</span>
   } else {
     qzContent = '—'
   }
