@@ -3,7 +3,7 @@ import { doc, setDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Pagination from '@/components/primitives/Pagination'
-import { Mail, Upload, CheckCircle, BookOpen, MessageSquare, Bell, Trash2 } from 'lucide-react'
+import { Mail, Upload, CheckCircle, BookOpen, MessageSquare, Bell, Trash2, Megaphone } from 'lucide-react'
 
 const PER_PAGE = 10
 
@@ -13,12 +13,14 @@ const ICONS = {
   act_grade: <CheckCircle size={16} />,
   act_new:   <BookOpen size={16} />,
   msg_in:    <MessageSquare size={16} />,
+  announce:  <Megaphone size={16} />,
 }
 
 const LINK_TO_TAB = {
   grades:     { label: '→ View Grades',      tab: 'grades' },
   activities: { label: '→ View Activities',  tab: 'activities' },
   messages:   { label: '→ View Messages',    tab: 'messages' },
+  overview:   { label: '→ View Overview',    tab: 'overview' },
 }
 
 const TYPE_TO_TAB = {
@@ -26,6 +28,7 @@ const TYPE_TO_TAB = {
   act_grade: { label: '→ View Grades',     tab: 'grades' },
   msg_out:   { label: '→ View Messages',   tab: 'messages' },
   msg_in:    { label: '→ View Messages',   tab: 'messages' },
+  announce:  { label: '→ View Overview',   tab: 'overview' },
 }
 
 function resolveAction(n) {

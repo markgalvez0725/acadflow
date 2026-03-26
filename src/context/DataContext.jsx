@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react'
 import { fbInit, getFbConfigFromEnv } from '@/firebase/firebaseInit'
 import { fbStartListening, stopListening } from '@/firebase/listeners'
-import { persistStudentsSync, persistClassesSync, persistAdmin, loadAdminFromStorage, fbDeleteStudent } from '@/firebase/persistence'
+import { persistStudentsSync, persistClassesSync, persistAdmin, loadAdminFromStorage, fbDeleteStudent, fbSaveAnnouncement, fbDeleteAnnouncement, fbPushAnnouncementNotifs } from '@/firebase/persistence'
 import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase } from '@/firebase/settings'
 import { loadFbConfigFromStorage, readStoredEJS } from '@/utils/crypto'
 import { DEFAULT_EQ_SCALE } from '@/utils/grades'
@@ -15,6 +15,7 @@ export function DataProvider({ children }) {
   const [activities, setActivities]     = useState([])
   const [adminNotifs, setAdminNotifs]   = useState([])
   const [quizzes, setQuizzes]           = useState([])
+  const [announcements, setAnnouncements] = useState([])
   const [fbReady, setFbReady]           = useState(false)
   const [fbConfig, setFbConfig]         = useState(null) // decrypted config object
   const dbRef = useRef(null)
@@ -82,6 +83,7 @@ export function DataProvider({ children }) {
       onActivitiesUpdate: setActivities,
       onAdminNotifUpdate: setAdminNotifs,
       onQuizzesUpdate:    setQuizzes,
+      onAnnouncementsUpdate: setAnnouncements,
       onConfigUpdate: async ({ ejsConfig }) => {
         if (ejsConfig) {
           setEjs({ ...ejsConfig, configured: true })
@@ -119,6 +121,7 @@ export function DataProvider({ children }) {
       onActivitiesUpdate: setActivities,
       onAdminNotifUpdate: setAdminNotifs,
       onQuizzesUpdate:    setQuizzes,
+      onAnnouncementsUpdate: setAnnouncements,
       onConfigUpdate: async ({ ejsConfig }) => {
         if (ejsConfig) {
           setEjs({ ...ejsConfig, configured: true })
@@ -166,6 +169,28 @@ export function DataProvider({ children }) {
     }
   }, [])
 
+  const saveAnnouncement = useCallback(async (announcement) => {
+    setAnnouncements(prev => {
+      const idx = prev.findIndex(a => a.id === announcement.id)
+      if (idx >= 0) {
+        const next = [...prev]
+        next[idx] = announcement
+        return next
+      }
+      return [announcement, ...prev]
+    })
+    await fbSaveAnnouncement(dbRef.current, announcement)
+  }, [])
+
+  const deleteAnnouncement = useCallback(async (id) => {
+    setAnnouncements(prev => prev.filter(a => a.id !== id))
+    await fbDeleteAnnouncement(dbRef.current, id)
+  }, [])
+
+  const pushAnnouncementNotifs = useCallback(async (announcement) => {
+    await fbPushAnnouncementNotifs(dbRef.current, announcement, students)
+  }, [students])
+
   const saveEjs = useCallback(async (ejsConfig) => {
     setEjs({ ...ejsConfig, configured: true })
 
@@ -191,6 +216,7 @@ export function DataProvider({ children }) {
       activities, setActivities,
       adminNotifs, setAdminNotifs,
       quizzes, setQuizzes,
+      announcements, setAnnouncements, saveAnnouncement, deleteAnnouncement, pushAnnouncementNotifs,
       fbReady, fbConfig, reinitFirebase,
       db: dbRef,
       ejs, setEjs, saveEjs,

@@ -15,8 +15,9 @@ const StudentsTab     = lazy(() => import('./tabs/StudentsTab'))
 const GradesTab       = lazy(() => import('./tabs/GradesTab'))
 const AttendanceTab   = lazy(() => import('./tabs/AttendanceTab'))
 const ActivitiesTab   = lazy(() => import('./tabs/ActivitiesTab'))
-const NotificationsTab = lazy(() => import('./tabs/NotificationsTab'))
-const QuizTab          = lazy(() => import('./tabs/QuizTab'))
+const NotificationsTab  = lazy(() => import('./tabs/NotificationsTab'))
+const QuizTab           = lazy(() => import('./tabs/QuizTab'))
+const AnnouncementsTab  = lazy(() => import('./tabs/AnnouncementsTab'))
 
 // Modals (lazy)
 const AdminSettingsModal = lazy(() => import('./modals/AdminSettingsModal'))
@@ -29,7 +30,8 @@ const TAB_TITLES = {
   attendance:    ['Attendance',    'Track student attendance'],
   activities:    ['Activities',    'Post activities, collect submissions, and auto-grade'],
   quizzes:       ['Quizzes',       'AI-generated quizzes with auto-grading'],
-  notifications: ['Notifications', 'Real-time alerts for messages and activity submissions'],
+  notifications:  ['Notifications',  'Real-time alerts for messages and activity submissions'],
+  announcements:  ['Announcements',  'Post no-class or online-class notices to enrolled students'],
 }
 
 export default function AdminLayout() {
@@ -115,8 +117,9 @@ export default function AdminLayout() {
             {adminTab === 'grades'        && <GradesTab />}
             {adminTab === 'attendance'    && <AttendanceTab />}
             {adminTab === 'activities'    && <ActivitiesTab />}
-            {adminTab === 'quizzes'       && <QuizTab />}
-            {adminTab === 'notifications' && <NotificationsTab />}
+            {adminTab === 'quizzes'        && <QuizTab />}
+            {adminTab === 'notifications'  && <NotificationsTab />}
+            {adminTab === 'announcements'  && <AnnouncementsTab />}
           </Suspense>
         </div>
       </div>

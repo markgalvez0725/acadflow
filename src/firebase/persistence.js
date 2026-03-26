@@ -119,6 +119,46 @@ export async function loadAdminFromStorage() {
   return null;
 }
 
+// ── Announcement writes ────────────────────────────────────────────────────
+export async function fbSaveAnnouncement(db, announcement) {
+  const { doc: fbDoc, setDoc } = await import('firebase/firestore')
+  return fbWithTimeout(setDoc(fbDoc(db, 'announcements', announcement.id), announcement))
+}
+
+export async function fbDeleteAnnouncement(db, id) {
+  const { doc: fbDoc, deleteDoc } = await import('firebase/firestore')
+  return fbWithTimeout(deleteDoc(fbDoc(db, 'announcements', id)))
+}
+
+export async function fbPushAnnouncementNotifs(db, announcement, students) {
+  if (!db || !announcement || !students?.length) return
+  const enrolled = students.filter(s => {
+    const ids = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
+    return ids.includes(announcement.classId)
+  })
+  if (!enrolled.length) return
+  const { doc: fbDoc, getDoc, setDoc } = await import('firebase/firestore')
+  for (let i = 0; i < enrolled.length; i += BATCH) {
+    await Promise.all(enrolled.slice(i, i + BATCH).map(async s => {
+      try {
+        const ref = fbDoc(db, 'notifications', s.id)
+        const snap = await getDoc(ref)
+        const existing = snap.exists() ? (snap.data().items || []) : []
+        const notif = {
+          id: 'n' + Date.now() + Math.random().toString(36).slice(2, 5),
+          type: 'announce',
+          read: false,
+          ts: Date.now(),
+          title: announcement.title,
+          body: announcement.message || '',
+          link: 'overview',
+        }
+        await setDoc(ref, { items: [notif, ...existing].slice(0, 200) }, { merge: false })
+      } catch (e) {}
+    }))
+  }
+}
+
 export async function persistAdmin(db, admin) {
   const payload = { user: admin.user, pass: admin.pass, email: admin.email };
   if (admin.resetPin) payload.resetPin = admin.resetPin;

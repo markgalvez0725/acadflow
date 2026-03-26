@@ -3,10 +3,10 @@ import {
   gradeInfo, combineEquiv, getGWA, getAttRate, computeFinalGradeFromTerms,
 } from '@/utils/grades'
 import { useData } from '@/context/DataContext'
-import { BookOpen, Clock } from 'lucide-react'
+import { BookOpen, Clock, CalendarOff, Video } from 'lucide-react'
 
 export default function OverviewTab({ student: s, viewClassId, classes }) {
-  const { activities, students, eqScale } = useData()
+  const { activities, students, eqScale, announcements } = useData()
 
   // Toggle state per subject: 'equiv' | 'pct'
   const [toggleMap, setToggleMap] = useState({})
@@ -18,6 +18,15 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
     s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : []),
     [s]
   )
+
+  const activeAnnouncements = useMemo(() => {
+    const now = Date.now()
+    return (announcements || []).filter(ann =>
+      ann.active &&
+      enrolledIds.includes(ann.classId) &&
+      (!ann.expiresAt || ann.expiresAt > now)
+    ).sort((a, b) => b.createdAt - a.createdAt)
+  }, [announcements, enrolledIds])
 
   const allEnrolledSubs = useMemo(() => {
     if (enrolledIds.length) {
@@ -67,6 +76,50 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
 
   return (
     <div className="student-overview">
+      {/* Announcement banners */}
+      {activeAnnouncements.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+          {activeAnnouncements.map(ann => (
+            <div
+              key={ann.id}
+              style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10,
+                padding: '12px 14px', borderRadius: 10,
+                background: ann.type === 'no_class'
+                  ? 'rgba(234,179,8,0.1)'
+                  : 'rgba(59,130,246,0.1)',
+                border: `1px solid ${ann.type === 'no_class' ? 'rgba(234,179,8,0.3)' : 'rgba(59,130,246,0.3)'}`,
+              }}
+            >
+              <div style={{
+                color: ann.type === 'no_class' ? 'var(--yellow)' : 'var(--accent)',
+                flexShrink: 0, marginTop: 1,
+              }}>
+                {ann.type === 'no_class' ? <CalendarOff size={18} /> : <Video size={18} />}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, color: ann.type === 'no_class' ? 'var(--yellow)' : 'var(--accent)' }}>
+                  {ann.title}
+                </div>
+                {ann.message && (
+                  <div style={{ fontSize: 12, color: 'var(--ink2)', marginTop: 2 }}>{ann.message}</div>
+                )}
+                {ann.type === 'online_class' && ann.meetingLink && (
+                  <a
+                    href={ann.meetingLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600, marginTop: 4, display: 'inline-block' }}
+                  >
+                    Join Meeting →
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Stat cards */}
       <div className="s-stat-row">
         <div className="s-stat-card">
