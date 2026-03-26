@@ -14,23 +14,26 @@ AcadFlow is a web-based school portal that provides a unified platform to manage
 - **Dashboard** — class-wide KPIs, GWA/attendance charts, at-risk student monitoring
 - **Students** — roster management with grades and attendance overview
 - **Classes** — class and subject definitions
-- **Grades** — input and manage grades per subject and assessment type
-- **Attendance** — calendar-based daily attendance tracking (Present / Absent / Excuse)
-- **Activities** — post assignments with deadlines and grade submissions
+- **Grades** — input and manage grades per subject and assessment type; Save All Grades button for bulk updates
+- **Attendance** — calendar-based daily attendance tracking (Present / Absent / Excuse); import from file
+- **Activities** — post assignments with deadlines, rubric builder, and grade submissions; students are notified when graded
+- **Quiz** — create and manage quizzes; export template with optional AI prompt for question generation
+- **Announcements** — post "No Class" or "Online Class" notices with optional meeting link and module link; students are notified instantly
 - **Messages** — one-on-one and broadcast messaging to students
 - **Notifications** — system-wide alerts and activity updates
 - **Settings** — admin credentials, EmailJS config, equivalence scale, Firebase config
 
 ### Student Portal
-- **Overview** — personal GWA, attendance rate, and recent activity
+- **Overview** — personal GWA, attendance rate, active announcements (with meeting and module links), and recent activity
 - **Grades** — view grades per subject with assessment breakdowns
 - **Attendance** — personal attendance calendar and summary
-- **Activities** — view and submit assignments
+- **Activities** — view and submit assignments; edit submission link before deadline
 - **Messages** — direct messaging with admin/teacher
-- **Notifications** — personal notification feed
+- **Notifications** — personal notification feed with badge for unread items
 
 ### General
 - Real-time sync via Firebase Firestore
+- Push notifications to students on grade posts, activity grading, and announcements
 - EmailJS OTP for password resets
 - Excel (.xlsx) and PDF export for grades and attendance
 - Light and dark mode
@@ -155,7 +158,9 @@ index.html           # CDN scripts: SheetJS, jsPDF, jspdf-autotable
 | `students` | One document per student (doc ID = student ID) |
 | `classes` | Class/subject definitions with grade records |
 | `messages` | In-app messaging |
-| `activities` | Activity announcements |
+| `activities` | Assignments with deadlines, rubrics, and submissions |
+| `announcements` | No-class / online-class notices with optional meeting and module links |
+| `notifications` | Per-student notification feed (doc ID = student ID) |
 | `adminNotifs` | Admin-side notifications |
 | `admin` | Admin credentials (hashed password, email, reset PIN) |
 | `config` | EmailJS config (encrypted), portal settings |
