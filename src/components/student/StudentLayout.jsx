@@ -105,6 +105,20 @@ export default function StudentLayout() {
 
   const unreadNotifCount = studentNotifs.filter(n => !n.read).length
 
+  // Activities the student hasn't submitted yet and aren't past due
+  const openActivityCount = (() => {
+    if (!student) return 0
+    const studentClassIds = student.classIds?.length ? student.classIds : (student.classId ? [student.classId] : [])
+    const now = Date.now()
+    return activities.filter(a => {
+      if (!studentClassIds.includes(a.classId)) return false
+      const sub = (a.submissions || {})[student.id]
+      if (sub?.link) return false // already submitted
+      if (a.deadline && now > a.deadline) return false // past due
+      return true
+    }).length
+  })()
+
   // Open quizzes the student hasn't taken yet
   const openQuizCount = (() => {
     if (!student) return 0
@@ -202,7 +216,7 @@ export default function StudentLayout() {
       {/* Bottom nav */}
       <nav className="student-bottom-nav">
         {NAV_ITEMS.map(item => {
-          const badge = item.id === 'notifications' ? unreadNotifCount : item.id === 'quizzes' ? openQuizCount : 0
+          const badge = item.id === 'notifications' ? unreadNotifCount : item.id === 'quizzes' ? openQuizCount : item.id === 'activities' ? openActivityCount : 0
           return (
             <button
               key={item.id}
