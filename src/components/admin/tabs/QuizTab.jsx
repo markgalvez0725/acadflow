@@ -55,6 +55,10 @@ Use this exact format:
   }
 }
 
+const AI_PROMPT_TEXT = `I have a quiz template JSON file. Please read the _instructions field inside it carefully and generate the quiz questions exactly as described.
+
+Respond ONLY with a valid JSON array — no markdown, no explanation, no code block. Just the raw JSON array starting with [ and ending with ].`
+
 // ── Export Template Modal ─────────────────────────────────────────────────────
 function ExportTemplateModal({ onClose, onSwitchToImport }) {
   const { toast } = useUI()
@@ -62,6 +66,14 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
   const [qCount, setQCount] = useState(10)
   const [qTypes, setQTypes] = useState(['multiple_choice', 'true_false', 'short_answer', 'fill_in_the_blank', 'identification'])
   const [generalPrompt, setGeneralPrompt] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  function handleCopyPrompt() {
+    navigator.clipboard.writeText(AI_PROMPT_TEXT).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
 
   function toggleType(t) {
     setQTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])
@@ -134,14 +146,30 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
         />
       </div>
 
-      <div style={{ background: 'var(--c-surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: 'var(--ink2)' }}>
+      <div style={{ background: 'var(--c-surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 12, color: 'var(--ink2)' }}>
         <strong style={{ color: 'var(--ink)' }}>How it works:</strong>
         <ol style={{ margin: '6px 0 0 16px', lineHeight: 1.8 }}>
           <li>Click <strong>Export Template</strong> to download a <code>.json</code> file</li>
-          <li>Send the file or its contents to ChatGPT, Gemini, or any AI</li>
-          <li>Copy the AI's JSON output</li>
-          <li>Click <strong>Import AI Response</strong> to create the quiz</li>
+          <li>Go to ChatGPT, Gemini, Claude, or any AI platform</li>
+          <li>Copy the prompt below, paste it, then attach or paste the <code>.json</code> file contents</li>
+          <li>Copy the AI's JSON output, then click <strong>Import AI Response</strong></li>
         </ol>
+      </div>
+
+      <div style={{ background: 'var(--c-surface2)', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 16, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px', borderBottom: '1px solid var(--border)', background: 'var(--c-surface3)' }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink2)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Prompt to paste into AI</span>
+          <button
+            type="button"
+            onClick={handleCopyPrompt}
+            style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, border: '1px solid var(--border)', background: copied ? 'var(--c-primary)' : 'var(--c-surface)', color: copied ? '#fff' : 'var(--ink)', cursor: 'pointer', fontWeight: 600, transition: 'all 0.15s' }}
+          >
+            {copied ? '✓ Copied!' : '📋 Copy'}
+          </button>
+        </div>
+        <pre style={{ margin: 0, padding: '10px 14px', fontSize: 12, color: 'var(--ink)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.6, userSelect: 'all' }}>
+          {AI_PROMPT_TEXT}
+        </pre>
       </div>
 
       <div className="modal-footer">
