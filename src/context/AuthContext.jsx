@@ -116,14 +116,22 @@ export function AuthProvider({ children }) {
       recordFailedAttempt(key)
       return { ok: false, msg: 'Student ID not found.' }
     }
-    const match = await verifyPassword(password, student.account?.pass ?? student.pass)
+    const storedHash = student.account?.pass ?? student.pass
+    let match = await verifyPassword(password, storedHash)
+    // Fallback: student exists but has no stored password (pre-account migration).
+    // Accept the default password so they can log in and be forced to change it.
+    const DEFAULT_PASS = 'Welcome@2026'
+    if (!match && !storedHash && password === DEFAULT_PASS) {
+      match = true
+    }
     if (!match) {
       recordFailedAttempt(key)
       return { ok: false, msg: 'Incorrect password.' }
     }
     clearAttempts(key)
+    const needsPassSetup = !storedHash || student.forceChangePassword
     _startSession('student', student)
-    return { ok: true, student, forceChange: student.forceChangePassword }
+    return { ok: true, student, forceChange: needsPassSetup }
   }, [])
 
   // ── Logout ──────────────────────────────────────────────────────────────
