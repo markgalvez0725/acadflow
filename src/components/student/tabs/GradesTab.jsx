@@ -129,13 +129,25 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
   const actVal = panelActAvg ?? comp.activities ?? null
 
   // Quiz display
+  // comp.quizzes may be a number (average) or an array of quiz result objects
+  const quizzesRaw = comp.quizzes
+  const quizzesIsArray = Array.isArray(quizzesRaw)
+  const quizzesAvg = quizzesIsArray
+    ? (quizzesRaw.length
+        ? parseFloat((quizzesRaw.reduce((t, q) => t + (q.pct ?? (q.score != null && q.total ? Math.round(q.score / q.total * 100) : 0)), 0) / quizzesRaw.length).toFixed(2))
+        : null)
+    : (typeof quizzesRaw === 'number' ? quizzesRaw : null)
+
   let qzEntries = []
-  if (comp.quizScores && Object.keys(comp.quizScores).length) {
+  if (quizzesIsArray && quizzesRaw.length) {
+    qzEntries = quizzesRaw.map((q, i) => [`q${i + 1}`, q.pct ?? (q.score != null && q.total ? Math.round(q.score / q.total * 100) : null), q.title ?? null])
+  } else if (comp.quizScores && Object.keys(comp.quizScores).length) {
     const qzRaw = Object.entries(comp.quizScores)
     const isNumbered = qzRaw.every(([k]) => /^q\d+$/.test(k))
-    qzEntries = isNumbered
+    const sorted = isNumbered
       ? qzRaw.sort((a, b) => parseInt(a[0].slice(1)) - parseInt(b[0].slice(1)))
       : qzRaw.sort(([a], [b]) => String(a).localeCompare(String(b)))
+    qzEntries = sorted.map(([k, v]) => [k, v, null])
   }
 
   // Subject attendance rate
@@ -151,7 +163,7 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
   }, 0)
   const attRate = held > 0 ? parseFloat(((attSet.size / held) * 100).toFixed(1)) : 0
 
-  const hasAny = actVal != null || comp.quizzes != null || midG != null || finG != null
+  const hasAny = actVal != null || quizzesAvg != null || midG != null || finG != null
 
   return (
     <div className="sg-card">
@@ -194,7 +206,7 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
         <div className="sg-breakdown">
           <div className="sg-section-label">Grade Breakdown</div>
           <Bar val={actVal}       label="Activities" weight="CS" />
-          <Bar val={comp.quizzes} label="Quizzes"    weight="CS" />
+          <Bar val={quizzesAvg}   label="Quizzes"    weight="CS" />
           <Bar val={attRate}      label="Attendance" weight="CS" />
           <Bar val={midG}         label="Midterm"    weight="Term grade" />
           <Bar val={finG}         label="Finals"     weight={finG != null ? 'Term grade' : 'Pending upload'} />
@@ -244,30 +256,33 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
       {qzEntries.length > 0 && (
         <div className="sg-score-block">
           <div className="sg-section-label">Quiz Scores</div>
-          {qzEntries.map(([k, v]) => {
+          {qzEntries.map(([k, v, title]) => {
             const num = parseInt(k.slice(1))
-            const col = v >= 75 ? 'var(--green)' : v >= 60 ? 'var(--yellow)' : 'var(--red)'
+            const col = v == null ? 'var(--ink3)' : v >= 75 ? 'var(--green)' : v >= 60 ? 'var(--yellow)' : 'var(--red)'
+            const label = title
+              ? `Quiz ${isNaN(num) ? k : num} — ${title.slice(0, 30)}${title.length > 30 ? '…' : ''}`
+              : `Quiz ${isNaN(num) ? k : num}`
             return (
               <div key={k} className="sg-score-row">
-                <span className="sg-score-label">Quiz {isNaN(num) ? k : num}</span>
-                <span className="sg-score-val" style={{ color: col }}>{v}%</span>
+                <span className="sg-score-label">{label}</span>
+                <span className="sg-score-val" style={{ color: col }}>{v != null ? `${v}%` : '—'}</span>
               </div>
             )
           })}
-          {comp.quizzes != null && (
+          {quizzesAvg != null && (
             <div className="sg-score-avg">
               <span>Average</span>
-              <span style={{ color: 'var(--accent)' }}>{comp.quizzes}%</span>
+              <span style={{ color: 'var(--accent)' }}>{quizzesAvg}%</span>
             </div>
           )}
         </div>
       )}
-      {qzEntries.length === 0 && comp.quizzes != null && (
+      {qzEntries.length === 0 && quizzesAvg != null && (
         <div className="sg-score-block">
           <div className="sg-section-label">Quiz Score</div>
           <div className="sg-score-avg">
             <span>Overall</span>
-            <span style={{ color: comp.quizzes >= 75 ? 'var(--green)' : comp.quizzes >= 60 ? 'var(--yellow)' : 'var(--red)' }}>{comp.quizzes}%</span>
+            <span style={{ color: quizzesAvg >= 75 ? 'var(--green)' : quizzesAvg >= 60 ? 'var(--yellow)' : 'var(--red)' }}>{quizzesAvg}%</span>
           </div>
         </div>
       )}
