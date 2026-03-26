@@ -173,7 +173,7 @@ function SubjectDetail({ sub, student: s, cls, students }) {
           <div style={{ fontWeight: 700, fontSize: 15 }}>{sub}</div>
           {cls && <div style={{ fontSize: 11, color: 'var(--ink2)', marginTop: 2 }}>{cls.name} · {cls.section} · {cls.schedule}</div>}
         </div>
-        <div style={{ fontSize: '1.6rem', fontWeight: 700, fontFamily: "'Playfair Display', serif", color: rateColor }}>{rate.toFixed(0)}%</div>
+        <div style={{ fontSize: '1.6rem', fontWeight: 700, fontFamily: "'Cormorant Garamond', Georgia, serif", color: rateColor }}>{rate.toFixed(0)}%</div>
       </div>
 
       {/* Per-subject stats */}

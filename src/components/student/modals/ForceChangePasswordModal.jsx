@@ -65,7 +65,7 @@ export default function ForceChangePasswordModal({ student: s, onClose, forced =
 
         <div style={{ textAlign: 'center', marginBottom: 18 }}>
           <div style={{ marginBottom: 8, color: 'var(--accent)' }}><KeyRound size={40} style={{ display: 'inline-block' }} /></div>
-          <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.2rem', marginBottom: 6 }}>Change Your Password</h3>
+          <h3 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: '1.2rem', marginBottom: 6 }}>Change Your Password</h3>
           <p style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.5 }}>
             {forced
               ? 'Your account was set up with a temporary password. Please choose a personal password before continuing.'

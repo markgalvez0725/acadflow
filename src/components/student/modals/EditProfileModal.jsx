@@ -132,7 +132,7 @@ export default function EditProfileModal({ student: s, onClose }) {
   return (
     <Modal onClose={onClose}>
       <div>
-        <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, marginBottom: 20 }}>Edit Profile</h3>
+        <h3 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: 20, marginBottom: 20 }}>Edit Profile</h3>
 
         {/* Avatar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
