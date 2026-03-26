@@ -289,7 +289,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
       <div className="flex items-center justify-between gap-2">
         <button
           className="btn btn-ghost btn-sm"
-          onClick={() => setCurrentQ(q => Math.max(0, q - 1))}
+          onClick={() => setCurrentQ(prev => Math.max(0, prev - 1))}
           disabled={currentQ === 0}
         >
           ← Prev
@@ -302,7 +302,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
         {currentQ < total - 1 ? (
           <button
             className="btn btn-primary btn-sm"
-            onClick={() => setCurrentQ(q => Math.min(total - 1, q + 1))}
+            onClick={() => setCurrentQ(prev => Math.min(total - 1, prev + 1))}
           >
             Next →
           </button>

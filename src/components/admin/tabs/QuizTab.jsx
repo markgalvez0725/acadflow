@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -202,15 +202,17 @@ function ImportResponseModal({ onClose, onImported }) {
 
   function handleImport() {
     setJsonErr('')
+    let parsed
     try {
-      const parsed = JSON.parse(jsonInput.trim())
-      if (!Array.isArray(parsed)) throw new Error('Expected a JSON array of questions')
-      if (!parsed.length) throw new Error('Array is empty')
-      const qs = parsed.map((q, i) => ({ ...q, id: 'q' + i + '_' + Date.now() }))
-      onImported(qs)
+      parsed = JSON.parse(jsonInput.trim())
     } catch (e) {
       setJsonErr('Invalid JSON: ' + e.message)
+      return
     }
+    if (!Array.isArray(parsed)) { setJsonErr('Expected a JSON array of questions, e.g. [{ "type": "multiple_choice", ... }]'); return }
+    if (!parsed.length) { setJsonErr('The array is empty — paste at least one question.'); return }
+    const qs = parsed.map((q, i) => ({ ...q, id: 'q' + i + '_' + Date.now() }))
+    onImported(qs)
   }
 
   return (
@@ -279,6 +281,11 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
   const [editingQ, setEditingQ] = useState(null)
   const [err, setErr] = useState('')
   const [saving, setSaving] = useState(false)
+  const errRef = useRef(null)
+
+  useEffect(() => {
+    if (err && errRef.current) errRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [err])
 
   const availableSubjects = useMemo(() => {
     const subs = new Set()
@@ -358,7 +365,9 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
       <h3 className="text-lg font-bold text-ink mb-1">
         {isEdit ? '✏️ Edit Quiz' : '📝 Configure & Share Quiz'}
       </h3>
-      <p className="modal-sub">{questions.length} questions imported. Review, edit, then share with classes.</p>
+      <p className="modal-sub">{isEdit ? `${questions.length} questions` : `${questions.length} questions imported`}. Review, edit, then share with classes.</p>
+
+      <div ref={errRef} className={`err-msg mb-3${err ? '' : ' hidden'}`}>{err}</div>
 
       <div className="field mb-3">
         <label className="text-xs font-semibold text-ink2 mb-1 block">Quiz Title <span className="text-red-500">*</span></label>
@@ -503,8 +512,6 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
           ))}
         </div>
       </div>
-
-      {err && <div className="err-msg mb-2">{err}</div>}
 
       <div className="modal-footer">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
