@@ -674,7 +674,7 @@ function SubjectCard({ cls, sub, studs, eqScale, onEdit, onClear, onExport, onEx
               </span>
             : <span className="ml-2 text-xs text-ink3">Not yet uploaded</span>}
         </div>
-        <div className="flex gap-1.5 flex-wrap flex-shrink-0">
+        <div className="flex gap-1.5 flex-wrap">
           <button className="btn btn-primary btn-sm" onClick={() => onEdit(sub)}><Pencil size={13} className="inline-block mr-1" />Edit Grades</button>
           <button className="btn btn-ghost btn-sm" onClick={() => onExportGrades(sub)} title="Export current grade data"><BarChart2 size={13} className="inline-block mr-1" />Export Grades</button>
           <button className="btn btn-ghost btn-sm" onClick={() => onExport(sub)} title="Export blank grading sheet template"><Upload size={13} className="inline-block mr-1" />Template</button>
