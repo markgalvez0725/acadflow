@@ -191,7 +191,7 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
     const XLSX = window.XLSX
     if (!XLSX) { toast('SheetJS not loaded. Check your internet connection.', 'red'); return }
 
-    const sorted = [...studs].sort(sortByLastName)
+    const sorted = sortByLastName([...studs])
     // Header row: Student No., Name, then 5 blank date placeholders
     const today = new Date()
     const dateCols = Array.from({ length: 5 }, (_, i) => {
