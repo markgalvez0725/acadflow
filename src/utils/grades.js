@@ -20,10 +20,8 @@ export const DEFAULT_EQ_SCALE = [
 export function gradeInfo(g, eqScale = DEFAULT_EQ_SCALE) {
   if (g === null || g === undefined) return { eq: '—', ltr: '—', rem: 'No Grade' };
   for (const tier of eqScale) {
-    if (g > tier.minScore) return { eq: tier.eq, ltr: tier.ltr, rem: tier.rem };
+    if (g >= tier.minScore) return { eq: tier.eq, ltr: tier.ltr, rem: tier.rem };
   }
-  const last = eqScale[eqScale.length - 1];
-  if (g >= last.minScore) return { eq: last.eq, ltr: last.ltr, rem: last.rem };
   return { eq: '5.00', ltr: 'F', rem: 'Failed' };
 }
 
@@ -192,6 +190,6 @@ export function getHeldDays(classId, sub, students = []) {
 
 // ── Grade scale label for export headers ─────────────────────────────────
 export function getGradeScaleLabel(eqScale = DEFAULT_EQ_SCALE) {
-  return eqScale.map(t => `>${t.minScore}→${t.eq}`).join(' · ')
-    + ` · ≤${eqScale[eqScale.length - 1].minScore}→5.00 (Failed)`;
+  return eqScale.map(t => `≥${t.minScore}→${t.eq}`).join(' · ')
+    + ` · <${eqScale[eqScale.length - 1].minScore}→5.00 (Failed)`;
 }
