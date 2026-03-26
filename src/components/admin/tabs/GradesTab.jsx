@@ -76,7 +76,9 @@ function GradeEntryModal({ classId, subject, onClose }) {
     if (panelQuizzes.length > 0) return panelQuizzes.length
     const max = studs.reduce((m, s) => {
       const qz = s.gradeComponents?.[subject]?.quizScores || {}
-      return Math.max(m, Object.keys(qz).length)
+      // Count only positional keys like q1, q2, … (avoid id-based duplicate keys)
+      const positional = Object.keys(qz).filter(k => /^q\d+$/.test(k))
+      return Math.max(m, positional.length)
     }, 0)
     return Math.max(max, 1)
   }, [studs, subject, panelQuizzes])
@@ -172,14 +174,19 @@ function GradeEntryModal({ classId, subject, onClose }) {
   const [rows, setRows] = useState(initRows)
   const [saving, setSaving] = useState(false)
 
-  // Re-sync rows when panel activities load after initial render
-  const prevActCountRef = React.useRef(panelActs.length)
+  // Re-sync rows when panel activities or quizzes load/change after initial render
+  const prevActKeyRef = React.useRef('')
+  const prevQzKeyRef  = React.useRef('')
   React.useEffect(() => {
-    if (panelActs.length !== prevActCountRef.current) {
-      prevActCountRef.current = panelActs.length
+    // Build stable keys from ids + submission counts so we detect any data change
+    const actKey = panelActs.map(a => a.id + ':' + Object.keys(a.submissions || {}).length).join(',')
+    const qzKey  = panelQuizzes.map(q => q.id + ':' + Object.keys(q.submissions || {}).length).join(',')
+    if (actKey !== prevActKeyRef.current || qzKey !== prevQzKeyRef.current) {
+      prevActKeyRef.current = actKey
+      prevQzKeyRef.current  = qzKey
       setRows(initRows)
     }
-  }, [panelActs.length]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [panelActs, panelQuizzes]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Last upload timestamp for this subject
   const uploadTs = useMemo(() =>
