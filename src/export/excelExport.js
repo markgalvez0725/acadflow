@@ -494,10 +494,17 @@ export function exportCurrentGrades({ classId, subject, students, classes, activ
   const title = `GRADE SUMMARY — ${subject}`
   const meta  = `Class: ${cls.name || cls.id}  |  Section: ${cls.section || ''}  |  S.Y. ${cls.sy || ''}  |  Exported: ${exportDate}`
 
-  // Build dynamic activity headers
+  // Build dynamic activity headers (matches template Activities sheet)
+  const actCount = panelActs.length > 0
+    ? panelActs.length
+    : roster.reduce((max, s) => {
+        const sc = s.gradeComponents?.[subject]?.activityScores || {}
+        const positional = Object.keys(sc).filter(k => /^a\d+$/.test(k))
+        return Math.max(max, positional.length)
+      }, 1)
   const actHeaders = panelActs.length > 0
     ? panelActs.map((a, i) => a.title || `Activity ${i + 1}`)
-    : ['Activities Avg']
+    : Array.from({ length: actCount }, (_, i) => `Activity ${i + 1}`)
 
   const quizMax = roster.reduce((max, s) => {
     const qz = s.gradeComponents?.[subject]?.quizScores || {}
@@ -505,17 +512,24 @@ export function exportCurrentGrades({ classId, subject, students, classes, activ
     const positional = Object.keys(qz).filter(k => /^q\d+$/.test(k))
     return Math.max(max, positional.length)
   }, 0)
-  const qzCount = Math.max(quizMax, 1)
+  const qzCount = Math.max(quizMax, panelActs.length > 0 ? 0 : 1)
   const qzHeaders = Array.from({ length: qzCount }, (_, i) => `Quiz ${i + 1}`)
 
+  // Column layout matches template Grading Sheet:
+  // Name | No. | Course | Year | [Acts] | Act Avg | [Quizzes] | Quiz Avg |
+  // Attendance | Class Standing | MT Exam | FT Exam |
+  // Midterm Term | Finals Term | Final Grade (%) |
+  // Midterm Equiv | Finals Equiv | Final Equiv | Letter | Remark | Notes | Uploaded At
   const headers = [
     'Student Name', 'Student No.', 'Course', 'Year Level',
     ...actHeaders, 'Act Avg',
     ...qzHeaders, 'Quiz Avg',
-    'Attendance (%)', 'MT Exam', 'FT Exam',
-    'CS Midterm', 'CS Finals',
+    'Attendance (%)', 'Class Standing',
+    'Midterm Exam', 'Finals Exam',
     'Midterm Term', 'Finals Term',
-    'Final Grade (%)', 'Midterm Equiv', 'Finals Equiv', 'Final Equiv', 'Remark',
+    'Final Grade (%)',
+    'Midterm Equiv', 'Finals Equiv', 'Final Equiv',
+    'Letter', 'Remark', 'Notes',
     'Uploaded At',
   ]
 
@@ -525,25 +539,23 @@ export function exportCurrentGrades({ classId, subject, students, classes, activ
     const held   = getHeldDays(classId, subject, students)
     const attPct = held > 0 ? parseFloat(((attSet.size / held) * 100).toFixed(2)) : ''
 
-    // Activity scores — from panel submissions or stored activityScores
-    let actVals
-    if (panelActs.length > 0) {
-      actVals = panelActs.map((a, idx) => {
-        const sc = (a.submissions || {})[s.id]?.score
-        if (sc != null) return sc
-        // Fallback to manually-entered scores saved by the grade modal
-        const stored = comp.activityScores
-        if (stored) {
-          const byId  = stored[a.id]
-          const byIdx = stored[`a${idx + 1}`]
-          const val   = byId ?? byIdx
-          if (val != null) return val
-        }
-        return ''
-      })
-    } else {
-      actVals = [comp.activities != null ? comp.activities : '']
-    }
+    // Activity scores — from panel submissions, fallback to stored activityScores
+    const actVals = panelActs.length > 0
+      ? panelActs.map((a, idx) => {
+          const sc = (a.submissions || {})[s.id]?.score
+          if (sc != null) return sc
+          const stored = comp.activityScores
+          if (stored) {
+            const val = stored[a.id] ?? stored[`a${idx + 1}`]
+            if (val != null) return val
+          }
+          return ''
+        })
+      : Array.from({ length: actCount }, (_, i) => {
+          const v = comp.activityScores?.[`a${i + 1}`]
+          return v != null ? v : ''
+        })
+
     const actNums = actVals.filter(v => v !== '' && !isNaN(v))
     const actAvg  = actNums.length > 0
       ? parseFloat((actNums.reduce((a, b) => a + Number(b), 0) / actNums.length).toFixed(2))
@@ -560,14 +572,14 @@ export function exportCurrentGrades({ classId, subject, students, classes, activ
       ? parseFloat((qzNums.reduce((a, b) => a + Number(b), 0) / qzNums.length).toFixed(2))
       : (comp.quizzes != null ? comp.quizzes : '')
 
-    const midG = comp.midterm   != null ? comp.midterm   : ''
-    const finG = comp.finals    != null ? comp.finals    : ''
-    const fg   = s.grades?.[subject]    != null ? s.grades[subject] : ''
+    const midG = comp.midterm != null ? comp.midterm : ''
+    const finG = comp.finals  != null ? comp.finals  : ''
+    const fg   = s.grades?.[subject] != null ? s.grades[subject] : ''
 
     const { eq: midEq } = gradeInfo(typeof midG === 'number' ? midG : null, eqScale)
     const { eq: finEq } = gradeInfo(typeof finG === 'number' ? finG : null, eqScale)
 
-    let finalEq = '—', rem = 'Pending'
+    let finalEq = '—', ltr = '—', rem = 'Pending'
     if (typeof midG === 'number' || typeof finG === 'number') {
       const combined = combineEquiv(midEq, finEq)
       finalEq = combined.eq
@@ -578,6 +590,31 @@ export function exportCurrentGrades({ classId, subject, students, classes, activ
       rem      = gi.rem
     }
 
+    // Letter grade from final equiv (matches template Grading Sheet formula)
+    const eqNum = parseFloat(finalEq)
+    if (!isNaN(eqNum)) {
+      if      (eqNum === 5.00) ltr = 'F'
+      else if (eqNum === 4.00) ltr = 'D'
+      else if (eqNum <= 1.25)  ltr = 'A+'
+      else if (eqNum <= 1.50)  ltr = 'A'
+      else if (eqNum <= 1.75)  ltr = 'A-'
+      else if (eqNum <= 2.00)  ltr = 'B+'
+      else if (eqNum <= 2.25)  ltr = 'B+'
+      else if (eqNum <= 2.50)  ltr = 'B'
+      else if (eqNum <= 2.75)  ltr = 'B-'
+      else                     ltr = 'C'
+    }
+
+    // Class Standing = avg of available components (matches template CS formula)
+    const csParts = [
+      actAvg !== '' && !isNaN(actAvg) ? Number(actAvg) : null,
+      qzAvg  !== '' && !isNaN(qzAvg)  ? Number(qzAvg)  : null,
+      attPct !== ''                    ? Number(attPct) : null,
+    ].filter(x => x !== null)
+    const cs = csParts.length > 0
+      ? parseFloat((csParts.reduce((a, b) => a + b, 0) / csParts.length).toFixed(2))
+      : ''
+
     const ts = s.gradeUploadedAt?.[subject]
     const tsLabel = ts ? new Date(ts).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }) : ''
 
@@ -585,16 +622,14 @@ export function exportCurrentGrades({ classId, subject, students, classes, activ
       s.name, s.id, s.course || '', s.year || '',
       ...actVals, actAvg,
       ...qzVals, qzAvg,
-      attPct,
+      attPct, cs,
       comp.midtermExam != null ? comp.midtermExam : '',
       comp.finalsExam  != null ? comp.finalsExam  : '',
-      comp.midtermCS   != null ? comp.midtermCS   : '',
-      comp.finalsCS    != null ? comp.finalsCS    : '',
       midG, finG,
       fg,
       typeof midG === 'number' ? midEq : '—',
       typeof finG === 'number' ? finEq : '—',
-      finalEq, rem,
+      finalEq, ltr, rem, '',
       tsLabel,
     ]
   })
@@ -611,10 +646,11 @@ export function exportCurrentGrades({ classId, subject, students, classes, activ
   const colCount = headers.length
   ws['!cols'] = [
     28, 14, 16, 10,
-    ...Array(actHeaders.length).fill(13), 10,
+    ...Array(actCount).fill(13), 10,
     ...Array(qzCount).fill(10), 10,
-    13, 10, 10,
-    12, 12, 13, 12, 14, 13, 13, 12, 12,
+    13, 12, 12, 11,
+    12, 12, 14,
+    13, 13, 12, 8, 12, 20,
     20,
   ].slice(0, colCount).map(w => ({ wch: w }))
   ws['!freeze'] = { xSplit: 2, ySplit: 4 }
