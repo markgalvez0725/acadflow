@@ -277,6 +277,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
   const [scores,        setScores]       = useState({})
   const [rubricChecks,  setRubricChecks] = useState({}) // { [studentId]: { [criterionId]: bool } }
   const [saving,        setSaving]       = useState({})
+  const [savingAll,     setSavingAll]    = useState(false)
 
   const hasRubric = !!(act.rubric?.length)
 
@@ -392,6 +393,39 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       toast('Deadline extended!', 'green')
     } catch (e) {
       toast('Failed: ' + e.message, 'red')
+    }
+  }
+
+  async function handleSaveAll() {
+    if (!fbReady || !db.current) { toast('Firebase not connected.', 'red'); return }
+    const toSave = enrolledStudents.filter(s => {
+      const raw = scores[s.id]
+      if (raw === undefined || raw === '') return false
+      const score = parseFloat(raw)
+      return !isNaN(score) && score >= 0 && score <= act.maxScore
+    })
+    if (!toSave.length) { toast('No valid scores to save.', 'red'); return }
+    setSavingAll(true)
+    try {
+      const update = {}
+      toSave.forEach(s => {
+        const score = parseFloat(scores[s.id])
+        update[`submissions.${s.id}.score`]  = score
+        update[`submissions.${s.id}.graded`] = true
+        if (hasRubric) update[`submissions.${s.id}.rubricChecks`] = rubricChecks[s.id] || {}
+      })
+      await updateDoc(doc(db.current, 'activities', act.id), update)
+      const updatedStudents = students.map(s => {
+        if (!toSave.find(x => x.id === s.id)) return s
+        const updated = buildUpdatedStudent(s, act.subject, act.classId, activities, students)
+        return updated || s
+      })
+      await saveStudents(updatedStudents, toSave.map(s => s.id))
+      toast(`Saved grades for ${toSave.length} student${toSave.length !== 1 ? 's' : ''}.`, 'green')
+    } catch (e) {
+      toast('Save failed: ' + e.message, 'red')
+    } finally {
+      setSavingAll(false)
     }
   }
 
@@ -563,7 +597,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       <p className="text-xs text-ink3 mb-4">Scores are saved immediately. After saving, the student's grade components are updated automatically.</p>
 
       {/* Actions */}
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 flex-wrap items-center">
         {isPast && (
           <button className="btn btn-ghost btn-sm" onClick={handleApplyDefault}>Apply Missed Grade (50)</button>
         )}
@@ -571,6 +605,9 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
         <button className="btn btn-ghost btn-sm" onClick={onEdit}>✏️ Edit</button>
         <button className="btn btn-danger btn-sm" onClick={handleDelete}>Delete</button>
         <button className="btn btn-ghost btn-sm ml-auto" onClick={onClose}>Close</button>
+        <button className="btn btn-primary btn-sm" onClick={handleSaveAll} disabled={savingAll}>
+          {savingAll ? 'Saving…' : '💾 Save All Grades'}
+        </button>
       </div>
     </Modal>
   )
