@@ -19,11 +19,15 @@ const TYPE_LABELS = {
   identification: 'Identification',
 }
 
-function buildTemplate(topic, count, types) {
+function buildTemplate(topic, count, types, generalPrompt) {
+  const extraContext = generalPrompt?.trim()
+    ? `\nAdditional instructions from the teacher: ${generalPrompt.trim()}\n`
+    : ''
+
   const instructions = `INSTRUCTIONS FOR AI:
 Generate exactly ${count} quiz questions about the topic below.
 Question types to use (mix them): ${types.join(', ')}
-
+${extraContext}
 Rules:
 - multiple_choice: provide exactly 4 options, mark the correct answer
 - true_false: answer is either "True" or "False"
@@ -46,6 +50,7 @@ Use this exact format:
     topic,
     question_count: count,
     question_types: types,
+    ...(generalPrompt?.trim() && { general_prompt: generalPrompt.trim() }),
     expected_output_format: 'JSON array',
   }
 }
@@ -56,6 +61,7 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
   const [topic, setTopic] = useState('')
   const [qCount, setQCount] = useState(10)
   const [qTypes, setQTypes] = useState(['multiple_choice', 'true_false', 'short_answer', 'fill_in_the_blank', 'identification'])
+  const [generalPrompt, setGeneralPrompt] = useState('')
 
   function toggleType(t) {
     setQTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])
@@ -63,7 +69,7 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
 
   function handleExport() {
     if (!topic.trim() || !qTypes.length) return
-    const template = buildTemplate(topic.trim(), qCount, qTypes)
+    const template = buildTemplate(topic.trim(), qCount, qTypes, generalPrompt)
     const json = JSON.stringify(template, null, 2)
     const blob = new Blob([json], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
@@ -113,6 +119,19 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="field mb-4">
+        <label className="text-xs font-semibold text-ink2 mb-1 block">
+          Additional Prompt for AI <span className="font-normal text-ink3">(optional)</span>
+        </label>
+        <textarea
+          className="input w-full"
+          rows={3}
+          value={generalPrompt}
+          onChange={e => setGeneralPrompt(e.target.value)}
+          placeholder="e.g. Focus on higher-order thinking questions. Avoid trivial facts. Use simple language suitable for Grade 8."
+        />
       </div>
 
       <div style={{ background: 'var(--c-surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: 'var(--ink2)' }}>
