@@ -67,11 +67,20 @@ function GradeEntryModal({ classId, subject, onClose }) {
     return studs.map(s => {
       const comp = s.gradeComponents?.[subject] || {}
 
-      // Per-activity scores — from panel submissions
+      // Per-activity scores — from panel submissions, fallback to stored activityScores
       const actInputs = panelActs.length > 0
-        ? panelActs.map(a => {
+        ? panelActs.map((a, idx) => {
             const sc = (a.submissions || {})[s.id]?.score
-            return sc != null ? String(sc) : ''
+            if (sc != null) return String(sc)
+            // Fallback: check stored activityScores by activity id or positional key
+            const stored = comp.activityScores
+            if (stored) {
+              const byId  = stored[a.id]
+              const byIdx = stored[`a${idx + 1}`]
+              const val   = byId ?? byIdx
+              if (val != null) return String(val)
+            }
+            return ''
           })
         : [comp.activities != null ? String(comp.activities) : '']
 
