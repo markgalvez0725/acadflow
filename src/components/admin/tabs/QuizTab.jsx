@@ -24,25 +24,35 @@ function buildTemplate(topic, count, types, generalPrompt) {
     ? `\nAdditional instructions from the teacher: ${generalPrompt.trim()}\n`
     : ''
 
+  const allRules = {
+    multiple_choice: '- multiple_choice: provide exactly 4 options, mark the correct answer',
+    true_false: '- true_false: answer is either "True" or "False"',
+    short_answer: '- short_answer: provide a model answer (1-3 sentences)',
+    fill_in_the_blank: '- fill_in_the_blank: use "___" for the blank, provide the correct answer',
+    identification: '- identification: ask to identify a term/concept, provide the correct answer',
+  }
+  const allExamples = {
+    multiple_choice: '  {"type":"multiple_choice","question":"...","options":["A","B","C","D"],"answer":"A"}',
+    true_false: '  {"type":"true_false","question":"...","answer":"True"}',
+    short_answer: '  {"type":"short_answer","question":"...","answer":"..."}',
+    fill_in_the_blank: '  {"type":"fill_in_the_blank","question":"The ___ is ...","answer":"word"}',
+    identification: '  {"type":"identification","question":"What term refers to...?","answer":"Term"}',
+  }
+  const typeLabel = types.length === 1 ? `ONLY ${types[0]}` : `these types only (${types.join(', ')})`
+  const rules = types.map(t => allRules[t]).join('\n')
+  const examples = types.map(t => allExamples[t]).join(',\n')
+
   const instructions = `INSTRUCTIONS FOR AI:
 Generate exactly ${count} quiz questions about the topic below.
-Question types to use (mix them): ${types.join(', ')}
+Use ${typeLabel}. Do NOT generate any other question type.
 ${extraContext}
 Rules:
-- multiple_choice: provide exactly 4 options, mark the correct answer
-- true_false: answer is either "True" or "False"
-- short_answer: provide a model answer (1-3 sentences)
-- fill_in_the_blank: use "___" for the blank, provide the correct answer
-- identification: ask to identify a term/concept, provide the correct answer
+${rules}
 
 IMPORTANT: Respond ONLY with a valid JSON array. No markdown, no explanation.
 Use this exact format:
 [
-  {"type":"multiple_choice","question":"...","options":["A","B","C","D"],"answer":"A"},
-  {"type":"true_false","question":"...","answer":"True"},
-  {"type":"short_answer","question":"...","answer":"..."},
-  {"type":"fill_in_the_blank","question":"The ___ is ...","answer":"word"},
-  {"type":"identification","question":"What term refers to...?","answer":"Term"}
+${examples}
 ]`
 
   return {
@@ -64,7 +74,7 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
   const { toast } = useUI()
   const [topic, setTopic] = useState('')
   const [qCount, setQCount] = useState(10)
-  const [qTypes, setQTypes] = useState(['multiple_choice', 'true_false', 'short_answer', 'fill_in_the_blank', 'identification'])
+  const [qTypes, setQTypes] = useState(['multiple_choice'])
   const [generalPrompt, setGeneralPrompt] = useState('')
   const [copied, setCopied] = useState(false)
 
