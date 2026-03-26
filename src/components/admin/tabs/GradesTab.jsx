@@ -596,12 +596,12 @@ function SubjectCard({ cls, sub, studs, eqScale, onEdit, onClear, onExport, onIm
               const finEquiv = finG != null ? finRawEq : '—'
               const finBadgeCls = finG != null ? (finG >= 75 ? 'green' : finG > 71 ? 'yellow' : 'red') : 'gray'
 
-              // Finals per-row FT activity progress
-              const ftActTotal = studs.filter(x => {
-                const fa = x.gradeComponents?.[sub]?.finalsActivityScores
-                return fa && Object.keys(fa).length > 0
-              }).length
-              const ftActPct = total > 0 ? Math.round(ftActTotal / total * 100) : 0
+              // Per-student finals component progress (activities, quizzes/CS, exam)
+              const hasFtActs = comp.finalsActivityScores && Object.keys(comp.finalsActivityScores).length > 0
+              const hasFtCS   = comp.finalsCS   != null
+              const hasFtExam = comp.finalsExam != null
+              const finCompsDone = [hasFtActs, hasFtCS, hasFtExam].filter(Boolean).length
+              const finCompsPct  = Math.round(finCompsDone / 3 * 100)
 
               // Final grade badge
               const gradeFullyUploaded = midG != null && finG != null && ts
@@ -630,24 +630,25 @@ function SubjectCard({ cls, sub, studs, eqScale, onEdit, onClear, onExport, onIm
                   <td>
                     {finG != null
                       ? <ToggleBadge pct={finPct} equiv={finEquiv} badgeCls={finBadgeCls} />
-                      : <div style={{ minWidth: 72 }}>
+                      : <div style={{ minWidth: 80 }}>
                           <div className="flex items-center justify-between mb-0.5">
-                            <span className="text-xs text-ink3" style={{ fontSize: 10 }}>
-                              {withFinals}/{total}
-                            </span>
-                            <span className="text-xs font-semibold" style={{ fontSize: 10, color: finUploadPct === 100 ? 'var(--green)' : 'var(--ink2)' }}>
-                              {finUploadPct}%
-                            </span>
+                            <span style={{ fontSize: 10, color: 'var(--ink3)' }}>{finCompsDone}/3</span>
+                            <span style={{ fontSize: 10, fontWeight: 600, color: finCompsPct === 100 ? 'var(--green)' : 'var(--ink2)' }}>{finCompsPct}%</span>
                           </div>
-                          <div className="w-full rounded overflow-hidden" style={{ height: 6, background: 'var(--border)' }}
-                            title={`Finals graded: ${withFinals}/${total} students`}>
-                            <div style={{
-                              height: '100%',
-                              borderRadius: 4,
-                              background: finUploadPct === 100 ? 'var(--green)' : finUploadPct >= 50 ? 'var(--accent)' : 'var(--c-gold, #f59e0b)',
-                              width: `${finUploadPct}%`,
-                              transition: 'width .4s',
-                            }} />
+                          <div className="flex gap-px rounded overflow-hidden" style={{ height: 6, background: 'var(--border)' }}
+                            title={`Acts: ${hasFtActs ? '✓' : '✗'} · Quizzes: ${hasFtCS ? '✓' : '✗'} · Exam: ${hasFtExam ? '✓' : '✗'}`}>
+                            {[
+                              { done: hasFtActs, label: 'Acts' },
+                              { done: hasFtCS,   label: 'Quizzes' },
+                              { done: hasFtExam, label: 'Exam' },
+                            ].map(({ done, label }) => (
+                              <div key={label} style={{
+                                flex: 1,
+                                height: '100%',
+                                background: done ? (finCompsPct === 100 ? 'var(--green)' : 'var(--accent)') : 'transparent',
+                                transition: 'background .3s',
+                              }} />
+                            ))}
                           </div>
                         </div>
                     }
