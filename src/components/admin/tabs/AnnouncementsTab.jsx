@@ -3,7 +3,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Modal from '@/components/primitives/Modal'
 import Badge from '@/components/primitives/Badge'
-import { Megaphone, Plus, Trash2, CalendarOff, Video, ToggleLeft, ToggleRight, Link } from 'lucide-react'
+import { Megaphone, Plus, Trash2, CalendarOff, Video, BookOpen, ToggleLeft, ToggleRight, Link, X } from 'lucide-react'
 
 // ── Helpers ───────────────────────────────────────────────────────────
 function annId() {
@@ -30,6 +30,7 @@ function AnnouncementFormModal({ ann, onClose }) {
   const [message,     setMessage]     = useState(ann?.message     || '')
   const [meetingLink, setMeetingLink] = useState(ann?.meetingLink || '')
   const [moduleLink,  setModuleLink]  = useState(ann?.moduleLink  || '')
+  const [topics,      setTopics]      = useState(ann?.topics      || [''])
   const [expiresAt,   setExpiresAt]   = useState(() => {
     if (ann?.expiresAt) {
       const d = new Date(ann.expiresAt)
@@ -47,6 +48,7 @@ function AnnouncementFormModal({ ann, onClose }) {
     if (!selectedClass) return ''
     if (type === 'no_class') return `No Class Today — ${selectedClass.name}${selectedClass.section ? ` ${selectedClass.section}` : ''}`
     if (type === 'online_class') return `Online Class — ${selectedClass.name}${selectedClass.section ? ` ${selectedClass.section}` : ''}`
+    if (type === 'meeting_topics') return `Meeting Topics — ${selectedClass.name}${selectedClass.section ? ` ${selectedClass.section}` : ''}`
     return ''
   }, [type, selectedClass])
 
@@ -74,9 +76,14 @@ function AnnouncementFormModal({ ann, onClose }) {
     if (moduleLink && !moduleLink.startsWith('http')) {
       setErr('Module link must start with http:// or https://'); return
     }
+    if (type === 'meeting_topics') {
+      const filled = topics.filter(t => t.trim())
+      if (!filled.length) { setErr('Add at least one topic.'); return }
+    }
 
     setSaving(true)
     try {
+      const filledTopics = topics.map(t => t.trim()).filter(Boolean)
       const announcement = {
         id:          ann?.id || annId(),
         type,
@@ -85,6 +92,7 @@ function AnnouncementFormModal({ ann, onClose }) {
         message:     message.trim(),
         meetingLink: type === 'online_class' ? (meetingLink.trim() || null) : null,
         moduleLink:  moduleLink.trim() || null,
+        topics:      type === 'meeting_topics' ? filledTopics : null,
         createdAt:   ann?.createdAt || Date.now(),
         active:      ann?.active ?? true,
         expiresAt:   expiresAt ? new Date(expiresAt).getTime() : null,
@@ -148,6 +156,17 @@ function AnnouncementFormModal({ ann, onClose }) {
               <Video size={15} style={{ color: 'var(--accent)' }} />
               Online Class
             </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}>
+              <input
+                type="radio"
+                name="ann-type"
+                value="meeting_topics"
+                checked={type === 'meeting_topics'}
+                onChange={() => handleTypeChange('meeting_topics')}
+              />
+              <BookOpen size={15} style={{ color: 'var(--purple, #a855f7)' }} />
+              Meeting Topics
+            </label>
           </div>
         </div>
 
@@ -185,6 +204,49 @@ function AnnouncementFormModal({ ann, onClose }) {
               placeholder="https://meet.google.com/..."
               onChange={e => setMeetingLink(e.target.value)}
             />
+          </div>
+        )}
+
+        {/* Topics list — only for meeting_topics */}
+        {type === 'meeting_topics' && (
+          <div>
+            <label className="form-label">Topics covered</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {topics.map((topic, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: 'var(--ink3)', minWidth: 18, textAlign: 'right' }}>{i + 1}.</span>
+                  <input
+                    className="form-input"
+                    style={{ flex: 1 }}
+                    value={topic}
+                    placeholder={`Topic ${i + 1}`}
+                    onChange={e => {
+                      const next = [...topics]
+                      next[i] = e.target.value
+                      setTopics(next)
+                    }}
+                  />
+                  {topics.length > 1 && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      style={{ padding: '4px 6px', color: 'var(--red)' }}
+                      onClick={() => setTopics(topics.filter((_, j) => j !== i))}
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                style={{ alignSelf: 'flex-start', fontSize: 12, marginTop: 2 }}
+                onClick={() => setTopics([...topics, ''])}
+              >
+                <Plus size={13} style={{ marginRight: 4 }} /> Add topic
+              </button>
+            </div>
           </div>
         )}
 
@@ -308,18 +370,18 @@ export default function AnnouncementsTab() {
                   <div style={{
                     width: 36, height: 36, borderRadius: 8, flexShrink: 0,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: ann.type === 'no_class' ? 'rgba(234,179,8,0.12)' : 'rgba(59,130,246,0.12)',
-                    color: ann.type === 'no_class' ? 'var(--yellow)' : 'var(--accent)',
+                    background: ann.type === 'no_class' ? 'rgba(234,179,8,0.12)' : ann.type === 'online_class' ? 'rgba(59,130,246,0.12)' : 'var(--purple-l)',
+                    color: ann.type === 'no_class' ? 'var(--yellow)' : ann.type === 'online_class' ? 'var(--accent)' : 'var(--purple)',
                   }}>
-                    {ann.type === 'no_class' ? <CalendarOff size={18} /> : <Video size={18} />}
+                    {ann.type === 'no_class' ? <CalendarOff size={18} /> : ann.type === 'online_class' ? <Video size={18} /> : <BookOpen size={18} />}
                   </div>
 
                   {/* Body */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <span style={{ fontWeight: 600, fontSize: 14 }}>{ann.title}</span>
-                      <span className={`badge ${ann.type === 'no_class' ? 'badge-yellow' : 'badge-blue'}`}>
-                        {ann.type === 'no_class' ? 'No Class' : 'Online Class'}
+                      <span className={`badge ${ann.type === 'no_class' ? 'badge-yellow' : ann.type === 'online_class' ? 'badge-blue' : 'badge-purple'}`}>
+                        {ann.type === 'no_class' ? 'No Class' : ann.type === 'online_class' ? 'Online Class' : 'Meeting Topics'}
                       </span>
                       {effectivelyActive
                         ? <span className="badge badge-green">Active</span>
@@ -333,6 +395,11 @@ export default function AnnouncementsTab() {
                     </div>
                     {ann.message && (
                       <div style={{ fontSize: 13, color: 'var(--ink2)', marginTop: 4 }}>{ann.message}</div>
+                    )}
+                    {ann.type === 'meeting_topics' && ann.topics?.length > 0 && (
+                      <ol style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 12, color: 'var(--ink2)', lineHeight: 1.7 }}>
+                        {ann.topics.map((t, i) => <li key={i}>{t}</li>)}
+                      </ol>
                     )}
                     {ann.meetingLink && (
                       <a

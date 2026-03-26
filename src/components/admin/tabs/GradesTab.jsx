@@ -23,9 +23,24 @@ function clamp(v) {
   return v !== null ? Math.min(100, Math.max(0, v)) : null
 }
 
+// ── Push a notification to a specific student ─────────────────────────────────
+async function pushStudentNotif(db, studentId, title, body, type = 'act_grade', link = 'grades') {
+  try {
+    const { getDoc, setDoc, doc: fbDoc } = await import('firebase/firestore')
+    const ref = fbDoc(db, 'notifications', studentId)
+    const snap = await getDoc(ref)
+    const existing = snap.exists() ? (snap.data().items || []) : []
+    const notif = {
+      id: 'n' + Date.now() + Math.random().toString(36).slice(2, 5),
+      type, read: false, ts: Date.now(), title, body, link,
+    }
+    await setDoc(ref, { items: [notif, ...existing].slice(0, 200) }, { merge: false })
+  } catch (e) {}
+}
+
 // ── GradeEntryModal ───────────────────────────────────────────────────────────
 function GradeEntryModal({ classId, subject, onClose }) {
-  const { students, classes, activities, saveStudents, eqScale } = useData()
+  const { students, classes, activities, saveStudents, eqScale, db, fbReady } = useData()
   const { toast, openDialog } = useUI()
 
   const cls   = classes.find(c => c.id === classId)
@@ -227,6 +242,22 @@ function GradeEntryModal({ classId, subject, onClose }) {
     try {
       await saveStudents(updatedStudents, changedIds)
       toast('Grades saved!', 'green')
+      // Notify each student whose grade was saved
+      if (fbReady && db.current) {
+        const clsName = cls?.name || subject
+        for (const s of studs) {
+          const si = updatedStudents.findIndex(x => x.id === s.id)
+          const grade = si !== -1 ? updatedStudents[si].grades?.[subject] : null
+          if (grade != null) {
+            pushStudentNotif(
+              db.current, s.id,
+              `Grade posted for ${subject}`,
+              `${clsName} — Final Grade: ${grade.toFixed(1)}`,
+              'act_grade', 'grades'
+            )
+          }
+        }
+      }
       onClose()
     } catch (e) {
       toast('Saved locally — Firebase sync failed: ' + e.message, 'red')

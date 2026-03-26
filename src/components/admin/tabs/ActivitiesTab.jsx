@@ -19,6 +19,21 @@ function defaultDeadlineStr() {
   return `${dl.getFullYear()}-${pad(dl.getMonth() + 1)}-${pad(dl.getDate())}T${pad(dl.getHours())}:${pad(dl.getMinutes())}`
 }
 
+// ── Push a notification to a specific student ─────────────────────────
+async function pushStudentNotif(db, studentId, title, body, link = 'activities') {
+  try {
+    const { getDoc, setDoc, doc: fbDoc } = await import('firebase/firestore')
+    const ref = fbDoc(db, 'notifications', studentId)
+    const snap = await getDoc(ref)
+    const existing = snap.exists() ? (snap.data().items || []) : []
+    const notif = {
+      id: 'n' + Date.now() + Math.random().toString(36).slice(2, 5),
+      type: 'act_grade', read: false, ts: Date.now(), title, body, link,
+    }
+    await setDoc(ref, { items: [notif, ...existing].slice(0, 200) }, { merge: false })
+  } catch (e) {}
+}
+
 // ── Recompute student grade components after activity scoring ─────────
 // Mirrors _actUpdateStudentGrade from original
 function buildUpdatedStudent(s, subject, classId, allActivities, allStudents) {
@@ -336,6 +351,9 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       const updated = buildUpdatedStudent(s, act.subject, act.classId, activities, students)
       if (updated) await saveStudents(students.map(x => x.id === s.id ? updated : x), [s.id])
       toast('Score saved!', 'green')
+      if (fbReady && db.current) {
+        pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} — Score: ${score}/${act.maxScore}`, 'activities')
+      }
     } catch (e) {
       toast('Save failed: ' + e.message, 'red')
     } finally {
@@ -375,6 +393,11 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       })
       await saveStudents(updatedStudents, missed.map(s => s.id))
       toast(`Applied score of 50 to ${missed.length} student${missed.length !== 1 ? 's' : ''}.`, 'green')
+      if (fbReady && db.current) {
+        for (const s of missed) {
+          pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} — Score: 50/${act.maxScore}`, 'activities')
+        }
+      }
     } catch (e) {
       toast('Failed: ' + e.message, 'red')
     }
@@ -422,6 +445,12 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       })
       await saveStudents(updatedStudents, toSave.map(s => s.id))
       toast(`Saved grades for ${toSave.length} student${toSave.length !== 1 ? 's' : ''}.`, 'green')
+      if (fbReady && db.current) {
+        for (const s of toSave) {
+          const score = parseFloat(scores[s.id])
+          pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} — Score: ${score}/${act.maxScore}`, 'activities')
+        }
+      }
     } catch (e) {
       toast('Save failed: ' + e.message, 'red')
     } finally {

@@ -5,6 +5,31 @@ import {
 import { useData } from '@/context/DataContext'
 import { BookOpen, Clock, CalendarOff, Video, Link } from 'lucide-react'
 
+function annBgColor(type) {
+  if (type === 'no_class')       return 'rgba(234,179,8,0.1)'
+  if (type === 'online_class')   return 'rgba(59,130,246,0.1)'
+  if (type === 'meeting_topics') return 'var(--purple-l)'
+  return 'rgba(59,130,246,0.1)'
+}
+function annBorderColor(type) {
+  if (type === 'no_class')       return 'rgba(234,179,8,0.3)'
+  if (type === 'online_class')   return 'rgba(59,130,246,0.3)'
+  if (type === 'meeting_topics') return 'var(--purple)'
+  return 'rgba(59,130,246,0.3)'
+}
+function annIconColor(type) {
+  if (type === 'no_class')       return 'var(--yellow)'
+  if (type === 'online_class')   return 'var(--accent)'
+  if (type === 'meeting_topics') return 'var(--purple)'
+  return 'var(--accent)'
+}
+function AnnIcon({ type, size = 18 }) {
+  if (type === 'no_class')       return <CalendarOff size={size} />
+  if (type === 'online_class')   return <Video size={size} />
+  if (type === 'meeting_topics') return <BookOpen size={size} />
+  return <Video size={size} />
+}
+
 export default function OverviewTab({ student: s, viewClassId, classes }) {
   const { activities, students, eqScale, announcements } = useData()
 
@@ -85,24 +110,24 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
               style={{
                 display: 'flex', alignItems: 'flex-start', gap: 10,
                 padding: '12px 14px', borderRadius: 10,
-                background: ann.type === 'no_class'
-                  ? 'rgba(234,179,8,0.1)'
-                  : 'rgba(59,130,246,0.1)',
-                border: `1px solid ${ann.type === 'no_class' ? 'rgba(234,179,8,0.3)' : 'rgba(59,130,246,0.3)'}`,
+                background: annBgColor(ann.type),
+                border: `1px solid ${annBorderColor(ann.type)}`,
               }}
             >
-              <div style={{
-                color: ann.type === 'no_class' ? 'var(--yellow)' : 'var(--accent)',
-                flexShrink: 0, marginTop: 1,
-              }}>
-                {ann.type === 'no_class' ? <CalendarOff size={18} /> : <Video size={18} />}
+              <div style={{ color: annIconColor(ann.type), flexShrink: 0, marginTop: 1 }}>
+                <AnnIcon type={ann.type} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 13, color: ann.type === 'no_class' ? 'var(--yellow)' : 'var(--accent)' }}>
+                <div style={{ fontWeight: 700, fontSize: 13, color: annIconColor(ann.type) }}>
                   {ann.title}
                 </div>
                 {ann.message && (
                   <div style={{ fontSize: 12, color: 'var(--ink2)', marginTop: 2 }}>{ann.message}</div>
+                )}
+                {ann.type === 'meeting_topics' && ann.topics?.length > 0 && (
+                  <ol style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 12, color: 'var(--ink2)', lineHeight: 1.8 }}>
+                    {ann.topics.map((t, i) => <li key={i}>{t}</li>)}
+                  </ol>
                 )}
                 {ann.type === 'online_class' && ann.meetingLink && (
                   <a
