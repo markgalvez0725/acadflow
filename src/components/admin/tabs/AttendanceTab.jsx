@@ -187,6 +187,44 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
   const STATUS_COLORS = { present: 'var(--green)', excuse: 'var(--purple)', absent: 'var(--red)' }
   const STATUS_LABELS = { present: 'P', excuse: 'E', absent: 'A' }
 
+  function downloadTemplate() {
+    const XLSX = window.XLSX
+    if (!XLSX) { toast('SheetJS not loaded. Check your internet connection.', 'red'); return }
+
+    const sorted = [...studs].sort(sortByLastName)
+    // Header row: Student No., Name, then 5 blank date placeholders
+    const today = new Date()
+    const dateCols = Array.from({ length: 5 }, (_, i) => {
+      const d = new Date(today)
+      d.setDate(today.getDate() + i)
+      return d.toISOString().slice(0, 10)
+    })
+    const header = ['Student No.', 'Name', ...dateCols]
+    const rows = sorted.map(s => [s.id, s.name, ...dateCols.map(() => '')])
+
+    const ws = XLSX.utils.aoa_to_sheet([header, ...rows])
+
+    // Style header row bold + freeze top row
+    const range = XLSX.utils.decode_range(ws['!ref'])
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      const addr = XLSX.utils.encode_cell({ r: 0, c: C })
+      if (!ws[addr]) continue
+      ws[addr].s = { font: { bold: true } }
+    }
+    ws['!freeze'] = { xSplit: 2, ySplit: 1 }
+
+    // Auto column widths
+    ws['!cols'] = [
+      { wch: 16 },
+      { wch: 28 },
+      ...dateCols.map(() => ({ wch: 14 })),
+    ]
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, subject.slice(0, 31))
+    XLSX.writeFile(wb, `Attendance_Template_${subject.replace(/\s+/g, '_')}.xlsx`)
+  }
+
   return (
     <Modal onClose={onClose} size="xl">
       <div className="flex items-center justify-between mb-3">
@@ -194,6 +232,9 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
           <h3 className="mb-0">📥 Import Attendance</h3>
           <p className="modal-sub mb-0">{subject}</p>
         </div>
+        <button className="btn btn-ghost text-xs" onClick={downloadTemplate}>
+          ⬇ Download Template
+        </button>
       </div>
 
       {/* Format hint */}
@@ -201,6 +242,7 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
         <strong>Expected format:</strong> Column A = Student No., remaining columns = dates (header: YYYY-MM-DD or M/D/YYYY).
         Cell values: <strong>P</strong> / Present, <strong>E</strong> / Excuse, <strong>A</strong> / Absent (or blank).
         Sheet name should match the subject name for auto-detection.
+        <br /><strong>Tip:</strong> Download the template above — it's pre-filled with your students and today's dates.
       </div>
 
       {/* File picker */}
