@@ -571,7 +571,7 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
             Opens: {openLabel} · Closes: {closeLabel}
           </p>
         </div>
-        <button className="text-ink3 hover:text-ink text-xl leading-none" onClick={onClose}>×</button>
+        <button className="text-ink3 hover:text-ink" onClick={onClose}><X size={18} /></button>
       </div>
 
       {isUpcoming && (

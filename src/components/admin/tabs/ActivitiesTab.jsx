@@ -7,7 +7,7 @@ import { getHeldDays, computeFinalGradeFromTerms } from '@/utils/grades'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
-import { Clock, AlertCircle } from 'lucide-react'
+import { Clock, AlertCircle, X } from 'lucide-react'
 
 // ── Helpers ───────────────────────────────────────────────────────────
 function actId() {
@@ -488,7 +488,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
             {submitted}/{enrolledStudents.length} submitted · {graded} graded
           </p>
         </div>
-        <button className="text-ink3 hover:text-ink text-xl leading-none" onClick={onClose}>×</button>
+        <button className="text-ink3 hover:text-ink" onClick={onClose}><X size={18} /></button>
       </div>
 
       {/* Deadline banner */}

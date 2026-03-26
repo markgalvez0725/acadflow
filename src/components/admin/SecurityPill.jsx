@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useData } from '@/context/DataContext'
+import { X } from 'lucide-react'
 
 /**
  * Circle FAB shown after login, positioned left of the messenger button.
@@ -47,7 +48,7 @@ export default function SecurityPill() {
             onClick={e => { e.stopPropagation(); setDismissed(true) }}
             title="Dismiss"
           >
-            ×
+            <X size={14} />
           </button>
         </div>
       )}

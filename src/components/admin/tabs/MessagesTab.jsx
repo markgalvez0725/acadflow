@@ -4,6 +4,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { sortByLastName } from '@/utils/format'
 import Modal from '@/components/primitives/Modal'
+import { X } from 'lucide-react'
 
 // ── Helpers ───────────────────────────────────────────────────────────
 function msgId() {
@@ -181,7 +182,7 @@ function ThreadPanel({ thread, onReply, onClose }) {
           <div className="text-xs text-ink2">{thread.headerSub}</div>
         </div>
         {onClose && (
-          <button className="text-ink3 hover:text-ink text-xl leading-none" onClick={onClose}>×</button>
+          <button className="text-ink3 hover:text-ink" onClick={onClose}><X size={18} /></button>
         )}
       </div>
 

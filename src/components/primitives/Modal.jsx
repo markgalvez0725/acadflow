@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react'
 import ReactDOM from 'react-dom'
+import { X } from 'lucide-react'
 
 /**
  * Generic modal overlay.
@@ -63,10 +64,10 @@ export function ModalHeader({ title, subtitle, onClose }) {
         {onClose && (
           <button
             onClick={onClose}
-            className="text-ink3 hover:text-ink text-xl leading-none flex-shrink-0 mt-0.5"
+            className="text-ink3 hover:text-ink flex-shrink-0 mt-0.5"
             aria-label="Close"
           >
-            ×
+            <X size={18} />
           </button>
         )}
       </div>
