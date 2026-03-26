@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react'
+import React, { useState, useMemo } from 'react'
 import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -281,11 +281,6 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
   const [editingQ, setEditingQ] = useState(null)
   const [err, setErr] = useState('')
   const [saving, setSaving] = useState(false)
-  const errRef = useRef(null)
-
-  useEffect(() => {
-    if (err && errRef.current) errRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [err])
 
   const availableSubjects = useMemo(() => {
     const subs = new Set()
@@ -367,7 +362,7 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
       </h3>
       <p className="modal-sub">{isEdit ? `${questions.length} questions` : `${questions.length} questions imported`}. Review, edit, then share with classes.</p>
 
-      <div ref={errRef} className={`err-msg mb-3${err ? '' : ' hidden'}`}>{err}</div>
+      {err && <div ref={el => el?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="err-msg mb-3">{err}</div>}
 
       <div className="field mb-3">
         <label className="text-xs font-semibold text-ink2 mb-1 block">Quiz Title <span className="text-red-500">*</span></label>
