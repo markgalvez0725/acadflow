@@ -59,6 +59,18 @@ function GradeEntryModal({ classId, subject, onClose }) {
     [quizzes, classId, subject]
   )
 
+  // Max activity count: prefer panel acts count, fallback to stored activityScores keys
+  const actInputCount = useMemo(() => {
+    if (panelActs.length > 0) return panelActs.length
+    const max = studs.reduce((m, s) => {
+      const sc = s.gradeComponents?.[subject]?.activityScores || {}
+      // Count only positional keys like a1, a2, …
+      const positional = Object.keys(sc).filter(k => /^a\d+$/.test(k))
+      return Math.max(m, positional.length)
+    }, 0)
+    return Math.max(max, 1)
+  }, [studs, subject, panelActs])
+
   // Max quiz count: prefer panel quizzes count, fallback to stored quizScores keys
   const quizInputCount = useMemo(() => {
     if (panelQuizzes.length > 0) return panelQuizzes.length
@@ -89,7 +101,10 @@ function GradeEntryModal({ classId, subject, onClose }) {
             }
             return ''
           })
-        : [comp.activities != null ? String(comp.activities) : '']
+        : Array.from({ length: actInputCount }, (_, i) => {
+            const v = comp.activityScores?.[`a${i + 1}`]
+            return v != null ? String(v) : ''
+          })
 
       // Compute activity avg from inputs
       const actNums = actInputs.map(v => toNum(v)).filter(v => v !== null)
@@ -152,10 +167,19 @@ function GradeEntryModal({ classId, subject, onClose }) {
         equivPreview: eqPreview,
       }
     })
-  }, [studs, subject, classId, panelActs, panelQuizzes, students, eqScale, quizInputCount])
+  }, [studs, subject, classId, panelActs, panelQuizzes, students, eqScale, actInputCount, quizInputCount])
 
   const [rows, setRows] = useState(initRows)
   const [saving, setSaving] = useState(false)
+
+  // Re-sync rows when panel activities load after initial render
+  const prevActCountRef = React.useRef(panelActs.length)
+  React.useEffect(() => {
+    if (panelActs.length !== prevActCountRef.current) {
+      prevActCountRef.current = panelActs.length
+      setRows(initRows)
+    }
+  }, [panelActs.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Last upload timestamp for this subject
   const uploadTs = useMemo(() =>
@@ -225,6 +249,11 @@ function GradeEntryModal({ classId, subject, onClose }) {
     }))
   }, [eqScale])
 
+  // Add an extra activity column (manual mode only — when no panel activities)
+  function addActColumn() {
+    setRows(prev => prev.map(r => recomputeRow({ ...r, actInputs: [...r.actInputs, ''] })))
+  }
+
   async function handleSave() {
     setSaving(true)
     const now = Date.now()
@@ -286,8 +315,13 @@ function GradeEntryModal({ classId, subject, onClose }) {
           }
         })
         if (Object.keys(actScoresMap).length) comp.activityScores = actScoresMap
-      } else if (actV !== null) {
-        comp.activityScores = { a1: actV }
+      } else {
+        const actScoresMap = {}
+        r.actInputs.forEach((v, idx) => {
+          const sc = toNum(v)
+          if (sc != null) actScoresMap[`a${idx + 1}`] = sc
+        })
+        if (Object.keys(actScoresMap).length) comp.activityScores = actScoresMap
       }
 
       // Sync quizScores from individual inputs
@@ -377,6 +411,13 @@ function GradeEntryModal({ classId, subject, onClose }) {
         </div>
       </div>
 
+      {panelActs.length === 0 && (
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-xs text-ink3">No activities linked — entering scores manually.</span>
+          <button className="btn btn-ghost btn-sm" onClick={addActColumn}>+ Add Activity Column</button>
+        </div>
+      )}
+
       <div className="overflow-x-auto">
         <table className="tbl" style={{ minWidth: 900 }}>
           <thead>
@@ -389,7 +430,9 @@ function GradeEntryModal({ classId, subject, onClose }) {
                       <br /><small className="font-normal text-ink3">activity</small>
                     </th>
                   ))
-                : <th title="Activity score (manual avg)">Activity<br /><small className="font-normal text-ink3">score</small></th>
+                : Array.from({ length: actInputCount }, (_, i) => (
+                    <th key={i}>Activity {i + 1}<br /><small className="font-normal text-ink3">score</small></th>
+                  ))
               }
               <th title="Activities average — computed from individual scores">
                 Act Avg<br /><small className="font-normal text-ink3">auto</small>
