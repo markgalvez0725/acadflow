@@ -11,91 +11,188 @@ function quizId() {
   return 'quiz_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7)
 }
 
-// ── AI Question Generator ────────────────────────────────────────────────────
-async function generateQuestions(topic, count, types) {
-  const typeList = types.join(', ')
-  const prompt = `You are a teacher creating a quiz. Generate exactly ${count} quiz questions about the following topic or discussion:
+const TYPE_LABELS = {
+  multiple_choice: 'Multiple Choice',
+  true_false: 'True/False',
+  short_answer: 'Short Answer',
+  fill_in_the_blank: 'Fill in the Blank',
+  identification: 'Identification',
+}
 
-"${topic}"
-
-Question types to include (mix them): ${typeList}
+function buildTemplate(topic, count, types) {
+  const instructions = `INSTRUCTIONS FOR AI:
+Generate exactly ${count} quiz questions about the topic below.
+Question types to use (mix them): ${types.join(', ')}
 
 Rules:
-- multiple_choice: provide exactly 4 options (a, b, c, d), mark the correct answer
+- multiple_choice: provide exactly 4 options, mark the correct answer
 - true_false: answer is either "True" or "False"
 - short_answer: provide a model answer (1-3 sentences)
 - fill_in_the_blank: use "___" for the blank, provide the correct answer
 - identification: ask to identify a term/concept, provide the correct answer
 
-Respond ONLY with a valid JSON array. No markdown, no explanation. Example format:
+IMPORTANT: Respond ONLY with a valid JSON array. No markdown, no explanation.
+Use this exact format:
 [
-  {
-    "type": "multiple_choice",
-    "question": "What is...?",
-    "options": ["Option A", "Option B", "Option C", "Option D"],
-    "answer": "Option A"
-  },
-  {
-    "type": "true_false",
-    "question": "Statement here.",
-    "answer": "True"
-  },
-  {
-    "type": "short_answer",
-    "question": "Explain...",
-    "answer": "Model answer here."
-  },
-  {
-    "type": "fill_in_the_blank",
-    "question": "The ___ is responsible for...",
-    "answer": "correct word"
-  },
-  {
-    "type": "identification",
-    "question": "What term refers to...?",
-    "answer": "Term Name"
-  }
+  {"type":"multiple_choice","question":"...","options":["A","B","C","D"],"answer":"A"},
+  {"type":"true_false","question":"...","answer":"True"},
+  {"type":"short_answer","question":"...","answer":"..."},
+  {"type":"fill_in_the_blank","question":"The ___ is ...","answer":"word"},
+  {"type":"identification","question":"What term refers to...?","answer":"Term"}
 ]`
 
-  let res
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt > 0) await new Promise(r => setTimeout(r, attempt * 5000))
-    res = await fetch('/api/generate-quiz', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt }),
-    })
-    if (res.status !== 429) break
+  return {
+    _instructions: instructions,
+    topic,
+    question_count: count,
+    question_types: types,
+    expected_output_format: 'JSON array',
   }
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(
-      res.status === 429
-        ? 'Rate limit reached. Please wait a moment and try again.'
-        : err?.error?.message || `API error ${res.status}`
-    )
-  }
-
-  const data = await res.json()
-  const text = data?.choices?.[0]?.message?.content || ''
-  const jsonMatch = text.match(/\[[\s\S]*\]/)
-  if (!jsonMatch) throw new Error('No valid JSON array in OpenAI response')
-  return JSON.parse(jsonMatch[0])
 }
 
-// ── Create/Edit Quiz Modal ───────────────────────────────────────────────────
-function QuizFormModal({ quiz, onClose }) {
-  const { classes, db, fbReady } = useData()
+// ── Export Template Modal ─────────────────────────────────────────────────────
+function ExportTemplateModal({ onClose, onSwitchToImport }) {
   const { toast } = useUI()
-  const isEdit = !!quiz
-
-  const [step, setStep] = useState(isEdit ? 'form' : 'generate')
   const [topic, setTopic] = useState('')
   const [qCount, setQCount] = useState(10)
   const [qTypes, setQTypes] = useState(['multiple_choice', 'true_false', 'short_answer', 'fill_in_the_blank', 'identification'])
-  const [generating, setGenerating] = useState(false)
-  const [genErr, setGenErr] = useState('')
+
+  function toggleType(t) {
+    setQTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])
+  }
+
+  function handleExport() {
+    if (!topic.trim() || !qTypes.length) return
+    const template = buildTemplate(topic.trim(), qCount, qTypes)
+    const json = JSON.stringify(template, null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `quiz-template-${topic.trim().slice(0, 30).replace(/\s+/g, '-')}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast('Template exported! Send it to your AI platform.', 'green')
+  }
+
+  return (
+    <Modal onClose={onClose} size="md">
+      <h3 className="text-lg font-bold text-ink mb-1">📤 Export Quiz Template</h3>
+      <p className="modal-sub">
+        Configure your quiz settings, export the template JSON, send it to any AI platform (ChatGPT, Gemini, etc.), then import the AI's response back here.
+      </p>
+
+      <div className="field mb-3">
+        <label className="text-xs font-semibold text-ink2 mb-1 block">Topic / Discussion <span className="text-red-500">*</span></label>
+        <textarea
+          className="input w-full"
+          rows={4}
+          value={topic}
+          onChange={e => setTopic(e.target.value)}
+          placeholder="e.g. The human digestive system breaks down food through mechanical and chemical digestion…"
+          autoFocus
+        />
+      </div>
+
+      <div className="field mb-3">
+        <label className="text-xs font-semibold text-ink2 mb-1 block">Number of Questions</label>
+        <input
+          className="input w-full" type="number" min={1} max={50} value={qCount}
+          onChange={e => setQCount(Math.min(50, Math.max(1, parseInt(e.target.value) || 1)))}
+        />
+      </div>
+
+      <div className="field mb-4">
+        <label className="text-xs font-semibold text-ink2 mb-2 block">Question Types</label>
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(TYPE_LABELS).map(([t, label]) => (
+            <button key={t} type="button" onClick={() => toggleType(t)}
+              className={`btn btn-sm ${qTypes.includes(t) ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ fontSize: 12 }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ background: 'var(--c-surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: 'var(--ink2)' }}>
+        <strong style={{ color: 'var(--ink)' }}>How it works:</strong>
+        <ol style={{ margin: '6px 0 0 16px', lineHeight: 1.8 }}>
+          <li>Click <strong>Export Template</strong> to download a <code>.json</code> file</li>
+          <li>Send the file or its contents to ChatGPT, Gemini, or any AI</li>
+          <li>Copy the AI's JSON output</li>
+          <li>Click <strong>Import AI Response</strong> to create the quiz</li>
+        </ol>
+      </div>
+
+      <div className="modal-footer">
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-ghost" onClick={onSwitchToImport}>
+          📥 Import AI Response
+        </button>
+        <button className="btn btn-primary" onClick={handleExport} disabled={!topic.trim() || !qTypes.length}>
+          📤 Export Template
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Import AI Response Modal ──────────────────────────────────────────────────
+function ImportResponseModal({ onClose, onImported }) {
+  const [jsonInput, setJsonInput] = useState('')
+  const [jsonErr, setJsonErr] = useState('')
+
+  function handleImport() {
+    setJsonErr('')
+    try {
+      const parsed = JSON.parse(jsonInput.trim())
+      if (!Array.isArray(parsed)) throw new Error('Expected a JSON array of questions')
+      if (!parsed.length) throw new Error('Array is empty')
+      const qs = parsed.map((q, i) => ({ ...q, id: 'q' + i + '_' + Date.now() }))
+      onImported(qs)
+    } catch (e) {
+      setJsonErr('Invalid JSON: ' + e.message)
+    }
+  }
+
+  return (
+    <Modal onClose={onClose} size="md">
+      <h3 className="text-lg font-bold text-ink mb-1">📥 Import AI Response</h3>
+      <p className="modal-sub">
+        Paste the JSON array returned by your AI platform. The quiz will be auto-configured and ready to save.
+      </p>
+
+      <div className="field mb-3">
+        <label className="text-xs font-semibold text-ink2 mb-1 block">Paste AI JSON Output <span className="text-red-500">*</span></label>
+        <textarea
+          className="input w-full"
+          rows={12}
+          value={jsonInput}
+          onChange={e => setJsonInput(e.target.value)}
+          placeholder={'[\n  {"type":"multiple_choice","question":"...","options":[...],"answer":"..."},\n  ...\n]'}
+          style={{ fontFamily: 'monospace', fontSize: 12 }}
+          autoFocus
+        />
+      </div>
+
+      {jsonErr && <div className="err-msg mb-2">{jsonErr}</div>}
+
+      <div className="modal-footer">
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={handleImport} disabled={!jsonInput.trim()}>
+          Import & Configure Quiz →
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Create/Edit Quiz Modal ────────────────────────────────────────────────────
+function QuizFormModal({ quiz, initialQuestions, onClose }) {
+  const { classes, db, fbReady } = useData()
+  const { toast } = useUI()
+  const isEdit = !!quiz
 
   const [title, setTitle] = useState(quiz?.title || '')
   const [classIds, setClassIds] = useState(quiz?.classIds || [])
@@ -121,12 +218,11 @@ function QuizFormModal({ quiz, onClose }) {
     const pad = n => String(n).padStart(2, '0')
     return `${dl.getFullYear()}-${pad(dl.getMonth() + 1)}-${pad(dl.getDate())}T${pad(dl.getHours())}:${pad(dl.getMinutes())}`
   })
-  const [questions, setQuestions] = useState(quiz?.questions || [])
+  const [questions, setQuestions] = useState(quiz?.questions || initialQuestions || [])
   const [editingQ, setEditingQ] = useState(null)
   const [err, setErr] = useState('')
   const [saving, setSaving] = useState(false)
 
-  // Available subjects across selected classes
   const availableSubjects = useMemo(() => {
     const subs = new Set()
     classIds.forEach(cid => {
@@ -139,27 +235,6 @@ function QuizFormModal({ quiz, onClose }) {
   function toggleClass(id) {
     setClassIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
     setSubject('')
-  }
-
-  function toggleType(t) {
-    setQTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])
-  }
-
-  async function handleGenerate() {
-    setGenErr('')
-    if (!topic.trim()) { setGenErr('Please enter a topic or discussion text.'); return }
-    if (qTypes.length === 0) { setGenErr('Select at least one question type.'); return }
-    setGenerating(true)
-    try {
-      const qs = await generateQuestions(topic.trim(), qCount, qTypes)
-      setQuestions(qs.map((q, i) => ({ ...q, id: 'q' + i + '_' + Date.now() })))
-      setTitle(topic.trim().slice(0, 60))
-      setStep('form')
-    } catch (e) {
-      setGenErr('Generation failed: ' + e.message)
-    } finally {
-      setGenerating(false)
-    }
   }
 
   function updateQuestion(id, field, val) {
@@ -180,13 +255,7 @@ function QuizFormModal({ quiz, onClose }) {
   }
 
   function addQuestion() {
-    setQuestions(prev => [...prev, {
-      id: 'q_' + Date.now(),
-      type: 'multiple_choice',
-      question: '',
-      options: ['', '', '', ''],
-      answer: '',
-    }])
+    setQuestions(prev => [...prev, { id: 'q_' + Date.now(), type: 'multiple_choice', question: '', options: ['', '', '', ''], answer: '' }])
   }
 
   async function handleSave() {
@@ -203,17 +272,11 @@ function QuizFormModal({ quiz, onClose }) {
     if (!fbReady || !db.current) { setErr('Firebase is required.'); return }
 
     const payload = {
-      title: title.trim(),
-      classIds,
-      subject,
-      timeLimit: parseInt(timeLimit),
-      openAt: openTs,
-      closeAt: closeTs,
-      questions,
-      totalPoints: questions.length,
+      title: title.trim(), classIds, subject,
+      timeLimit: parseInt(timeLimit), openAt: openTs, closeAt: closeTs,
+      questions, totalPoints: questions.length,
       submissions: quiz?.submissions || {},
-      createdAt: quiz?.createdAt || Date.now(),
-      createdBy: 'admin',
+      createdAt: quiz?.createdAt || Date.now(), createdBy: 'admin',
     }
 
     setSaving(true)
@@ -233,83 +296,12 @@ function QuizFormModal({ quiz, onClose }) {
     }
   }
 
-  const TYPE_LABELS = {
-    multiple_choice: 'Multiple Choice',
-    true_false: 'True/False',
-    short_answer: 'Short Answer',
-    fill_in_the_blank: 'Fill in the Blank',
-    identification: 'Identification',
-  }
-
-  // ── Step 1: Generate ──────────────────────────────────────────────────────
-  if (step === 'generate') {
-    return (
-      <Modal onClose={onClose} size="md">
-        <h3 className="text-lg font-bold text-ink mb-1">✨ Generate Quiz with AI</h3>
-        <p className="modal-sub">Paste your topic or discussion text and let Gemini AI generate your quiz.</p>
-
-        <div className="field mb-3">
-          <label className="text-xs font-semibold text-ink2 mb-1 block">Topic / Discussion Text <span className="text-red-500">*</span></label>
-          <textarea
-            className="input w-full"
-            rows={5}
-            value={topic}
-            onChange={e => setTopic(e.target.value)}
-            placeholder="e.g. The human digestive system breaks down food through mechanical and chemical digestion…"
-            autoFocus
-          />
-        </div>
-
-        <div className="input-row mb-3">
-          <div className="field flex-1">
-            <label className="text-xs font-semibold text-ink2 mb-1 block">Number of Questions</label>
-            <input
-              className="input w-full"
-              type="number"
-              min={1}
-              max={50}
-              value={qCount}
-              onChange={e => setQCount(Math.min(50, Math.max(1, parseInt(e.target.value) || 1)))}
-            />
-          </div>
-        </div>
-
-        <div className="field mb-4">
-          <label className="text-xs font-semibold text-ink2 mb-2 block">Question Types (select all that apply)</label>
-          <div className="flex flex-wrap gap-2">
-            {Object.entries(TYPE_LABELS).map(([t, label]) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => toggleType(t)}
-                className={`btn btn-sm ${qTypes.includes(t) ? 'btn-primary' : 'btn-ghost'}`}
-                style={{ fontSize: 12 }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {genErr && <div className="err-msg mb-2">{genErr}</div>}
-
-        <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleGenerate} disabled={generating}>
-            {generating ? '⏳ Generating…' : '✨ Generate Questions'}
-          </button>
-        </div>
-      </Modal>
-    )
-  }
-
-  // ── Step 2: Form ──────────────────────────────────────────────────────────
   return (
     <Modal onClose={onClose} size="lg">
       <h3 className="text-lg font-bold text-ink mb-1">
         {isEdit ? '✏️ Edit Quiz' : '📝 Configure & Share Quiz'}
       </h3>
-      <p className="modal-sub">{questions.length} questions generated. Review, edit, then share with classes.</p>
+      <p className="modal-sub">{questions.length} questions imported. Review, edit, then share with classes.</p>
 
       <div className="field mb-3">
         <label className="text-xs font-semibold text-ink2 mb-1 block">Quiz Title <span className="text-red-500">*</span></label>
@@ -323,13 +315,9 @@ function QuizFormModal({ quiz, onClose }) {
         ) : (
           <div className="flex flex-wrap gap-2">
             {classes.map(c => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => toggleClass(c.id)}
+              <button key={c.id} type="button" onClick={() => toggleClass(c.id)}
                 className={`btn btn-sm ${classIds.includes(c.id) ? 'btn-primary' : 'btn-ghost'}`}
-                style={{ fontSize: 12 }}
-              >
+                style={{ fontSize: 12 }}>
                 {c.name} {c.section}
               </button>
             ))}
@@ -348,14 +336,8 @@ function QuizFormModal({ quiz, onClose }) {
       <div className="input-row mb-3">
         <div className="field flex-1">
           <label className="text-xs font-semibold text-ink2 mb-1 block">Time Limit (minutes) <span className="text-red-500">*</span></label>
-          <input
-            className="input w-full"
-            type="number"
-            min={1}
-            max={300}
-            value={timeLimit}
-            onChange={e => setTimeLimit(Math.max(1, parseInt(e.target.value) || 1))}
-          />
+          <input className="input w-full" type="number" min={1} max={300} value={timeLimit}
+            onChange={e => setTimeLimit(Math.max(1, parseInt(e.target.value) || 1))} />
         </div>
         <div className="field flex-1">
           <label className="text-xs font-semibold text-ink2 mb-1 block">Opens At <span className="text-red-500">*</span></label>
@@ -409,8 +391,6 @@ function QuizFormModal({ quiz, onClose }) {
                   Answer: {q.answer}
                 </span>
               )}
-
-              {/* Inline editor */}
               {editingQ === q.id && (
                 <div style={{ marginTop: 10, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
                   <div className="field mb-2">
@@ -470,9 +450,6 @@ function QuizFormModal({ quiz, onClose }) {
       {err && <div className="err-msg mb-2">{err}</div>}
 
       <div className="modal-footer">
-        {!isEdit && (
-          <button className="btn btn-ghost" onClick={() => setStep('generate')}>← Regenerate</button>
-        )}
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
         <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
           {saving ? 'Saving…' : isEdit ? '💾 Save Changes' : '🚀 Share Quiz'}
@@ -482,7 +459,7 @@ function QuizFormModal({ quiz, onClose }) {
   )
 }
 
-// ── View Results Modal ───────────────────────────────────────────────────────
+// ── View Results Modal ────────────────────────────────────────────────────────
 function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
   const { students } = useData()
   const { toast, openDialog } = useUI()
@@ -537,7 +514,6 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
         <button className="text-ink3 hover:text-ink text-xl leading-none" onClick={onClose}>×</button>
       </div>
 
-      {/* Status banner */}
       {isUpcoming && (
         <div style={{ background: 'var(--c-surface2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12, color: 'var(--ink2)' }}>
           🕐 Upcoming — opens {openLabel}
@@ -554,7 +530,6 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
         </div>
       )}
 
-      {/* Submissions table */}
       <div className="tbl-wrap mb-3">
         <table className="tbl">
           <thead>
@@ -585,9 +560,7 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
                       ? <Badge variant="green">✅ Submitted</Badge>
                       : <Badge variant="gray">{isClosed ? '⏰ Missed' : '⏳ Not yet'}</Badge>}
                   </td>
-                  <td>
-                    {score != null ? `${score}/${total}` : '—'}
-                  </td>
+                  <td>{score != null ? `${score}/${total}` : '—'}</td>
                   <td>
                     {pct != null ? (
                       <span style={{ fontWeight: 700, color: pct >= 75 ? 'var(--c-green)' : pct >= 50 ? '#f59e0b' : 'var(--c-red)' }}>
@@ -612,13 +585,16 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
   )
 }
 
-// ── Main Tab ─────────────────────────────────────────────────────────────────
+// ── Main Tab ──────────────────────────────────────────────────────────────────
 const PER_PAGE = 10
 
 export default function QuizTab() {
   const { quizzes, classes } = useData()
   const [page, setPage] = useState(1)
-  const [showCreate, setShowCreate] = useState(false)
+  const [showExport, setShowExport] = useState(false)
+  const [showImport, setShowImport] = useState(false)
+  const [showForm, setShowForm] = useState(false)
+  const [importedQuestions, setImportedQuestions] = useState([])
   const [viewQuiz, setViewQuiz] = useState(null)
   const [editQuiz, setEditQuiz] = useState(null)
 
@@ -640,17 +616,26 @@ export default function QuizTab() {
     return { label: 'Open', variant: 'green' }
   }
 
+  function handleImported(qs) {
+    setImportedQuestions(qs)
+    setShowImport(false)
+    setShowForm(true)
+  }
+
   return (
     <div>
       <div className="sec-hdr mb-3">
         <div className="sec-title">Quizzes</div>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>✨ New Quiz</button>
+        <div className="flex gap-2">
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowImport(true)}>📥 Import AI Response</button>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowExport(true)}>📤 Export Template</button>
+        </div>
       </div>
 
       {!quizzes.length ? (
         <div className="empty">
           <div className="empty-icon" style={{ fontSize: '2rem' }}>📝</div>
-          No quizzes yet. Click "New Quiz" to generate one with AI.
+          No quizzes yet. Export a template, generate with AI, then import the response.
         </div>
       ) : (
         <>
@@ -694,13 +679,34 @@ export default function QuizTab() {
         </>
       )}
 
-      {showCreate && <QuizFormModal onClose={() => setShowCreate(false)} />}
+      {showExport && (
+        <ExportTemplateModal
+          onClose={() => setShowExport(false)}
+          onSwitchToImport={() => { setShowExport(false); setShowImport(true) }}
+        />
+      )}
+
+      {showImport && (
+        <ImportResponseModal
+          onClose={() => setShowImport(false)}
+          onImported={handleImported}
+        />
+      )}
+
+      {showForm && (
+        <QuizFormModal
+          initialQuestions={importedQuestions}
+          onClose={() => { setShowForm(false); setImportedQuestions([]) }}
+        />
+      )}
+
       {editQuiz && (
         <QuizFormModal
           quiz={quizzes.find(q => q.id === editQuiz.id) || editQuiz}
           onClose={() => setEditQuiz(null)}
         />
       )}
+
       {viewQuiz && (
         <ViewQuizModal
           quiz={quizzes.find(q => q.id === viewQuiz.id) || viewQuiz}
