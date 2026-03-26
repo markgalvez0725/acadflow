@@ -330,7 +330,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
     const now = Date.now()
     return (announcements || []).filter(ann =>
       ann.active &&
-      enrolledIds.includes(ann.classId) &&
+      (ann.classId === 'all' || enrolledIds.includes(ann.classId)) &&
       (!ann.expiresAt || ann.expiresAt > now)
     ).sort((a, b) => b.createdAt - a.createdAt)
   }, [announcements, enrolledIds])
