@@ -42,6 +42,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
   const [page, setPage] = useState(1)
   const [linkInputs, setLinkInputs] = useState({}) // actId → string
   const [submitting, setSubmitting] = useState({})  // actId → bool
+  const [editing, setEditing] = useState({})        // actId → bool
 
   const classId = viewClassId || s.classId
 
@@ -67,6 +68,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
         [`${sidPath}.submittedAt`]: Date.now(),
       })
       setLinkInputs(prev => ({ ...prev, [actId]: '' }))
+      setEditing(prev => ({ ...prev, [actId]: false }))
       const act = activities.find(a => a.id === actId)
       await pushAdminNotif(
         db.current, s,
@@ -74,7 +76,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
         'act_sub',
         'act:' + actId
       )
-      toast('Submission sent!', 'success')
+      toast('Submission updated!', 'success')
     } catch (e) {
       toast('Failed to submit: ' + e.message, 'error')
     } finally {
@@ -185,8 +187,61 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                 </div>
               ) : hasLink ? (
                 <div className="sa-act-submitted">
-                  <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 4 }}>Submitted — awaiting grade</div>
-                  <a href={sub.link} target="_blank" rel="noreferrer" className="sa-act-link">View your submission ↗</a>
+                  {editing[act.id] && !isPast ? (
+                    <div className="sa-act-submit-form">
+                      <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 6 }}>
+                        Edit your submission link below. You can update it until the deadline.
+                      </div>
+                      <input
+                        className="input"
+                        placeholder="Paste updated link (https://…)"
+                        value={linkInputs[act.id] ?? sub.link}
+                        onChange={e => setLinkInputs(prev => ({ ...prev, [act.id]: e.target.value }))}
+                        onKeyDown={e => { if (e.key === 'Enter') submitActivity(act.id) }}
+                      />
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          className="btn btn-primary btn-sm"
+                          onClick={() => submitActivity(act.id)}
+                          disabled={submitting[act.id] || !(linkInputs[act.id] ?? sub.link).trim()}
+                        >
+                          {submitting[act.id] ? 'Saving…' : 'Save changes →'}
+                        </button>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => {
+                            setEditing(prev => ({ ...prev, [act.id]: false }))
+                            setLinkInputs(prev => ({ ...prev, [act.id]: '' }))
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 4 }}>Submitted — awaiting grade</div>
+                      <a href={sub.link} target="_blank" rel="noreferrer" className="sa-act-link">View your submission ↗</a>
+                      <div className="mt-2">
+                        {!isPast ? (
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => {
+                              setEditing(prev => ({ ...prev, [act.id]: true }))
+                              setLinkInputs(prev => ({ ...prev, [act.id]: sub.link }))
+                            }}
+                          >
+                            Edit link
+                          </button>
+                        ) : (
+                          <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 4 }}>
+                            The deadline has passed — you can no longer edit your link. If you need to make a change,{' '}
+                            <span style={{ color: 'var(--accent)', fontWeight: 600 }}>message your teacher.</span>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               ) : isPast ? (
                 <div style={{ fontSize: 12, color: 'var(--red)', marginTop: 8 }}>This activity has passed without a submission.</div>
