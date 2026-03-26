@@ -7,6 +7,7 @@ import { getHeldDays, computeFinalGradeFromTerms } from '@/utils/grades'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
+import { Clock, AlertCircle } from 'lucide-react'
 
 // ── Helpers ───────────────────────────────────────────────────────────
 function actId() {
@@ -557,7 +558,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                     <td>
                       {hasLink
                         ? <Badge variant="green">✅ Submitted</Badge>
-                        : <Badge variant="gray">{isPast ? '⏰ Missed' : '⏳ Pending'}</Badge>
+                        : <Badge variant="gray" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>{isPast ? <><AlertCircle size={11} />Missed</> : <><Clock size={11} />Pending</>}</Badge>
                       }
                     </td>
                     <td>

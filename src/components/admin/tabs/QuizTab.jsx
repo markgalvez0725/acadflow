@@ -5,6 +5,7 @@ import { useUI } from '@/context/UIContext'
 import Modal from '@/components/primitives/Modal'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
+import { Clock, AlertCircle } from 'lucide-react'
 
 
 function quizId() {
@@ -617,7 +618,7 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
                   <td>
                     {hasAttempt
                       ? <Badge variant="green">✅ Submitted</Badge>
-                      : <Badge variant="gray">{isClosed ? '⏰ Missed' : '⏳ Not yet'}</Badge>}
+                      : <Badge variant="gray" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>{isClosed ? <><AlertCircle size={11} />Missed</> : <><Clock size={11} />Not yet</>}</Badge>}
                   </td>
                   <td>{score != null ? `${score}/${total}` : '—'}</td>
                   <td>

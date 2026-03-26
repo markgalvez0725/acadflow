@@ -10,6 +10,7 @@ import { exportGradingSheet, parseGradingSheetImport } from '@/export/excelExpor
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
+import { Clock } from 'lucide-react'
 
 const GRADE_PER_PAGE = 10
 
@@ -640,7 +641,7 @@ function SubjectCard({ cls, sub, studs, eqScale, onEdit, onClear, onExport, onIm
                   <td>
                     {gradeFullyUploaded
                       ? <span className={`badge ${BADGE_CLS_MAP[fgBadgeCls] || 'badge-gray'}`} style={{ fontSize: 13, fontWeight: 700 }}>{combinedEq}</span>
-                      : <span className="badge badge-gray" title="Final grade not yet fully uploaded">⏳ Pending</span>}
+                      : <span className="badge badge-gray" title="Final grade not yet fully uploaded" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={11} />Pending</span>}
                   </td>
                   <td>
                     <span className={`badge ${BADGE_CLS_MAP[remBadgeCls] || 'badge-gray'}`}
