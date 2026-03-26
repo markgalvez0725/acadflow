@@ -41,7 +41,7 @@ async function pushStudentNotif(db, studentId, title, body, type = 'act_grade', 
 
 // ── GradeEntryModal ───────────────────────────────────────────────────────────
 function GradeEntryModal({ classId, subject, onClose }) {
-  const { students, classes, activities, saveStudents, eqScale, db, fbReady } = useData()
+  const { students, classes, activities, quizzes, saveStudents, eqScale, db, fbReady } = useData()
   const { toast, openDialog } = useUI()
 
   const cls   = classes.find(c => c.id === classId)
@@ -53,14 +53,21 @@ function GradeEntryModal({ classId, subject, onClose }) {
     [activities, classId, subject]
   )
 
-  // Max quiz count across all students (min 1 so there's always at least one input)
+  // Panel quizzes for this class+subject
+  const panelQuizzes = useMemo(
+    () => (quizzes || []).filter(q => q.classIds?.includes(classId) && q.subject === subject),
+    [quizzes, classId, subject]
+  )
+
+  // Max quiz count: prefer panel quizzes count, fallback to stored quizScores keys
   const quizInputCount = useMemo(() => {
+    if (panelQuizzes.length > 0) return panelQuizzes.length
     const max = studs.reduce((m, s) => {
       const qz = s.gradeComponents?.[subject]?.quizScores || {}
       return Math.max(m, Object.keys(qz).length)
     }, 0)
     return Math.max(max, 1)
-  }, [studs, subject])
+  }, [studs, subject, panelQuizzes])
 
   // Build initial row values from existing student data + activities panel
   const initRows = useMemo(() => {
@@ -90,12 +97,27 @@ function GradeEntryModal({ classId, subject, onClose }) {
         ? parseFloat((actNums.reduce((a, b) => a + b, 0) / actNums.length).toFixed(2))
         : null
 
-      // Per-quiz scores from stored quizScores
+      // Per-quiz scores — from panel submissions, fallback to stored quizScores
       const qzScoresMap = comp.quizScores || {}
-      const qzInputs = Array.from({ length: quizInputCount }, (_, i) => {
-        const v = qzScoresMap[`q${i + 1}`]
-        return v != null ? String(v) : ''
-      })
+      const qzInputs = panelQuizzes.length > 0
+        ? panelQuizzes.map((q, idx) => {
+            // Check quiz submission for auto-graded score (convert raw score to %)
+            const sub = (q.submissions || {})[s.id]
+            if (sub?.score != null) {
+              const total = q.questions?.length || 1
+              const pct = parseFloat(((sub.score / total) * 100).toFixed(1))
+              return String(pct)
+            }
+            // Fallback to stored quizScores by quiz id or positional key
+            const byId  = qzScoresMap[q.id]
+            const byIdx = qzScoresMap[`q${idx + 1}`]
+            const val   = byId ?? byIdx
+            return val != null ? String(val) : ''
+          })
+        : Array.from({ length: quizInputCount }, (_, i) => {
+            const v = qzScoresMap[`q${i + 1}`]
+            return v != null ? String(v) : ''
+          })
       const qzNums = qzInputs.map(v => toNum(v)).filter(v => v !== null)
       const qzAvg  = qzNums.length > 0
         ? parseFloat((qzNums.reduce((a, b) => a + b, 0) / qzNums.length).toFixed(2))
@@ -130,7 +152,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
         equivPreview: eqPreview,
       }
     })
-  }, [studs, subject, classId, panelActs, students, eqScale, quizInputCount])
+  }, [studs, subject, classId, panelActs, panelQuizzes, students, eqScale, quizInputCount])
 
   const [rows, setRows] = useState(initRows)
   const [saving, setSaving] = useState(false)
@@ -271,10 +293,20 @@ function GradeEntryModal({ classId, subject, onClose }) {
       // Sync quizScores from individual inputs
       if (r.qzInputs.length > 0) {
         const qzMap = {}
-        r.qzInputs.forEach((v, idx) => {
-          const sc = toNum(v)
-          if (sc != null) qzMap[`q${idx + 1}`] = sc
-        })
+        if (panelQuizzes.length > 0) {
+          panelQuizzes.forEach((q, idx) => {
+            const sc = toNum(r.qzInputs[idx])
+            if (sc != null) {
+              qzMap[`q${idx + 1}`] = sc
+              qzMap[q.id] = sc
+            }
+          })
+        } else {
+          r.qzInputs.forEach((v, idx) => {
+            const sc = toNum(v)
+            if (sc != null) qzMap[`q${idx + 1}`] = sc
+          })
+        }
         if (Object.keys(qzMap).length) comp.quizScores = qzMap
       }
 
@@ -362,9 +394,17 @@ function GradeEntryModal({ classId, subject, onClose }) {
               <th title="Activities average — computed from individual scores">
                 Act Avg<br /><small className="font-normal text-ink3">auto</small>
               </th>
-              {Array.from({ length: quizInputCount }, (_, i) => (
-                <th key={i}>Quiz {i + 1}<br /><small className="font-normal text-ink3">score</small></th>
-              ))}
+              {panelQuizzes.length > 0
+                ? panelQuizzes.map((q, i) => (
+                    <th key={q.id} title={q.title || `Quiz ${i + 1}`}>
+                      {q.title ? q.title.length > 10 ? q.title.slice(0, 10) + '…' : q.title : `Quiz ${i + 1}`}
+                      <br /><small className="font-normal text-ink3">quiz</small>
+                    </th>
+                  ))
+                : Array.from({ length: quizInputCount }, (_, i) => (
+                    <th key={i}>Quiz {i + 1}<br /><small className="font-normal text-ink3">score</small></th>
+                  ))
+              }
               <th title="Quizzes average — computed from individual scores">
                 Quiz Avg<br /><small className="font-normal text-ink3">auto</small>
               </th>
@@ -418,7 +458,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
                     <td key={qi}>
                       <input className="grade-input" type="number" min="0" max="100"
                         value={val} placeholder="—"
-                        title={`Quiz ${qi + 1}`}
+                        title={panelQuizzes[qi]?.title || `Quiz ${qi + 1}`}
                         onChange={e => updateQzInput(i, qi, e.target.value)} />
                     </td>
                   ))}
