@@ -386,6 +386,20 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
       {/* Announcement banners */}
       {activeAnnouncements.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+          {/* Announcement legend */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 2 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Announcements:</span>
+            {[
+              { color: 'var(--yellow)', label: 'No Class' },
+              { color: 'var(--accent)', label: 'Online Class' },
+              { color: 'var(--purple)', label: 'Meeting Topics' },
+            ].map(({ color, label }) => (
+              <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--ink2)' }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                {label}
+              </span>
+            ))}
+          </div>
           {activeAnnouncements.map(ann => (
             <div
               key={ann.id}
@@ -456,6 +470,21 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
           <div className="s-val" style={{ color: statusColor, fontSize: 16 }}>{statusText}</div>
           <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 2 }}>{statusSub}</div>
         </div>
+      </div>
+
+      {/* Grade color legend */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Legend:</span>
+        {[
+          { color: 'var(--green)',  label: 'Good (≥85% / ≥90% att)' },
+          { color: 'var(--yellow)', label: 'Fair (75–84% / 80–89% att)' },
+          { color: 'var(--red)',    label: 'At Risk (<75% / <80% att)' },
+        ].map(({ color, label }) => (
+          <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--ink2)' }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
+            {label}
+          </span>
+        ))}
       </div>
 
       {/* Grade table */}
