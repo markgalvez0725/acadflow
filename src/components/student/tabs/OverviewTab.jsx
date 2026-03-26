@@ -3,7 +3,99 @@ import {
   gradeInfo, combineEquiv, getGWA, getAttRate, computeFinalGradeFromTerms,
 } from '@/utils/grades'
 import { useData } from '@/context/DataContext'
-import { BookOpen, Clock, CalendarOff, Video, Link } from 'lucide-react'
+import Modal, { ModalHeader } from '@/components/primitives/Modal'
+import { BookOpen, Clock, CalendarOff, Video, Link, X } from 'lucide-react'
+
+function formatAnnDate(ms) {
+  if (!ms) return null
+  return new Date(ms).toLocaleString('en-PH', {
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit',
+  })
+}
+
+function AnnTypeBadge({ type }) {
+  const map = {
+    no_class:       { label: 'No Class Today',  cls: 'badge-yellow' },
+    online_class:   { label: 'Online Class',     cls: 'badge-blue'   },
+    meeting_topics: { label: 'Meeting Topics',   cls: 'badge-purple' },
+  }
+  const { label, cls } = map[type] || { label: type, cls: 'badge-gray' }
+  return <span className={`badge ${cls}`}>{label}</span>
+}
+
+function AnnouncementDetailModal({ ann, onClose }) {
+  return (
+    <Modal onClose={onClose} size="md">
+      <ModalHeader
+        title={ann.title}
+        onClose={onClose}
+      />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* Type + class badge row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ color: annIconColor(ann.type) }}>
+            <AnnIcon type={ann.type} size={16} />
+          </div>
+          <AnnTypeBadge type={ann.type} />
+        </div>
+
+        {/* Message */}
+        {ann.message && (
+          <p style={{ fontSize: 14, color: 'var(--ink2)', lineHeight: 1.6, margin: 0 }}>
+            {ann.message}
+          </p>
+        )}
+
+        {/* Topics */}
+        {ann.type === 'meeting_topics' && ann.topics?.length > 0 && (
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink2)', marginBottom: 6 }}>Topics Covered</div>
+            <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: 'var(--ink)', lineHeight: 2 }}>
+              {ann.topics.map((t, i) => <li key={i}>{t}</li>)}
+            </ol>
+          </div>
+        )}
+
+        {/* Links */}
+        {(ann.meetingLink || ann.moduleLink) && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {ann.meetingLink && (
+              <a
+                href={ann.meetingLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-primary btn-sm"
+                style={{ alignSelf: 'flex-start', textDecoration: 'none', fontSize: 13 }}
+              >
+                <Video size={14} style={{ marginRight: 6 }} />
+                Join Meeting
+              </a>
+            )}
+            {ann.moduleLink && (
+              <a
+                href={ann.moduleLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-ghost btn-sm"
+                style={{ alignSelf: 'flex-start', textDecoration: 'none', fontSize: 13, color: 'var(--green)' }}
+              >
+                <Link size={14} style={{ marginRight: 6 }} />
+                View Module
+              </a>
+            )}
+          </div>
+        )}
+
+        {/* Dates */}
+        <div style={{ fontSize: 11, color: 'var(--ink3)', display: 'flex', gap: 16, flexWrap: 'wrap', paddingTop: 4, borderTop: '1px solid var(--border)' }}>
+          {ann.createdAt && <span>Posted: {formatAnnDate(ann.createdAt)}</span>}
+          {ann.expiresAt && <span>Expires: {formatAnnDate(ann.expiresAt)}</span>}
+        </div>
+      </div>
+    </Modal>
+  )
+}
 
 function annBgColor(type) {
   if (type === 'no_class')       return 'rgba(234,179,8,0.1)'
@@ -32,6 +124,8 @@ function AnnIcon({ type, size = 18 }) {
 
 export default function OverviewTab({ student: s, viewClassId, classes }) {
   const { activities, students, eqScale, announcements } = useData()
+
+  const [viewAnn, setViewAnn] = useState(null)
 
   // Toggle state per subject: 'equiv' | 'pct'
   const [toggleMap, setToggleMap] = useState({})
@@ -107,11 +201,13 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
           {activeAnnouncements.map(ann => (
             <div
               key={ann.id}
+              onClick={() => setViewAnn(ann)}
               style={{
                 display: 'flex', alignItems: 'flex-start', gap: 10,
                 padding: '12px 14px', borderRadius: 10,
                 background: annBgColor(ann.type),
                 border: `1px solid ${annBorderColor(ann.type)}`,
+                cursor: 'pointer',
               }}
             >
               <div style={{ color: annIconColor(ann.type), flexShrink: 0, marginTop: 1 }}>
@@ -134,6 +230,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
                     href={ann.meetingLink}
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={e => e.stopPropagation()}
                     style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600, marginTop: 4, display: 'inline-block' }}
                   >
                     Join Meeting →
@@ -144,6 +241,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
                     href={ann.moduleLink}
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={e => e.stopPropagation()}
                     style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600, marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 4 }}
                   >
                     <Link size={12} /> View Module →
@@ -211,6 +309,9 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
             </tbody>
           </table>
         </div>
+      )}
+      {viewAnn && (
+        <AnnouncementDetailModal ann={viewAnn} onClose={() => setViewAnn(null)} />
       )}
     </div>
   )

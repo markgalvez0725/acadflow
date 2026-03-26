@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import Modal from '@/components/primitives/Modal'
+import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import Badge from '@/components/primitives/Badge'
 import { Megaphone, Plus, Trash2, CalendarOff, Video, BookOpen, ToggleLeft, ToggleRight, Link, X } from 'lucide-react'
 
@@ -285,6 +285,94 @@ function AnnouncementFormModal({ ann, onClose }) {
   )
 }
 
+// ── Read-only Detail Modal ─────────────────────────────────────────────
+function AnnouncementDetailModal({ ann, classes, onClose, onEdit }) {
+  function getClassName(classId) {
+    const c = classes.find(x => x.id === classId)
+    if (!c) return classId
+    return c.name + (c.section ? ` — ${c.section}` : '')
+  }
+
+  const typeLabel = ann.type === 'no_class' ? 'No Class Today' : ann.type === 'online_class' ? 'Online Class' : 'Meeting Topics'
+  const typeBadge = ann.type === 'no_class' ? 'badge-yellow' : ann.type === 'online_class' ? 'badge-blue' : 'badge-purple'
+  const iconColor = ann.type === 'no_class' ? 'var(--yellow)' : ann.type === 'online_class' ? 'var(--accent)' : 'var(--purple, #a855f7)'
+  const Icon = ann.type === 'no_class' ? CalendarOff : ann.type === 'online_class' ? Video : BookOpen
+
+  return (
+    <Modal onClose={onClose} size="md">
+      <ModalHeader title={ann.title} onClose={onClose} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+        {/* Type + class */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <Icon size={16} style={{ color: iconColor }} />
+          <span className={`badge ${typeBadge}`}>{typeLabel}</span>
+          <span style={{ fontSize: 12, color: 'var(--ink2)' }}>{getClassName(ann.classId)}</span>
+        </div>
+
+        {/* Message */}
+        {ann.message && (
+          <p style={{ fontSize: 14, color: 'var(--ink2)', lineHeight: 1.6, margin: 0 }}>
+            {ann.message}
+          </p>
+        )}
+
+        {/* Topics */}
+        {ann.type === 'meeting_topics' && ann.topics?.length > 0 && (
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink2)', marginBottom: 6 }}>Topics Covered</div>
+            <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: 'var(--ink)', lineHeight: 2 }}>
+              {ann.topics.map((t, i) => <li key={i}>{t}</li>)}
+            </ol>
+          </div>
+        )}
+
+        {/* Links */}
+        {(ann.meetingLink || ann.moduleLink) && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {ann.meetingLink && (
+              <a
+                href={ann.meetingLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-primary btn-sm"
+                style={{ alignSelf: 'flex-start', textDecoration: 'none', fontSize: 13 }}
+              >
+                <Video size={14} style={{ marginRight: 6 }} />
+                Join Meeting
+              </a>
+            )}
+            {ann.moduleLink && (
+              <a
+                href={ann.moduleLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-ghost btn-sm"
+                style={{ alignSelf: 'flex-start', textDecoration: 'none', fontSize: 13, color: 'var(--green)' }}
+              >
+                <Link size={14} style={{ marginRight: 6 }} />
+                View Module
+              </a>
+            )}
+          </div>
+        )}
+
+        {/* Dates */}
+        <div style={{ fontSize: 11, color: 'var(--ink3)', display: 'flex', gap: 16, flexWrap: 'wrap', paddingTop: 4, borderTop: '1px solid var(--border)' }}>
+          {ann.createdAt && <span>Posted: {formatDate(ann.createdAt)}</span>}
+          {ann.expiresAt && <span>Expires: {formatDate(ann.expiresAt)}</span>}
+        </div>
+
+        {/* Footer action */}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button className="btn btn-ghost" onClick={onClose}>Close</button>
+          <button className="btn btn-primary btn-sm" onClick={() => { onClose(); onEdit(ann) }}>Edit</button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Main Tab ──────────────────────────────────────────────────────────
 export default function AnnouncementsTab() {
   const { announcements, classes, saveAnnouncement, deleteAnnouncement } = useData()
@@ -293,6 +381,7 @@ export default function AnnouncementsTab() {
   const [formOpen, setFormOpen]     = useState(false)
   const [editAnn,  setEditAnn]      = useState(null)
   const [deleteId, setDeleteId]     = useState(null)
+  const [viewAnn,  setViewAnn]      = useState(null)
 
   const sorted = useMemo(() =>
     [...announcements].sort((a, b) => b.createdAt - a.createdAt),
@@ -363,7 +452,8 @@ export default function AnnouncementsTab() {
               <div
                 key={ann.id}
                 className="rounded-xl border border-border bg-surface"
-                style={{ padding: '14px 16px', opacity: effectivelyActive ? 1 : 0.6 }}
+                style={{ padding: '14px 16px', opacity: effectivelyActive ? 1 : 0.6, cursor: 'pointer' }}
+                onClick={() => setViewAnn(ann)}
               >
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                   {/* Icon */}
@@ -428,7 +518,7 @@ export default function AnnouncementsTab() {
                   </div>
 
                   {/* Actions */}
-                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
                     {/* Active toggle */}
                     <button
                       className="btn btn-ghost btn-sm"
@@ -467,6 +557,16 @@ export default function AnnouncementsTab() {
             )
           })}
         </div>
+      )}
+
+      {/* Detail modal */}
+      {viewAnn && (
+        <AnnouncementDetailModal
+          ann={viewAnn}
+          classes={classes}
+          onClose={() => setViewAnn(null)}
+          onEdit={ann => { setEditAnn(ann); setFormOpen(true) }}
+        />
       )}
 
       {/* New / Edit modal */}
