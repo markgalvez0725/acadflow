@@ -18,7 +18,7 @@ AcadFlow is a web-based school portal that provides a unified platform to manage
 - **Attendance** — calendar-based daily attendance tracking (Present / Absent / Excuse); import from file
 - **Activities** — post assignments with deadlines, rubric builder, and grade submissions; students are notified when graded
 - **Quiz** — create and manage quizzes; export template with optional AI prompt for question generation
-- **Announcements** — post "No Class" or "Online Class" notices with optional meeting link and module link; students are notified instantly
+- **Announcements** — post "No Class", "Online Class", or "Meeting Topics" notices targeting a specific class or all classes at once; optional meeting link and module link; students are notified instantly
 - **Messages** — one-on-one and broadcast messaging to students
 - **Notifications** — system-wide alerts and activity updates
 - **Settings** — admin credentials, EmailJS config, equivalence scale, Firebase config
