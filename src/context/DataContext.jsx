@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react'
 import { fbInit, getFbConfigFromEnv } from '@/firebase/firebaseInit'
 import { fbStartListening, stopListening } from '@/firebase/listeners'
-import { persistStudentsSync, persistClassesSync, persistAdmin, loadAdminFromStorage, fbDeleteStudent, fbSaveAnnouncement, fbDeleteAnnouncement, fbPushAnnouncementNotifs } from '@/firebase/persistence'
+import { persistStudentsSync, persistClassesSync, persistAdmin, loadAdminFromStorage, fbDeleteStudent, fbSaveAnnouncement, fbDeleteAnnouncement, fbPushAnnouncementNotifs, fbAddAnnouncementComment, fbAddCommentReply } from '@/firebase/persistence'
 import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase } from '@/firebase/settings'
 import { loadFbConfigFromStorage, readStoredEJS } from '@/utils/crypto'
 import { DEFAULT_EQ_SCALE } from '@/utils/grades'
@@ -191,6 +191,31 @@ export function DataProvider({ children }) {
     await fbPushAnnouncementNotifs(dbRef.current, announcement, students)
   }, [students])
 
+  const addAnnouncementComment = useCallback(async (announcementId, comment) => {
+    setAnnouncements(prev => prev.map(a =>
+      a.id === announcementId
+        ? { ...a, comments: [...(a.comments || []), comment] }
+        : a
+    ))
+    await fbAddAnnouncementComment(dbRef.current, announcementId, comment)
+  }, [])
+
+  const addCommentReply = useCallback(async (announcementId, commentId, reply) => {
+    setAnnouncements(prev => prev.map(a =>
+      a.id === announcementId
+        ? {
+            ...a,
+            comments: (a.comments || []).map(c =>
+              c.id === commentId
+                ? { ...c, replies: [...(c.replies || []), reply] }
+                : c
+            ),
+          }
+        : a
+    ))
+    await fbAddCommentReply(dbRef.current, announcementId, commentId, reply)
+  }, [])
+
   const saveEjs = useCallback(async (ejsConfig) => {
     setEjs({ ...ejsConfig, configured: true })
 
@@ -216,7 +241,7 @@ export function DataProvider({ children }) {
       activities, setActivities,
       adminNotifs, setAdminNotifs,
       quizzes, setQuizzes,
-      announcements, setAnnouncements, saveAnnouncement, deleteAnnouncement, pushAnnouncementNotifs,
+      announcements, setAnnouncements, saveAnnouncement, deleteAnnouncement, pushAnnouncementNotifs, addAnnouncementComment, addCommentReply,
       fbReady, fbConfig, reinitFirebase,
       db: dbRef,
       ejs, setEjs, saveEjs,

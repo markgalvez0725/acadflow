@@ -1,10 +1,10 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
 import {
   gradeInfo, combineEquiv, getGWA, getAttRate, computeFinalGradeFromTerms,
 } from '@/utils/grades'
 import { useData } from '@/context/DataContext'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
-import { BookOpen, Clock, CalendarOff, Video, Link, X } from 'lucide-react'
+import { BookOpen, Clock, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send } from 'lucide-react'
 
 function formatAnnDate(ms) {
   if (!ms) return null
@@ -24,7 +24,192 @@ function AnnTypeBadge({ type }) {
   return <span className={`badge ${cls}`}>{label}</span>
 }
 
-function AnnouncementDetailModal({ ann, onClose }) {
+function StudentCommentsSection({ ann, student }) {
+  const { addAnnouncementComment, addCommentReply } = useData()
+  const comments = ann.comments || []
+
+  const [text, setText] = useState('')
+  const [posting, setPosting] = useState(false)
+  const [replyTo, setReplyTo] = useState(null)
+  const [replyText, setReplyText] = useState('')
+  const [replyPosting, setReplyPosting] = useState(false)
+  const replyRef = useRef(null)
+
+  useEffect(() => {
+    if (replyTo && replyRef.current) replyRef.current.focus()
+  }, [replyTo])
+
+  async function handlePost() {
+    if (!text.trim()) return
+    setPosting(true)
+    try {
+      const comment = {
+        id: 'c' + Date.now() + Math.random().toString(36).slice(2, 5),
+        authorId: student.id,
+        authorName: student.name || 'Student',
+        role: 'student',
+        text: text.trim(),
+        createdAt: Date.now(),
+        replies: [],
+      }
+      await addAnnouncementComment(ann.id, comment)
+      setText('')
+    } finally {
+      setPosting(false)
+    }
+  }
+
+  async function handleReply(commentId, commentAuthorName) {
+    if (!replyText.trim()) return
+    setReplyPosting(true)
+    try {
+      const reply = {
+        id: 'r' + Date.now() + Math.random().toString(36).slice(2, 5),
+        authorId: student.id,
+        authorName: student.name || 'Student',
+        role: 'student',
+        text: replyText.trim(),
+        createdAt: Date.now(),
+      }
+      await addCommentReply(ann.id, commentId, reply)
+      setReplyText('')
+      setReplyTo(null)
+    } finally {
+      setReplyPosting(false)
+    }
+  }
+
+  return (
+    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: 4 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink2)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <MessageSquare size={14} />
+        Comments {comments.length > 0 && <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>({comments.length})</span>}
+      </div>
+
+      {comments.length === 0 && (
+        <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 10 }}>No comments yet. Be the first to comment.</div>
+      )}
+
+      {comments.map(c => (
+        <div key={c.id} style={{ marginBottom: 10 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+              background: c.role === 'teacher' ? 'rgba(59,130,246,0.15)' : 'rgba(168,85,247,0.15)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 11, fontWeight: 700,
+              color: c.role === 'teacher' ? 'var(--accent)' : 'var(--purple)',
+            }}>
+              {c.authorName?.charAt(0)?.toUpperCase() || '?'}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 700 }}>{c.authorName}</span>
+                <span style={{ fontSize: 10, color: 'var(--ink3)' }}>
+                  {c.role === 'teacher' ? 'Teacher' : 'Student'}
+                </span>
+                <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 'auto' }}>
+                  {new Date(c.createdAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                </span>
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--ink)', marginTop: 2, lineHeight: 1.5 }}>{c.text}</div>
+              <button
+                className="btn btn-ghost btn-sm"
+                style={{ fontSize: 11, padding: '2px 6px', marginTop: 4, color: 'var(--ink2)' }}
+                onClick={() => setReplyTo(replyTo === c.id ? null : c.id)}
+              >
+                <CornerDownRight size={11} style={{ marginRight: 3 }} />
+                Reply
+              </button>
+            </div>
+          </div>
+
+          {c.replies?.length > 0 && (
+            <div style={{ marginLeft: 36, marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {c.replies.map(r => (
+                <div key={r.id} style={{ display: 'flex', gap: 8 }}>
+                  <div style={{
+                    width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                    background: r.role === 'teacher' ? 'rgba(59,130,246,0.15)' : 'rgba(168,85,247,0.15)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 10, fontWeight: 700,
+                    color: r.role === 'teacher' ? 'var(--accent)' : 'var(--purple)',
+                  }}>
+                    {r.authorName?.charAt(0)?.toUpperCase() || '?'}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700 }}>{r.authorName}</span>
+                      <span style={{ fontSize: 10, color: 'var(--ink3)' }}>
+                        {r.role === 'teacher' ? 'Teacher' : 'Student'}
+                      </span>
+                      <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 'auto' }}>
+                        {new Date(r.createdAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--ink)', marginTop: 2, lineHeight: 1.5 }}>{r.text}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {replyTo === c.id && (
+            <div style={{ marginLeft: 36, marginTop: 6, display: 'flex', gap: 6 }}>
+              <input
+                ref={replyRef}
+                className="form-input"
+                style={{ flex: 1, fontSize: 12, padding: '6px 10px' }}
+                placeholder={`Reply to ${c.authorName}…`}
+                value={replyText}
+                onChange={e => setReplyText(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleReply(c.id, c.authorName) } }}
+                disabled={replyPosting}
+              />
+              <button
+                className="btn btn-primary btn-sm"
+                style={{ padding: '6px 10px', flexShrink: 0 }}
+                onClick={() => handleReply(c.id, c.authorName)}
+                disabled={replyPosting || !replyText.trim()}
+              >
+                <Send size={12} />
+              </button>
+              <button
+                className="btn btn-ghost btn-sm"
+                style={{ padding: '6px 8px', flexShrink: 0 }}
+                onClick={() => { setReplyTo(null); setReplyText('') }}
+              >
+                <X size={12} />
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+
+      <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+        <input
+          className="form-input"
+          style={{ flex: 1, fontSize: 13, padding: '7px 10px' }}
+          placeholder="Write a comment…"
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePost() } }}
+          disabled={posting}
+        />
+        <button
+          className="btn btn-primary btn-sm"
+          style={{ padding: '7px 12px', flexShrink: 0 }}
+          onClick={handlePost}
+          disabled={posting || !text.trim()}
+        >
+          <Send size={14} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function AnnouncementDetailModal({ ann, student, onClose }) {
   return (
     <Modal onClose={onClose} size="md">
       <ModalHeader
@@ -92,6 +277,9 @@ function AnnouncementDetailModal({ ann, onClose }) {
           {ann.createdAt && <span>Posted: {formatAnnDate(ann.createdAt)}</span>}
           {ann.expiresAt && <span>Expires: {formatAnnDate(ann.expiresAt)}</span>}
         </div>
+
+        {/* Comments */}
+        <StudentCommentsSection ann={ann} student={student} />
       </div>
     </Modal>
   )
@@ -311,7 +499,11 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
         </div>
       )}
       {viewAnn && (
-        <AnnouncementDetailModal ann={viewAnn} onClose={() => setViewAnn(null)} />
+        <AnnouncementDetailModal
+          ann={announcements.find(a => a.id === viewAnn.id) || viewAnn}
+          student={s}
+          onClose={() => setViewAnn(null)}
+        />
       )}
     </div>
   )

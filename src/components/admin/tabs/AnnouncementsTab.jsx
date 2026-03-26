@@ -1,9 +1,198 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import Badge from '@/components/primitives/Badge'
-import { Megaphone, Plus, Trash2, CalendarOff, Video, BookOpen, ToggleLeft, ToggleRight, Link, X } from 'lucide-react'
+import { Megaphone, Plus, Trash2, CalendarOff, Video, BookOpen, ToggleLeft, ToggleRight, Link, X, MessageSquare, CornerDownRight, Send } from 'lucide-react'
+
+// ── Comments Section ───────────────────────────────────────────────────
+function CommentsSection({ ann, authorId, authorName, role }) {
+  const { addAnnouncementComment, addCommentReply } = useData()
+  const comments = ann.comments || []
+
+  const [text, setText] = useState('')
+  const [posting, setPosting] = useState(false)
+  const [replyTo, setReplyTo] = useState(null) // commentId
+  const [replyText, setReplyText] = useState('')
+  const [replyPosting, setReplyPosting] = useState(false)
+  const replyRef = useRef(null)
+
+  useEffect(() => {
+    if (replyTo && replyRef.current) replyRef.current.focus()
+  }, [replyTo])
+
+  async function handlePost() {
+    if (!text.trim()) return
+    setPosting(true)
+    try {
+      const comment = {
+        id: 'c' + Date.now() + Math.random().toString(36).slice(2, 5),
+        authorId,
+        authorName,
+        role,
+        text: text.trim(),
+        createdAt: Date.now(),
+        replies: [],
+      }
+      await addAnnouncementComment(ann.id, comment)
+      setText('')
+    } finally {
+      setPosting(false)
+    }
+  }
+
+  async function handleReply(commentId) {
+    if (!replyText.trim()) return
+    setReplyPosting(true)
+    try {
+      const reply = {
+        id: 'r' + Date.now() + Math.random().toString(36).slice(2, 5),
+        authorId,
+        authorName,
+        role,
+        text: replyText.trim(),
+        createdAt: Date.now(),
+      }
+      await addCommentReply(ann.id, commentId, reply)
+      setReplyText('')
+      setReplyTo(null)
+    } finally {
+      setReplyPosting(false)
+    }
+  }
+
+  return (
+    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: 4 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink2)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <MessageSquare size={14} />
+        Comments {comments.length > 0 && <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>({comments.length})</span>}
+      </div>
+
+      {/* Comment list */}
+      {comments.length === 0 && (
+        <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 10 }}>No comments yet. Be the first to comment.</div>
+      )}
+      {comments.map(c => (
+        <div key={c.id} style={{ marginBottom: 10 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+              background: c.role === 'teacher' ? 'rgba(59,130,246,0.15)' : 'rgba(168,85,247,0.15)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 11, fontWeight: 700,
+              color: c.role === 'teacher' ? 'var(--accent)' : 'var(--purple)',
+            }}>
+              {c.authorName?.charAt(0)?.toUpperCase() || '?'}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 700 }}>{c.authorName}</span>
+                <span style={{ fontSize: 10, color: 'var(--ink3)' }}>
+                  {c.role === 'teacher' ? 'Teacher' : 'Student'}
+                </span>
+                <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 'auto' }}>
+                  {new Date(c.createdAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                </span>
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--ink)', marginTop: 2, lineHeight: 1.5 }}>{c.text}</div>
+              <button
+                className="btn btn-ghost btn-sm"
+                style={{ fontSize: 11, padding: '2px 6px', marginTop: 4, color: 'var(--ink2)' }}
+                onClick={() => setReplyTo(replyTo === c.id ? null : c.id)}
+              >
+                <CornerDownRight size={11} style={{ marginRight: 3 }} />
+                Reply
+              </button>
+            </div>
+          </div>
+
+          {/* Replies */}
+          {c.replies?.length > 0 && (
+            <div style={{ marginLeft: 36, marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {c.replies.map(r => (
+                <div key={r.id} style={{ display: 'flex', gap: 8 }}>
+                  <div style={{
+                    width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                    background: r.role === 'teacher' ? 'rgba(59,130,246,0.15)' : 'rgba(168,85,247,0.15)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 10, fontWeight: 700,
+                    color: r.role === 'teacher' ? 'var(--accent)' : 'var(--purple)',
+                  }}>
+                    {r.authorName?.charAt(0)?.toUpperCase() || '?'}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700 }}>{r.authorName}</span>
+                      <span style={{ fontSize: 10, color: 'var(--ink3)' }}>
+                        {r.role === 'teacher' ? 'Teacher' : 'Student'}
+                      </span>
+                      <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 'auto' }}>
+                        {new Date(r.createdAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--ink)', marginTop: 2, lineHeight: 1.5 }}>{r.text}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Reply input */}
+          {replyTo === c.id && (
+            <div style={{ marginLeft: 36, marginTop: 6, display: 'flex', gap: 6 }}>
+              <input
+                ref={replyRef}
+                className="form-input"
+                style={{ flex: 1, fontSize: 12, padding: '6px 10px' }}
+                placeholder={`Reply to ${c.authorName}…`}
+                value={replyText}
+                onChange={e => setReplyText(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleReply(c.id) } }}
+                disabled={replyPosting}
+              />
+              <button
+                className="btn btn-primary btn-sm"
+                style={{ padding: '6px 10px', flexShrink: 0 }}
+                onClick={() => handleReply(c.id)}
+                disabled={replyPosting || !replyText.trim()}
+              >
+                <Send size={12} />
+              </button>
+              <button
+                className="btn btn-ghost btn-sm"
+                style={{ padding: '6px 8px', flexShrink: 0 }}
+                onClick={() => { setReplyTo(null); setReplyText('') }}
+              >
+                <X size={12} />
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* New comment input */}
+      <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+        <input
+          className="form-input"
+          style={{ flex: 1, fontSize: 13, padding: '7px 10px' }}
+          placeholder="Write a comment…"
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePost() } }}
+          disabled={posting}
+        />
+        <button
+          className="btn btn-primary btn-sm"
+          style={{ padding: '7px 12px', flexShrink: 0 }}
+          onClick={handlePost}
+          disabled={posting || !text.trim()}
+        >
+          <Send size={14} />
+        </button>
+      </div>
+    </div>
+  )
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────
 function annId() {
@@ -287,6 +476,8 @@ function AnnouncementFormModal({ ann, onClose }) {
 
 // ── Read-only Detail Modal ─────────────────────────────────────────────
 function AnnouncementDetailModal({ ann, classes, onClose, onEdit }) {
+  const { admin } = useData()
+
   function getClassName(classId) {
     const c = classes.find(x => x.id === classId)
     if (!c) return classId
@@ -362,6 +553,14 @@ function AnnouncementDetailModal({ ann, classes, onClose, onEdit }) {
           {ann.createdAt && <span>Posted: {formatDate(ann.createdAt)}</span>}
           {ann.expiresAt && <span>Expires: {formatDate(ann.expiresAt)}</span>}
         </div>
+
+        {/* Comments */}
+        <CommentsSection
+          ann={ann}
+          authorId={admin?.user || 'admin'}
+          authorName={admin?.user || 'Teacher'}
+          role="teacher"
+        />
 
         {/* Footer action */}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -562,7 +761,7 @@ export default function AnnouncementsTab() {
       {/* Detail modal */}
       {viewAnn && (
         <AnnouncementDetailModal
-          ann={viewAnn}
+          ann={announcements.find(a => a.id === viewAnn.id) || viewAnn}
           classes={classes}
           onClose={() => setViewAnn(null)}
           onEdit={ann => { setEditAnn(ann); setFormOpen(true) }}

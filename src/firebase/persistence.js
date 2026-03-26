@@ -130,6 +130,33 @@ export async function fbDeleteAnnouncement(db, id) {
   return fbWithTimeout(deleteDoc(fbDoc(db, 'announcements', id)))
 }
 
+export async function fbAddAnnouncementComment(db, announcementId, comment) {
+  if (!db || !announcementId || !comment) return
+  const { doc: fbDoc, getDoc, setDoc } = await import('firebase/firestore')
+  const ref = fbDoc(db, 'announcements', announcementId)
+  const snap = await fbWithTimeout(getDoc(ref))
+  if (!snap.exists()) return
+  const ann = snap.data()
+  const comments = Array.isArray(ann.comments) ? ann.comments : []
+  return fbWithTimeout(setDoc(ref, { ...ann, comments: [...comments, comment] }))
+}
+
+export async function fbAddCommentReply(db, announcementId, commentId, reply) {
+  if (!db || !announcementId || !commentId || !reply) return
+  const { doc: fbDoc, getDoc, setDoc } = await import('firebase/firestore')
+  const ref = fbDoc(db, 'announcements', announcementId)
+  const snap = await fbWithTimeout(getDoc(ref))
+  if (!snap.exists()) return
+  const ann = snap.data()
+  const comments = Array.isArray(ann.comments) ? ann.comments : []
+  const updated = comments.map(c =>
+    c.id === commentId
+      ? { ...c, replies: [...(c.replies || []), reply] }
+      : c
+  )
+  return fbWithTimeout(setDoc(ref, { ...ann, comments: updated }))
+}
+
 export async function fbPushAnnouncementNotifs(db, announcement, students) {
   if (!db || !announcement || !students?.length) return
   const enrolled = students.filter(s => {
