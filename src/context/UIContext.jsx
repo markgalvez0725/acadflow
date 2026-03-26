@@ -9,6 +9,18 @@ export function UIProvider({ children }) {
   const [toastQueue, setToastQueue] = useState([])
   const [dialog, setDialog]         = useState(null) // { title, msg, type, confirmLabel, cancelLabel, showCancel }
   const dialogResolveRef = useRef(null)
+  const [isLoading, setIsLoading]   = useState(false)
+  const loadingCount = useRef(0)
+
+  const startLoading = useCallback(() => {
+    loadingCount.current += 1
+    setIsLoading(true)
+  }, [])
+
+  const stopLoading = useCallback(() => {
+    loadingCount.current = Math.max(0, loadingCount.current - 1)
+    if (loadingCount.current === 0) setIsLoading(false)
+  }, [])
 
   // ── Theme init (read localStorage + OS preference) ─────────────────────
   useEffect(() => {
@@ -66,6 +78,7 @@ export function UIProvider({ children }) {
       studentTab, setStudentTab,
       toastQueue, toast, dismissToast,
       dialog, openDialog, resolveDialog,
+      isLoading, startLoading, stopLoading,
     }}>
       {children}
     </UIContext.Provider>
