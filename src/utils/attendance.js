@@ -29,6 +29,7 @@ export function deserializeStudents(arr) {
     const out = { ...s, attendance, excuse };
     delete out._att;
     delete out._exc;
+    if (out.account?._tempPass) out.forceChangePassword = true;
     return out;
   });
 }
