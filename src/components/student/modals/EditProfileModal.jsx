@@ -1,17 +1,17 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef } from 'react'
 import { useData } from '@/context/DataContext'
 import { useAuth } from '@/context/AuthContext'
 import { useUI } from '@/context/UIContext'
 import { fbDeleteStudent } from '@/firebase/persistence'
 import { validateSnum } from '@/utils/validate'
 import Modal from '@/components/primitives/Modal'
-import { Camera, Lock, Timer, CheckCircle2, Save } from 'lucide-react'
+import { Camera, Lock, Timer, CheckCircle2, Save, Eye, EyeOff } from 'lucide-react'
 
 const SNUM_CHANGE_DAYS = 30
 const YEAR_OPTIONS = ['1st Year', '2nd Year', '3rd Year', '4th Year']
 
 export default function EditProfileModal({ student: s, onClose }) {
-  const { students, saveStudents, db, fbReady } = useData()
+  const { students, saveStudents, db } = useData()
   const { setCurrentStudent } = useAuth()
   const { toast } = useUI()
 
@@ -21,10 +21,36 @@ export default function EditProfileModal({ student: s, onClose }) {
   const [year,   setYear]   = useState(s.year    || '1st Year')
   const [dob,    setDob]    = useState(s.dob     || '')
   const [mobile, setMobile] = useState(s.mobile  || '')
+  const [email,  setEmail]  = useState(s.account?.email || '')
   const [photo,  setPhoto]  = useState(s.photo   || null)
   const [error,  setError]  = useState('')
   const [saving, setSaving] = useState(false)
   const fileRef = useRef(null)
+
+  // Email password-confirm flow
+  const [emailStep,     setEmailStep]     = useState('idle') // 'idle' | 'confirm' | 'verified'
+  const [confirmPass,   setConfirmPass]   = useState('')
+  const [showPass,      setShowPass]      = useState(false)
+  const [emailError,    setEmailError]    = useState('')
+
+  async function handleConfirmPassword() {
+    setEmailError('')
+    const trimEmail = email.trim()
+    if (!trimEmail.includes('@')) { setEmailError('Please enter a valid email address.'); return }
+    if (!confirmPass) { setEmailError('Please enter your current password.'); return }
+
+    const dup = students.find(x => x.id !== s.id && x.account?.registered && x.account?.email?.toLowerCase() === trimEmail.toLowerCase())
+    if (dup) { setEmailError('⛔ This email is already linked to another account.'); return }
+
+    const { verifyPassword } = await import('@/utils/crypto')
+    const match = await verifyPassword(confirmPass, s.account?.pass ?? s.pass)
+    if (!match) { setEmailError('Incorrect password.'); return }
+
+    setEmailStep('verified')
+    setConfirmPass('')
+    setShowPass(false)
+    toast('✅ Email confirmed!', 'success')
+  }
 
   // SNUM lock logic
   const now       = Date.now()
@@ -77,6 +103,7 @@ export default function EditProfileModal({ student: s, onClose }) {
     setSaving(true)
     try {
       let finalSnum = snumLocked ? s.id : trimSnum
+      const finalEmail = emailStep === 'verified' ? email.trim() : (s.account?.email || '')
       let updatedStudent = {
         ...s,
         id: finalSnum,
@@ -86,6 +113,7 @@ export default function EditProfileModal({ student: s, onClose }) {
         dob,
         mobile: mobile.trim(),
         photo: photo || null,
+        account: { ...(s.account || {}), email: finalEmail },
       }
 
       if (!snumLocked && finalSnum !== s.id) {
@@ -198,6 +226,61 @@ export default function EditProfileModal({ student: s, onClose }) {
         <div className="form-group">
           <label className="form-label">Mobile Number</label>
           <input className="input" type="tel" value={mobile} onChange={e => setMobile(e.target.value)} placeholder="e.g. 09XXXXXXXXX" />
+        </div>
+
+        {/* Email */}
+        <div className="form-group">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <label className="form-label" style={{ margin: 0 }}>Email Address</label>
+            {emailStep === 'verified' && (
+              <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--green-l)', color: 'var(--green)', padding: '2px 7px', borderRadius: 10, display: 'inline-flex', alignItems: 'center', gap: 3 }}><CheckCircle2 size={10} /> Confirmed</span>
+            )}
+          </div>
+          <input
+            className="input"
+            type="email"
+            value={email}
+            onChange={e => { setEmail(e.target.value); setEmailStep('idle'); setEmailError('') }}
+            placeholder="your@email.com"
+          />
+
+          {/* Password confirmation — shown when email differs and not yet verified */}
+          {emailStep !== 'verified' && email.trim() && email.trim() !== (s.account?.email || '') && (
+            <div style={{ marginTop: 8, padding: '10px 12px', background: 'var(--surface2)', borderRadius: 8, border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 12, color: 'var(--ink2)', marginBottom: 8 }}>
+                Confirm your current password to save this email change.
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <input
+                    className="input"
+                    type={showPass ? 'text' : 'password'}
+                    value={confirmPass}
+                    onChange={e => { setConfirmPass(e.target.value); setEmailError('') }}
+                    placeholder="Current password"
+                    style={{ paddingRight: 36 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPass(v => !v)}
+                    style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink3)', padding: 0 }}
+                  >
+                    {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+                <button className="btn btn-ghost btn-sm" type="button" onClick={handleConfirmPassword} style={{ whiteSpace: 'nowrap' }}>
+                  Confirm
+                </button>
+                <button className="btn btn-ghost btn-sm" type="button" onClick={() => { setEmail(s.account?.email || ''); setEmailStep('idle'); setConfirmPass(''); setEmailError('') }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {emailError && (
+            <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 6 }}>{emailError}</div>
+          )}
         </div>
 
         {error && (
