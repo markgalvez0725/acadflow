@@ -428,49 +428,57 @@ function GradeEntryModal({ classId, subject, onClose }) {
       <div className="overflow-x-auto">
         <table className="tbl" style={{ minWidth: 900 }}>
           <thead>
+            {/* Row 1: group headers */}
             <tr>
               <th rowSpan={2} style={{ verticalAlign: 'bottom' }}>Student</th>
+              <th colSpan={actInputCount} className="text-center" style={{ borderBottom: '1px solid var(--border)' }}>
+                Activities
+              </th>
+              <th rowSpan={2} title="Activities average — computed from individual scores">
+                Act Avg<br /><small className="font-normal text-ink3">auto</small>
+              </th>
+              <th colSpan={quizInputCount} className="text-center" style={{ borderBottom: '1px solid var(--border)' }}>
+                Quizzes
+              </th>
+              <th rowSpan={2} title="Quizzes average — computed from individual scores">
+                Quiz Avg<br /><small className="font-normal text-ink3">auto</small>
+              </th>
+              <th rowSpan={2} title="Attendance % — auto from records">
+                Attendance<br /><small className="font-normal text-ink3">auto · CS</small>
+              </th>
+              <th rowSpan={2} title="Midterm Exam score — combined with CS Midterm to get Midterm Term grade">
+                Midterm Exam<br /><small className="font-normal text-ink3">exam score</small>
+              </th>
+              <th rowSpan={2} title="Finals Exam score — combined with CS Finals to get Finals Term grade">
+                Finals Exam<br /><small className="font-normal text-ink3">exam score</small>
+              </th>
+              <th rowSpan={2} style={{ background: 'var(--accent-l)' }}>
+                Final Grade<br /><small className="font-normal" style={{ color: 'var(--accent)' }}>auto/manual</small>
+              </th>
+              <th rowSpan={2}>Equiv.</th>
+            </tr>
+            {/* Row 2: individual activity and quiz columns */}
+            <tr>
               {panelActs.length > 0
                 ? panelActs.map((a, i) => (
                     <th key={a.id} title={a.title || `Activity ${i + 1}`}>
                       {a.title ? a.title.length > 10 ? a.title.slice(0, 10) + '…' : a.title : `Act ${i + 1}`}
-                      <br /><small className="font-normal text-ink3">activity</small>
                     </th>
                   ))
                 : Array.from({ length: actInputCount }, (_, i) => (
-                    <th key={i}>Activity {i + 1}<br /><small className="font-normal text-ink3">score</small></th>
+                    <th key={i}>Activity {i + 1}</th>
                   ))
               }
-              <th title="Activities average — computed from individual scores">
-                Act Avg<br /><small className="font-normal text-ink3">auto</small>
-              </th>
               {panelQuizzes.length > 0
                 ? panelQuizzes.map((q, i) => (
                     <th key={q.id} title={q.title || `Quiz ${i + 1}`}>
                       {q.title ? q.title.length > 10 ? q.title.slice(0, 10) + '…' : q.title : `Quiz ${i + 1}`}
-                      <br /><small className="font-normal text-ink3">quiz</small>
                     </th>
                   ))
                 : Array.from({ length: quizInputCount }, (_, i) => (
-                    <th key={i}>Quiz {i + 1}<br /><small className="font-normal text-ink3">score</small></th>
+                    <th key={i}>Quiz {i + 1}</th>
                   ))
               }
-              <th title="Quizzes average — computed from individual scores">
-                Quiz Avg<br /><small className="font-normal text-ink3">auto</small>
-              </th>
-              <th title="Attendance % — auto from records">
-                Attendance<br /><small className="font-normal text-ink3">auto · CS</small>
-              </th>
-              <th title="Midterm Exam score — combined with CS Midterm to get Midterm Term grade">
-                Midterm Exam<br /><small className="font-normal text-ink3">exam score</small>
-              </th>
-              <th title="Finals Exam score — combined with CS Finals to get Finals Term grade">
-                Finals Exam<br /><small className="font-normal text-ink3">exam score</small>
-              </th>
-              <th style={{ background: 'var(--accent-l)' }}>
-                Final Grade<br /><small className="font-normal" style={{ color: 'var(--accent)' }}>auto/manual</small>
-              </th>
-              <th>Equiv.</th>
             </tr>
           </thead>
           <tbody>
