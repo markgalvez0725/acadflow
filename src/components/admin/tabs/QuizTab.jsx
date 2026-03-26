@@ -5,7 +5,7 @@ import { useUI } from '@/context/UIContext'
 import Modal from '@/components/primitives/Modal'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
-import { Clock, AlertCircle } from 'lucide-react'
+import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList, Pencil, Save, Rocket, FileText, X, Lock, Circle } from 'lucide-react'
 
 
 function quizId() {
@@ -106,7 +106,7 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
 
   return (
     <Modal onClose={onClose} size="md">
-      <h3 className="text-lg font-bold text-ink mb-1">📤 Export Quiz Template</h3>
+      <h3 className="text-lg font-bold text-ink mb-1"><Upload size={18} className="inline-block mr-1 align-text-bottom" />Export Quiz Template</h3>
       <p className="modal-sub">
         Configure your quiz settings, export the template JSON, send it to any AI platform (ChatGPT, Gemini, etc.), then import the AI's response back here.
       </p>
@@ -175,7 +175,7 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
             onClick={handleCopyPrompt}
             style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, border: '1px solid var(--border)', background: copied ? 'var(--accent)' : 'var(--surface)', color: copied ? '#fff' : 'var(--ink)', cursor: 'pointer', fontWeight: 600, transition: 'all 0.15s' }}
           >
-            {copied ? '✓ Copied!' : '📋 Copy'}
+            {copied ? <><Check size={11} className="inline-block mr-1" />Copied!</> : <><ClipboardList size={11} className="inline-block mr-1" />Copy</>}
           </button>
         </div>
         <pre style={{ margin: 0, padding: '10px 14px', fontSize: 12, color: 'var(--ink)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.6, userSelect: 'all' }}>
@@ -186,10 +186,10 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
       <div className="modal-footer">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
         <button className="btn btn-ghost" onClick={onSwitchToImport}>
-          📥 Import AI Response
+          <Download size={13} className="inline-block mr-1" />Import AI Response
         </button>
         <button className="btn btn-primary" onClick={handleExport} disabled={!topic.trim() || !qTypes.length}>
-          📤 Export Template
+          <Upload size={13} className="inline-block mr-1" />Export Template
         </button>
       </div>
     </Modal>
@@ -218,7 +218,7 @@ function ImportResponseModal({ onClose, onImported }) {
 
   return (
     <Modal onClose={onClose} size="md">
-      <h3 className="text-lg font-bold text-ink mb-1">📥 Import AI Response</h3>
+      <h3 className="text-lg font-bold text-ink mb-1"><Download size={18} className="inline-block mr-1 align-text-bottom" />Import AI Response</h3>
       <p className="modal-sub">
         Paste the JSON array returned by your AI platform. The quiz will be auto-configured and ready to save.
       </p>
@@ -359,7 +359,7 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
   return (
     <Modal onClose={onClose} size="lg">
       <h3 className="text-lg font-bold text-ink mb-1">
-        {isEdit ? '✏️ Edit Quiz' : '📝 Configure & Share Quiz'}
+        {isEdit ? <><Pencil size={16} className="inline-block mr-1 align-text-bottom" />Edit Quiz</> : <><FileText size={16} className="inline-block mr-1 align-text-bottom" />Configure &amp; Share Quiz</>}
       </h3>
       <p className="modal-sub">{isEdit ? `${questions.length} questions` : `${questions.length} questions imported`}. Review, edit, then share with classes.</p>
 
@@ -430,7 +430,7 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
                     {editingQ === q.id ? 'Done' : 'Edit'}
                   </button>
                   <button type="button" className="btn btn-ghost btn-sm text-red-500" style={{ fontSize: 10 }}
-                    onClick={() => removeQuestion(q.id)}>✕</button>
+                    onClick={() => removeQuestion(q.id)}><X size={11} /></button>
                 </div>
               </div>
               <p style={{ fontSize: 12, color: 'var(--ink)', marginBottom: 4 }}>{q.question || <em style={{ color: 'var(--ink3)' }}>No question text</em>}</p>
@@ -479,7 +479,7 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
                             style={{ fontSize: 10, padding: '3px 7px', borderRadius: 4, border: '1px solid var(--border)',
                               background: q.answer === opt ? 'var(--green-l)' : 'var(--surface)',
                               color: q.answer === opt ? 'var(--green)' : 'var(--ink2)', cursor: 'pointer', flexShrink: 0 }}>
-                            {q.answer === opt ? '✓ Correct' : 'Set Correct'}
+                            {q.answer === opt ? <><Check size={10} className="inline-block mr-0.5" />Correct</> : 'Set Correct'}
                           </button>
                         </div>
                       ))}
@@ -512,7 +512,7 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
       <div className="modal-footer">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
         <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-          {saving ? 'Saving…' : isEdit ? '💾 Save Changes' : '🚀 Share Quiz'}
+          {saving ? 'Saving…' : isEdit ? <><Save size={13} className="inline-block mr-1" />Save Changes</> : <><Rocket size={13} className="inline-block mr-1" />Share Quiz</>}
         </button>
       </div>
     </Modal>
@@ -563,7 +563,7 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
     <Modal onClose={onClose} size="lg">
       <div className="flex items-start justify-between gap-3 mb-2">
         <div>
-          <h3 className="text-lg font-bold text-ink">📝 {quiz.title}</h3>
+          <h3 className="text-lg font-bold text-ink"><FileText size={18} className="inline-block mr-1 align-text-bottom" />{quiz.title}</h3>
           <p className="text-xs text-ink2 mt-0.5">
             {quiz.subject} · {quiz.questions?.length || 0} questions · {quiz.timeLimit} min time limit
           </p>
@@ -576,17 +576,17 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
 
       {isUpcoming && (
         <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12, color: 'var(--ink2)' }}>
-          🕐 Upcoming — opens {openLabel}
+          <Clock size={13} className="inline-block mr-1 align-text-bottom" />Upcoming — opens {openLabel}
         </div>
       )}
       {isOpen && (
         <div style={{ background: 'var(--green-l)', color: 'var(--green)', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12 }}>
-          🟢 Open — closes {closeLabel}
+          <Circle size={13} className="inline-block mr-1 align-text-bottom" style={{ fill: 'var(--green)', color: 'var(--green)' }} />Open — closes {closeLabel}
         </div>
       )}
       {isClosed && (
         <div style={{ background: 'var(--red-l)', color: 'var(--red)', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12 }}>
-          🔒 Closed — {attempted}/{enrolledStudents.length} attempted · {graded} auto-graded
+          <Lock size={13} className="inline-block mr-1 align-text-bottom" />Closed — {attempted}/{enrolledStudents.length} attempted · {graded} auto-graded
         </div>
       )}
 
@@ -617,7 +617,7 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
                   </td>
                   <td>
                     {hasAttempt
-                      ? <Badge variant="green">✅ Submitted</Badge>
+                      ? <Badge variant="green"><CheckCircle size={11} className="inline-block mr-1 align-text-bottom" />Submitted</Badge>
                       : <Badge variant="gray" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>{isClosed ? <><AlertCircle size={11} />Missed</> : <><Clock size={11} />Not yet</>}</Badge>}
                   </td>
                   <td>{score != null ? `${score}/${total}` : '—'}</td>
@@ -637,7 +637,7 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
       </div>
 
       <div className="flex gap-2 flex-wrap">
-        <button className="btn btn-ghost btn-sm" onClick={onEdit}>✏️ Edit</button>
+        <button className="btn btn-ghost btn-sm" onClick={onEdit}><Pencil size={13} className="inline-block mr-1" />Edit</button>
         <button className="btn btn-danger btn-sm" onClick={handleDelete}>Delete</button>
         <button className="btn btn-ghost btn-sm ml-auto" onClick={onClose}>Close</button>
       </div>
@@ -687,14 +687,14 @@ export default function QuizTab() {
       <div className="sec-hdr mb-3">
         <div className="sec-title">Quizzes</div>
         <div className="flex gap-2">
-          <button className="btn btn-ghost btn-sm" onClick={() => setShowImport(true)}>📥 Import AI Response</button>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowExport(true)}>📤 Export Template</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowImport(true)}><Download size={13} className="inline-block mr-1" />Import AI Response</button>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowExport(true)}><Upload size={13} className="inline-block mr-1" />Export Template</button>
         </div>
       </div>
 
       {!quizzes.length ? (
         <div className="empty">
-          <div className="empty-icon" style={{ fontSize: '2rem' }}>📝</div>
+          <div className="empty-icon"><FileText size={32} /></div>
           No quizzes yet. Export a template, generate with AI, then import the response.
         </div>
       ) : (

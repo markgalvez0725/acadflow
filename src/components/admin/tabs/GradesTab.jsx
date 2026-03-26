@@ -10,7 +10,7 @@ import { exportGradingSheet, parseGradingSheetImport, exportCurrentGrades } from
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
-import { Clock } from 'lucide-react'
+import { Clock, Pencil, BarChart2, Upload, Download, Trash2, BarChart } from 'lucide-react'
 
 const GRADE_PER_PAGE = 10
 
@@ -399,14 +399,14 @@ function GradeEntryModal({ classId, subject, onClose }) {
     <Modal onClose={onClose} wide>
       <div className="flex items-start justify-between flex-wrap gap-2 mb-3">
         <div>
-          <h3 className="mb-0">✏️ Edit Grades</h3>
+          <h3 className="mb-0"><Pencil size={16} className="inline-block mr-1 align-text-bottom" />Edit Grades</h3>
           <p className="modal-sub mb-0">
             Subject: <strong>{subject}</strong> · {cls?.name} {cls?.section}
           </p>
         </div>
         <div className="text-xs text-ink2">
           {uploadTs
-            ? <>📤 Last uploaded: <strong>{new Date(uploadTs).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}</strong></>
+            ? <><Upload size={12} className="inline-block mr-1 align-text-bottom" />Last uploaded: <strong>{new Date(uploadTs).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}</strong></>
             : <span className="text-ink3">Not yet uploaded</span>}
         </div>
       </div>
@@ -675,12 +675,12 @@ function SubjectCard({ cls, sub, studs, eqScale, onEdit, onClear, onExport, onEx
             : <span className="ml-2 text-xs text-ink3">Not yet uploaded</span>}
         </div>
         <div className="flex gap-1.5 flex-wrap flex-shrink-0">
-          <button className="btn btn-primary btn-sm" onClick={() => onEdit(sub)}>✏️ Edit Grades</button>
-          <button className="btn btn-ghost btn-sm" onClick={() => onExportGrades(sub)} title="Export current grade data">📊 Export Grades</button>
-          <button className="btn btn-ghost btn-sm" onClick={() => onExport(sub)} title="Export blank grading sheet template">📤 Template</button>
-          <button className="btn btn-ghost btn-sm" onClick={() => onImport(sub)} title="Import grading sheet">📥 Import</button>
+          <button className="btn btn-primary btn-sm" onClick={() => onEdit(sub)}><Pencil size={13} className="inline-block mr-1" />Edit Grades</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => onExportGrades(sub)} title="Export current grade data"><BarChart2 size={13} className="inline-block mr-1" />Export Grades</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => onExport(sub)} title="Export blank grading sheet template"><Upload size={13} className="inline-block mr-1" />Template</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => onImport(sub)} title="Import grading sheet"><Download size={13} className="inline-block mr-1" />Import</button>
           <button className="btn btn-warning btn-sm" onClick={() => onClear(sub)}
-            title="Clear all grade data for this subject">🗑 Clear Grades</button>
+            title="Clear all grade data for this subject"><Trash2 size={13} className="inline-block mr-1" />Clear Grades</button>
         </div>
       </div>
 
@@ -1031,7 +1031,7 @@ export default function GradesTab() {
       </div>
 
       {!effectiveId ? (
-        <div className="empty"><div className="empty-icon">📊</div>No classes yet.</div>
+        <div className="empty"><div className="empty-icon"><BarChart size={32} /></div>No classes yet.</div>
       ) : !cls?.subjects?.length ? (
         <div className="empty">This class has no subjects.</div>
       ) : (

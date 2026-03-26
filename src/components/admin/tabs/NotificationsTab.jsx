@@ -3,15 +3,16 @@ import { doc, setDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Pagination from '@/components/primitives/Pagination'
+import { MessageSquare, Upload, CheckCircle, ClipboardList, Mail, Bell, Trash2 } from 'lucide-react'
 
 const PER_PAGE = 10
 
 const NOTIF_ICONS = {
-  msg_in:    '💬',
-  act_sub:   '📤',
-  act_grade: '✅',
-  act_new:   '📋',
-  msg_out:   '📩',
+  msg_in:    <MessageSquare size={16} />,
+  act_sub:   <Upload size={16} />,
+  act_grade: <CheckCircle size={16} />,
+  act_new:   <ClipboardList size={16} />,
+  msg_out:   <Mail size={16} />,
 }
 
 export default function NotificationsTab() {
@@ -110,7 +111,7 @@ export default function NotificationsTab() {
       {!adminNotifs.length ? (
         <div id="admin-notif-list" className="rounded-xl border border-border bg-surface" style={{ overflow: 'hidden' }}>
           <div className="empty">
-            <div className="empty-icon">🔔</div>
+            <div className="empty-icon"><Bell size={32} /></div>
             No notifications yet.<br />
             <span style={{ fontSize: 12 }}>Alerts appear here when students message or submit activities.</span>
           </div>
@@ -119,7 +120,7 @@ export default function NotificationsTab() {
         <>
           <div id="admin-notif-list" className="rounded-xl border border-border bg-surface" style={{ overflow: 'hidden' }}>
             {slice.map(n => {
-              const icon = NOTIF_ICONS[n.type] || '🔔'
+              const icon = NOTIF_ICONS[n.type] || <Bell size={16} />
               const date = new Date(n.ts).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
               const hasLink = !!n.link
               const actionHint = n.link === 'messages'
@@ -147,7 +148,7 @@ export default function NotificationsTab() {
                       onClick={e => { e.stopPropagation(); deleteNotif(n.id) }}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink3)', fontSize: 14, padding: '2px 4px', borderRadius: 4, lineHeight: 1 }}
                       title="Delete notification"
-                    >🗑</button>
+                    ><Trash2 size={14} /></button>
                   </div>
                 </div>
               )

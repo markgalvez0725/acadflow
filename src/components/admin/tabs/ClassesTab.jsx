@@ -5,6 +5,7 @@ import { deserializeStudents } from '@/utils/attendance'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
+import { Plus, Pencil, School } from 'lucide-react'
 
 const PER_PAGE = 10
 
@@ -50,7 +51,7 @@ function AddClassModal({ onClose }) {
 
   return (
     <Modal onClose={onClose}>
-      <h3>➕ Add New Class</h3>
+      <h3><Plus size={18} className="inline-block mr-1 align-text-bottom" />Add New Class</h3>
       <p className="modal-sub">Fill in the class details below.</p>
       <div className="input-row">
         <div className="field">
@@ -179,7 +180,7 @@ function EditClassModal({ cls, onClose }) {
 
   return (
     <Modal onClose={onClose}>
-      <h3>✏️ Edit Class</h3>
+      <h3><Pencil size={18} className="inline-block mr-1 align-text-bottom" />Edit Class</h3>
       <p className="modal-sub">Update class details and subjects below.</p>
       <div className="input-row">
         <div className="field">
@@ -271,7 +272,7 @@ export default function ClassesTab() {
 
       {/* Table */}
       {!classes.length ? (
-        <div className="empty"><div className="empty-icon">🏛️</div>No classes yet.</div>
+        <div className="empty"><div className="empty-icon"><School size={32} /></div>No classes yet.</div>
       ) : (
         <>
           <div className="tbl-wrap">
@@ -300,7 +301,7 @@ export default function ClassesTab() {
                       <td>{cnt}</td>
                       <td>
                         <div className="flex gap-1.5 flex-wrap">
-                          <button className="btn btn-ghost btn-sm" onClick={() => setEditClass(cls)}>✏️ Edit</button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => setEditClass(cls)}><Pencil size={13} className="inline-block mr-1" />Edit</button>
                           <button className="btn btn-danger btn-sm" onClick={() => handleDelete(cls)}>Delete</button>
                         </div>
                       </td>

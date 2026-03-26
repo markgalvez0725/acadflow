@@ -6,6 +6,7 @@ import { fmtDateShort } from '@/utils/format'
 import { getHeldDays } from '@/utils/grades'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
+import { Download, Upload, AlertTriangle, Shuffle, RefreshCw, CalendarDays, Check, ClipboardList, X, Trash2, ClipboardCheck } from 'lucide-react'
 
 const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
 
@@ -229,11 +230,11 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
     <Modal onClose={onClose} size="xl">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h3 className="mb-0">📥 Import Attendance</h3>
+          <h3 className="mb-0"><Download size={16} className="inline-block mr-1 align-text-bottom" />Import Attendance</h3>
           <p className="modal-sub mb-0">{subject}</p>
         </div>
         <button className="btn btn-ghost text-xs" onClick={downloadTemplate}>
-          ⬇ Download Template
+          <Download size={13} className="inline-block mr-1" />Download Template
         </button>
       </div>
 
@@ -254,7 +255,7 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
       </div>
 
       {parsing && <div className="text-sm text-ink2 mb-3">Parsing file…</div>}
-      {error   && <div className="rounded-lg p-3 mb-3 text-sm" style={{ background: 'var(--red-l)', color: 'var(--red)' }}>⚠ {error}</div>}
+      {error   && <div className="rounded-lg p-3 mb-3 text-sm" style={{ background: 'var(--red-l)', color: 'var(--red)' }}><AlertTriangle size={14} className="inline-block mr-1 align-text-bottom" />{error}</div>}
 
       {preview && (
         <>
@@ -280,8 +281,8 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
           {/* Import mode */}
           <div className="flex gap-3 mb-3">
             {[
-              { val: 'merge',   label: '🔀 Merge',   desc: 'Add imported dates; keep existing records' },
-              { val: 'replace', label: '♻ Replace',  desc: 'Overwrite this subject\'s attendance entirely' },
+              { val: 'merge',   label: <><Shuffle size={13} className="inline-block mr-1" />Merge</>,   desc: 'Add imported dates; keep existing records' },
+              { val: 'replace', label: <><RefreshCw size={13} className="inline-block mr-1" />Replace</>, desc: 'Overwrite this subject\'s attendance entirely' },
             ].map(opt => (
               <label key={opt.val} className="flex items-start gap-2 cursor-pointer flex-1 rounded-lg p-2.5"
                 style={{ border: `1.5px solid ${mode === opt.val ? 'var(--accent)' : 'var(--border)'}`, background: mode === opt.val ? 'var(--accent-l)' : 'var(--surface)' }}>
@@ -460,7 +461,7 @@ function AttendanceCalendarModal({ classId, subject, onClose }) {
     <Modal onClose={onClose} size="lg">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h3 className="mb-0">📅 Attendance</h3>
+          <h3 className="mb-0"><CalendarDays size={16} className="inline-block mr-1 align-text-bottom" />Attendance</h3>
           <p className="modal-sub mb-0">{subject} · {cls?.name} {cls?.section}</p>
         </div>
       </div>
@@ -534,7 +535,7 @@ function AttendanceCalendarModal({ classId, subject, onClose }) {
                 {label}
               </div>
             ))}
-            <span className="text-xs font-semibold" style={{ color: 'var(--accent)' }}>📅 Click any day to mark attendance</span>
+            <span className="text-xs font-semibold" style={{ color: 'var(--accent)' }}><CalendarDays size={12} className="inline-block mr-1 align-text-bottom" />Click any day to mark attendance</span>
           </div>
 
           <div className="modal-footer">
@@ -549,7 +550,7 @@ function AttendanceCalendarModal({ classId, subject, onClose }) {
           <div className="rounded-lg p-3 mb-3 flex items-center justify-between flex-wrap gap-2"
             style={{ background: 'var(--accent)' }}>
             <div>
-              <div className="font-bold text-sm text-white">📅 {selDateLabel}</div>
+              <div className="font-bold text-sm text-white"><CalendarDays size={14} className="inline-block mr-1 align-text-bottom" />{selDateLabel}</div>
               {selDateIsWeekend && <div className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,.7)' }}>Weekend session</div>}
             </div>
             <div className="flex gap-2">
@@ -570,10 +571,10 @@ function AttendanceCalendarModal({ classId, subject, onClose }) {
 
           {/* Bulk actions */}
           <div className="flex gap-2 mb-3 flex-wrap">
-            <button className="btn btn-green btn-sm" onClick={() => setAll('present')}>✓ All Present</button>
+            <button className="btn btn-green btn-sm" onClick={() => setAll('present')}><Check size={13} className="inline-block mr-1" />All Present</button>
             <button className="btn btn-sm" style={{ background: 'var(--purple-l)', color: 'var(--purple)' }}
-              onClick={() => setAll('excuse')}>📋 All Excused</button>
-            <button className="btn btn-danger btn-sm" onClick={() => setAll('absent')}>✗ All Absent</button>
+              onClick={() => setAll('excuse')}><ClipboardList size={13} className="inline-block mr-1" />All Excused</button>
+            <button className="btn btn-danger btn-sm" onClick={() => setAll('absent')}><X size={13} className="inline-block mr-1" />All Absent</button>
             <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }}
               onClick={() => setView('calendar')}>← Back</button>
           </div>
@@ -607,7 +608,8 @@ function AttendanceCalendarModal({ classId, subject, onClose }) {
                   <div className="att-toggle flex gap-1">
                     {(['present', 'excuse', 'absent']).map(opt => {
                       const active = st === opt
-                      const label = opt === 'present' ? '✓ Present' : opt === 'excuse' ? '📋 Excuse' : '✗ Absent'
+                      const label = opt === 'present' ? <><Check size={11} className="inline-block mr-0.5" />Present</> : opt === 'excuse' ? <><ClipboardList size={11} className="inline-block mr-0.5" />Excuse</> : <><X size={11} className="inline-block mr-0.5" />Absent</>
+
                       const activeCls = opt === 'present' ? 'active-present' : opt === 'excuse' ? 'active-excuse' : 'active-absent'
                       return (
                         <button key={opt} type="button"
@@ -623,7 +625,7 @@ function AttendanceCalendarModal({ classId, subject, onClose }) {
             })}
           </div>
 
-          <p className="text-xs text-ink2 mt-2.5">Toggle each student's status then click Save. 📋 Excused counts separately from absent.</p>
+          <p className="text-xs text-ink2 mt-2.5">Toggle each student's status then click Save. <ClipboardList size={12} className="inline-block mx-0.5 align-text-bottom" />Excused counts separately from absent.</p>
 
           <div className="modal-footer">
             <button className="btn btn-ghost" onClick={() => setView('calendar')}>← Back</button>
@@ -698,9 +700,9 @@ function SubjectAttCard({ classId, sub, studs, onCalendar, onExport, onImport })
       <div className="sec-hdr mb-2 flex-wrap gap-2">
         <strong style={{ fontSize: 15 }}>{sub}</strong>
         <div className="flex gap-1.5">
-          <button className="btn btn-primary btn-sm" onClick={() => onCalendar(sub)}>📅 Calendar</button>
-          <button className="btn btn-ghost btn-sm" onClick={() => onImport(sub)} title="Import attendance from Excel">📥 Import</button>
-          <button className="btn btn-ghost btn-sm" onClick={() => onExport(sub)} title="Export attendance">📤 Export</button>
+          <button className="btn btn-primary btn-sm" onClick={() => onCalendar(sub)}><CalendarDays size={13} className="inline-block mr-1" />Calendar</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => onImport(sub)} title="Import attendance from Excel"><Download size={13} className="inline-block mr-1" />Import</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => onExport(sub)} title="Export attendance"><Upload size={13} className="inline-block mr-1" />Export</button>
         </div>
       </div>
 
@@ -820,7 +822,7 @@ export default function AttendanceTab() {
       </div>
 
       {!effectiveId ? (
-        <div className="empty"><div className="empty-icon">📋</div>No classes yet.</div>
+        <div className="empty"><div className="empty-icon"><ClipboardCheck size={32} /></div>No classes yet.</div>
       ) : !cls?.subjects?.length ? (
         <div className="empty">This class has no subjects.</div>
       ) : (

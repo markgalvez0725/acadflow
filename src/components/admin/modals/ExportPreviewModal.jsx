@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import Modal from '@/components/primitives/Modal'
+import { FileText, BarChart2 } from 'lucide-react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import {
@@ -123,7 +124,7 @@ export default function ExportPreviewModal({ type, classId, subject, student: st
             disabled={downloading}
             title="Download PDF"
           >
-            📄 PDF
+            <FileText size={13} className="inline-block mr-1" />PDF
           </button>
           <button
             className="btn btn-primary btn-sm"
@@ -131,7 +132,7 @@ export default function ExportPreviewModal({ type, classId, subject, student: st
             disabled={downloading}
             title="Download Excel"
           >
-            {downloading ? 'Exporting…' : '📊 Excel'}
+            {downloading ? 'Exporting…' : <><BarChart2 size={13} className="inline-block mr-1" />Excel</>}
           </button>
         </div>
       </div>
