@@ -234,12 +234,13 @@ function AnnouncementFormModal({ ann, onClose }) {
   // Auto-fill title based on type + class
   const selectedClass = classes.find(c => c.id === classId)
   const autoTitle = useMemo(() => {
-    if (!selectedClass) return ''
-    if (type === 'no_class') return `No Class Today — ${selectedClass.name}${selectedClass.section ? ` ${selectedClass.section}` : ''}`
-    if (type === 'online_class') return `Online Class — ${selectedClass.name}${selectedClass.section ? ` ${selectedClass.section}` : ''}`
-    if (type === 'meeting_topics') return `Meeting Topics — ${selectedClass.name}${selectedClass.section ? ` ${selectedClass.section}` : ''}`
+    const label = classId === 'all' ? 'All Classes' : selectedClass ? `${selectedClass.name}${selectedClass.section ? ` ${selectedClass.section}` : ''}` : ''
+    if (!label) return ''
+    if (type === 'no_class') return `No Class Today — ${label}`
+    if (type === 'online_class') return `Online Class — ${label}`
+    if (type === 'meeting_topics') return `Meeting Topics — ${label}`
     return ''
-  }, [type, selectedClass])
+  }, [type, selectedClass, classId])
 
   // Fill title when class or type changes, unless manually edited
   const [titleTouched, setTitleTouched] = useState(isEdit)
@@ -311,6 +312,7 @@ function AnnouncementFormModal({ ann, onClose }) {
             onChange={e => handleClassChange(e.target.value)}
           >
             <option value="">— Select class —</option>
+            <option value="all">All Classes</option>
             {classes.map(c => (
               <option key={c.id} value={c.id}>
                 {c.name}{c.section ? ` — ${c.section}` : ''}
@@ -479,6 +481,7 @@ function AnnouncementDetailModal({ ann, classes, onClose, onEdit }) {
   const { admin } = useData()
 
   function getClassName(classId) {
+    if (classId === 'all') return 'All Classes'
     const c = classes.find(x => x.id === classId)
     if (!c) return classId
     return c.name + (c.section ? ` — ${c.section}` : '')
@@ -588,6 +591,7 @@ export default function AnnouncementsTab() {
   )
 
   function getClassName(classId) {
+    if (classId === 'all') return 'All Classes'
     const c = classes.find(x => x.id === classId)
     if (!c) return classId
     return c.name + (c.section ? ` — ${c.section}` : '')

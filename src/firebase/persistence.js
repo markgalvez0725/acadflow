@@ -159,10 +159,12 @@ export async function fbAddCommentReply(db, announcementId, commentId, reply) {
 
 export async function fbPushAnnouncementNotifs(db, announcement, students) {
   if (!db || !announcement || !students?.length) return
-  const enrolled = students.filter(s => {
-    const ids = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
-    return ids.includes(announcement.classId)
-  })
+  const enrolled = announcement.classId === 'all'
+    ? students
+    : students.filter(s => {
+        const ids = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
+        return ids.includes(announcement.classId)
+      })
   if (!enrolled.length) return
   const { doc: fbDoc, getDoc, setDoc } = await import('firebase/firestore')
   for (let i = 0; i < enrolled.length; i += BATCH) {
