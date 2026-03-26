@@ -191,7 +191,8 @@ function heatHaze(vw, vh) {
 function silhouettes(vw, vh) {
   const base = vh * .78
   let out = `<g fill="#0a0415" opacity=".85">`
-  [[.1, 55, 38], [.2, 42, 30], [.32, 60, 28], [.45, 35, 25], [.55, 50, 32], [.65, 38, 28], [.75, 52, 34], [.85, 40, 26], [.92, 30, 22]].forEach(([xr, h, w]) => {
+  const buildings = [[.1, 55, 38], [.2, 42, 30], [.32, 60, 28], [.45, 35, 25], [.55, 50, 32], [.65, 38, 28], [.75, 52, 34], [.85, 40, 26], [.92, 30, 22]]
+  buildings.forEach(([xr, h, w]) => {
     const x = vw * xr - w / 2, y = base - h
     out += `<rect x="${x.toFixed(0)}" y="${y.toFixed(0)}" width="${w}" height="${h + vh * .22 + 5}"/>`
     if (h > 40) {
