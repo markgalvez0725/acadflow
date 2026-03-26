@@ -46,6 +46,7 @@ export default function WeatherScene({ isDark = false, showBadge = true, style }
 
   // Rebuild SVG + gradient when scene, wx, or theme changes
   useEffect(() => {
+    if (!scene || !wx) return
     const vw = 800
     const vh = 520
     setSvgHtml(scene.buildSVG(vw, vh, wx))

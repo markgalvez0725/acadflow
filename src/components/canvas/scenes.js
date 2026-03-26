@@ -207,7 +207,7 @@ function silhouettes(vw, vh) {
 // WEATHER PRIMITIVES
 // ─────────────────────────────────────────────────────────────────
 
-function cloudCover(vw, vh, cond) {
+function cloudCover(vw, vh, cond = 'clear') {
   const map = {
     'clear': 0, 'partly_cloudy': 2, 'cloudy': 5, 'fog': 5,
     'rain': 4, 'heavy_rain': 5, 'thunderstorm': 5, 'windy': 3,
@@ -290,7 +290,7 @@ function fog(vw, vh) {
 }
 
 // Sun modified by condition — hidden/dimmed in bad weather
-function weatherModifiedSun(cx, cy, r, cond) {
+function weatherModifiedSun(cx, cy, r, cond = 'clear') {
   if (cond === 'thunderstorm' || cond === 'heavy_rain') return ''
   if (cond === 'cloudy' || cond === 'fog') return sun(cx, cy, r, '#e8d060', '#fff4a0')
   if (cond === 'rain' || cond === 'partly_cloudy') return sun(cx, cy, r, '#FFD060', '#FFF0B0')
@@ -299,7 +299,7 @@ function weatherModifiedSun(cx, cy, r, cond) {
 }
 
 // Master weather overlay — composites the right layers
-function weatherOverlay(vw, vh, cond, timeOfDay) {
+function weatherOverlay(vw, vh, cond = 'clear', timeOfDay) {
   let out = ''
   if (cond === 'fog') out += fog(vw, vh)
   out += cloudCover(vw, vh, cond)
