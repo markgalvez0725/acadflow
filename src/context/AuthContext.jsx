@@ -65,6 +65,9 @@ export function AuthProvider({ children }) {
     try {
       localStorage.setItem(SESSION_KEY, JSON.stringify({ role, studentId: studentObj?.id || null, ts: Date.now() }))
     } catch (e) {}
+    // Replace the current history entry so pressing Back after login
+    // does not return to the login page.
+    try { history.replaceState(null, '', window.location.href) } catch (e) {}
     setSessionRole(role)
     setCurrentStudent(studentObj)
   }
