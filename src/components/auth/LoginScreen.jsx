@@ -8,6 +8,10 @@ import LoadingButton from '@/components/primitives/LoadingButton'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 import WeatherScene from '@/components/canvas/WeatherScene'
 
+const EyeIcon = ({ visible }) => visible
+  ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+  : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+
 // Modes: 'student' | 'register' | 'reg-otp' | 'forgot' | 'fp-otp'
 export default function LoginScreen() {
   const { loginStudent, createOTP, checkOTP, clearOTP, hashPassword } = useAuth()
@@ -36,6 +40,13 @@ export default function LoginScreen() {
   const [fpEmail, setFpEmail] = useState('')
   const [fpNewPass, setFpNewPass]   = useState('')
   const [fpNewPass2, setFpNewPass2] = useState('')
+
+  // Show/hide password toggles
+  const [showPass, setShowPass]       = useState(false)
+  const [showRegPass, setShowRegPass] = useState(false)
+  const [showRegPass2, setShowRegPass2] = useState(false)
+  const [showFpPass, setShowFpPass]   = useState(false)
+  const [showFpPass2, setShowFpPass2] = useState(false)
 
   // Pending OTP context stored in ref-like state
   const [regPending, setRegPending] = useState(null)
@@ -98,6 +109,14 @@ export default function LoginScreen() {
     const existing = students.find(s => s.id === regSnum)
     if (existing?.account?.registered)
       return setErr('⛔ An account already exists for this student number. Use "Forgot Password" if needed.')
+
+    const nameDup = students.find(s =>
+      s.name?.trim().toLowerCase() === regName.trim().toLowerCase() &&
+      s.account?.registered &&
+      s.id !== regSnum
+    )
+    if (nameDup)
+      return setErr('⛔ An account with this name already exists. Please check your student number.')
 
     const emailDup = students.find(s => s.account?.registered && s.account?.email?.toLowerCase() === regEmail.toLowerCase())
     if (emailDup)
@@ -256,25 +275,29 @@ export default function LoginScreen() {
           {/* ── Student Login ─────────────────────────────────────────── */}
           {mode === 'student' && (
             <form onSubmit={handleStudentLogin}>
-              <div className="field">
-                <label>Student Number</label>
+              <div className="field-float">
                 <input
                   type="text"
-                  placeholder="e.g. 2024-0001"
+                  placeholder=" "
                   value={snum}
                   onChange={e => setSnum(sanitizeSnum(e.target.value))}
                   autoComplete="username"
                 />
+                <label>Student Number</label>
               </div>
-              <div className="field">
-                <label>Password</label>
+              <div className="field-float">
                 <input
-                  type="password"
-                  placeholder="••••••••"
+                  type={showPass ? 'text' : 'password'}
+                  placeholder=" "
                   value={pass}
                   onChange={e => setPass(e.target.value)}
                   autoComplete="current-password"
+                  style={{ paddingRight: 38 }}
                 />
+                <button type="button" className="pw-toggle" onClick={() => setShowPass(v => !v)} tabIndex={-1}>
+                  <EyeIcon visible={showPass} />
+                </button>
+                <label>Password</label>
               </div>
               <LoadingButton loading={loading} loadingText="Signing in…" className="btn btn-primary btn-full mt-2">
                 Sign In
@@ -288,25 +311,43 @@ export default function LoginScreen() {
           {/* ── Register ──────────────────────────────────────────────── */}
           {mode === 'register' && (
             <form onSubmit={handleRegStep1}>
-              <div className="field">
+              <div className="field-float">
+                <input type="text" placeholder=" " value={regSnum} onChange={e => setRegSnum(sanitizeSnum(e.target.value))} />
                 <label>Student Number</label>
-                <input type="text" placeholder="e.g. 2024-0001" value={regSnum} onChange={e => setRegSnum(sanitizeSnum(e.target.value))} />
               </div>
-              <div className="field">
+              <div className="field-float">
+                <input type="text" placeholder=" " value={regName} onChange={e => setRegName(e.target.value)} />
                 <label>Full Name</label>
-                <input type="text" placeholder="LASTNAME, Firstname" value={regName} onChange={e => setRegName(e.target.value)} />
               </div>
-              <div className="field">
+              <div className="field-float">
+                <input type="email" placeholder=" " value={regEmail} onChange={e => setRegEmail(e.target.value)} />
                 <label>Email Address</label>
-                <input type="email" placeholder="your@email.com" value={regEmail} onChange={e => setRegEmail(e.target.value)} />
               </div>
-              <div className="field">
+              <div className="field-float">
+                <input
+                  type={showRegPass ? 'text' : 'password'}
+                  placeholder=" "
+                  value={regPass}
+                  onChange={e => setRegPass(e.target.value)}
+                  style={{ paddingRight: 38 }}
+                />
+                <button type="button" className="pw-toggle" onClick={() => setShowRegPass(v => !v)} tabIndex={-1}>
+                  <EyeIcon visible={showRegPass} />
+                </button>
                 <label>Password</label>
-                <input type="password" placeholder="Min 8 chars, 1 uppercase, 1 number" value={regPass} onChange={e => setRegPass(e.target.value)} />
               </div>
-              <div className="field">
+              <div className="field-float">
+                <input
+                  type={showRegPass2 ? 'text' : 'password'}
+                  placeholder=" "
+                  value={regPass2}
+                  onChange={e => setRegPass2(e.target.value)}
+                  style={{ paddingRight: 38 }}
+                />
+                <button type="button" className="pw-toggle" onClick={() => setShowRegPass2(v => !v)} tabIndex={-1}>
+                  <EyeIcon visible={showRegPass2} />
+                </button>
                 <label>Confirm Password</label>
-                <input type="password" placeholder="Repeat password" value={regPass2} onChange={e => setRegPass2(e.target.value)} />
               </div>
               <LoadingButton loading={loading} loadingText="Sending OTP…" className="btn btn-primary btn-full mt-2">
                 Send OTP to My Email →
@@ -335,13 +376,13 @@ export default function LoginScreen() {
             <form onSubmit={handleFpStep1}>
               <h3 className="font-display text-lg font-bold text-ink mb-1">Forgot Password</h3>
               <p className="text-xs text-ink2 mb-4">Enter your student number and registered email.</p>
-              <div className="field">
+              <div className="field-float">
+                <input type="text" placeholder=" " value={fpSnum} onChange={e => setFpSnum(sanitizeSnum(e.target.value))} />
                 <label>Student Number</label>
-                <input type="text" value={fpSnum} onChange={e => setFpSnum(sanitizeSnum(e.target.value))} />
               </div>
-              <div className="field">
+              <div className="field-float">
+                <input type="email" placeholder=" " value={fpEmail} onChange={e => setFpEmail(e.target.value)} />
                 <label>Registered Email</label>
-                <input type="email" value={fpEmail} onChange={e => setFpEmail(e.target.value)} />
               </div>
               <LoadingButton loading={loading} loadingText="Sending OTP…" className="btn btn-primary btn-full mt-2">
                 Send OTP →
@@ -359,13 +400,31 @@ export default function LoginScreen() {
                 Enter the 6-digit OTP sent to <strong>{otpEmailDisplay}</strong>
               </p>
               <OTPBoxes value={otpValue} onChange={setOtpValue} disabled={loading} />
-              <div className="field">
+              <div className="field-float" style={{ marginTop: 10 }}>
+                <input
+                  type={showFpPass ? 'text' : 'password'}
+                  placeholder=" "
+                  value={fpNewPass}
+                  onChange={e => setFpNewPass(e.target.value)}
+                  style={{ paddingRight: 38 }}
+                />
+                <button type="button" className="pw-toggle" onClick={() => setShowFpPass(v => !v)} tabIndex={-1}>
+                  <EyeIcon visible={showFpPass} />
+                </button>
                 <label>New Password</label>
-                <input type="password" placeholder="Min 8 chars, 1 uppercase, 1 number" value={fpNewPass} onChange={e => setFpNewPass(e.target.value)} />
               </div>
-              <div className="field">
+              <div className="field-float">
+                <input
+                  type={showFpPass2 ? 'text' : 'password'}
+                  placeholder=" "
+                  value={fpNewPass2}
+                  onChange={e => setFpNewPass2(e.target.value)}
+                  style={{ paddingRight: 38 }}
+                />
+                <button type="button" className="pw-toggle" onClick={() => setShowFpPass2(v => !v)} tabIndex={-1}>
+                  <EyeIcon visible={showFpPass2} />
+                </button>
                 <label>Confirm New Password</label>
-                <input type="password" value={fpNewPass2} onChange={e => setFpNewPass2(e.target.value)} />
               </div>
               <LoadingButton loading={loading} loadingText="Saving…" className="btn btn-primary btn-full mt-2">
                 Set New Password

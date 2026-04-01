@@ -1,4 +1,8 @@
 import React, { useState, lazy, Suspense } from 'react'
+
+const EyeIcon = ({ visible }) => visible
+  ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+  : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -24,6 +28,10 @@ export default function AdminLoginScreen() {
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+
+  const [showPass, setShowPass]     = useState(false)
+  const [showAfPass, setShowAfPass] = useState(false)
+  const [showAfPass2, setShowAfPass2] = useState(false)
 
   const [afEmail, setAfEmail]   = useState('')
   const [otpValue, setOtpValue] = useState('')
@@ -123,25 +131,29 @@ export default function AdminLoginScreen() {
           {/* ── Login ──────────────────────────────────────────────────── */}
           {mode === 'login' && (
             <form onSubmit={handleLogin}>
-              <div className="field">
-                <label>Username</label>
+              <div className="field-float">
                 <input
                   type="text"
-                  placeholder="admin"
+                  placeholder=" "
                   value={username}
                   onChange={e => setUsername(e.target.value)}
                   autoComplete="username"
                 />
+                <label>Username</label>
               </div>
-              <div className="field">
-                <label>Password</label>
+              <div className="field-float">
                 <input
-                  type="password"
-                  placeholder="••••••••"
+                  type={showPass ? 'text' : 'password'}
+                  placeholder=" "
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   autoComplete="current-password"
+                  style={{ paddingRight: 38 }}
                 />
+                <button type="button" className="pw-toggle" onClick={() => setShowPass(v => !v)} tabIndex={-1}>
+                  <EyeIcon visible={showPass} />
+                </button>
+                <label>Password</label>
               </div>
               <LoadingButton loading={loading} loadingText="Signing in…" className="btn btn-primary btn-full mt-2">
                 Sign In
@@ -157,9 +169,9 @@ export default function AdminLoginScreen() {
             <form onSubmit={handleForgotStep1}>
               <h3 className="font-display text-lg font-bold text-ink mb-1">Reset Admin Password</h3>
               <p className="text-xs text-ink2 mb-4">Enter the admin email address to receive an OTP.</p>
-              <div className="field">
+              <div className="field-float">
+                <input type="email" placeholder=" " value={afEmail} onChange={e => setAfEmail(e.target.value)} />
                 <label>Admin Email</label>
-                <input type="email" value={afEmail} onChange={e => setAfEmail(e.target.value)} placeholder="admin@school.edu" />
               </div>
               <LoadingButton loading={loading} loadingText="Sending…" className="btn btn-primary btn-full mt-2">
                 Send OTP →
@@ -180,13 +192,31 @@ export default function AdminLoginScreen() {
                 Enter the 6-digit OTP sent to <strong>{otpEmailDisplay}</strong>
               </p>
               <OTPBoxes value={otpValue} onChange={setOtpValue} disabled={loading} />
-              <div className="field">
+              <div className="field-float" style={{ marginTop: 10 }}>
+                <input
+                  type={showAfPass ? 'text' : 'password'}
+                  placeholder=" "
+                  value={afNewPass}
+                  onChange={e => setAfNewPass(e.target.value)}
+                  style={{ paddingRight: 38 }}
+                />
+                <button type="button" className="pw-toggle" onClick={() => setShowAfPass(v => !v)} tabIndex={-1}>
+                  <EyeIcon visible={showAfPass} />
+                </button>
                 <label>New Password</label>
-                <input type="password" placeholder="Min 8 chars, 1 uppercase, 1 number" value={afNewPass} onChange={e => setAfNewPass(e.target.value)} />
               </div>
-              <div className="field">
+              <div className="field-float">
+                <input
+                  type={showAfPass2 ? 'text' : 'password'}
+                  placeholder=" "
+                  value={afNewPass2}
+                  onChange={e => setAfNewPass2(e.target.value)}
+                  style={{ paddingRight: 38 }}
+                />
+                <button type="button" className="pw-toggle" onClick={() => setShowAfPass2(v => !v)} tabIndex={-1}>
+                  <EyeIcon visible={showAfPass2} />
+                </button>
                 <label>Confirm New Password</label>
-                <input type="password" value={afNewPass2} onChange={e => setAfNewPass2(e.target.value)} />
               </div>
               <LoadingButton loading={loading} loadingText="Saving…" className="btn btn-primary btn-full mt-2">
                 Set New Password

@@ -1028,6 +1028,75 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 }
 .field textarea { resize: vertical; min-height: 80px; }
 
+/* ── Floating label variant ── */
+.field-float {
+  position: relative;
+  margin-bottom: 14px;
+}
+.field-float input,
+.field-float select {
+  width: 100%;
+  padding: 18px 12px 6px;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  background: var(--surface2);
+  color: var(--ink);
+  font-size: 13px;
+  font-family: var(--font-body);
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.field-float input:focus,
+.field-float select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(13,47,110,.1);
+}
+[data-theme="dark"] .field-float input:focus,
+[data-theme="dark"] .field-float select:focus {
+  box-shadow: 0 0 0 3px rgba(59,125,216,.15);
+}
+.field-float label {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink3);
+  pointer-events: none;
+  transition: top .15s, transform .15s, font-size .15s, color .15s;
+  line-height: 1;
+}
+.field-float input:focus ~ label,
+.field-float input:not(:placeholder-shown) ~ label,
+.field-float select:focus ~ label,
+.field-float select:not([value=""]):valid ~ label {
+  top: 8px;
+  transform: translateY(0);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+}
+/* password toggle inside field-float */
+.field-float .pw-toggle {
+  position: absolute;
+  right: 10px;
+  /* vertically center within the input (padding-top 18 + padding-bottom 6 + font ~13px ≈ 37px input height) */
+  top: 0;
+  bottom: 0;
+  margin: auto 0;
+  height: 20px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: var(--ink3);
+  display: flex;
+  align-items: center;
+  z-index: 1;
+}
+.field-float .pw-toggle:hover { color: var(--ink2); }
+
 /* ══════════════════════════════════════════
    FORM MESSAGES
 ══════════════════════════════════════════ */
