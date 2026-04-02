@@ -2287,4 +2287,35 @@ textarea.input { resize: vertical; }
 ══════════════════════════════════════════ */
 .student-notifications { }
 
+/* ══════════════════════════════════════════
+   RICH TEXT EDITOR + ANNOUNCEMENT MESSAGE
+══════════════════════════════════════════ */
+.rich-editor:empty:before {
+  content: attr(data-placeholder);
+  color: var(--ink3);
+  pointer-events: none;
+}
+
+.ann-message {
+  font-size: 14px;
+  color: var(--ink2);
+  line-height: 1.6;
+  margin: 0;
+}
+.ann-message--preview {
+  font-size: 13px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ann-message h3 { font-size: 15px; font-weight: 700; color: var(--ink); margin: 4px 0 2px; }
+.ann-message h4 { font-size: 14px; font-weight: 600; color: var(--ink); margin: 4px 0 2px; }
+.ann-message ul { margin: 4px 0; padding-left: 20px; list-style: disc; }
+.ann-message ol { margin: 4px 0; padding-left: 20px; list-style: decimal; }
+.ann-message li { margin: 2px 0; }
+.ann-message strong { font-weight: 700; }
+.ann-message em { font-style: italic; }
+.ann-message u { text-decoration: underline; }
+
 } /* end @layer components */

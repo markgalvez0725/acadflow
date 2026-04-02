@@ -227,9 +227,7 @@ function AnnouncementDetailModal({ ann, student, onClose }) {
 
         {/* Message */}
         {ann.message && (
-          <p style={{ fontSize: 14, color: 'var(--ink2)', lineHeight: 1.6, margin: 0 }}>
-            {ann.message}
-          </p>
+          <div className="ann-message" dangerouslySetInnerHTML={{ __html: ann.message }} />
         )}
 
         {/* Topics */}
@@ -420,7 +418,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
                   {ann.title}
                 </div>
                 {ann.message && (
-                  <div style={{ fontSize: 12, color: 'var(--ink2)', marginTop: 2 }}>{ann.message}</div>
+                  <div className="ann-message ann-message--preview" style={{ fontSize: 12, marginTop: 2 }} dangerouslySetInnerHTML={{ __html: ann.message }} />
                 )}
                 {ann.type === 'meeting_topics' && ann.topics?.length > 0 && (
                   <ol style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 12, color: 'var(--ink2)', lineHeight: 1.8 }}>

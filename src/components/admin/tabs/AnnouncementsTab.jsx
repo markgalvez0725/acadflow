@@ -3,7 +3,81 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import Badge from '@/components/primitives/Badge'
-import { Megaphone, Plus, Trash2, CalendarOff, Video, BookOpen, ToggleLeft, ToggleRight, Link, X, MessageSquare, CornerDownRight, Send } from 'lucide-react'
+import { Megaphone, Plus, Trash2, CalendarOff, Video, BookOpen, ToggleLeft, ToggleRight, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered } from 'lucide-react'
+
+// ── Rich Text Editor ───────────────────────────────────────────────────
+function RichTextEditor({ value, onChange, placeholder, rows = 3 }) {
+  const editorRef = useRef(null)
+  const isInitialized = useRef(false)
+
+  useEffect(() => {
+    if (editorRef.current && !isInitialized.current) {
+      editorRef.current.innerHTML = value || ''
+      isInitialized.current = true
+    }
+  }, [])
+
+  function exec(cmd, val = null) {
+    editorRef.current?.focus()
+    document.execCommand(cmd, false, val)
+    onChange(editorRef.current.innerHTML)
+  }
+
+  function handleInput() {
+    onChange(editorRef.current.innerHTML)
+  }
+
+  const btnStyle = {
+    padding: '3px 7px', borderRadius: 5, border: '1px solid var(--border)',
+    background: 'var(--surface)', color: 'var(--ink)', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  }
+
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', background: 'var(--surface)' }}>
+      {/* Toolbar */}
+      <div style={{ display: 'flex', gap: 4, padding: '6px 8px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', background: 'var(--bg)' }}>
+        <button type="button" style={btnStyle} onMouseDown={e => { e.preventDefault(); exec('bold') }} title="Bold"><Bold size={13} /></button>
+        <button type="button" style={btnStyle} onMouseDown={e => { e.preventDefault(); exec('italic') }} title="Italic"><Italic size={13} /></button>
+        <button type="button" style={btnStyle} onMouseDown={e => { e.preventDefault(); exec('underline') }} title="Underline"><Underline size={13} /></button>
+        <button type="button" style={btnStyle} onMouseDown={e => { e.preventDefault(); exec('hiliteColor', '#fef08a') }} title="Highlight"><Highlighter size={13} /></button>
+        <div style={{ width: 1, background: 'var(--border)', margin: '0 2px' }} />
+        <button type="button" style={btnStyle} onMouseDown={e => { e.preventDefault(); exec('insertUnorderedList') }} title="Bullet list"><List size={13} /></button>
+        <button type="button" style={btnStyle} onMouseDown={e => { e.preventDefault(); exec('insertOrderedList') }} title="Numbered list"><ListOrdered size={13} /></button>
+        <div style={{ width: 1, background: 'var(--border)', margin: '0 2px' }} />
+        <select
+          style={{ fontSize: 11, border: '1px solid var(--border)', borderRadius: 5, padding: '2px 4px', background: 'var(--surface)', color: 'var(--ink)', cursor: 'pointer' }}
+          defaultValue=""
+          onMouseDown={e => e.stopPropagation()}
+          onChange={e => { exec('formatBlock', e.target.value); e.target.value = '' }}
+        >
+          <option value="" disabled>Heading</option>
+          <option value="h3">Heading 1</option>
+          <option value="h4">Heading 2</option>
+          <option value="p">Normal</option>
+        </select>
+      </div>
+      {/* Editable area */}
+      <div
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={handleInput}
+        data-placeholder={placeholder}
+        style={{
+          minHeight: `${rows * 1.6}em`,
+          padding: '10px 12px',
+          fontSize: 13,
+          color: 'var(--ink)',
+          lineHeight: 1.6,
+          outline: 'none',
+          overflowY: 'auto',
+        }}
+        className="rich-editor"
+      />
+    </div>
+  )
+}
 
 // ── Comments Section ───────────────────────────────────────────────────
 function CommentsSection({ ann, authorId, authorName, role }) {
@@ -376,13 +450,11 @@ function AnnouncementFormModal({ ann, onClose }) {
         {/* Message */}
         <div>
           <label className="form-label">Message <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(optional)</span></label>
-          <textarea
-            className="form-input"
-            rows={3}
+          <RichTextEditor
             value={message}
+            onChange={setMessage}
             placeholder="Additional details..."
-            onChange={e => setMessage(e.target.value)}
-            style={{ resize: 'vertical' }}
+            rows={3}
           />
         </div>
 
@@ -507,9 +579,10 @@ function AnnouncementDetailModal({ ann, classes, onClose, onEdit }) {
 
         {/* Message */}
         {ann.message && (
-          <p style={{ fontSize: 14, color: 'var(--ink2)', lineHeight: 1.6, margin: 0 }}>
-            {ann.message}
-          </p>
+          <div
+            className="ann-message"
+            dangerouslySetInnerHTML={{ __html: ann.message }}
+          />
         )}
 
         {/* Topics */}
@@ -688,7 +761,7 @@ export default function AnnouncementsTab() {
                       {getClassName(ann.classId)}
                     </div>
                     {ann.message && (
-                      <div style={{ fontSize: 13, color: 'var(--ink2)', marginTop: 4 }}>{ann.message}</div>
+                      <div className="ann-message ann-message--preview" style={{ fontSize: 13, marginTop: 4 }} dangerouslySetInnerHTML={{ __html: ann.message }} />
                     )}
                     {ann.type === 'meeting_topics' && ann.topics?.length > 0 && (
                       <ol style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 12, color: 'var(--ink2)', lineHeight: 1.7 }}>
