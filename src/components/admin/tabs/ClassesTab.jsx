@@ -5,7 +5,7 @@ import { deserializeStudents } from '@/utils/attendance'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
-import { Plus, Pencil, School } from 'lucide-react'
+import { Plus, Pencil, School, Archive, ArchiveRestore } from 'lucide-react'
 
 const PER_PAGE = 10
 
@@ -227,11 +227,33 @@ export default function ClassesTab() {
   const [page, setPage]           = useState(1)
   const [showAdd, setShowAdd]     = useState(false)
   const [editClass, setEditClass] = useState(null)
+  const [showArchived, setShowArchived] = useState(false)
+
+  const filtered = useMemo(
+    () => classes.filter(c => showArchived ? c.archived : !c.archived),
+    [classes, showArchived]
+  )
 
   const slice = useMemo(
-    () => classes.slice((page - 1) * PER_PAGE, page * PER_PAGE),
-    [classes, page]
+    () => filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE),
+    [filtered, page]
   )
+
+  async function handleArchive(cls) {
+    const label = cls.archived ? 'Unarchive' : 'Archive'
+    const msg = cls.archived
+      ? `Unarchive "${cls.name} ${cls.section}"? It will become active again and visible to enrolled students.`
+      : `Archive "${cls.name} ${cls.section}"? It will be hidden from students but all data will be preserved.`
+    const ok = await openDialog({ title: `${label} this class?`, msg, type: cls.archived ? 'info' : 'warn', confirmLabel: `${label} Class`, showCancel: true })
+    if (!ok) return
+    try {
+      await saveClasses(classes.map(c => c.id === cls.id ? { ...c, archived: !cls.archived } : c))
+      toast(`Class ${cls.archived ? 'unarchived' : 'archived'}.`, 'green')
+      if (page > 1 && slice.length === 1) setPage(p => p - 1)
+    } catch (e) {
+      toast(`Could not ${label.toLowerCase()} class: ` + e.message, 'red')
+    }
+  }
 
   async function handleDelete(cls) {
     const studsInClass = students.filter(s => s.classId === cls.id || s.classIds?.includes(cls.id)).length
@@ -266,13 +288,19 @@ export default function ClassesTab() {
       <div className="sec-hdr mb-3">
         <div className="sec-title">Classes</div>
         <div className="flex items-center gap-2">
-          <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>+ Add Class</button>
+          <button
+            className={`btn btn-sm ${showArchived ? 'btn-ghost' : 'btn-ghost'}`}
+            onClick={() => { setShowArchived(v => !v); setPage(1) }}
+          >
+            {showArchived ? <><ArchiveRestore size={14} className="inline-block mr-1" />Active</> : <><Archive size={14} className="inline-block mr-1" />Archived</>}
+          </button>
+          {!showArchived && <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>+ Add Class</button>}
         </div>
       </div>
 
       {/* Table */}
-      {!classes.length ? (
-        <div className="empty"><div className="empty-icon"><School size={32} /></div>No classes yet.</div>
+      {!filtered.length ? (
+        <div className="empty"><div className="empty-icon"><School size={32} /></div>{showArchived ? 'No archived classes.' : 'No classes yet.'}</div>
       ) : (
         <>
           <div className="tbl-wrap">
@@ -293,7 +321,7 @@ export default function ClassesTab() {
                   const cnt = students.filter(s => s.classId === cls.id || s.classIds?.includes(cls.id)).length
                   return (
                     <tr key={cls.id}>
-                      <td><strong>{cls.name}</strong></td>
+                      <td><strong>{cls.name}</strong>{cls.archived && <Badge variant="yellow" className="ml-2">Archived</Badge>}</td>
                       <td><Badge variant="blue">{cls.section}</Badge></td>
                       <td>{cls.room}</td>
                       <td style={{ fontSize: 12 }}>{cls.schedule}</td>
@@ -301,7 +329,10 @@ export default function ClassesTab() {
                       <td>{cnt}</td>
                       <td>
                         <div className="flex gap-1.5 flex-wrap">
-                          <button className="btn btn-ghost btn-sm" onClick={() => setEditClass(cls)}><Pencil size={13} className="inline-block mr-1" />Edit</button>
+                          {!cls.archived && <button className="btn btn-ghost btn-sm" onClick={() => setEditClass(cls)}><Pencil size={13} className="inline-block mr-1" />Edit</button>}
+                          <button className="btn btn-ghost btn-sm" onClick={() => handleArchive(cls)}>
+                            {cls.archived ? <><ArchiveRestore size={13} className="inline-block mr-1" />Unarchive</> : <><Archive size={13} className="inline-block mr-1" />Archive</>}
+                          </button>
                           <button className="btn btn-danger btn-sm" onClick={() => handleDelete(cls)}>Delete</button>
                         </div>
                       </td>
@@ -311,7 +342,7 @@ export default function ClassesTab() {
               </tbody>
             </table>
           </div>
-          <Pagination total={classes.length} perPage={PER_PAGE} page={page} onChange={setPage} />
+          <Pagination total={filtered.length} perPage={PER_PAGE} page={page} onChange={setPage} />
         </>
       )}
 

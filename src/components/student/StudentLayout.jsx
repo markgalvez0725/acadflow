@@ -55,6 +55,7 @@ export default function StudentLayout() {
   // Multi-class: track which class is being viewed
   const enrolledClasses = student
     ? classes.filter(c => {
+        if (c.archived) return false
         const ids = student.classIds?.length ? student.classIds : (student.classId ? [student.classId] : [])
         return ids.includes(c.id)
       })
