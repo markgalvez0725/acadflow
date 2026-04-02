@@ -286,6 +286,7 @@ function AnnouncementFormModal({ ann, onClose }) {
         createdAt:   ann?.createdAt || Date.now(),
         active:      ann?.active ?? true,
         expiresAt:   expiresAt ? new Date(expiresAt).getTime() : null,
+        comments:    ann?.comments || [],
       }
       await saveAnnouncement(announcement)
       if (!isEdit) {
