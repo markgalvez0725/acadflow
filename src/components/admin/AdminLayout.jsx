@@ -17,7 +17,6 @@ const AttendanceTab   = lazy(() => import('./tabs/AttendanceTab'))
 const ActivitiesTab   = lazy(() => import('./tabs/ActivitiesTab'))
 const NotificationsTab  = lazy(() => import('./tabs/NotificationsTab'))
 const QuizTab           = lazy(() => import('./tabs/QuizTab'))
-const AnnouncementsTab  = lazy(() => import('./tabs/AnnouncementsTab'))
 const StreamTab         = lazy(() => import('./tabs/StreamTab'))
 
 // Modals (lazy)
@@ -33,7 +32,6 @@ const TAB_TITLES = {
   activities:    ['Activities',    'Post activities, collect submissions, and auto-grade'],
   quizzes:       ['Quizzes',       'AI-generated quizzes with auto-grading'],
   notifications:  ['Notifications',  'Real-time alerts for messages and activity submissions'],
-  announcements:  ['Announcements',  'Post no-class or online-class notices to enrolled students'],
 }
 
 export default function AdminLayout() {
@@ -122,7 +120,6 @@ export default function AdminLayout() {
             {adminTab === 'activities'    && <ActivitiesTab />}
             {adminTab === 'quizzes'        && <QuizTab />}
             {adminTab === 'notifications'  && <NotificationsTab />}
-            {adminTab === 'announcements'  && <AnnouncementsTab />}
           </Suspense>
         </div>
       </div>
