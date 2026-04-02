@@ -2,12 +2,13 @@ import React from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { LayoutDashboard, School, Users, BookOpen, CalendarCheck, Bell, ClipboardList, Settings, LogOut, FileQuestion, Megaphone } from 'lucide-react'
+import { LayoutDashboard, School, Users, BookOpen, CalendarCheck, Bell, ClipboardList, Settings, LogOut, FileQuestion, Megaphone, Rss } from 'lucide-react'
 
 const NAV_GROUPS = [
   {
     label: 'Overview',
     items: [
+      { id: 'stream',    label: 'Stream',    Icon: Rss },
       { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
     ],
   },

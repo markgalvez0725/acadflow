@@ -18,11 +18,13 @@ const ActivitiesTab   = lazy(() => import('./tabs/ActivitiesTab'))
 const NotificationsTab  = lazy(() => import('./tabs/NotificationsTab'))
 const QuizTab           = lazy(() => import('./tabs/QuizTab'))
 const AnnouncementsTab  = lazy(() => import('./tabs/AnnouncementsTab'))
+const StreamTab         = lazy(() => import('./tabs/StreamTab'))
 
 // Modals (lazy)
 const AdminSettingsModal = lazy(() => import('./modals/AdminSettingsModal'))
 
 const TAB_TITLES = {
+  stream:        ['Stream',         'Class activity feed — announcements, grades, activities, quizzes, and attendance'],
   dashboard:     ['Dashboard',     'Academic overview'],
   classes:       ['Classes',       'Manage classes and subjects'],
   students:      ['Students',      'Student roster'],
@@ -111,6 +113,7 @@ export default function AdminLayout() {
 
           {/* Tab panels */}
           <Suspense fallback={<div className="text-ink2 text-sm py-4">Loading…</div>}>
+            {adminTab === 'stream'         && <StreamTab />}
             {adminTab === 'dashboard'     && <DashboardTab />}
             {adminTab === 'classes'       && <ClassesTab />}
             {adminTab === 'students'      && <StudentsTab />}

@@ -7,9 +7,10 @@ import ThemeToggle from '@/components/primitives/ThemeToggle'
 import ToastManager from '@/components/primitives/ToastManager'
 import Dialog from '@/components/primitives/Dialog'
 import FloatingMessenger from './FloatingMessenger'
-import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion } from 'lucide-react'
+import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss } from 'lucide-react'
 
 // Lazy-load tabs
+const StreamTab        = lazy(() => import('./tabs/StreamTab'))
 const OverviewTab      = lazy(() => import('./tabs/OverviewTab'))
 const GradesTab        = lazy(() => import('./tabs/GradesTab'))
 const AttendanceTab    = lazy(() => import('./tabs/AttendanceTab'))
@@ -23,6 +24,7 @@ const ForceChangePasswordModal = lazy(() => import('./modals/ForceChangePassword
 const StudentActionSheet       = lazy(() => import('./modals/StudentActionSheet'))
 
 const NAV_ITEMS = [
+  { id: 'stream',        label: 'Stream',         Icon: Rss },
   { id: 'overview',      label: 'Overview',      Icon: LayoutDashboard },
   { id: 'grades',        label: 'Grades',         Icon: BookOpen },
   { id: 'attendance',    label: 'Attendance',     Icon: CalendarCheck },
@@ -211,6 +213,7 @@ export default function StudentLayout() {
       {/* Tab content */}
       <div className="student-body">
         <Suspense fallback={<div className="text-ink2 text-sm py-8 text-center">Loading…</div>}>
+          {studentTab === 'stream'        && <StreamTab        student={student} viewClassId={effectiveClassId} classes={classes} />}
           {studentTab === 'overview'      && <OverviewTab      student={student} viewClassId={effectiveClassId} classes={classes} />}
           {studentTab === 'grades'        && <GradesTab        student={student} viewClassId={effectiveClassId} classes={classes} />}
           {studentTab === 'attendance'    && <AttendanceTab    student={student} viewClassId={effectiveClassId} classes={classes} />}

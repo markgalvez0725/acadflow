@@ -2320,4 +2320,63 @@ textarea.input { resize: vertical; }
 .ann-message em { font-style: italic; }
 .ann-message u { text-decoration: underline; }
 
+/* ══ Stream Cards ══════════════════════════════════════════════════════ */
+.stream-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  transition: box-shadow 0.15s;
+}
+.stream-card:hover {
+  box-shadow: 0 2px 12px 0 rgba(0,0,0,0.07);
+}
+.stream-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.stream-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.4;
+}
+.stream-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.stream-stat {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--ink2);
+}
+.stream-link-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  margin-right: 8px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--ink2);
+  text-decoration: none;
+  transition: background 0.12s;
+}
+.stream-link-chip:hover {
+  background: var(--border);
+  color: var(--ink);
+}
+
 } /* end @layer components */
