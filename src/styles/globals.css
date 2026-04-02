@@ -578,6 +578,8 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 .sb-brand {
   padding: 20px 20px 16px;
   border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
 }
 .sb-brand h2 {
   font-family: var(--font-display);

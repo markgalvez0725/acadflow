@@ -117,8 +117,8 @@ export default function AdminLoginScreen() {
       <div className="relative z-10 w-full max-w-[400px] mx-4">
         {/* Branding */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-royal mb-3">
-            <span className="text-gold text-2xl">📋</span>
+          <div className="inline-flex items-center justify-center mb-3">
+            <img src="/logo.png" alt="AcadFlow" className="w-16 h-16 rounded-2xl" />
           </div>
           <h1 className="font-display text-3xl font-bold text-ink">AcadFlow</h1>
           <p className="text-xs text-ink3 mt-1">Teacher / Admin Portal</p>

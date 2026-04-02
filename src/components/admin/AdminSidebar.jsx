@@ -57,8 +57,11 @@ export default function AdminSidebar({ onSettingsOpen }) {
     <div className="sidebar flex flex-col h-full">
       {/* Brand */}
       <div className="sb-brand">
-        <h2>AcadFlow</h2>
-        <span>Teacher Portal</span>
+        <img src="/logo.png" alt="AcadFlow" style={{ width: 32, height: 32, borderRadius: 8, marginRight: 8, flexShrink: 0 }} />
+        <div>
+          <h2>AcadFlow</h2>
+          <span>Teacher Portal</span>
+        </div>
       </div>
 
       {/* Nav */}
