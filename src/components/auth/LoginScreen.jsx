@@ -58,7 +58,9 @@ export default function LoginScreen() {
   async function _sendOTP(ctx, email, name) {
     const code = createOTP(ctx, email)
     if (!ejs.configured) {
-      console.warn('[OTP] EJS not configured — showing code in console (demo mode):', code)
+      if (import.meta.env.DEV) {
+        console.warn('[OTP] EJS not configured — showing code in console (dev mode):', code)
+      }
       return code
     }
     try {

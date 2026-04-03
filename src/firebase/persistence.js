@@ -1,5 +1,6 @@
 // ── Firestore persistence helpers ─────────────────────────────────────────
 import { doc, setDoc, deleteDoc, arrayUnion, runTransaction } from 'firebase/firestore'
+import { v4 as uuidv4 } from 'uuid'
 import { fbWithTimeout } from './firebaseInit'
 import { serializeStudents } from '@/utils/attendance'
 import { setFbWriting } from './listeners'
@@ -64,11 +65,19 @@ export async function persistClassesSync(db, classes) {
 }
 
 // ── Admin credentials ─────────────────────────────────────────────────────
-const ADMIN_KEY = 'acadflow_admin_2025';
+// SECURITY: Admin encryption key must come from environment, never hardcoded.
+const ADMIN_KEY = import.meta.env.VITE_ADMIN_CRYPTO_KEY || _throwAdminKeyMissing()
+
+function _throwAdminKeyMissing() {
+  throw new Error('SECURITY: VITE_ADMIN_CRYPTO_KEY is required but not set. Add it to .env.local (minimum 16 characters). Never commit to git.')
+}
 
 async function _getAdminCryptoKey(mode) {
-  const keyData = new TextEncoder().encode(ADMIN_KEY.padEnd(32, '_').slice(0, 32));
-  return crypto.subtle.importKey('raw', keyData, { name: 'AES-GCM' }, false, [mode]);
+  if (!ADMIN_KEY || ADMIN_KEY.length < 16) {
+    throw new Error('SECURITY: Invalid VITE_ADMIN_CRYPTO_KEY — must be at least 16 characters.')
+  }
+  const keyData = new TextEncoder().encode(ADMIN_KEY.padEnd(32, '_').slice(0, 32))
+  return crypto.subtle.importKey('raw', keyData, { name: 'AES-GCM' }, false, [mode])
 }
 
 export async function encryptAdmin(obj) {
@@ -180,7 +189,7 @@ export async function fbPushAnnouncementNotifs(db, announcement, students) {
         const snap = await getDoc(ref)
         const existing = snap.exists() ? (snap.data().items || []) : []
         const notif = {
-          id: 'n' + Date.now() + Math.random().toString(36).slice(2, 5),
+          id: `n_${uuidv4()}`,
           type: 'announce',
           read: false,
           ts: Date.now(),

@@ -1,12 +1,15 @@
 // ── Crypto utilities ───────────────────────────────────────────────────────
-// Secrets are read from Vite env vars. Provide them in .env (see .env.example).
-// Defaults match the original app's hardcoded values so existing localStorage
-// data continues to decrypt correctly without migration.
-const PASS_SALT  = import.meta.env.VITE_PASS_SALT  || 'cp_salt_2025::';
-const _EJS_SECRET = import.meta.env.VITE_EJS_SECRET || 'cp::ejs::key::2025::v1';
-const _EJS_SALT   = import.meta.env.VITE_EJS_SALT   || 'collegeportal_ejs_salt_v1';
-const _FB_SECRET  = import.meta.env.VITE_FB_SECRET  || 'cp::fb::key::2025::v1';
-const _FB_SALT    = import.meta.env.VITE_FB_SALT    || 'collegeportal_fb_salt_v1';
+// SECURITY: All secrets MUST be provided via environment variables.
+// Do NOT use defaults — each deployment must have unique secrets.
+const PASS_SALT  = import.meta.env.VITE_PASS_SALT  || _throwMissing('VITE_PASS_SALT')
+const _EJS_SECRET = import.meta.env.VITE_EJS_SECRET || _throwMissing('VITE_EJS_SECRET')
+const _EJS_SALT   = import.meta.env.VITE_EJS_SALT   || _throwMissing('VITE_EJS_SALT')
+const _FB_SECRET  = import.meta.env.VITE_FB_SECRET  || _throwMissing('VITE_FB_SECRET')
+const _FB_SALT    = import.meta.env.VITE_FB_SALT    || _throwMissing('VITE_FB_SALT')
+
+function _throwMissing(key) {
+  throw new Error(`SECURITY: Environment variable "${key}" is required but not set. Add it to .env.local (never commit to git).`)
+}
 
 // ── SHA-256 password hashing ──────────────────────────────────────────────
 export async function hashPassword(password) {
@@ -39,7 +42,7 @@ async function _deriveKey(secret, salt) {
     { name: 'PBKDF2' }, false, ['deriveKey']
   );
   return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt: new TextEncoder().encode(salt), iterations: 100000, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt: new TextEncoder().encode(salt), iterations: 600000, hash: 'SHA-256' },
     keyMaterial,
     { name: 'AES-GCM', length: 256 },
     false, ['encrypt', 'decrypt']

@@ -1,9 +1,22 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
+import DOMPurify from 'dompurify'
+import { v4 as uuidv4 } from 'uuid'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import Badge from '@/components/primitives/Badge'
 import { Megaphone, Plus, Trash2, CalendarOff, Video, BookOpen, ToggleLeft, ToggleRight, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered } from 'lucide-react'
+
+// ── HTML Sanitization Config ──────────────────────────────────────────
+const SANITIZE_CONFIG = {
+  ALLOWED_TAGS: ['b', 'i', 'u', 'em', 'strong', 'mark', 'p', 'br', 'ul', 'ol', 'li', 'h3', 'h4'],
+  ALLOWED_ATTR: [],
+  FORCE_BODY: false,
+}
+
+function sanitizeHtml(html) {
+  return DOMPurify.sanitize(html, SANITIZE_CONFIG)
+}
 
 // ── Rich Text Editor ───────────────────────────────────────────────────
 function RichTextEditor({ value, onChange, placeholder, rows = 3 }) {
@@ -12,7 +25,7 @@ function RichTextEditor({ value, onChange, placeholder, rows = 3 }) {
 
   useEffect(() => {
     if (editorRef.current && !isInitialized.current) {
-      editorRef.current.innerHTML = value || ''
+      editorRef.current.innerHTML = sanitizeHtml(value || '')
       isInitialized.current = true
     }
   }, [])
@@ -20,11 +33,11 @@ function RichTextEditor({ value, onChange, placeholder, rows = 3 }) {
   function exec(cmd, val = null) {
     editorRef.current?.focus()
     document.execCommand(cmd, false, val)
-    onChange(editorRef.current.innerHTML)
+    onChange(sanitizeHtml(editorRef.current.innerHTML))
   }
 
   function handleInput() {
-    onChange(editorRef.current.innerHTML)
+    onChange(sanitizeHtml(editorRef.current.innerHTML))
   }
 
   const btnStyle = {
@@ -100,7 +113,7 @@ function CommentsSection({ ann, authorId, authorName, role }) {
     setPosting(true)
     try {
       const comment = {
-        id: 'c' + Date.now() + Math.random().toString(36).slice(2, 5),
+        id: uuidv4(),
         authorId,
         authorName,
         role,
@@ -120,7 +133,7 @@ function CommentsSection({ ann, authorId, authorName, role }) {
     setReplyPosting(true)
     try {
       const reply = {
-        id: 'r' + Date.now() + Math.random().toString(36).slice(2, 5),
+        id: uuidv4(),
         authorId,
         authorName,
         role,
@@ -270,7 +283,7 @@ function CommentsSection({ ann, authorId, authorName, role }) {
 
 // ── Helpers ───────────────────────────────────────────────────────────
 function annId() {
-  return 'ann_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7)
+  return 'ann_' + uuidv4()
 }
 
 function formatDate(ms) {
@@ -581,10 +594,7 @@ function AnnouncementDetailModal({ ann, classes, onClose, onEdit }) {
         {ann.message && (
           <div
             className="ann-message"
-            dangerouslySetInnerHTML={{ __html: ann.message }}
-          />
-        )}
-
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(ann.message) }}
         {/* Topics */}
         {ann.type === 'meeting_topics' && ann.topics?.length > 0 && (
           <div>
