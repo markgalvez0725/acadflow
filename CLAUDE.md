@@ -55,9 +55,24 @@ SheetJS and jsPDF are loaded via CDN in `index.html` and accessed as `window.XLS
 - New student tab → add component in `src/components/student/tabs/`, register in `StudentLayout`.
 - New Firestore collection → add listener in `src/firebase/listeners.js`, add state + save helper in `DataContext`.
 
+## Development Workflow
+
+- **Start dev server:** `npm run dev` (runs on `http://localhost:5173`)
+- **Build for production:** `npm run build` (output in `dist/`)
+- **Preview production build locally:** `npm run preview`
+- All changes hot-reload in dev mode.
+
+## Recent Security Hardening (Stream Tab)
+
+Announcement and comment management now includes:
+- **XSS Prevention:** DOMPurify sanitizes all user-generated HTML with a whitelist of safe tags (b, i, u, em, strong, mark, p, br, ul, ol, li, h3, h4). Applied at editor input and render points.
+- **ID Generation:** Comment and reply IDs use UUID v4 (cryptographically secure) instead of weak generation. Prevents ID collisions under concurrent load.
+- **Atomic Writes:** Firebase comment operations (`fbAddAnnouncementComment`, `fbAddCommentReply`) use transactions to ensure atomicity. Prevents lost updates when multiple clients write concurrently.
+
 ## Common Mistakes to Avoid
 
 - Do not read Firebase directly from components — go through `DataContext` helpers.
 - Do not add URL navigation (`useNavigate`, `<Link>`) — AcadFlow uses tab-state navigation only.
 - Do not import SheetJS or jsPDF via npm — they are CDN globals.
 - Do not use `next/*` imports or APIs — this is not a Next.js project.
+- When adding user-generated content (HTML, comments, etc.), always sanitize with DOMPurify before rendering.
