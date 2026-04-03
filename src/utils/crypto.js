@@ -1,7 +1,7 @@
 // ── Crypto utilities ───────────────────────────────────────────────────────
-// SECURITY: All secrets MUST be provided via environment variables.
-// Do NOT use defaults — each deployment must have unique secrets.
-const PASS_SALT  = import.meta.env.VITE_PASS_SALT  || _throwMissing('VITE_PASS_SALT')
+// PASS_SALT is hardcoded so it never changes across deployments or env var mismatches.
+// Changing this value would invalidate ALL stored password hashes — do not modify.
+const PASS_SALT  = '1MXiaxEkgBLYRSXJRY28Dg=='
 const _EJS_SECRET = import.meta.env.VITE_EJS_SECRET || _throwMissing('VITE_EJS_SECRET')
 const _EJS_SALT   = import.meta.env.VITE_EJS_SALT   || _throwMissing('VITE_EJS_SALT')
 const _FB_SECRET  = import.meta.env.VITE_FB_SECRET  || _throwMissing('VITE_FB_SECRET')
