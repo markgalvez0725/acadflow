@@ -1,5 +1,5 @@
 // ── Firestore persistence helpers ─────────────────────────────────────────
-import { doc, setDoc, deleteDoc } from 'firebase/firestore'
+import { doc, setDoc, deleteDoc, arrayUnion, runTransaction } from 'firebase/firestore'
 import { fbWithTimeout } from './firebaseInit'
 import { serializeStudents } from '@/utils/attendance'
 import { setFbWriting } from './listeners'
@@ -132,29 +132,35 @@ export async function fbDeleteAnnouncement(db, id) {
 
 export async function fbAddAnnouncementComment(db, announcementId, comment) {
   if (!db || !announcementId || !comment) return
-  const { doc: fbDoc, getDoc, setDoc } = await import('firebase/firestore')
+  const { doc: fbDoc } = await import('firebase/firestore')
   const ref = fbDoc(db, 'announcements', announcementId)
-  const snap = await fbWithTimeout(getDoc(ref))
-  if (!snap.exists()) return
-  const ann = snap.data()
-  const comments = Array.isArray(ann.comments) ? ann.comments : []
-  return fbWithTimeout(setDoc(ref, { ...ann, comments: [...comments, comment] }))
+  
+  return fbWithTimeout(runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref)
+    if (!snap.exists()) throw new Error('Announcement not found')
+    const ann = snap.data()
+    const comments = Array.isArray(ann.comments) ? ann.comments : []
+    transaction.update(ref, { comments: [...comments, comment] })
+  }))
 }
 
 export async function fbAddCommentReply(db, announcementId, commentId, reply) {
   if (!db || !announcementId || !commentId || !reply) return
-  const { doc: fbDoc, getDoc, setDoc } = await import('firebase/firestore')
+  const { doc: fbDoc } = await import('firebase/firestore')
   const ref = fbDoc(db, 'announcements', announcementId)
-  const snap = await fbWithTimeout(getDoc(ref))
-  if (!snap.exists()) return
-  const ann = snap.data()
-  const comments = Array.isArray(ann.comments) ? ann.comments : []
-  const updated = comments.map(c =>
-    c.id === commentId
-      ? { ...c, replies: [...(c.replies || []), reply] }
-      : c
-  )
-  return fbWithTimeout(setDoc(ref, { ...ann, comments: updated }))
+  
+  return fbWithTimeout(runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref)
+    if (!snap.exists()) throw new Error('Announcement not found')
+    const ann = snap.data()
+    const comments = Array.isArray(ann.comments) ? ann.comments : []
+    const updated = comments.map(c =>
+      c.id === commentId
+        ? { ...c, replies: [...(c.replies || []), reply] }
+        : c
+    )
+    transaction.update(ref, { comments: updated })
+  }))
 }
 
 export async function fbPushAnnouncementNotifs(db, announcement, students) {
