@@ -56,19 +56,15 @@ export function DataProvider({ children }) {
     dbRef.current = db
     setFbReady(true)
 
-    // 3. Load admin credentials (localStorage primary, Firebase fallback)
-    // localStorage is preferred because saves are written there immediately;
-    // the Firebase write is non-blocking and may fail silently.
-    const local = await loadAdminFromStorage()
-    if (local?.pass) {
-      setAdmin(local)
+    // 3. Load admin credentials (Firebase primary, localStorage fallback)
+    // Firebase is preferred to always pick up credential changes made in the console.
+    const fbAdmin = await syncAdminFromFirebase(db)
+    if (fbAdmin) {
+      setAdmin(fbAdmin)
+      await persistAdmin(null, fbAdmin)
     } else {
-      const fbAdmin = await syncAdminFromFirebase(db)
-      if (fbAdmin) {
-        setAdmin(fbAdmin)
-        // Seed localStorage from Firebase so future offline loads work
-        await persistAdmin(null, fbAdmin)
-      }
+      const local = await loadAdminFromStorage()
+      if (local?.pass) setAdmin(local)
     }
 
     // 4. Load portal settings (equiv scale)
