@@ -7,7 +7,7 @@ import ThemeToggle from '@/components/primitives/ThemeToggle'
 import ToastManager from '@/components/primitives/ToastManager'
 import Dialog from '@/components/primitives/Dialog'
 import FloatingMessenger from './FloatingMessenger'
-import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss } from 'lucide-react'
+import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays } from 'lucide-react'
 
 // Lazy-load tabs
 const StreamTab        = lazy(() => import('./tabs/StreamTab'))
@@ -17,6 +17,7 @@ const AttendanceTab    = lazy(() => import('./tabs/AttendanceTab'))
 const ActivitiesTab    = lazy(() => import('./tabs/ActivitiesTab'))
 const NotificationsTab = lazy(() => import('./tabs/NotificationsTab'))
 const StudentQuizTab   = lazy(() => import('./tabs/QuizTab'))
+const CalendarTab      = lazy(() => import('./tabs/CalendarTab'))
 
 // Lazy-load modals
 const EditProfileModal         = lazy(() => import('./modals/EditProfileModal'))
@@ -31,6 +32,7 @@ const NAV_ITEMS = [
   { id: 'activities',    label: 'Activities',     Icon: ClipboardList },
   { id: 'quizzes',       label: 'Quizzes',        Icon: FileQuestion },
   { id: 'notifications', label: 'Notifications',  Icon: Bell },
+  { id: 'calendar',      label: 'Calendar',       Icon: CalendarDays },
 ]
 
 export default function StudentLayout() {
@@ -220,6 +222,7 @@ export default function StudentLayout() {
           {studentTab === 'activities'    && <ActivitiesTab    student={student} viewClassId={effectiveClassId} activities={activities} />}
           {studentTab === 'quizzes'       && <StudentQuizTab   student={student} viewClassId={effectiveClassId} />}
           {studentTab === 'notifications' && <NotificationsTab student={student} notifs={studentNotifs} setNotifs={setStudentNotifs} />}
+          {studentTab === 'calendar'     && <CalendarTab      student={student} viewClassId={effectiveClassId} classes={classes} />}
         </Suspense>
       </div>
 
