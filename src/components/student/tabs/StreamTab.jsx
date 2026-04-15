@@ -1,5 +1,62 @@
 import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
+
+const PAGE_SIZE = 10
+
+function getGroupLabel(ts) {
+  if (!ts) return 'Earlier'
+  const now = new Date()
+  const d = new Date(ts)
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const itemDay = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const diffDays = Math.round((today - itemDay) / 86400000)
+  if (diffDays === 0) return 'Today'
+  if (diffDays === 1) return 'Yesterday'
+  if (diffDays < 7) return d.toLocaleDateString('en-PH', { weekday: 'long' })
+  return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+const shimmerStyle = {
+  background: 'linear-gradient(90deg, var(--border) 25%, var(--surface) 50%, var(--border) 75%)',
+  backgroundSize: '800px 100%',
+  animation: 'shimmer 1.4s infinite linear',
+  borderRadius: 6,
+}
+
+function StreamSkeleton() {
+  return (
+    <>
+      <style>{`@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}`}</style>
+      {[0, 1, 2].map(i => (
+        <div key={i} className="stream-card" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <div style={{ ...shimmerStyle, width: 80, height: 18 }} />
+            <div style={{ ...shimmerStyle, width: 50, height: 14 }} />
+          </div>
+          <div style={{ ...shimmerStyle, width: '70%', height: 18 }} />
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ ...shimmerStyle, width: 90, height: 14 }} />
+            <div style={{ ...shimmerStyle, width: 70, height: 14 }} />
+          </div>
+          <div style={{ ...shimmerStyle, width: 120, height: 12 }} />
+        </div>
+      ))}
+    </>
+  )
+}
+
+function Pagination({ page, total, pageSize, onPrev, onNext }) {
+  if (total === 0) return null
+  const from = page * pageSize + 1
+  const to = Math.min((page + 1) * pageSize, total)
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 12, fontSize: 13, color: 'var(--ink2)' }}>
+      <button className="btn btn-ghost btn-sm" onClick={onPrev} disabled={page === 0}>← Prev</button>
+      <span>Showing {from}–{to} of {total}</span>
+      <button className="btn btn-ghost btn-sm" onClick={onNext} disabled={to >= total}>Next →</button>
+    </div>
+  )
+}
 import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, Clock, CheckCircle2, XCircle, AlertCircle, Award, Video, Link } from 'lucide-react'
 
 function timeAgo(ms) {
@@ -260,8 +317,9 @@ function AttendanceCard({ item, classObj }) {
 }
 
 export default function StreamTab({ student, viewClassId, classes }) {
-  const { activities, quizzes, announcements } = useData()
+  const { activities, quizzes, announcements, fbReady } = useData()
   const [filterType, setFilterType] = useState('all')
+  const [streamPage, setStreamPage] = useState(0)
 
   const studentClassIds = useMemo(() => {
     if (!student) return []
@@ -354,6 +412,14 @@ export default function StreamTab({ student, viewClassId, classes }) {
     return classes.find(c => c.id === item.classId) || null
   }
 
+  if (!fbReady) {
+    return (
+      <div style={{ paddingBottom: 32, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <StreamSkeleton />
+      </div>
+    )
+  }
+
   return (
     <div style={{ paddingBottom: 32 }}>
       {/* Filter */}
@@ -362,7 +428,7 @@ export default function StreamTab({ student, viewClassId, classes }) {
           className="form-input"
           style={{ fontSize: 13, width: '100%', maxWidth: 220 }}
           value={filterType}
-          onChange={e => setFilterType(e.target.value)}
+          onChange={e => { setFilterType(e.target.value); setStreamPage(0) }}
         >
           <option value="all">All Updates</option>
           <option value="announcement">Announcements</option>
@@ -380,16 +446,28 @@ export default function StreamTab({ student, viewClassId, classes }) {
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {streamItems.map(item => {
+        {streamItems.slice(streamPage * PAGE_SIZE, (streamPage + 1) * PAGE_SIZE).map((item, idx, arr) => {
           const classObj = getClassObj(item)
-          if (item.type === 'announcement') return <AnnouncementCard key={item.id} item={item} classObj={classObj} />
-          if (item.type === 'activity') return <ActivityCard key={item.id} item={item} classObj={classObj} student={student} />
-          if (item.type === 'quiz') return <QuizCard key={item.id} item={item} classObj={classObj} student={student} />
-          if (item.type === 'grade') return <GradeCard key={item.id} item={item} classObj={classObj} />
-          if (item.type === 'attendance') return <AttendanceCard key={item.id} item={item} classObj={classObj} />
-          return null
+          const label = getGroupLabel(item.ts)
+          const prevLabel = idx > 0 ? getGroupLabel(arr[idx - 1].ts) : null
+          const showGroup = label !== prevLabel
+          return (
+            <React.Fragment key={item.id}>
+              {showGroup && (
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.08em', paddingTop: idx > 0 ? 8 : 0 }}>
+                  {label}
+                </div>
+              )}
+              {item.type === 'announcement' && <AnnouncementCard item={item} classObj={classObj} />}
+              {item.type === 'activity' && <ActivityCard item={item} classObj={classObj} student={student} />}
+              {item.type === 'quiz' && <QuizCard item={item} classObj={classObj} student={student} />}
+              {item.type === 'grade' && <GradeCard item={item} classObj={classObj} />}
+              {item.type === 'attendance' && <AttendanceCard item={item} classObj={classObj} />}
+            </React.Fragment>
+          )
         })}
       </div>
+      <Pagination page={streamPage} total={streamItems.length} pageSize={PAGE_SIZE} onPrev={() => setStreamPage(p => p - 1)} onNext={() => setStreamPage(p => p + 1)} />
     </div>
   )
 }
