@@ -771,12 +771,12 @@ function SubjectCard({ cls, sub, studs, eqScale, onEdit, onClear, onExport, onEx
               const { eq: midEq } = gradeInfo(midG, eqScale)
               const midPct = midG != null ? `${midG.toFixed(1)}%` : '—'
               const midEquiv = midG != null ? midEq : '—'
-              const midBadgeCls = midG != null ? (midG >= 75 ? 'green' : midG > 71 ? 'yellow' : 'red') : 'gray'
+              const midBadgeCls = midG != null ? (midG >= 75 ? 'green' : midG >= 72 ? 'yellow' : 'red') : 'gray'
 
               const { eq: finRawEq } = gradeInfo(finG, eqScale)
               const finPct  = finG != null ? `${finG.toFixed(1)}%` : '—'
               const finEquiv = finG != null ? finRawEq : '—'
-              const finBadgeCls = finG != null ? (finG >= 75 ? 'green' : finG > 71 ? 'yellow' : 'red') : 'gray'
+              const finBadgeCls = finG != null ? (finG >= 75 ? 'green' : finG >= 72 ? 'yellow' : 'red') : 'gray'
 
               // Per-student finals component progress (activities, quizzes/CS, exam)
               const hasFtActs = comp.finalsActivityScores && Object.keys(comp.finalsActivityScores).length > 0

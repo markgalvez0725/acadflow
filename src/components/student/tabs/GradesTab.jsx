@@ -296,7 +296,7 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
               <div className="sg-exam-label">Midterm Exam<span className="sg-exam-weight">used in Midterm Term</span></div>
               <div className="sg-exam-right">
                 <span className="sg-exam-pct" style={{ color: midG >= 75 ? 'var(--green)' : midG >= 60 ? 'var(--yellow)' : 'var(--red)' }}>{midG}%</span>
-                <span className={`badge ${midG >= 75 ? 'badge-green' : midG > 71 ? 'badge-yellow' : 'badge-red'}`}>{gradeInfo(midG, eqScale).eq}</span>
+                <span className={`badge ${midG >= 75 ? 'badge-green' : midG >= 72 ? 'badge-yellow' : 'badge-red'}`}>{gradeInfo(midG, eqScale).eq}</span>
               </div>
             </div>
           )}
@@ -305,7 +305,7 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
               <div className="sg-exam-label">Final Exam<span className="sg-exam-weight">used in Finals Term</span></div>
               <div className="sg-exam-right">
                 <span className="sg-exam-pct" style={{ color: finG >= 75 ? 'var(--green)' : finG >= 60 ? 'var(--yellow)' : 'var(--red)' }}>{finG}%</span>
-                <span className={`badge ${finG >= 75 ? 'badge-green' : finG > 71 ? 'badge-yellow' : 'badge-red'}`}>{gradeInfo(finG, eqScale).eq}</span>
+                <span className={`badge ${finG >= 75 ? 'badge-green' : finG >= 72 ? 'badge-yellow' : 'badge-red'}`}>{gradeInfo(finG, eqScale).eq}</span>
               </div>
             </div>
           )}

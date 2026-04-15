@@ -3,16 +3,16 @@
 // are passed as arguments instead of being read from module scope.
 
 export const DEFAULT_EQ_SCALE = [
-  { minScore: 99, eq: '1.00', ltr: 'A+', rem: 'Passed' },
-  { minScore: 95, eq: '1.25', ltr: 'A+', rem: 'Passed' },
-  { minScore: 92, eq: '1.50', ltr: 'A',  rem: 'Passed' },
-  { minScore: 89, eq: '1.75', ltr: 'A-', rem: 'Passed' },
-  { minScore: 86, eq: '2.00', ltr: 'B+', rem: 'Passed' },
-  { minScore: 83, eq: '2.25', ltr: 'B+', rem: 'Passed' },
-  { minScore: 80, eq: '2.50', ltr: 'B',  rem: 'Passed' },
-  { minScore: 77, eq: '2.75', ltr: 'B-', rem: 'Passed' },
-  { minScore: 74, eq: '3.00', ltr: 'C',  rem: 'Passed' },
-  { minScore: 71, eq: '4.00', ltr: 'D',  rem: 'Conditional' },
+  { minScore: 99, maxScore: 100, eq: '1.00', ltr: 'A+', rem: 'Passed' },
+  { minScore: 96, maxScore: 98,  eq: '1.25', ltr: 'A+', rem: 'Passed' },
+  { minScore: 93, maxScore: 95,  eq: '1.50', ltr: 'A',  rem: 'Passed' },
+  { minScore: 90, maxScore: 92,  eq: '1.75', ltr: 'A-', rem: 'Passed' },
+  { minScore: 87, maxScore: 89,  eq: '2.00', ltr: 'B+', rem: 'Passed' },
+  { minScore: 84, maxScore: 86,  eq: '2.25', ltr: 'B+', rem: 'Passed' },
+  { minScore: 81, maxScore: 83,  eq: '2.50', ltr: 'B',  rem: 'Passed' },
+  { minScore: 78, maxScore: 80,  eq: '2.75', ltr: 'B-', rem: 'Passed' },
+  { minScore: 75, maxScore: 77,  eq: '3.00', ltr: 'C',  rem: 'Passed' },
+  { minScore: 72, maxScore: 74,  eq: '4.00', ltr: 'D',  rem: 'Conditional' },
 ];
 
 // ── Grade percentage → equivalency lookup ─────────────────────────────────
@@ -20,7 +20,7 @@ export const DEFAULT_EQ_SCALE = [
 export function gradeInfo(g, eqScale = DEFAULT_EQ_SCALE) {
   if (g === null || g === undefined) return { eq: '—', ltr: '—', rem: 'No Grade' };
   for (const tier of eqScale) {
-    if (g >= tier.minScore) return { eq: tier.eq, ltr: tier.ltr, rem: tier.rem };
+    if (g >= tier.minScore && g <= tier.maxScore) return { eq: tier.eq, ltr: tier.ltr, rem: tier.rem };
   }
   return { eq: '5.00', ltr: 'F', rem: 'Failed' };
 }
