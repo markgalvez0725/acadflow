@@ -1,17 +1,17 @@
 // ── Input validation & login throttling ───────────────────────────────────
 
-const SNUM_PATTERN = /^[A-Za-z0-9\-]{1,10}$/;
+const SNUM_PATTERN = /^[A-Za-z0-9\-]{1,15}$/;
 
 export function validateSnum(snum) {
   if (!snum) return 'Student number is required.';
-  if (snum.length > 10) return 'Student number must be 10 characters or fewer.';
+  if (snum.length > 15) return 'Student number must be 15 characters or fewer.';
   if (!SNUM_PATTERN.test(snum)) return 'Student number may only contain letters, numbers, and dashes (-).';
   return null;
 }
 
-// Returns a sanitized version of the input value (strips invalid chars, max 10).
+// Returns a sanitized version of the input value (strips invalid chars, max 15).
 export function sanitizeSnum(value) {
-  return value.replace(/[^A-Za-z0-9\-]/g, '').slice(0, 10);
+  return value.replace(/[^A-Za-z0-9\-]/g, '').slice(0, 15);
 }
 
 // ── Login throttling ──────────────────────────────────────────────────────
