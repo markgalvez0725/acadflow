@@ -17,10 +17,13 @@ export const DEFAULT_EQ_SCALE = [
 
 // ── Grade percentage → equivalency lookup ─────────────────────────────────
 // eqScale defaults to DEFAULT_EQ_SCALE when not provided.
+// Uses threshold-only matching (g >= minScore) sorted highest-first so there
+// are no gaps between tiers when scores land on decimal values.
 export function gradeInfo(g, eqScale = DEFAULT_EQ_SCALE) {
   if (g === null || g === undefined) return { eq: '—', ltr: '—', rem: 'No Grade' };
-  for (const tier of eqScale) {
-    if (g >= tier.minScore && g <= tier.maxScore) return { eq: tier.eq, ltr: tier.ltr, rem: tier.rem };
+  const sorted = [...eqScale].sort((a, b) => b.minScore - a.minScore);
+  for (const tier of sorted) {
+    if (g >= tier.minScore) return { eq: tier.eq, ltr: tier.ltr, rem: tier.rem };
   }
   return { eq: '5.00', ltr: 'F', rem: 'Failed' };
 }

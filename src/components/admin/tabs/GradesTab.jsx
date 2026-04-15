@@ -10,7 +10,7 @@ import { exportGradingSheet, parseGradingSheetImport, exportCurrentGrades } from
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
-import { Clock, Pencil, BarChart2, Upload, Download, Trash2, BarChart } from 'lucide-react'
+import { Clock, Pencil, BarChart2, Upload, Download, Trash2, BarChart, RefreshCw } from 'lucide-react'
 
 const GRADE_PER_PAGE = 10
 
@@ -908,6 +908,61 @@ export default function GradesTab() {
     }
   }
 
+  async function handleRecompute() {
+    const studsInClass = students.filter(s => s.classId === effectiveId || s.classIds?.includes(effectiveId))
+    if (!studsInClass.length) return
+
+    const ok = await openDialog({
+      title: 'Recompute all grades?',
+      msg: `This will recompute final grades for all ${studsInClass.length} student${studsInClass.length !== 1 ? 's' : ''} in ${cls.name} ${cls.section} using their stored grade components (midterm term, finals term). Grades already at their correct values will not change.`,
+      type: 'warning',
+      confirmLabel: 'Recompute Grades',
+      showCancel: true,
+    })
+    if (!ok) return
+
+    const now = Date.now()
+    let updatedCount = 0
+
+    const updated = students.map(s => {
+      if (s.classId !== effectiveId && !s.classIds?.includes(effectiveId)) return s
+      const ns = {
+        ...s,
+        grades: { ...s.grades },
+        gradeComponents: { ...(s.gradeComponents || {}) },
+        gradeUploadedAt: { ...(s.gradeUploadedAt || {}) },
+      }
+
+      const subjects = Object.keys(ns.gradeComponents)
+      let changed = false
+      subjects.forEach(sub => {
+        const comp = ns.gradeComponents[sub]
+        if (!comp) return
+        const midG = comp.midterm ?? null
+        const finG = comp.finals  ?? null
+        if (midG === null && finG === null) return
+
+        const recomputed = computeFinalGradeFromTerms(midG, finG)
+        if (recomputed === null) return
+
+        ns.grades[sub] = recomputed
+        if (!ns.gradeUploadedAt[sub]) ns.gradeUploadedAt[sub] = now
+        changed = true
+      })
+
+      if (changed) updatedCount++
+      return ns
+    })
+
+    const changedIds = studsInClass.map(s => s.id)
+    try {
+      await saveStudents(updated, changedIds)
+      toast(`Recomputed grades for ${updatedCount} student${updatedCount !== 1 ? 's' : ''}.`, 'green')
+    } catch (e) {
+      toast('Recomputed locally — Firebase sync failed: ' + e.message, 'red')
+    }
+  }
+
   function handleExport(sub) {
     exportGradingSheet({ classId: effectiveId, subject: sub, students, classes, eqScale })
   }
@@ -1067,6 +1122,12 @@ export default function GradesTab() {
           placeholder="Search student…"
           value={search}
           onChange={e => setSearch(e.target.value)} />
+        {effectiveId && (
+          <button className="btn btn-ghost btn-sm" onClick={handleRecompute}
+            title="Recompute all final grades from stored grade components">
+            <RefreshCw size={13} className="inline-block mr-1" />Recompute Grades
+          </button>
+        )}
       </div>
 
       {!effectiveId ? (
