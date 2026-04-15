@@ -19,8 +19,6 @@ export default function EditProfileModal({ student: s, onClose }) {
   const [snum,   setSnum]   = useState(s.id      || '')
   const [course, setCourse] = useState(s.course  || '')
   const [year,   setYear]   = useState(s.year    || '1st Year')
-  const [dob,    setDob]    = useState(s.dob     || '')
-  const [mobile, setMobile] = useState(s.mobile  || '')
   const [email,  setEmail]  = useState(s.account?.email || '')
   const [photo,  setPhoto]  = useState(s.photo   || null)
   const [error,  setError]  = useState('')
@@ -110,8 +108,6 @@ export default function EditProfileModal({ student: s, onClose }) {
         name: trimName,
         course: trimCourse,
         year,
-        dob,
-        mobile: mobile.trim(),
         photo: photo || null,
         account: { ...(s.account || {}), email: finalEmail },
       }
@@ -216,16 +212,6 @@ export default function EditProfileModal({ student: s, onClose }) {
           <select className="input" value={year} onChange={e => setYear(e.target.value)}>
             {YEAR_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Date of Birth</label>
-          <input className="input" type="date" value={dob} onChange={e => setDob(e.target.value)} />
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Mobile Number</label>
-          <input className="input" type="tel" value={mobile} onChange={e => setMobile(e.target.value)} placeholder="e.g. 09XXXXXXXXX" />
         </div>
 
         {/* Email */}

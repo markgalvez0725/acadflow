@@ -22,8 +22,6 @@ function AddStudentModal({ onClose }) {
   const [snum, setSnum]         = useState('')
   const [course, setCourse]     = useState('')
   const [year, setYear]         = useState('1st Year')
-  const [mobile, setMobile]     = useState('')
-  const [dob, setDob]           = useState('')
   const [classId, setClassId]   = useState('')
   const [extraIds, setExtraIds] = useState([])
   const [setPass, setSetPass]   = useState(false)
@@ -48,8 +46,8 @@ function AddStudentModal({ onClose }) {
     if (snumErr) { setErr(snumErr); return }
     if (!course.trim()) { setErr('Course/Program is required.'); return }
     if (students.find(s => s.id === id)) { setErr(`⛔ Student number "${id}" already exists.`); return }
-    if (name && dob && students.find(s => s.name.toLowerCase() === name.trim().toLowerCase() && s.dob === dob)) {
-      setErr('⛔ A student with this name and date of birth already exists.'); return
+    if (name && students.find(s => s.name.toLowerCase() === name.trim().toLowerCase())) {
+      setErr('⛔ A student with this name already exists.'); return
     }
 
     let account
@@ -77,7 +75,7 @@ function AddStudentModal({ onClose }) {
 
     setSaving(true)
     try {
-      const newStudent = { id, name: name.trim(), course: course.trim(), year, mobile: mobile.trim(), dob, classId: classId || null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account }
+      const newStudent = { id, name: name.trim(), course: course.trim(), year, classId: classId || null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account }
       await saveStudents([...students, newStudent], [id])
       toast('Student added!', 'green')
       onClose()
@@ -113,16 +111,6 @@ function AddStudentModal({ onClose }) {
           <select value={year} onChange={e => setYear(e.target.value)}>
             <option>1st Year</option><option>2nd Year</option><option>3rd Year</option><option>4th Year</option>
           </select>
-        </div>
-      </div>
-      <div className="input-row">
-        <div className="field">
-          <label>Date of Birth</label>
-          <input type="date" value={dob} onChange={e => setDob(e.target.value)} />
-        </div>
-        <div className="field">
-          <label>Mobile Number</label>
-          <input value={mobile} onChange={e => setMobile(e.target.value)} placeholder="+63 900 000 0000" />
         </div>
       </div>
       <div className="field">
@@ -199,11 +187,8 @@ function EditStudentModal({ student, onClose }) {
   const { classes, students, saveStudents } = useData()
   const { toast } = useUI()
 
-  const [name, setName]       = useState(student.name)
   const [course, setCourse]   = useState(student.course || '')
   const [year, setYear]       = useState(student.year || '1st Year')
-  const [mobile, setMobile]   = useState(student.mobile || '')
-  const [dob, setDob]         = useState(student.dob || '')
   const [classId, setClassId] = useState(student.classId || '')
   const [extraIds, setExtraIds] = useState(
     (student.classIds || []).filter(id => id !== student.classId)
@@ -226,18 +211,14 @@ function EditStudentModal({ student, onClose }) {
 
   async function handleSave() {
     setErr('')
-    if (!name.trim() || !course.trim()) { setErr('Name and course are required.'); return }
-    if (dob) {
-      const dup = students.find(x => x.id !== student.id && x.name.toLowerCase() === name.trim().toLowerCase() && x.dob === dob)
-      if (dup) { setErr(`⛔ Another student named "${dup.name}" with this DOB already exists (${dup.id}).`); return }
-    }
+    if (!course.trim()) { setErr('Course is required.'); return }
 
     const newClassId = classId || null
     const allClassIds = [...new Set([newClassId, ...extraIds].filter(Boolean))]
 
     const updatedStudents = students.map(s => {
       if (s.id !== student.id) return s
-      const ns = { ...s, name: name.trim(), course: course.trim(), year, mobile: mobile.trim(), dob, classId: newClassId, classIds: allClassIds, grades: { ...s.grades }, attendance: { ...s.attendance }, excuse: { ...s.excuse } }
+      const ns = { ...s, course: course.trim(), year, classId: newClassId, classIds: allClassIds, grades: { ...s.grades }, attendance: { ...s.attendance }, excuse: { ...s.excuse } }
       if (s.gradeComponents) ns.gradeComponents = { ...s.gradeComponents }
       allClassIds.forEach(cid => {
         const cls = classes.find(c => c.id === cid)
@@ -266,12 +247,12 @@ function EditStudentModal({ student, onClose }) {
   return (
     <Modal onClose={onClose} maxWidth={600}>
       <h3>✏️ Edit Student</h3>
-      <p className="modal-sub">Update student information. Student number cannot be changed.</p>
+      <p className="modal-sub">Update student information. Name and student number cannot be changed here.</p>
       {err && <div className="err-msg mb-3">{err}</div>}
       <div className="input-row">
         <div className="field">
-          <label>Full Name <span className="text-red-500">*</span></label>
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="Juan dela Cruz" />
+          <label>Full Name <span className="text-ink3 font-normal">(read-only — contact support to change)</span></label>
+          <input value={student.name} readOnly style={{ background: 'var(--border)', color: 'var(--ink2)', cursor: 'not-allowed' }} />
         </div>
         <div className="field">
           <label>Student Number <span className="text-ink3 font-normal">(read-only)</span></label>
@@ -288,16 +269,6 @@ function EditStudentModal({ student, onClose }) {
           <select value={year} onChange={e => setYear(e.target.value)}>
             <option>1st Year</option><option>2nd Year</option><option>3rd Year</option><option>4th Year</option>
           </select>
-        </div>
-      </div>
-      <div className="input-row">
-        <div className="field">
-          <label>Date of Birth</label>
-          <input type="date" value={dob} onChange={e => setDob(e.target.value)} />
-        </div>
-        <div className="field">
-          <label>Mobile Number</label>
-          <input value={mobile} onChange={e => setMobile(e.target.value)} placeholder="+63 900 000 0000" />
         </div>
       </div>
 
