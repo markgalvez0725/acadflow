@@ -121,10 +121,13 @@ export function AuthProvider({ children }) {
     }
     const storedHash = student.account?.pass ?? student.pass
     let match = await verifyPassword(password, storedHash)
-    // Fallback: student exists but has no stored password (pre-account migration).
-    // Accept the default password so they can log in and be forced to change it.
+    // Fallback 1: student has no stored password (pre-account migration).
+    // Fallback 2: student was admin-added with a temp password (_tempPass: true).
+    //   Their hash may have been created with a different salt (before the salt was
+    //   hardcoded), so we accept the literal default password as a bypass so they
+    //   can log in and be forced to change it on first login.
     const DEFAULT_PASS = 'Welcome@2026'
-    if (!match && !storedHash && password === DEFAULT_PASS) {
+    if (!match && password === DEFAULT_PASS && (!storedHash || student.account?._tempPass)) {
       match = true
     }
     if (!match) {
@@ -132,7 +135,7 @@ export function AuthProvider({ children }) {
       return { ok: false, msg: 'Incorrect password.' }
     }
     clearAttempts(key)
-    const needsPassSetup = !storedHash || student.forceChangePassword
+    const needsPassSetup = !storedHash || student.forceChangePassword || !!student.account?._tempPass
     _startSession('student', student)
     return { ok: true, student, forceChange: needsPassSetup }
   }, [])
