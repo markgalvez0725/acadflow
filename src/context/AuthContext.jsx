@@ -5,12 +5,15 @@ import { isLockedOut, recordFailedAttempt, clearAttempts } from '@/utils/validat
 
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
 const SESSION_KEY = 'cp_session'
+const LAST_LOGIN_PREFIX = 'cp_lastlogin_'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const [sessionRole, setSessionRole]       = useState(null) // 'admin' | 'student' | null
   const [currentStudent, setCurrentStudent] = useState(null)
+  const [loginTime, setLoginTime]           = useState(null) // ms timestamp of current login
+  const [lastLogin, setLastLogin]           = useState(null) // ms timestamp of previous login
   const sessionTimerRef = useRef(null)
   // OTP sessions: { ctx: { code, expires, email } }
   const otpSessionsRef = useRef({})
@@ -62,12 +65,29 @@ export function AuthProvider({ children }) {
   }
 
   function _startSession(role, studentObj = null) {
+    const now = Date.now()
+    const lastLoginKey = LAST_LOGIN_PREFIX + (role === 'admin' ? 'admin' : (studentObj?.id || 'student'))
+
+    // Read previous session's timestamp to use as lastLogin
+    let prevTs = null
     try {
-      localStorage.setItem(SESSION_KEY, JSON.stringify({ role, studentId: studentObj?.id || null, ts: Date.now() }))
+      const prev = localStorage.getItem(lastLoginKey)
+      if (prev) prevTs = JSON.parse(prev).ts
     } catch (e) {}
+
+    // Save this login time for next session's lastLogin reference
+    try { localStorage.setItem(lastLoginKey, JSON.stringify({ ts: now })) } catch (e) {}
+
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ role, studentId: studentObj?.id || null, ts: now, loginTime: now, lastLogin: prevTs }))
+    } catch (e) {}
+
     // Replace the current history entry so pressing Back after login
     // does not return to the login page.
     try { history.replaceState(null, '', window.location.href) } catch (e) {}
+
+    setLoginTime(now)
+    setLastLogin(prevTs)
     setSessionRole(role)
     setCurrentStudent(studentObj)
   }
@@ -83,6 +103,8 @@ export function AuthProvider({ children }) {
         return
       }
       setSessionRole(sess.role)
+      setLoginTime(sess.loginTime || null)
+      setLastLogin(sess.lastLogin || null)
       // currentStudent will be populated from DataContext.students once loaded
       if (sess.studentId) {
         // Defer: store the ID and AppRouter/StudentLayout will match it
@@ -147,6 +169,8 @@ export function AuthProvider({ children }) {
     otpSessionsRef.current = {}
     setSessionRole(null)
     setCurrentStudent(null)
+    setLoginTime(null)
+    setLastLogin(null)
     if (reason === 'timeout') {
       console.log('[Auth] Session expired — logged out.')
     }
@@ -171,6 +195,7 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       sessionRole, currentStudent, setCurrentStudent,
+      loginTime, lastLogin,
       loginAdmin, loginStudent, logout,
       createOTP, checkOTP, clearOTP,
       hashPassword,

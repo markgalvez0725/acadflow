@@ -4,6 +4,7 @@ import { useUI } from '@/context/UIContext'
 import { useData } from '@/context/DataContext'
 import { useAuth } from '@/context/AuthContext'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
+import SessionChip from '@/components/primitives/SessionChip'
 import ToastManager from '@/components/primitives/ToastManager'
 import Dialog from '@/components/primitives/Dialog'
 import FloatingMessenger from './FloatingMessenger'
@@ -38,7 +39,7 @@ const NAV_ITEMS = [
 export default function StudentLayout() {
   const { studentTab, setStudentTab, toastQueue, dismissToast, dialog, resolveDialog, toast } = useUI()
   const { students, classes, messages, activities, quizzes, db, fbReady } = useData()
-  const { currentStudent, setCurrentStudent, logout } = useAuth()
+  const { currentStudent, setCurrentStudent, logout, loginTime, lastLogin } = useAuth()
 
   // Resolve pending student (session restore — only id is known until students load)
   const [student, setStudent] = useState(() =>
@@ -208,6 +209,7 @@ export default function StudentLayout() {
               ))}
             </select>
           )}
+          <SessionChip name={student.name || 'Student'} loginTime={loginTime} lastLogin={lastLogin} />
           <ThemeToggle style={{ position: 'static', width: 32, height: 32, fontSize: 14 }} />
         </div>
       </div>

@@ -520,6 +520,13 @@ function ImportStudentsModal({ onClose }) {
         </div>
       )}
 
+      {/* Default password reminder */}
+      <div className="bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800/50 rounded-lg px-3 py-2 mb-3 text-xs text-yellow-800 dark:text-yellow-300">
+        <strong>Default password for imported students:</strong>{' '}
+        <code className="font-mono bg-yellow-100 dark:bg-yellow-900/50 px-1 rounded">Welcome@2026</code>
+        {' '}— students will be required to change it on first login.
+      </div>
+
       <div className="modal-footer">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
         <button className="btn btn-primary" onClick={handleImport} disabled={saving || !validRows.length}>
