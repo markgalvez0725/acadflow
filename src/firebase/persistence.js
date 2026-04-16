@@ -320,7 +320,7 @@ export async function fbPushMeetingNotifs(db, meeting, students, type) {
         const ref = fbDoc(db, 'notifications', s.id);
         const snap = await getDoc(ref);
         const existing = snap.exists() ? (snap.data().items || []) : [];
-        await setDoc(ref, { items: [notif, ...existing] }, { merge: false });
+        await setDoc(ref, { items: [notif, ...existing].slice(0, 200) }, { merge: false });
       } catch (e) {
         console.warn('[FB] fbPushMeetingNotifs student:', s.id, e.message);
       }
