@@ -50,7 +50,7 @@ export default function ForceChangePasswordModal({ student: s, onClose, forced =
         if (x.id !== s.id) return x
         const updated = { ...x }
         if (!updated.account) updated.account = {}
-        updated.account = { ...updated.account, pass: hashed }
+        updated.account = { ...updated.account, pass: hashed, activated: true }
         delete updated.account._tempPass
         delete updated.forceChangePassword
         return updated
