@@ -16,7 +16,7 @@ const EyeIcon = ({ visible }) => visible
 // Modes: 'student' | 'register' | 'reg-sq' | 'forgot' | 'fp-sq'
 export default function LoginScreen() {
   const { loginStudent } = useAuth()
-  const { students, saveStudents } = useData()
+  const { students, saveStudents, fbReady } = useData()
   const { theme } = useUI()
 
   const [mode, setMode]       = useState('student')
@@ -178,6 +178,9 @@ export default function LoginScreen() {
   async function handleFpStep1(e) {
     e.preventDefault()
     clearMessages()
+    if (!fbReady || students.length === 0) {
+      return setErr('Student data is still loading. Please wait a moment and try again.')
+    }
     setLoading(true)
     try {
       const s = students.find(x => x.id.toLowerCase() === fpSnum.trim().toLowerCase())
