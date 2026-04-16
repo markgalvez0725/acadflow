@@ -257,8 +257,6 @@ function CalendarView({ presentSet, excuseSet, adminDates, year, month, onNav })
   for (let i = 0; i < firstDay; i++) days.push(null)
   for (let d = 1; d <= daysInMonth; d++) days.push(d)
 
-  if (!fbReady) return <SkeletonTable />
-
   return (
     <div className="sa-cal-wrap">
       <div className="sa-cal-header">
