@@ -98,6 +98,9 @@ export default function StudentLayout() {
     if (fresh) setStudent(fresh)
   }, [students])
 
+  // Nav collapsed state
+  const [navCollapsed, setNavCollapsed] = useState(false)
+
   // Force change password modal
   const [forcePassOpen,    setForcePassOpen]    = useState(false)
   const [forcePassIsForced, setForcePassIsForced] = useState(false)
@@ -228,8 +231,8 @@ export default function StudentLayout() {
         </Suspense>
       </div>
 
-      {/* Bottom nav */}
-      <nav className="student-bottom-nav">
+      {/* Bottom nav — floating pill */}
+      <nav className={`student-bottom-nav${navCollapsed ? ' collapsed' : ''}`}>
         {NAV_ITEMS.map(item => {
           const badge = item.id === 'notifications' ? unreadNotifCount : item.id === 'quizzes' ? openQuizCount : item.id === 'activities' ? openActivityCount : 0
           return (
@@ -237,13 +240,14 @@ export default function StudentLayout() {
               key={item.id}
               className={`nav-item ${studentTab === item.id ? 'active' : ''}`}
               onClick={() => setStudentTab(item.id)}
+              title={item.label}
             >
-              <span className="nav-icon" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <item.Icon size={20} />
+              <span className="nav-icon" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <item.Icon size={18} />
                 {badge > 0 && (
                   <span style={{
                     position: 'absolute', top: -4, right: -6,
-                    background: '#ef4444', color: '#fff',
+                    background: 'var(--accent)', color: '#fff',
                     borderRadius: 10, fontSize: 9, fontWeight: 700,
                     padding: '0 4px', lineHeight: '14px', minWidth: 14,
                     textAlign: 'center',
@@ -256,6 +260,20 @@ export default function StudentLayout() {
             </button>
           )
         })}
+        {/* Collapse toggle */}
+        <button
+          className="nav-item"
+          onClick={() => setNavCollapsed(c => !c)}
+          title={navCollapsed ? 'Expand nav' : 'Collapse nav'}
+        >
+          <span className="nav-icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {navCollapsed
+              ? <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              : <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 4L6 8l4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            }
+          </span>
+          <span className="nav-label">{navCollapsed ? 'More' : 'Less'}</span>
+        </button>
       </nav>
 
       {/* Modals */}
