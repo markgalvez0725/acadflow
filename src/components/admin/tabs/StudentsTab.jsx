@@ -1,12 +1,12 @@
 import React, { useState, useMemo, useRef, lazy, Suspense } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { hashPassword } from '@/utils/crypto'
+import { hashPassword, generateRandomPassword } from '@/utils/crypto'
 import { validateSnum } from '@/utils/validate'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
-import { Download, Upload, FileDown } from 'lucide-react'
+import { Download, Upload, FileDown, KeyRound } from 'lucide-react'
 
 const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
 
@@ -338,6 +338,85 @@ function EditStudentModal({ student, onClose }) {
   )
 }
 
+// ── Reset Password Modal ──────────────────────────────────────────────
+function ResetPasswordModal({ student, onClose }) {
+  const { students, saveStudents } = useData()
+  const { toast } = useUI()
+
+  const [password]          = useState(() => generateRandomPassword())
+  const [copied, setCopied] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [err, setErr]       = useState('')
+
+  async function handleReset() {
+    setSaving(true)
+    setErr('')
+    try {
+      const hashed = await hashPassword(password)
+      const updated = students.map(s =>
+        s.id !== student.id
+          ? s
+          : { ...s, account: { ...s.account, pass: hashed, _tempPass: true } }
+      )
+      await saveStudents(updated, [student.id])
+      toast('Password reset! Share the new password with the student.', 'green')
+      onClose()
+    } catch (e) {
+      setErr('Failed to reset password: ' + e.message)
+      setSaving(false)
+    }
+  }
+
+  function handleCopy() {
+    navigator.clipboard.writeText(password).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <Modal onClose={onClose} maxWidth={420}>
+      <h3>🔑 Reset Password</h3>
+      <p className="modal-sub">
+        A new random password has been generated for <strong>{student.name}</strong>.
+        The student will be required to change it on next login.
+      </p>
+
+      {err && <div className="err-msg mb-3">{err}</div>}
+
+      <div className="field mb-4">
+        <label>Generated Password</label>
+        <div className="flex items-center gap-2">
+          <code
+            className="flex-1 font-mono text-base bg-bg border border-border rounded-lg px-3 py-2 select-all tracking-widest"
+            style={{ letterSpacing: '0.1em' }}
+          >
+            {password}
+          </code>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={handleCopy}
+            title="Copy to clipboard"
+            style={{ flexShrink: 0 }}
+          >
+            {copied ? '✓ Copied' : '📋 Copy'}
+          </button>
+        </div>
+        <div className="text-xs text-ink3 mt-1">
+          Copy this password and share it with the student before confirming.
+        </div>
+      </div>
+
+      <div className="modal-footer">
+        <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
+        <button className="btn btn-primary" onClick={handleReset} disabled={saving}>
+          {saving ? 'Resetting…' : 'Confirm Reset'}
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
 // ── CSV helpers ───────────────────────────────────────────────────────
 function exportRosterCSV(students, classes) {
   const headers = ['Student No.', 'Full Name', 'Course', 'Year Level', 'Date of Birth', 'Mobile', 'Primary Class', 'Email', 'Account Status']
@@ -532,6 +611,7 @@ export default function StudentsTab() {
   const [showImport, setShowImport]       = useState(false)
   const [editStudent, setEditStudent]     = useState(null)
   const [exportStudent, setExportStudent] = useState(null)
+  const [resetStudent, setResetStudent]   = useState(null)
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -705,6 +785,15 @@ export default function StudentsTab() {
                             <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1 12l1.5-.4 7-7a1 1 0 000-1.4L8.8 2.5a1 1 0 00-1.4 0l-7 7L1 12z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/></svg>
                             Edit
                           </button>
+                          {s.account?.registered && (
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => setResetStudent(s)}
+                              title="Reset password"
+                            >
+                              <KeyRound size={13} />
+                            </button>
+                          )}
                           <button className="btn btn-ghost btn-sm" onClick={() => setExportStudent(s)} title="Export student report">
                             <FileDown size={13} />
                           </button>
@@ -729,6 +818,7 @@ export default function StudentsTab() {
       {showAdd      && <AddStudentModal onClose={() => setShowAdd(false)} />}
       {showImport   && <ImportStudentsModal onClose={() => setShowImport(false)} />}
       {editStudent  && <EditStudentModal student={editStudent} onClose={() => setEditStudent(null)} />}
+      {resetStudent && <ResetPasswordModal student={resetStudent} onClose={() => setResetStudent(null)} />}
       {exportStudent && (
         <Suspense fallback={null}>
           <ExportPreviewModal
