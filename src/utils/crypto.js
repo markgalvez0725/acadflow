@@ -141,3 +141,28 @@ export async function readStoredEJS(raw) {
   } catch (e) {}
   return null;
 }
+
+// ── Random password generator ─────────────────────────────────────────────
+export function generateRandomPassword() {
+  const upper   = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+  const lower   = 'abcdefghjkmnpqrstuvwxyz'
+  const digits  = '23456789'
+  const symbols = '!@#$%^&*'
+  const all     = upper + lower + digits + symbols
+
+  const rand = (charset) => charset[crypto.getRandomValues(new Uint8Array(1))[0] % charset.length]
+
+  // Guarantee at least one of each required character type
+  const required = [rand(upper), rand(lower), rand(digits), rand(symbols)]
+
+  // Fill remaining 4 characters from full set
+  const extra = Array.from({ length: 4 }, () => rand(all))
+
+  // Fisher-Yates shuffle so required chars aren't always at fixed positions
+  const chars = [...required, ...extra]
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = crypto.getRandomValues(new Uint8Array(1))[0] % (i + 1)
+    ;[chars[i], chars[j]] = [chars[j], chars[i]]
+  }
+  return chars.join('')
+}
