@@ -3,7 +3,7 @@ import { useUI } from '@/context/UIContext'
 import { useData } from '@/context/DataContext'
 import { useAuth } from '@/context/AuthContext'
 import AdminSidebar from './AdminSidebar'
-import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
+import { SkeletonRows, TabErrorBoundary } from '@/components/primitives/SkeletonLoader'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 import SessionChip from '@/components/primitives/SessionChip'
 import ToastManager from '@/components/primitives/ToastManager'
@@ -121,18 +121,20 @@ export default function AdminLayout() {
           )}
 
           {/* Tab panels */}
-          <Suspense fallback={<SkeletonRows />}>
-            {adminTab === 'stream'         && <StreamTab />}
-            {adminTab === 'dashboard'     && <DashboardTab />}
-            {adminTab === 'classes'       && <ClassesTab />}
-            {adminTab === 'students'      && <StudentsTab />}
-            {adminTab === 'grades'        && <GradesTab />}
-            {adminTab === 'attendance'    && <AttendanceTab />}
-            {adminTab === 'activities'    && <ActivitiesTab />}
-            {adminTab === 'quizzes'        && <QuizTab />}
-            {adminTab === 'notifications'  && <NotificationsTab />}
-            {adminTab === 'calendar'       && <CalendarTab />}
-          </Suspense>
+          <TabErrorBoundary key={adminTab}>
+            <Suspense fallback={<SkeletonRows />}>
+              {adminTab === 'stream'         && <StreamTab />}
+              {adminTab === 'dashboard'     && <DashboardTab />}
+              {adminTab === 'classes'       && <ClassesTab />}
+              {adminTab === 'students'      && <StudentsTab />}
+              {adminTab === 'grades'        && <GradesTab />}
+              {adminTab === 'attendance'    && <AttendanceTab />}
+              {adminTab === 'activities'    && <ActivitiesTab />}
+              {adminTab === 'quizzes'        && <QuizTab />}
+              {adminTab === 'notifications'  && <NotificationsTab />}
+              {adminTab === 'calendar'       && <CalendarTab />}
+            </Suspense>
+          </TabErrorBoundary>
         </div>
       </div>
 

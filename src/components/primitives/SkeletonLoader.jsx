@@ -1,5 +1,28 @@
 import React from 'react'
 
+export class TabErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props)
+    this.state = { error: null }
+  }
+  static getDerivedStateFromError(error) {
+    return { error }
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 24, color: 'var(--red)', background: 'var(--red-l)', borderRadius: 'var(--radius)', margin: 8 }}>
+          <strong>Something went wrong loading this tab.</strong>
+          <pre style={{ marginTop: 8, fontSize: 11, whiteSpace: 'pre-wrap', color: 'inherit', opacity: .8 }}>
+            {this.state.error?.message}
+          </pre>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 export function SkeletonStatGrid({ count = 4 }) {
   return (
     <div className="grid grid-cols-2 gap-3 mb-4" style={{ gridTemplateColumns: `repeat(${count}, 1fr)` }}>

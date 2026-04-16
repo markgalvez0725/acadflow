@@ -8,7 +8,7 @@ import SessionChip from '@/components/primitives/SessionChip'
 import ToastManager from '@/components/primitives/ToastManager'
 import Dialog from '@/components/primitives/Dialog'
 import FloatingMessenger from './FloatingMessenger'
-import { SkeletonRows, SkeletonDashboard } from '@/components/primitives/SkeletonLoader'
+import { SkeletonRows, SkeletonDashboard, TabErrorBoundary } from '@/components/primitives/SkeletonLoader'
 import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays } from 'lucide-react'
 
 // Lazy-load tabs
@@ -220,16 +220,18 @@ export default function StudentLayout() {
 
       {/* Tab content */}
       <div className="student-body">
-        <Suspense fallback={<SkeletonRows />}>
-          {studentTab === 'stream'        && <StreamTab        student={student} viewClassId={effectiveClassId} classes={classes} />}
-          {studentTab === 'overview'      && <OverviewTab      student={student} viewClassId={effectiveClassId} classes={classes} />}
-          {studentTab === 'grades'        && <GradesTab        student={student} viewClassId={effectiveClassId} classes={classes} />}
-          {studentTab === 'attendance'    && <AttendanceTab    student={student} viewClassId={effectiveClassId} classes={classes} />}
-          {studentTab === 'activities'    && <ActivitiesTab    student={student} viewClassId={effectiveClassId} activities={activities} />}
-          {studentTab === 'quizzes'       && <StudentQuizTab   student={student} viewClassId={effectiveClassId} />}
-          {studentTab === 'notifications' && <NotificationsTab student={student} notifs={studentNotifs} setNotifs={setStudentNotifs} />}
-          {studentTab === 'calendar'     && <CalendarTab      student={student} viewClassId={effectiveClassId} classes={classes} />}
-        </Suspense>
+        <TabErrorBoundary key={studentTab}>
+          <Suspense fallback={<SkeletonRows />}>
+            {studentTab === 'stream'        && <StreamTab        student={student} viewClassId={effectiveClassId} classes={classes} />}
+            {studentTab === 'overview'      && <OverviewTab      student={student} viewClassId={effectiveClassId} classes={classes} />}
+            {studentTab === 'grades'        && <GradesTab        student={student} viewClassId={effectiveClassId} classes={classes} />}
+            {studentTab === 'attendance'    && <AttendanceTab    student={student} viewClassId={effectiveClassId} classes={classes} />}
+            {studentTab === 'activities'    && <ActivitiesTab    student={student} viewClassId={effectiveClassId} activities={activities} />}
+            {studentTab === 'quizzes'       && <StudentQuizTab   student={student} viewClassId={effectiveClassId} />}
+            {studentTab === 'notifications' && <NotificationsTab student={student} notifs={studentNotifs} setNotifs={setStudentNotifs} />}
+            {studentTab === 'calendar'     && <CalendarTab      student={student} viewClassId={effectiveClassId} classes={classes} />}
+          </Suspense>
+        </TabErrorBoundary>
       </div>
 
       {/* Bottom nav — floating pill */}
