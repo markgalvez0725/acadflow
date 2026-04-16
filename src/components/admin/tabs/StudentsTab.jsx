@@ -312,9 +312,19 @@ function EditStudentModal({ student, onClose }) {
       <div className="field">
         <label>Account Status</label>
         <div className="py-2">
-          {student.account?.registered
-            ? <Badge variant="green">✅ Active Account ({student.account.email || '—'})</Badge>
-            : <Badge variant="gray">No account yet</Badge>}
+          {!student.account?.registered
+            ? <Badge variant="gray">No account yet</Badge>
+            : student.account?.activated
+              ? <Badge variant="green">✅ Active ({student.account.email || '—'})</Badge>
+              : <Badge variant="yellow">⏳ Pending — not yet activated</Badge>}
+          {student.account?.firstLoginAt && (
+            <div className="text-xs text-ink3 mt-1">
+              First login: {new Date(student.account.firstLoginAt).toLocaleString('en-US', {
+                month: 'short', day: 'numeric', year: 'numeric',
+                hour: 'numeric', minute: '2-digit',
+              })}
+            </div>
+          )}
         </div>
       </div>
 
