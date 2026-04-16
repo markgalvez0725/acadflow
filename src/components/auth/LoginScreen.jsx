@@ -13,7 +13,7 @@ const EyeIcon = ({ visible }) => visible
   ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
   : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
 
-// Modes: 'student' | 'register' | 'reg-sq' | 'forgot' | 'fp-sq'
+// Modes: 'student' | 'register' | 'reg-sq' | 'forgot' | 'fp-set-sq' | 'fp-sq'
 export default function LoginScreen() {
   const { loginStudent } = useAuth()
   const { students, saveStudents, fbReady } = useData()
@@ -48,6 +48,10 @@ export default function LoginScreen() {
   const [fpAnswer,   setFpAnswer]   = useState('')
   const [fpNewPass,  setFpNewPass]  = useState('')
   const [fpNewPass2, setFpNewPass2] = useState('')
+
+  // Forgot — set security question (for legacy accounts without one)
+  const [fpSetSqKey,    setFpSetSqKey]    = useState('')
+  const [fpSetSqAnswer, setFpSetSqAnswer] = useState('')
 
   // Show/hide password toggles
   const [showPass,     setShowPass]     = useState(false)
@@ -190,14 +194,46 @@ export default function LoginScreen() {
       if (!s.account?.registered) {
         return setErr('This account has not been registered yet. Please register first.')
       }
-      if (!s.account?.securityQuestion) {
-        return setErr('No security question set for this account. Please contact your teacher.')
-      }
       setFpPending({ snum: s.id })
+      if (!s.account?.securityQuestion) {
+        // Legacy account — let them set a security question first
+        setFpSetSqKey('')
+        setFpSetSqAnswer('')
+        setMode('fp-set-sq')
+      } else {
+        setFpAnswer('')
+        setFpNewPass('')
+        setFpNewPass2('')
+        setMode('fp-sq')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ── Forgot Step 1b — set security question for legacy accounts ──────────
+  async function handleFpSetSq(e) {
+    e.preventDefault()
+    clearMessages()
+    if (!fpSetSqKey) return setErr('Please select a security question.')
+    if (!fpSetSqAnswer.trim()) return setErr('Please enter your answer.')
+    if (!fpPending) return setErr('Session expired. Please start again.')
+    setLoading(true)
+    try {
+      const hashedAnswer = await hashPassword(fpSetSqAnswer.trim().toLowerCase())
+      const updatedStudents = students.map(x =>
+        x.id !== fpPending.snum ? x : {
+          ...x,
+          account: { ...x.account, securityQuestion: fpSetSqKey, securityAnswer: hashedAnswer },
+        }
+      )
+      await saveStudents(updatedStudents, [fpPending.snum])
       setFpAnswer('')
       setFpNewPass('')
       setFpNewPass2('')
       setMode('fp-sq')
+    } catch (e) {
+      setErr('Failed to save security question: ' + e.message)
     } finally {
       setLoading(false)
     }
@@ -410,6 +446,43 @@ export default function LoginScreen() {
               </LoadingButton>
               <button type="button" className="link-btn w-full text-center mt-2" onClick={() => { setMode('student'); clearMessages() }}>
                 ← Back to Sign In
+              </button>
+            </form>
+          )}
+
+          {/* ── Forgot Password Step 1b — Set Security Question ─────── */}
+          {mode === 'fp-set-sq' && (
+            <form onSubmit={handleFpSetSq}>
+              <h3 className="font-display text-lg font-bold text-ink mb-1">Set Security Question</h3>
+              <p className="text-xs text-ink2 mb-4">Your account doesn't have a security question yet. Set one to continue resetting your password.</p>
+              <div className="field-float">
+                <select
+                  value={fpSetSqKey}
+                  onChange={e => setFpSetSqKey(e.target.value)}
+                  className="w-full"
+                >
+                  <option value="">Select a question…</option>
+                  {SECURITY_QUESTIONS.map(q => (
+                    <option key={q.key} value={q.key}>{q.label}</option>
+                  ))}
+                </select>
+                <label>Security Question</label>
+              </div>
+              <div className="field-float">
+                <input
+                  type="text"
+                  placeholder=" "
+                  value={fpSetSqAnswer}
+                  onChange={e => setFpSetSqAnswer(e.target.value)}
+                  autoComplete="off"
+                />
+                <label>Your Answer</label>
+              </div>
+              <LoadingButton loading={loading} loadingText="Saving…" className="btn btn-primary btn-full mt-2">
+                Continue →
+              </LoadingButton>
+              <button type="button" className="link-btn w-full text-center mt-2" onClick={() => { setMode('forgot'); clearMessages() }}>
+                ← Back
               </button>
             </form>
           )}
