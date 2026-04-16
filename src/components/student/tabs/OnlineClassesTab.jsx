@@ -53,22 +53,26 @@ export default function OnlineClassesTab({ student }) {
           gap: 16,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            <Radio size={22} style={{ color: '#ef4444', animation: 'pulse 1.5s infinite' }} />
+            <Radio size={22} className="animate-pulse" style={{ color: '#ef4444' }} />
             <span style={{ fontSize: 12, fontWeight: 800, color: '#ef4444', letterSpacing: '0.08em' }}>LIVE</span>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 700, fontSize: 15 }}>{m.title}</div>
             <div style={{ fontSize: 12, color: 'var(--ink3)' }}>{m.className}</div>
           </div>
-          <a
-            href={m.meetLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-primary btn-sm"
-            style={{ flexShrink: 0 }}
-          >
-            <ExternalLink size={14} style={{ marginRight: 6 }} /> Join Meeting
-          </a>
+          {m.meetLink ? (
+            <a
+              href={m.meetLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-primary btn-sm"
+              style={{ flexShrink: 0 }}
+            >
+              <ExternalLink size={14} style={{ marginRight: 6 }} /> Join Meeting
+            </a>
+          ) : (
+            <span style={{ fontSize: 12, color: 'var(--ink3)', flexShrink: 0 }}>Link not set</span>
+          )}
         </div>
       ))}
 
@@ -122,7 +126,7 @@ export default function OnlineClassesTab({ student }) {
           {pastOpen && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
               {past.map(m => {
-                const dt = new Date(m.scheduledAt)
+                const dt = new Date(m.endedAt || m.scheduledAt)
                 const dateStr = dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
                 return (
                   <div key={m.id} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--surface2)', fontSize: 13 }}>
