@@ -87,6 +87,18 @@ export default function LoginScreen() {
       if (!result.ok) {
         setErr(result.msg)
         setPass('')
+      } else {
+        // Persist firstLoginAt if it was just set for the first time
+        const original = students.find(s => s.id === result.student?.id)
+        if (
+          result.student?.account?.firstLoginAt &&
+          !original?.account?.firstLoginAt
+        ) {
+          saveStudents(
+            students.map(s => s.id === result.student.id ? result.student : s),
+            [result.student.id]
+          )
+        }
       }
       // On success, AuthContext sets sessionRole → AppRouter renders StudentLayout
     } finally {

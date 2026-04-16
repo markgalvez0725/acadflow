@@ -158,8 +158,20 @@ export function AuthProvider({ children }) {
     }
     clearAttempts(key)
     const needsPassSetup = notRegistered || student.forceChangePassword
-    _startSession('student', student)
-    return { ok: true, student, forceChange: needsPassSetup }
+
+    // Record first login timestamp when student uses a temp/default password
+    // for the first time. Fire-and-forget — never blocks session start.
+    let sessionStudent = student
+    if (student.account?._tempPass && !student.account?.firstLoginAt) {
+      const now = Date.now()
+      sessionStudent = {
+        ...student,
+        account: { ...student.account, firstLoginAt: now },
+      }
+    }
+
+    _startSession('student', sessionStudent)
+    return { ok: true, student: sessionStudent, forceChange: needsPassSetup }
   }, [])
 
   // ── Logout ──────────────────────────────────────────────────────────────
