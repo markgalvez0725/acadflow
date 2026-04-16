@@ -680,9 +680,11 @@ export default function StudentsTab() {
                           : <span style={{ color: 'var(--ink3)', fontSize: 12 }}>—</span>}
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        {s.account?.registered
-                          ? <Badge variant="green" style={{ fontSize: 11 }}>✓ Active</Badge>
-                          : <Badge variant="gray" style={{ fontSize: 11 }}>No Account</Badge>}
+                        {!s.account?.registered
+                          ? <Badge variant="gray" style={{ fontSize: 11 }}>No Account</Badge>
+                          : s.account?.activated
+                            ? <Badge variant="green" style={{ fontSize: 11 }}>✓ Active</Badge>
+                            : <Badge variant="yellow" style={{ fontSize: 11 }}>⏳ Pending</Badge>}
                       </td>
                       <td>
                         <div className="stu-actions-cell">
