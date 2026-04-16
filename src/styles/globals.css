@@ -499,13 +499,14 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 }
 
 .admin-topbar {
-  height: 56px;
+  height: 52px;
   padding: 0 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(8px);
   position: sticky;
   top: 0;
   z-index: 20;
@@ -942,9 +943,9 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 }
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-m);
-  box-shadow: 0 4px 14px rgba(13,47,110,.28);
+  box-shadow: 0 4px 14px rgba(13,148,136,.3);
 }
-[data-theme="dark"] .btn-primary:hover:not(:disabled) { box-shadow: 0 4px 14px rgba(59,125,216,.3); }
+[data-theme="dark"] .btn-primary:hover:not(:disabled) { box-shadow: 0 4px 14px rgba(20,184,166,.3); }
 
 .btn-ghost {
   background: transparent;
@@ -987,10 +988,15 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius);
   box-shadow: var(--shadow);
+  transition: box-shadow 150ms ease, transform 150ms ease;
 }
-.card-pad { padding: 24px; }
+.card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-1px);
+}
+.card-pad { padding: 20px; }
 
 /* ══════════════════════════════════════════
    FORM FIELD
@@ -1165,9 +1171,9 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 }
 .input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(13,47,110,.1);
+  box-shadow: 0 0 0 3px var(--accent-l);
 }
-[data-theme="dark"] .input:focus { box-shadow: 0 0 0 3px rgba(59,125,216,.15); }
+[data-theme="dark"] .input:focus { box-shadow: 0 0 0 3px rgba(20,184,166,.15); }
 .input::placeholder { color: var(--ink3); }
 textarea.input { resize: vertical; }
 
@@ -1196,9 +1202,9 @@ textarea.input { resize: vertical; }
 }
 .form-input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(13,47,110,.1);
+  box-shadow: 0 0 0 3px var(--accent-l);
 }
-[data-theme="dark"] .form-input:focus { box-shadow: 0 0 0 3px rgba(59,125,216,.15); }
+[data-theme="dark"] .form-input:focus { box-shadow: 0 0 0 3px rgba(20,184,166,.15); }
 .form-input::placeholder { color: var(--ink3); }
 .form-input:disabled { opacity: .5; cursor: not-allowed; }
 
@@ -1285,13 +1291,21 @@ textarea.input { resize: vertical; }
 .stat-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding: 16px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: box-shadow 150ms ease, transform 150ms ease;
 }
-.sc-icon  { font-size: 22px; line-height: 1; margin-bottom: 6px; }
-.sc-val   { font-size: 26px; font-weight: 700; color: var(--ink); line-height: 1.1; }
-.sc-label { font-size: 12px; font-weight: 600; color: var(--ink2); margin-top: 2px; }
+.stat-card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-1px);
+}
+.sc-icon  { font-size: 22px; line-height: 1; margin-bottom: 4px; }
+.sc-val   { font-size: 1.75rem; font-weight: 700; color: var(--ink); line-height: 1.1; }
+.sc-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--ink3); margin-top: 2px; }
 .sc-sub   { font-size: 11px; color: var(--ink3); margin-top: 2px; }
 
 /* ══════════════════════════════════════════
@@ -1393,14 +1407,14 @@ textarea.input { resize: vertical; }
   border-collapse: collapse;
   font-size: 13px;
 }
-.tbl thead { background: var(--bg); }
+.tbl thead { background: var(--bg2); }
 .tbl th {
   padding: 10px 14px;
   text-align: left;
-  font-size: 11px;
+  font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: .05em;
+  letter-spacing: .07em;
   color: var(--ink2);
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
@@ -1412,7 +1426,7 @@ textarea.input { resize: vertical; }
   vertical-align: middle;
 }
 .tbl tbody tr:last-child td { border-bottom: none; }
-.tbl tbody tr:hover { background: var(--bg2); }
+.tbl tbody tr:hover td { background: var(--accent-l); }
 
 .th-sort { cursor: pointer; user-select: none; }
 .th-sort:hover { color: var(--ink); }
