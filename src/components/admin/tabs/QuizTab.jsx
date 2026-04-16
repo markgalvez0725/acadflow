@@ -6,6 +6,7 @@ import Modal from '@/components/primitives/Modal'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList, Pencil, Save, Rocket, FileText, X, Lock, Circle } from 'lucide-react'
+import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 
 function quizId() {
@@ -649,7 +650,7 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
 const PER_PAGE = 10
 
 export default function QuizTab() {
-  const { quizzes, classes } = useData()
+  const { quizzes, classes, fbReady } = useData()
   const [page, setPage] = useState(1)
   const [showExport, setShowExport] = useState(false)
   const [showImport, setShowImport] = useState(false)
@@ -681,6 +682,8 @@ export default function QuizTab() {
     setShowImport(false)
     setShowForm(true)
   }
+
+  if (!fbReady) return <SkeletonTable />
 
   return (
     <div>

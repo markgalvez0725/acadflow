@@ -7,6 +7,7 @@ import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
 import { Download, Upload, FileDown, KeyRound } from 'lucide-react'
+import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
 
@@ -599,7 +600,7 @@ function ImportStudentsModal({ onClose }) {
 
 // ── Students Tab ──────────────────────────────────────────────────────
 export default function StudentsTab() {
-  const { classes, students, saveStudents, deleteStudent } = useData()
+  const { classes, students, saveStudents, deleteStudent, fbReady } = useData()
   const { toast, openDialog } = useUI()
 
   const [search, setSearch]       = useState('')
@@ -677,6 +678,8 @@ export default function StudentsTab() {
       toast('Could not delete student: ' + e.message, 'red')
     }
   }
+
+  if (!fbReady) return <SkeletonTable />
 
   return (
     <div>

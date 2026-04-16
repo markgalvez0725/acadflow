@@ -4,6 +4,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Pagination from '@/components/primitives/Pagination'
 import { MessageSquare, Upload, CheckCircle, ClipboardList, Mail, Bell, Trash2 } from 'lucide-react'
+import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 
 const PER_PAGE = 10
 
@@ -82,6 +83,8 @@ export default function NotificationsTab() {
       setAdminTab('activities')
     }
   }
+
+  if (!fbReady) return <SkeletonRows />
 
   const unreadCount = adminNotifs.filter(n => !n.read).length
 

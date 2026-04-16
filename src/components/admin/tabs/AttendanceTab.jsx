@@ -6,6 +6,7 @@ import { getHeldDays } from '@/utils/grades'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import { Download, Upload, AlertTriangle, Shuffle, RefreshCw, CalendarDays, Check, ClipboardList, X, Trash2, ClipboardCheck } from 'lucide-react'
+import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
 
@@ -782,7 +783,7 @@ function SubjectAttCard({ classId, sub, studs, onCalendar, onExport, onImport })
 
 // ── AttendanceTab ──────────────────────────────────────────────────────────────
 export default function AttendanceTab() {
-  const { classes, students } = useData()
+  const { classes, students, fbReady } = useData()
   const [selClassId,   setSelClassId]   = useState(() => classes[0]?.id || null)
   const [search,       setSearch]       = useState('')
   const [calModal,     setCalModal]     = useState(null) // subject string
@@ -798,6 +799,8 @@ export default function AttendanceTab() {
     const q = search.toLowerCase()
     return base.filter(s => s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q))
   }, [students, effectiveId, search])
+
+  if (!fbReady) return <SkeletonTable />
 
   return (
     <div>

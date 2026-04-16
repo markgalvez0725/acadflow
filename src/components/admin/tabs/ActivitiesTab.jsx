@@ -8,6 +8,7 @@ import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
 import { Clock, AlertCircle, X } from 'lucide-react'
+import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 // ── Helpers ───────────────────────────────────────────────────────────
 function actId() {
@@ -647,7 +648,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
 const PER_PAGE = 10
 
 export default function ActivitiesTab() {
-  const { activities, students, classes } = useData()
+  const { activities, students, classes, fbReady } = useData()
   const [page,        setPage]       = useState(1)
   const [showCreate,  setShowCreate] = useState(false)
   const [viewAct,     setViewAct]    = useState(null)
@@ -662,6 +663,8 @@ export default function ActivitiesTab() {
     () => sorted.slice((page - 1) * PER_PAGE, page * PER_PAGE),
     [sorted, page]
   )
+
+  if (!fbReady) return <SkeletonTable />
 
   const now = Date.now()
 

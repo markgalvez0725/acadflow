@@ -7,6 +7,7 @@ import Pagination from '@/components/primitives/Pagination'
 import BarChart from '@/components/charts/BarChart'
 import DonutChart from '@/components/charts/DonutChart'
 import { Users, School, BookOpen, CalendarCheck, ShieldCheck } from 'lucide-react'
+import { SkeletonDashboard } from '@/components/primitives/SkeletonLoader'
 
 const PER_PAGE = 10
 
@@ -82,6 +83,8 @@ export default function DashboardTab() {
       { label: 'Failed', value: failed.length, color: '#b93232' },
     ]
   }, [students, classes])
+
+  if (!fbReady) return <SkeletonDashboard />
 
   const riskSlice  = atRisk.slice((riskPage - 1) * PER_PAGE, riskPage * PER_PAGE)
   const lowSlice   = lowAtt.slice((lowAttPage - 1) * PER_PAGE, lowAttPage * PER_PAGE)

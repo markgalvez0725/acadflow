@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { ChevronLeft, ChevronRight, CalendarDays, X } from 'lucide-react'
+import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -32,7 +33,7 @@ function fmtDate(key) {
 }
 
 export default function CalendarTab() {
-  const { activities, quizzes, announcements, classes } = useData()
+  const { activities, quizzes, announcements, classes, fbReady } = useData()
   const { setAdminTab } = useUI()
 
   const today = new Date()
@@ -115,6 +116,8 @@ export default function CalendarTab() {
     }
     return count
   }, [eventMap, year, month, days])
+
+  if (!fbReady) return <SkeletonRows />
 
   return (
     <div className="space-y-4">

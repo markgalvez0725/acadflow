@@ -6,6 +6,7 @@ import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
 import { Plus, Pencil, School, Archive, ArchiveRestore } from 'lucide-react'
+import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const PER_PAGE = 10
 
@@ -222,7 +223,7 @@ function EditClassModal({ cls, onClose }) {
 
 // ── Classes Tab ───────────────────────────────────────────────────────
 export default function ClassesTab() {
-  const { classes, students, saveClasses, saveStudents } = useData()
+  const { classes, students, saveClasses, saveStudents, fbReady } = useData()
   const { toast, openDialog } = useUI()
   const [page, setPage]           = useState(1)
   const [showAdd, setShowAdd]     = useState(false)
@@ -281,6 +282,8 @@ export default function ClassesTab() {
       toast('Could not delete class: ' + e.message, 'red')
     }
   }
+
+  if (!fbReady) return <SkeletonTable />
 
   return (
     <div>

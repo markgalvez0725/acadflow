@@ -11,6 +11,7 @@ import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
 import { Clock, Pencil, BarChart2, Upload, Download, Trash2, BarChart, RefreshCw } from 'lucide-react'
+import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const GRADE_PER_PAGE = 10
 
@@ -860,7 +861,7 @@ function SubjectCard({ cls, sub, studs, eqScale, onEdit, onClear, onExport, onEx
 
 // ── GradesTab ─────────────────────────────────────────────────────────────────
 export default function GradesTab() {
-  const { classes, students, activities, eqScale, saveStudents } = useData()
+  const { classes, students, activities, eqScale, saveStudents, fbReady } = useData()
   const { toast, openDialog } = useUI()
 
   const [selClassId, setSelClassId] = useState(() => classes[0]?.id || null)
@@ -1100,6 +1101,8 @@ export default function GradesTab() {
     }
     setImportSub(null)
   }
+
+  if (!fbReady) return <SkeletonTable />
 
   return (
     <div>
