@@ -2,7 +2,7 @@ import React from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { LayoutDashboard, School, Users, BookOpen, CalendarCheck, Bell, ClipboardList, Settings, LogOut, FileQuestion, Rss, CalendarDays } from 'lucide-react'
+import { LayoutDashboard, School, Users, BookOpen, CalendarCheck, Bell, ClipboardList, Settings, LogOut, FileQuestion, Rss, CalendarDays, Video } from 'lucide-react'
 
 const NAV_GROUPS = [
   {
@@ -33,6 +33,7 @@ const NAV_GROUPS = [
     items: [
       { id: 'notifications',  label: 'Notifications',  badgeId: 'notif', Icon: Bell },
       { id: 'activities',     label: 'Activities',     badgeId: 'act',   Icon: ClipboardList },
+      { id: 'onlineClasses',  label: 'Online Classes', Icon: Video },
     ],
   },
 ]

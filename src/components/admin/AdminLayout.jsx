@@ -22,6 +22,7 @@ const NotificationsTab  = lazy(() => import('./tabs/NotificationsTab'))
 const QuizTab           = lazy(() => import('./tabs/QuizTab'))
 const StreamTab         = lazy(() => import('./tabs/StreamTab'))
 const CalendarTab       = lazy(() => import('./tabs/CalendarTab'))
+const OnlineClassesTab  = lazy(() => import('./tabs/OnlineClassesTab'))
 
 // Modals (lazy)
 const AdminSettingsModal = lazy(() => import('./modals/AdminSettingsModal'))
@@ -37,6 +38,7 @@ const TAB_TITLES = {
   quizzes:       ['Quizzes',       'AI-generated quizzes with auto-grading'],
   notifications:  ['Notifications',  'Real-time alerts for messages and activity submissions'],
   calendar:       ['Calendar',       'Monthly view of activities, quizzes, and announcements'],
+  onlineClasses:  ['Online Classes', 'Schedule and manage Google Meet sessions for your classes'],
 }
 
 export default function AdminLayout() {
@@ -133,6 +135,13 @@ export default function AdminLayout() {
               {adminTab === 'quizzes'        && <QuizTab />}
               {adminTab === 'notifications'  && <NotificationsTab />}
               {adminTab === 'calendar'       && <CalendarTab />}
+              {adminTab === 'onlineClasses' && (
+                <TabErrorBoundary>
+                  <Suspense fallback={<SkeletonRows />}>
+                    <OnlineClassesTab />
+                  </Suspense>
+                </TabErrorBoundary>
+              )}
             </Suspense>
           </TabErrorBoundary>
         </div>
