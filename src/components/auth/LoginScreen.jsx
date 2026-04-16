@@ -184,8 +184,14 @@ export default function LoginScreen() {
     setLoading(true)
     try {
       const s = students.find(x => x.id.toLowerCase() === fpSnum.trim().toLowerCase())
-      if (!s?.account?.registered || !s.account?.securityQuestion) {
-        return setErr('No account found or security question not set. Please contact your teacher.')
+      if (!s) {
+        return setErr('No account found for that student number. Please contact your teacher.')
+      }
+      if (!s.account?.registered) {
+        return setErr('This account has not been registered yet. Please register first.')
+      }
+      if (!s.account?.securityQuestion) {
+        return setErr('No security question set for this account. Please contact your teacher.')
       }
       setFpPending({ snum: s.id })
       setFpAnswer('')
