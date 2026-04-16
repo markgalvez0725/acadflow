@@ -627,13 +627,16 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 700;
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
   color: var(--accent);
   line-height: 1.2;
   white-space: nowrap;
   opacity: 0;
-  transition: opacity 150ms ease;
+  transition: opacity 150ms ease, max-width 220ms ease;
 }
-.sidebar-wrap.expanded .sb-brand h2 { opacity: 1; }
+.sidebar-wrap.expanded .sb-brand h2 { opacity: 1; max-width: 160px; }
 
 .sb-brand span {
   font-size: 10px;
@@ -642,11 +645,13 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
   text-transform: uppercase;
   color: var(--ink3);
   white-space: nowrap;
+  overflow: hidden;
+  max-width: 0;
   opacity: 0;
-  transition: opacity 150ms ease;
+  transition: opacity 150ms ease, max-width 220ms ease;
   display: block;
 }
-.sidebar-wrap.expanded .sb-brand span { opacity: 1; }
+.sidebar-wrap.expanded .sb-brand span { opacity: 1; max-width: 160px; }
 
 .sb-nav { padding: 8px 0; overflow-y: auto; flex: 1; }
 
@@ -700,11 +705,17 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 /* Nav item label — hidden when collapsed */
 .sb-nav .nav-item .nav-label {
   opacity: 0;
-  transition: opacity 150ms ease;
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
   flex-shrink: 0;
   pointer-events: none;
+  transition: opacity 150ms ease, max-width 220ms ease;
 }
-.sidebar-wrap.expanded .sb-nav .nav-item .nav-label { opacity: 1; }
+.sidebar-wrap.expanded .sb-nav .nav-item .nav-label {
+  opacity: 1;
+  max-width: 160px;
+}
 
 /* Nav badge */
 .nav-badge {
@@ -777,10 +788,15 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
   min-width: 0;
   flex: 1;
   opacity: 0;
-  transition: opacity 150ms ease;
+  max-width: 0;
+  overflow: hidden;
   white-space: nowrap;
+  transition: opacity 150ms ease, max-width 220ms ease;
 }
-.sidebar-wrap.expanded .sb-user-info { opacity: 1; }
+.sidebar-wrap.expanded .sb-user-info {
+  opacity: 1;
+  max-width: 160px;
+}
 .sb-user-info strong {
   display: block;
   font-size: 12px;
@@ -816,6 +832,19 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
   text-align: left;
 }
 .sb-logout:hover { background: var(--bg2); color: var(--ink); }
+.sb-logout .nav-label {
+  opacity: 0;
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  flex-shrink: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease, max-width 220ms ease;
+}
+.sidebar-wrap.expanded .sb-logout .nav-label {
+  opacity: 1;
+  max-width: 120px;
+}
 
 .credit-footer {
   font-size: 9px;
