@@ -241,7 +241,7 @@ export async function fbSaveMeetLink(db, classId, meetLink) {
 
 export async function fbScheduleMeeting(db, meetingData) {
   if (!db) return;
-  const { doc: fbDoc, setDoc, serverTimestamp } = await import('firebase/firestore');
+  const { doc: fbDoc, setDoc } = await import('firebase/firestore');
   const id = uuidv4();
   const meeting = {
     id,
