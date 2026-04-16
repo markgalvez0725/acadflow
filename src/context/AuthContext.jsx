@@ -157,7 +157,10 @@ export function AuthProvider({ children }) {
       return { ok: false, msg: 'Incorrect password.' }
     }
     clearAttempts(key)
-    const needsPassSetup = notRegistered || student.forceChangePassword
+    // Also force password change if the student logged in with the default password,
+    // regardless of account flags — ensures no account bypasses the change requirement.
+    const usedDefaultPass = password === DEFAULT_PASS
+    const needsPassSetup = notRegistered || student.forceChangePassword || usedDefaultPass
 
     // Record first login timestamp when student uses a temp/default password
     // for the first time. Fire-and-forget — never blocks session start.
