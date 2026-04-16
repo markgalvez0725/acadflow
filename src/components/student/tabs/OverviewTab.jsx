@@ -5,6 +5,7 @@ import {
 import { useData } from '@/context/DataContext'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import { BookOpen, Clock, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send } from 'lucide-react'
+import { SkeletonDashboard } from '@/components/primitives/SkeletonLoader'
 
 function formatAnnDate(ms) {
   if (!ms) return null
@@ -309,7 +310,7 @@ function AnnIcon({ type, size = 18 }) {
 }
 
 export default function OverviewTab({ student: s, viewClassId, classes }) {
-  const { activities, students, eqScale, announcements } = useData()
+  const { activities, students, eqScale, announcements, fbReady } = useData()
 
   const [viewAnn, setViewAnn] = useState(null)
 
@@ -378,6 +379,8 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
       ...Object.keys(s.attendance || {}),
     ])]
   }
+
+  if (!fbReady) return <SkeletonDashboard />
 
   return (
     <div className="student-overview">

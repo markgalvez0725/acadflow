@@ -4,6 +4,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Pagination from '@/components/primitives/Pagination'
 import { Mail, Upload, CheckCircle, BookOpen, MessageSquare, Bell, Trash2, Megaphone } from 'lucide-react'
+import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 
 const PER_PAGE = 10
 
@@ -81,6 +82,8 @@ export default function NotificationsTab({ student, notifs, setNotifs }) {
       </div>
     )
   }
+
+  if (!fbReady) return <SkeletonRows />
 
   return (
     <div className="student-notifications">

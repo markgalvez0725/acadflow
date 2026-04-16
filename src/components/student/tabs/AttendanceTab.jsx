@@ -1,11 +1,12 @@
 import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
 import { CalendarCheck, Calendar, CheckCircle2, FileCheck, XCircle, Award } from 'lucide-react'
+import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const DAY_LETTERS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
 export default function AttendanceTab({ student: s, viewClassId, classes }) {
-  const { students } = useData()
+  const { students, fbReady } = useData()
 
   const cls = classes?.find(c => c.id === viewClassId) || null
 
@@ -255,6 +256,8 @@ function CalendarView({ presentSet, excuseSet, adminDates, year, month, onNav })
   const days = []
   for (let i = 0; i < firstDay; i++) days.push(null)
   for (let d = 1; d <= daysInMonth; d++) days.push(d)
+
+  if (!fbReady) return <SkeletonTable />
 
   return (
     <div className="sa-cal-wrap">

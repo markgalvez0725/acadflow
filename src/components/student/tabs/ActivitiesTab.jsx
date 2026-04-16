@@ -4,6 +4,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Pagination from '@/components/primitives/Pagination'
 import { ClipboardList } from 'lucide-react'
+import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const PER_PAGE = 10
 
@@ -92,6 +93,8 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
       </div>
     )
   }
+
+  if (!fbReady) return <SkeletonTable />
 
   return (
     <div className="student-activities">

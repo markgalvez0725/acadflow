@@ -4,9 +4,10 @@ import {
 } from '@/utils/grades'
 import { useData } from '@/context/DataContext'
 import { BookOpen, Clock } from 'lucide-react'
+import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 export default function GradesTab({ student: s, viewClassId, classes }) {
-  const { activities, students, eqScale } = useData()
+  const { activities, students, eqScale, fbReady } = useData()
 
   const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
   const allEnrolledSubs = enrolledIds.length
@@ -164,6 +165,8 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
   const attRate = held > 0 ? parseFloat(((attSet.size / held) * 100).toFixed(1)) : 0
 
   const hasAny = actVal != null || quizzesAvg != null || midG != null || finG != null
+
+  if (!fbReady) return <SkeletonTable />
 
   return (
     <div className="sg-card">

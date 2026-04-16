@@ -4,6 +4,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Badge from '@/components/primitives/Badge'
 import Modal from '@/components/primitives/Modal'
+import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 
 // ── Score computation ─────────────────────────────────────────────────────────
 function computeScore(questions, answers) {
@@ -372,7 +373,7 @@ function QuizReviewModal({ quiz, submission, onClose }) {
 
 // ── Main Student Quiz Tab ─────────────────────────────────────────────────────
 export default function StudentQuizTab({ student, viewClassId }) {
-  const { quizzes } = useData()
+  const { quizzes, fbReady } = useData()
   const [takingQuiz, setTakingQuiz] = useState(null)
   const [reviewQuiz, setReviewQuiz] = useState(null)
 
@@ -421,6 +422,8 @@ export default function StudentQuizTab({ student, viewClassId }) {
       </div>
     )
   }
+
+  if (!fbReady) return <SkeletonRows />
 
   return (
     <div>
