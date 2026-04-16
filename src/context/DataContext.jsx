@@ -198,7 +198,10 @@ export function DataProvider({ children }) {
 
   const scheduleMeeting = useCallback(async (meetingData) => {
     const meeting = await fbScheduleMeeting(dbRef.current, meetingData)
-    if (meeting) await fbPushMeetingNotifs(dbRef.current, meeting, students, 'meeting_scheduled')
+    if (meeting) {
+      setMeetings(prev => [meeting, ...prev])
+      await fbPushMeetingNotifs(dbRef.current, meeting, students, 'meeting_scheduled')
+    }
   }, [students])
 
   const startMeeting = useCallback(async (meeting) => {
