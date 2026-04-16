@@ -34,6 +34,7 @@ let _unsub = [];
  *   onAdminNotifUpdate: (notifs: any[]) => void,
  *   onQuizzesUpdate: (quizzes: any[])   => void,
  *   onAnnouncementsUpdate: (anns: any[]) => void,
+ *   onMeetingsUpdate: (meetings: any[]) => void,
  * }} callbacks
  */
 export function fbStartListening(db, callbacks) {
@@ -47,6 +48,7 @@ export function fbStartListening(db, callbacks) {
     onAdminNotifUpdate,
     onQuizzesUpdate,
     onAnnouncementsUpdate,
+    onMeetingsUpdate,
   } = callbacks;
 
   // Stop any previous listeners
@@ -176,6 +178,20 @@ export function fbStartListening(db, callbacks) {
     _unsub.push(u8);
   }
 
+  // ── onlineMeetings collection ─────────────────────────────────────────
+  if (onMeetingsUpdate) {
+    const u9 = onSnapshot(
+      collection(db, 'onlineMeetings'),
+      snap => {
+        const meetings = [];
+        snap.forEach(d => meetings.push(d.data()));
+        onMeetingsUpdate(meetings);
+      },
+      e => console.error('[Firebase] onlineMeetings listener error:', e.message)
+    );
+    _unsub.push(u9);
+  }
+
   // ── portal/settings (equiv scale, grade weights) ──────────────────────
   let _settingsWriteInFlight = false;
   const u5 = onSnapshot(
@@ -199,7 +215,7 @@ export function fbStartListening(db, callbacks) {
 
   // Eager fetch — populate all collections immediately without waiting for
   // onSnapshot warm-up. Each fetch is fire-and-forget; listeners stay live.
-  _eagerFetchAll(db, { onStudentsUpdate, onClassesUpdate, onMessagesUpdate, onActivitiesUpdate, onAdminNotifUpdate, onSettingsUpdate, onQuizzesUpdate, onAnnouncementsUpdate });
+  _eagerFetchAll(db, { onStudentsUpdate, onClassesUpdate, onMessagesUpdate, onActivitiesUpdate, onAdminNotifUpdate, onSettingsUpdate, onQuizzesUpdate, onAnnouncementsUpdate, onMeetingsUpdate });
 }
 
 export function stopListening() {
@@ -222,12 +238,12 @@ export function startAdminNotifListener(db, onAdminNotifUpdate) {
 }
 
 // ── Eager fetch for all collections on connect ────────────────────────────
-async function _eagerFetchAll(db, { onStudentsUpdate, onClassesUpdate, onMessagesUpdate, onActivitiesUpdate, onAdminNotifUpdate, onSettingsUpdate, onQuizzesUpdate, onAnnouncementsUpdate }) {
+async function _eagerFetchAll(db, { onStudentsUpdate, onClassesUpdate, onMessagesUpdate, onActivitiesUpdate, onAdminNotifUpdate, onSettingsUpdate, onQuizzesUpdate, onAnnouncementsUpdate, onMeetingsUpdate }) {
   try {
     const timeout = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('eager fetch timeout')), 20000)
     );
-    const [studentsSnap, classesSnap, messagesSnap, activitiesSnap, notifsSnap, settingsSnap, quizzesSnap, announcementsSnap] = await Promise.race([
+    const [studentsSnap, classesSnap, messagesSnap, activitiesSnap, notifsSnap, settingsSnap, quizzesSnap, announcementsSnap, meetingsSnap] = await Promise.race([
       Promise.all([
         getDocs(collection(db, 'students')),
         getDoc(doc(db, 'portal', 'classes')),
@@ -237,6 +253,7 @@ async function _eagerFetchAll(db, { onStudentsUpdate, onClassesUpdate, onMessage
         getDoc(doc(db, 'portal', 'settings')),
         getDocs(collection(db, 'quizzes')),
         getDocs(collection(db, 'announcements')),
+        getDocs(collection(db, 'onlineMeetings')),
       ]),
       timeout,
     ]);
@@ -273,6 +290,12 @@ async function _eagerFetchAll(db, { onStudentsUpdate, onClassesUpdate, onMessage
       const anns = [];
       announcementsSnap.forEach(d => anns.push(d.data()));
       onAnnouncementsUpdate(anns);
+    }
+
+    if (onMeetingsUpdate) {
+      const mtgs = [];
+      meetingsSnap.forEach(d => mtgs.push(d.data()));
+      onMeetingsUpdate(mtgs);
     }
 
     console.log('[Firebase] ✅ Eager fetch complete.');
