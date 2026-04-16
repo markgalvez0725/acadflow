@@ -44,6 +44,7 @@ export default function AdminLayout() {
   const { loginTime, lastLogin } = useAuth()
   const unreadMsgCount = messages.filter(m => m.from !== 'admin' && !m.adminRead).length
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarExpanded, setSidebarExpanded] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [clock, setClock] = useState('')
 
@@ -74,12 +75,15 @@ export default function AdminLayout() {
       )}
 
       {/* Sidebar */}
-      <div className={`sidebar-wrap${sidebarOpen ? ' open' : ''}`}>
-        <AdminSidebar onSettingsOpen={() => setSettingsOpen(true)} />
+      <div className={`sidebar-wrap${sidebarOpen ? ' open' : ''}${sidebarExpanded ? ' expanded' : ''}`}>
+        <AdminSidebar
+          onSettingsOpen={() => setSettingsOpen(true)}
+          onToggle={() => setSidebarExpanded(e => !e)}
+        />
       </div>
 
       {/* Main content */}
-      <div className="admin-main">
+      <div className={`admin-main${sidebarExpanded ? ' sidebar-expanded' : ''}`}>
         {/* Top bar */}
         <div className="admin-topbar">
           <div className="flex items-center gap-3">

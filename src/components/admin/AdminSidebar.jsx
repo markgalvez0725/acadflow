@@ -37,7 +37,7 @@ const NAV_GROUPS = [
   },
 ]
 
-export default function AdminSidebar({ onSettingsOpen }) {
+export default function AdminSidebar({ onSettingsOpen, onToggle }) {
   const { logout } = useAuth()
   const { admin, adminNotifs, activities } = useData()
   const { adminTab, setAdminTab } = useUI()
@@ -77,13 +77,14 @@ export default function AdminSidebar({ onSettingsOpen }) {
                   key={item.id}
                   className={`nav-item${adminTab === item.id ? ' active' : ''}`}
                   onClick={() => setAdminTab(item.id)}
+                  title={item.label}
                 >
-                  <span className="nav-icon" style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <item.Icon size={20} />
+                  <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <item.Icon size={18} />
                     {badge > 0 && (
                       <span style={{
                         position: 'absolute', top: -4, right: -6,
-                        background: '#ef4444', color: '#fff',
+                        background: 'var(--accent)', color: '#fff',
                         borderRadius: 10, fontSize: 9, fontWeight: 700,
                         padding: '0 4px', lineHeight: '14px', minWidth: 14,
                         textAlign: 'center',
@@ -92,7 +93,7 @@ export default function AdminSidebar({ onSettingsOpen }) {
                       </span>
                     )}
                   </span>
-                  <span>{item.label}</span>
+                  <span className="nav-label">{item.label}</span>
                 </button>
               )
             })}
@@ -103,26 +104,33 @@ export default function AdminSidebar({ onSettingsOpen }) {
       {/* Footer */}
       <div className="sb-footer">
         <div className="sb-user">
-          <div className="sb-avatar">A</div>
+          <div className="sb-avatar" style={{ flexShrink: 0 }}>A</div>
           <div className="sb-user-info">
             <strong>Teacher</strong>
             <span>{admin?.email || '—'}</span>
           </div>
         </div>
-        <button className="sb-logout" onClick={onSettingsOpen}>
-          <span className="nav-icon" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+        <button className="sb-logout" onClick={onSettingsOpen} title="Settings">
+          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <Settings size={16} />
           </span>
-          <span>Settings</span>
+          <span className="nav-label">Settings</span>
         </button>
-        <button className="sb-logout" onClick={() => logout()}>
-          <span className="nav-icon" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+        <button className="sb-logout" onClick={() => logout()} title="Logout">
+          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <LogOut size={16} />
           </span>
-          <span>Logout</span>
+          <span className="nav-label">Logout</span>
         </button>
-        <div className="credit-footer">by lexark25</div>
+        <div className="credit-footer" style={{ opacity: 0, transition: 'opacity 150ms ease' }} ref={el => el && (el.style.opacity = '')}>by lexark25</div>
       </div>
+
+      {/* Collapse toggle (desktop only) */}
+      <button className="sb-toggle" onClick={onToggle} title="Toggle sidebar">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M5 3l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
     </div>
   )
 }
