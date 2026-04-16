@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save } from 'lucide-react'
@@ -55,14 +55,22 @@ export default function OnlineClassesTab() {
 
   // ── Section 3: Meetings List ──────────────────────────────────────────
   const [listTab, setListTab] = useState('upcoming')
-  const upcoming = meetings
-    .filter(m => m.status === 'scheduled' || m.status === 'live')
-    .sort((a, b) => a.scheduledAt - b.scheduledAt)
-  const past = meetings
-    .filter(m => m.status === 'ended')
-    .sort((a, b) => b.scheduledAt - a.scheduledAt)
+  const upcoming = useMemo(() =>
+    meetings.filter(m => m.status === 'scheduled' || m.status === 'live')
+      .sort((a, b) => a.scheduledAt - b.scheduledAt),
+    [meetings]
+  )
+  const past = useMemo(() =>
+    meetings.filter(m => m.status === 'ended')
+      .sort((a, b) => b.scheduledAt - a.scheduledAt),
+    [meetings]
+  )
 
   async function handleStart(m) {
+    if (!m.meetLink?.trim()) {
+      toast('No Meet link set for this class. Add one in the Meet Links panel first.', 'error')
+      return
+    }
     try {
       await startMeeting(m)
       window.open(m.meetLink, '_blank', 'noopener,noreferrer')
@@ -90,7 +98,7 @@ export default function OnlineClassesTab() {
     }
   }
 
-  const activeClasses = classes.filter(c => !c.archived)
+  const activeClasses = useMemo(() => classes.filter(c => !c.archived), [classes])
 
   return (
     <div className="online-classes-tab" style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
