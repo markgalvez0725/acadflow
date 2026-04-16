@@ -343,7 +343,7 @@ function exportRosterCSV(students, classes) {
   const headers = ['Student No.', 'Full Name', 'Course', 'Year Level', 'Date of Birth', 'Mobile', 'Primary Class', 'Email', 'Account Status']
   const rows = students.map(s => {
     const cls = classes.find(c => c.id === s.classId)
-    return [s.id, s.name, s.course || '', s.year || '', s.dob || '', s.mobile || '', cls ? `${cls.name} ${cls.section}` : '', s.account?.email || '', s.account?.registered ? 'Active' : 'No Account']
+    return [s.id, s.name, s.course || '', s.year || '', s.dob || '', s.mobile || '', cls ? `${cls.name} ${cls.section}` : '', s.account?.email || '', !s.account?.registered ? 'No Account' : s.account?.activated ? 'Active' : 'Pending']
   })
   const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
@@ -555,7 +555,10 @@ export default function StudentsTab() {
           va = ca ? (ca.name + ca.section).toLowerCase() : 'zzz'; vb = cb ? (cb.name + cb.section).toLowerCase() : 'zzz'; break
         }
         case 'email':   va = (a.account?.email || '').toLowerCase(); vb = (b.account?.email || '').toLowerCase(); break
-        case 'account': va = a.account?.registered ? '1' : '0'; vb = b.account?.registered ? '1' : '0'; break
+        case 'account': {
+          const rank = s => !s.account?.registered ? 0 : s.account?.activated ? 2 : 1
+          va = String(rank(a)); vb = String(rank(b)); break
+        }
         default:        va = a.name?.toLowerCase() || ''; vb = b.name?.toLowerCase() || ''
       }
       return va < vb ? -dir : va > vb ? dir : 0
