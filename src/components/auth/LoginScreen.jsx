@@ -1,9 +1,10 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
+import { hashPassword, verifyPassword } from '@/utils/crypto'
 import { validateSnum, sanitizeSnum } from '@/utils/validate'
-import OTPBoxes from '@/components/primitives/OTPBoxes'
+import { SECURITY_QUESTIONS } from '@/utils/securityQuestions'
 import LoadingButton from '@/components/primitives/LoadingButton'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 import WeatherScene from '@/components/canvas/WeatherScene'
@@ -12,72 +13,52 @@ const EyeIcon = ({ visible }) => visible
   ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
   : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
 
-// Modes: 'student' | 'register' | 'reg-otp' | 'forgot' | 'fp-otp'
+// Modes: 'student' | 'register' | 'reg-sq' | 'forgot' | 'fp-sq'
 export default function LoginScreen() {
-  const { loginStudent, createOTP, checkOTP, clearOTP, hashPassword } = useAuth()
-  const { students, saveStudents, ejs } = useData()
-  const { toast, theme } = useUI()
+  const { loginStudent } = useAuth()
+  const { students, saveStudents } = useData()
+  const { theme } = useUI()
 
-  const [mode, setMode]         = useState('student')
-  const [loading, setLoading]   = useState(false)
-  const [err, setErr]           = useState('')
-  const [okMsg, setOkMsg]       = useState('')
-  const [otpValue, setOtpValue] = useState('')
+  const [mode, setMode]       = useState('student')
+  const [loading, setLoading] = useState(false)
+  const [err, setErr]         = useState('')
+  const [okMsg, setOkMsg]     = useState('')
 
   // Login form
-  const [snum, setSnum]   = useState('')
-  const [pass, setPass]   = useState('')
+  const [snum, setSnum] = useState('')
+  const [pass, setPass] = useState('')
 
   // Register form
-  const [regSnum, setRegSnum]   = useState('')
-  const [regName, setRegName]   = useState('')
+  const [regSnum,  setRegSnum]  = useState('')
+  const [regName,  setRegName]  = useState('')
   const [regEmail, setRegEmail] = useState('')
-  const [regPass, setRegPass]   = useState('')
+  const [regPass,  setRegPass]  = useState('')
   const [regPass2, setRegPass2] = useState('')
 
+  // Register secret question step
+  const [regPending,  setRegPending]  = useState(null) // { snum, name, email, pass }
+  const [regSqKey,    setRegSqKey]    = useState('')
+  const [regSqAnswer, setRegSqAnswer] = useState('')
+
   // Forgot form
-  const [fpSnum, setFpSnum]   = useState('')
-  const [fpEmail, setFpEmail] = useState('')
-  const [fpNewPass, setFpNewPass]   = useState('')
+  const [fpSnum,    setFpSnum]    = useState('')
+  const [fpPending, setFpPending] = useState(null) // { snum: canonical id }
+
+  // Forgot secret question answer + new password
+  const [fpAnswer,   setFpAnswer]   = useState('')
+  const [fpNewPass,  setFpNewPass]  = useState('')
   const [fpNewPass2, setFpNewPass2] = useState('')
 
   // Show/hide password toggles
-  const [showPass, setShowPass]       = useState(false)
-  const [showRegPass, setShowRegPass] = useState(false)
+  const [showPass,     setShowPass]     = useState(false)
+  const [showRegPass,  setShowRegPass]  = useState(false)
   const [showRegPass2, setShowRegPass2] = useState(false)
-  const [showFpPass, setShowFpPass]   = useState(false)
-  const [showFpPass2, setShowFpPass2] = useState(false)
-
-  // Pending OTP context stored in ref-like state
-  const [regPending, setRegPending] = useState(null)
-  const [fpPending, setFpPending]   = useState(null)
-  const [otpEmailDisplay, setOtpEmailDisplay] = useState('')
+  const [showFpPass,   setShowFpPass]   = useState(false)
+  const [showFpPass2,  setShowFpPass2]  = useState(false)
 
   const clearMessages = () => { setErr(''); setOkMsg('') }
 
-  async function _sendOTP(ctx, email, name) {
-    const code = createOTP(ctx, email)
-    if (!ejs.configured) {
-      if (import.meta.env.DEV) {
-        console.warn('[OTP] EJS not configured — showing code in console (dev mode):', code)
-      }
-      return code
-    }
-    try {
-      const { send } = await import('@emailjs/browser')
-      await send(ejs.serviceId, ejs.templateId, {
-        to_email: email,
-        to_name: name,
-        otp_code: code,
-        reason: ctx,
-      }, ejs.publicKey)
-    } catch (e) {
-      console.warn('[OTP] Email send failed:', e.message)
-    }
-    return code
-  }
-
-  // ── Student login ───────────────────────────────────────────────────────
+  // ── Student login ────────────────────────────────────────────────────────
   async function handleStudentLogin(e) {
     e.preventDefault()
     clearMessages()
@@ -88,25 +69,20 @@ export default function LoginScreen() {
         setErr(result.msg)
         setPass('')
       } else {
-        // Persist firstLoginAt if it was just set for the first time
         const original = students.find(s => s.id === result.student?.id)
-        if (
-          result.student?.account?.firstLoginAt &&
-          !original?.account?.firstLoginAt
-        ) {
+        if (result.student?.account?.firstLoginAt && !original?.account?.firstLoginAt) {
           saveStudents(
             students.map(s => s.id === result.student.id ? result.student : s),
             [result.student.id]
           )
         }
       }
-      // On success, AuthContext sets sessionRole → AppRouter renders StudentLayout
     } finally {
       setLoading(false)
     }
   }
 
-  // ── Register Step 1 ─────────────────────────────────────────────────────
+  // ── Register Step 1 — validate fields, advance to secret question ────────
   async function handleRegStep1(e) {
     e.preventDefault()
     clearMessages()
@@ -126,51 +102,49 @@ export default function LoginScreen() {
 
     const nameDup = students.find(s =>
       s.name?.trim().toLowerCase() === regName.trim().toLowerCase() &&
-      s.account?.registered &&
-      s.id !== regSnum
+      s.account?.registered && s.id !== regSnum
     )
     if (nameDup)
       return setErr('⛔ An account with this name already exists. Please check your student number.')
 
-    const emailDup = students.find(s => s.account?.registered && s.account?.email?.toLowerCase() === regEmail.toLowerCase())
+    const emailDup = students.find(s =>
+      s.account?.registered && s.account?.email?.toLowerCase() === regEmail.toLowerCase()
+    )
     if (emailDup)
       return setErr('⛔ This email is already linked to another account.')
 
-    setLoading(true)
-    try {
-      const displayName = existing?.name || regName
-      await _sendOTP('reg', regEmail, displayName)
-      setRegPending({ snum: regSnum, name: regName, email: regEmail, pass: regPass })
-      setOtpEmailDisplay(regEmail)
-      setOtpValue('')
-      setMode('reg-otp')
-    } catch (e) {
-      setErr('Failed to send OTP. Please try again.')
-    } finally {
-      setLoading(false)
-    }
+    setRegPending({ snum: regSnum, name: regName, email: regEmail, pass: regPass })
+    setRegSqKey('')
+    setRegSqAnswer('')
+    setMode('reg-sq')
   }
 
-  // ── Register Step 2 (OTP verify) ────────────────────────────────────────
-  async function handleRegStep2(e) {
+  // ── Register Step 2 — save account with secret question ─────────────────
+  async function handleRegSq(e) {
     e.preventDefault()
     clearMessages()
-    if (otpValue.length < 6) return setErr('Please enter the full 6-digit OTP.')
+    if (!regSqKey) return setErr('Please select a security question.')
+    if (!regSqAnswer.trim()) return setErr('Please enter your answer.')
     if (!regPending) return setErr('Session expired. Please start registration again.')
-
-    const result = checkOTP('reg', otpValue)
-    if (!result.ok) return setErr(result.msg)
 
     setLoading(true)
     try {
+      const hashedPass   = await hashPassword(regPending.pass)
+      const hashedAnswer = await hashPassword(regSqAnswer.trim().toLowerCase())
+
       const updatedStudents = [...students]
       const idx = updatedStudents.findIndex(s => s.id === regPending.snum)
-      const hashedPass = await hashPassword(regPending.pass)
-
       if (idx >= 0) {
         updatedStudents[idx] = {
           ...updatedStudents[idx],
-          account: { registered: true, activated: true, pass: hashedPass, email: regPending.email },
+          account: {
+            registered: true,
+            activated: true,
+            pass: hashedPass,
+            email: regPending.email,
+            securityQuestion: regSqKey,
+            securityAnswer: hashedAnswer,
+          },
           name: updatedStudents[idx].name || regPending.name,
         }
       } else {
@@ -179,12 +153,18 @@ export default function LoginScreen() {
           name: regPending.name,
           course: '', year: '', mobile: '', dob: '',
           classId: null, grades: {}, attendance: {}, excuse: {}, gradeComponents: {},
-          account: { registered: true, activated: true, pass: hashedPass, email: regPending.email },
+          account: {
+            registered: true,
+            activated: true,
+            pass: hashedPass,
+            email: regPending.email,
+            securityQuestion: regSqKey,
+            securityAnswer: hashedAnswer,
+          },
         })
       }
 
       await saveStudents(updatedStudents, [regPending.snum])
-      clearOTP('reg')
       setOkMsg('✅ Account created successfully! Redirecting to sign in…')
       setTimeout(() => { setMode('student'); setOkMsg(''); setRegPending(null) }, 1800)
     } catch (e) {
@@ -194,53 +174,51 @@ export default function LoginScreen() {
     }
   }
 
-  // ── Forgot Step 1 ───────────────────────────────────────────────────────
+  // ── Forgot Step 1 — look up student, display security question ───────────
   async function handleFpStep1(e) {
     e.preventDefault()
     clearMessages()
     setLoading(true)
     try {
-      const s = students.find(x => x.id === fpSnum)
-      if (!s?.account?.registered) return setErr('No account found for that student number.')
-      if (s.account.email.toLowerCase() !== fpEmail.toLowerCase())
-        return setErr('Email does not match the registered email for this account.')
-
-      await _sendOTP('fp', fpEmail, s.name)
-      setFpPending({ snum: fpSnum, email: fpEmail })
-      setOtpEmailDisplay(fpEmail)
-      setOtpValue('')
-      setMode('fp-otp')
+      const s = students.find(x => x.id.toLowerCase() === fpSnum.trim().toLowerCase())
+      if (!s?.account?.registered || !s.account?.securityQuestion) {
+        return setErr('No account found or security question not set. Please contact your teacher.')
+      }
+      setFpPending({ snum: s.id })
+      setFpAnswer('')
+      setFpNewPass('')
+      setFpNewPass2('')
+      setMode('fp-sq')
     } finally {
       setLoading(false)
     }
   }
 
-  // ── Forgot Step 2 (OTP verify + new password) ──────────────────────────
+  // ── Forgot Step 2 — verify answer, save new password ────────────────────
   async function handleFpStep2(e) {
     e.preventDefault()
     clearMessages()
-    if (otpValue.length < 6) return setErr('Please enter the full 6-digit OTP.')
-    if (!fpPending) return setErr('Session expired. Please request a new OTP.')
+    if (!fpAnswer.trim()) return setErr('Please enter your answer.')
     if (fpNewPass.length < 8) return setErr('Password must be at least 8 characters.')
     if (!/[A-Z]/.test(fpNewPass) || !/[0-9]/.test(fpNewPass))
       return setErr('Password must include at least one uppercase letter and one number.')
     if (fpNewPass !== fpNewPass2) return setErr('Passwords do not match.')
-
-    const result = checkOTP('fp', otpValue)
-    if (!result.ok) return setErr(result.msg)
+    if (!fpPending) return setErr('Session expired. Please start again.')
 
     const s = students.find(x => x.id === fpPending.snum)
     if (!s) return setErr('Student account not found.')
 
+    const answerMatch = await verifyPassword(fpAnswer.trim().toLowerCase(), s.account.securityAnswer)
+    if (!answerMatch)
+      return setErr('Incorrect answer. If you cannot remember, please contact your teacher to reset your password.')
+
     setLoading(true)
     try {
       const hashed = await hashPassword(fpNewPass)
-      const updatedStudents = students.map(x => x.id === s.id
-        ? { ...x, account: { ...x.account, pass: hashed } }
-        : x
+      const updatedStudents = students.map(x =>
+        x.id === s.id ? { ...x, account: { ...x.account, pass: hashed } } : x
       )
       await saveStudents(updatedStudents, [s.id])
-      clearOTP('fp')
       setOkMsg('Password reset! Redirecting…')
       setTimeout(() => { setMode('student'); setOkMsg(''); setFpPending(null) }, 1800)
     } catch (e) {
@@ -255,9 +233,8 @@ export default function LoginScreen() {
       <WeatherScene isDark={theme === 'dark'} showBadge style={{ position: 'absolute', inset: 0, zIndex: 0 }} />
       <ThemeToggle />
 
-      {/* Login card */}
       <div className="relative z-10 w-full max-w-[400px] mx-4">
-        {/* Logo / branding */}
+        {/* Branding */}
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center mb-3">
             <img src="/logo.png" alt="AcadFlow" className="w-16 h-16 object-contain" />
@@ -266,7 +243,7 @@ export default function LoginScreen() {
           <p className="text-xs text-ink3 mt-1">Academic Management System</p>
         </div>
 
-        {/* Mode tabs */}
+        {/* Mode tabs — only on sign-in / register screens */}
         {(mode === 'student' || mode === 'register') && (
           <div className="flex rounded-xl bg-bg2 p-1 mb-5">
             {[['student', 'Sign In'], ['register', 'Register']].map(([m, label]) => (
@@ -282,9 +259,8 @@ export default function LoginScreen() {
         )}
 
         <div className="card card-pad">
-          {/* Error / OK messages */}
-          {err && <div className="err-msg" style={{ display: 'block' }}>{err}</div>}
-          {okMsg && <div className="ok-msg" style={{ display: 'block' }}>{okMsg}</div>}
+          {err   && <div className="err-msg" style={{ display: 'block' }}>{err}</div>}
+          {okMsg && <div className="ok-msg"  style={{ display: 'block' }}>{okMsg}</div>}
 
           {/* ── Student Login ─────────────────────────────────────────── */}
           {mode === 'student' && (
@@ -322,7 +298,7 @@ export default function LoginScreen() {
             </form>
           )}
 
-          {/* ── Register ──────────────────────────────────────────────── */}
+          {/* ── Register Step 1 ──────────────────────────────────────── */}
           {mode === 'register' && (
             <form onSubmit={handleRegStep1}>
               <div className="field-float">
@@ -363,21 +339,42 @@ export default function LoginScreen() {
                 </button>
                 <label>Confirm Password</label>
               </div>
-              <LoadingButton loading={loading} loadingText="Sending OTP…" className="btn btn-primary btn-full mt-2">
-                Send OTP to My Email →
+              <LoadingButton loading={loading} loadingText="Next…" className="btn btn-primary btn-full mt-2">
+                Next →
               </LoadingButton>
             </form>
           )}
 
-          {/* ── Register OTP ──────────────────────────────────────────── */}
-          {mode === 'reg-otp' && (
-            <form onSubmit={handleRegStep2}>
-              <p className="text-sm text-ink2 mb-2 text-center">
-                Enter the 6-digit OTP sent to <strong>{otpEmailDisplay}</strong>
-              </p>
-              <OTPBoxes value={otpValue} onChange={setOtpValue} disabled={loading} />
-              <LoadingButton loading={loading} loadingText="Verifying…" className="btn btn-primary btn-full mt-2">
-                Verify & Create Account
+          {/* ── Register Step 2 — Secret Question ────────────────────── */}
+          {mode === 'reg-sq' && (
+            <form onSubmit={handleRegSq}>
+              <h3 className="font-display text-lg font-bold text-ink mb-1">Set Security Question</h3>
+              <p className="text-xs text-ink2 mb-4">Choose a question and answer you will remember. This is used to reset your password if you forget it.</p>
+              <div className="field-float">
+                <select
+                  value={regSqKey}
+                  onChange={e => setRegSqKey(e.target.value)}
+                  style={{ paddingTop: 18, paddingBottom: 6 }}
+                >
+                  <option value="" disabled>Select a question…</option>
+                  {SECURITY_QUESTIONS.map(q => (
+                    <option key={q.key} value={q.key}>{q.label}</option>
+                  ))}
+                </select>
+                <label>Security Question</label>
+              </div>
+              <div className="field-float">
+                <input
+                  type="text"
+                  placeholder=" "
+                  value={regSqAnswer}
+                  onChange={e => setRegSqAnswer(e.target.value)}
+                  autoComplete="off"
+                />
+                <label>Your Answer</label>
+              </div>
+              <LoadingButton loading={loading} loadingText="Creating account…" className="btn btn-primary btn-full mt-2">
+                Create Account
               </LoadingButton>
               <button type="button" className="link-btn w-full text-center mt-2" onClick={() => { setMode('register'); clearMessages() }}>
                 ← Back
@@ -385,21 +382,22 @@ export default function LoginScreen() {
             </form>
           )}
 
-          {/* ── Forgot Password ───────────────────────────────────────── */}
+          {/* ── Forgot Password Step 1 ───────────────────────────────── */}
           {mode === 'forgot' && (
             <form onSubmit={handleFpStep1}>
               <h3 className="font-display text-lg font-bold text-ink mb-1">Forgot Password</h3>
-              <p className="text-xs text-ink2 mb-4">Enter your student number and registered email.</p>
+              <p className="text-xs text-ink2 mb-4">Enter your student number to retrieve your security question.</p>
               <div className="field-float">
-                <input type="text" placeholder=" " value={fpSnum} onChange={e => setFpSnum(sanitizeSnum(e.target.value))} />
+                <input
+                  type="text"
+                  placeholder=" "
+                  value={fpSnum}
+                  onChange={e => setFpSnum(sanitizeSnum(e.target.value))}
+                />
                 <label>Student Number</label>
               </div>
-              <div className="field-float">
-                <input type="email" placeholder=" " value={fpEmail} onChange={e => setFpEmail(e.target.value)} />
-                <label>Registered Email</label>
-              </div>
-              <LoadingButton loading={loading} loadingText="Sending OTP…" className="btn btn-primary btn-full mt-2">
-                Send OTP →
+              <LoadingButton loading={loading} loadingText="Looking up…" className="btn btn-primary btn-full mt-2">
+                Continue →
               </LoadingButton>
               <button type="button" className="link-btn w-full text-center mt-2" onClick={() => { setMode('student'); clearMessages() }}>
                 ← Back to Sign In
@@ -407,50 +405,64 @@ export default function LoginScreen() {
             </form>
           )}
 
-          {/* ── Forgot OTP ────────────────────────────────────────────── */}
-          {mode === 'fp-otp' && (
-            <form onSubmit={handleFpStep2}>
-              <p className="text-sm text-ink2 mb-2 text-center">
-                Enter the 6-digit OTP sent to <strong>{otpEmailDisplay}</strong>
-              </p>
-              <OTPBoxes value={otpValue} onChange={setOtpValue} disabled={loading} />
-              <div className="field-float" style={{ marginTop: 10 }}>
-                <input
-                  type={showFpPass ? 'text' : 'password'}
-                  placeholder=" "
-                  value={fpNewPass}
-                  onChange={e => setFpNewPass(e.target.value)}
-                  style={{ paddingRight: 38 }}
-                />
-                <button type="button" className="pw-toggle" onClick={() => setShowFpPass(v => !v)} tabIndex={-1}>
-                  <EyeIcon visible={showFpPass} />
+          {/* ── Forgot Password Step 2 — Answer + New Password ──────── */}
+          {mode === 'fp-sq' && (() => {
+            const s = students.find(x => x.id === fpPending?.snum)
+            const q = SECURITY_QUESTIONS.find(q => q.key === s?.account?.securityQuestion)
+            return (
+              <form onSubmit={handleFpStep2}>
+                <h3 className="font-display text-lg font-bold text-ink mb-1">Reset Password</h3>
+                <p className="text-xs text-ink2 mb-3">Answer your security question to set a new password.</p>
+                <div className="mb-4 p-3 rounded-xl bg-bg2 text-sm text-ink font-medium">
+                  {q?.label ?? 'Security question not found.'}
+                </div>
+                <div className="field-float">
+                  <input
+                    type="text"
+                    placeholder=" "
+                    value={fpAnswer}
+                    onChange={e => setFpAnswer(e.target.value)}
+                    autoComplete="off"
+                  />
+                  <label>Your Answer</label>
+                </div>
+                <div className="field-float" style={{ marginTop: 10 }}>
+                  <input
+                    type={showFpPass ? 'text' : 'password'}
+                    placeholder=" "
+                    value={fpNewPass}
+                    onChange={e => setFpNewPass(e.target.value)}
+                    style={{ paddingRight: 38 }}
+                  />
+                  <button type="button" className="pw-toggle" onClick={() => setShowFpPass(v => !v)} tabIndex={-1}>
+                    <EyeIcon visible={showFpPass} />
+                  </button>
+                  <label>New Password</label>
+                </div>
+                <div className="field-float">
+                  <input
+                    type={showFpPass2 ? 'text' : 'password'}
+                    placeholder=" "
+                    value={fpNewPass2}
+                    onChange={e => setFpNewPass2(e.target.value)}
+                    style={{ paddingRight: 38 }}
+                  />
+                  <button type="button" className="pw-toggle" onClick={() => setShowFpPass2(v => !v)} tabIndex={-1}>
+                    <EyeIcon visible={showFpPass2} />
+                  </button>
+                  <label>Confirm New Password</label>
+                </div>
+                <LoadingButton loading={loading} loadingText="Saving…" className="btn btn-primary btn-full mt-2">
+                  Set New Password
+                </LoadingButton>
+                <button type="button" className="link-btn w-full text-center mt-2" onClick={() => { setMode('forgot'); clearMessages() }}>
+                  ← Back
                 </button>
-                <label>New Password</label>
-              </div>
-              <div className="field-float">
-                <input
-                  type={showFpPass2 ? 'text' : 'password'}
-                  placeholder=" "
-                  value={fpNewPass2}
-                  onChange={e => setFpNewPass2(e.target.value)}
-                  style={{ paddingRight: 38 }}
-                />
-                <button type="button" className="pw-toggle" onClick={() => setShowFpPass2(v => !v)} tabIndex={-1}>
-                  <EyeIcon visible={showFpPass2} />
-                </button>
-                <label>Confirm New Password</label>
-              </div>
-              <LoadingButton loading={loading} loadingText="Saving…" className="btn btn-primary btn-full mt-2">
-                Set New Password
-              </LoadingButton>
-              <button type="button" className="link-btn w-full text-center mt-2" onClick={() => { setMode('forgot'); clearMessages() }}>
-                ← Back
-              </button>
-            </form>
-          )}
+              </form>
+            )
+          })()}
         </div>
 
-        {/* Switch to admin login */}
         {(mode === 'student' || mode === 'register') && (
           <p className="text-center text-xs text-ink3 mt-4">
             Are you a teacher?{' '}
