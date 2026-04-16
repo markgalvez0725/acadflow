@@ -170,7 +170,7 @@ export default function LoginScreen() {
       if (idx >= 0) {
         updatedStudents[idx] = {
           ...updatedStudents[idx],
-          account: { registered: true, pass: hashedPass, email: regPending.email },
+          account: { registered: true, activated: true, pass: hashedPass, email: regPending.email },
           name: updatedStudents[idx].name || regPending.name,
         }
       } else {
@@ -179,7 +179,7 @@ export default function LoginScreen() {
           name: regPending.name,
           course: '', year: '', mobile: '', dob: '',
           classId: null, grades: {}, attendance: {}, excuse: {}, gradeComponents: {},
-          account: { registered: true, pass: hashedPass, email: regPending.email },
+          account: { registered: true, activated: true, pass: hashedPass, email: regPending.email },
         })
       }
 
