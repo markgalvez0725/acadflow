@@ -8,6 +8,7 @@ import SessionChip from '@/components/primitives/SessionChip'
 import ToastManager from '@/components/primitives/ToastManager'
 import Dialog from '@/components/primitives/Dialog'
 import FloatingMessenger from './FloatingMessenger'
+import { SkeletonRows, SkeletonDashboard } from '@/components/primitives/SkeletonLoader'
 import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays } from 'lucide-react'
 
 // Lazy-load tabs
@@ -168,8 +169,8 @@ export default function StudentLayout() {
 
   if (!student) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-bg">
-        <div className="text-ink2 text-sm">Loading…</div>
+      <div style={{ padding: 24 }}>
+        <SkeletonDashboard />
       </div>
     )
   }
@@ -219,7 +220,7 @@ export default function StudentLayout() {
 
       {/* Tab content */}
       <div className="student-body">
-        <Suspense fallback={<div className="text-ink2 text-sm py-8 text-center">Loading…</div>}>
+        <Suspense fallback={<SkeletonRows />}>
           {studentTab === 'stream'        && <StreamTab        student={student} viewClassId={effectiveClassId} classes={classes} />}
           {studentTab === 'overview'      && <OverviewTab      student={student} viewClassId={effectiveClassId} classes={classes} />}
           {studentTab === 'grades'        && <GradesTab        student={student} viewClassId={effectiveClassId} classes={classes} />}

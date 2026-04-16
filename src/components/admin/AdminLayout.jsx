@@ -3,6 +3,7 @@ import { useUI } from '@/context/UIContext'
 import { useData } from '@/context/DataContext'
 import { useAuth } from '@/context/AuthContext'
 import AdminSidebar from './AdminSidebar'
+import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 import SessionChip from '@/components/primitives/SessionChip'
 import ToastManager from '@/components/primitives/ToastManager'
@@ -120,7 +121,7 @@ export default function AdminLayout() {
           )}
 
           {/* Tab panels */}
-          <Suspense fallback={<div className="text-ink2 text-sm py-4">Loading…</div>}>
+          <Suspense fallback={<SkeletonRows />}>
             {adminTab === 'stream'         && <StreamTab />}
             {adminTab === 'dashboard'     && <DashboardTab />}
             {adminTab === 'classes'       && <ClassesTab />}
