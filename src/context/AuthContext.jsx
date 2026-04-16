@@ -6,6 +6,7 @@ import { isLockedOut, recordFailedAttempt, clearAttempts } from '@/utils/validat
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
 const SESSION_KEY = 'cp_session'
 const LAST_LOGIN_PREFIX = 'cp_lastlogin_'
+const DEFAULT_PASS = 'Welcome@2026'
 
 const AuthContext = createContext(null)
 
@@ -147,7 +148,6 @@ export function AuthProvider({ children }) {
     // with the default password and will be forced to change it on first login.
     // This covers: no account at all, imported students (_tempPass), and any
     // existing student whose account is not yet marked as registered.
-    const DEFAULT_PASS = 'Welcome@2026'
     const notRegistered = !student.account?.registered
     if (!match && password === DEFAULT_PASS && notRegistered) {
       match = true
@@ -162,7 +162,7 @@ export function AuthProvider({ children }) {
     // Record first login timestamp when student uses a temp/default password
     // for the first time. Fire-and-forget — never blocks session start.
     let sessionStudent = student
-    if (student.account?._tempPass && !student.account?.firstLoginAt) {
+    if ((student.account?._tempPass || (notRegistered && password === DEFAULT_PASS)) && !student.account?.firstLoginAt) {
       const now = Date.now()
       sessionStudent = {
         ...student,
