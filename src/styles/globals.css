@@ -979,6 +979,10 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
   }
   .student-bottom-nav .nav-label {
     font-size: 12px;
+    max-width: 120px;
+    opacity: 1;
+  }
+  .student-bottom-nav.collapsed .nav-label {
     max-width: 0;
     opacity: 0;
   }
