@@ -3,7 +3,7 @@ import { doc, setDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Pagination from '@/components/primitives/Pagination'
-import { Mail, Upload, CheckCircle, BookOpen, MessageSquare, Bell, Trash2, Megaphone } from 'lucide-react'
+import { Mail, Upload, CheckCircle, BookOpen, MessageSquare, Bell, Trash2, Megaphone, Video } from 'lucide-react'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 
 const PER_PAGE = 10
@@ -15,6 +15,10 @@ const ICONS = {
   act_new:   <BookOpen size={16} />,
   msg_in:    <MessageSquare size={16} />,
   announce:  <Megaphone size={16} />,
+  meeting_scheduled: <Video size={16} />,
+  meeting_live:      <Video size={16} />,
+  meeting_cancelled: <Video size={16} />,
+  meeting_ended:     <Video size={16} />,
 }
 
 const LINK_TO_TAB = {
@@ -30,6 +34,10 @@ const TYPE_TO_TAB = {
   msg_out:   { label: '→ View Messages',   tab: 'messages' },
   msg_in:    { label: '→ View Messages',   tab: 'messages' },
   announce:  { label: '→ View Overview',   tab: 'overview' },
+  meeting_scheduled: { label: '→ View Online Classes', tab: 'onlineClasses' },
+  meeting_live:      { label: '→ Join Meeting',        tab: 'onlineClasses' },
+  meeting_cancelled: { label: '→ View Online Classes', tab: 'onlineClasses' },
+  meeting_ended:     { label: '→ View Online Classes', tab: 'onlineClasses' },
 }
 
 function resolveAction(n) {
