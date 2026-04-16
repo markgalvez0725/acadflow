@@ -967,7 +967,7 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
     padding: 8px 6px;
     gap: 2px;
     max-width: none;
-    overflow-x: visible;
+    overflow: visible;
   }
   .student-bottom-nav .nav-item {
     width: 100%;
