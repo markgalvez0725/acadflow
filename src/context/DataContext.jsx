@@ -1,7 +1,12 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react'
 import { fbInit, getFbConfigFromEnv } from '@/firebase/firebaseInit'
 import { fbStartListening, stopListening } from '@/firebase/listeners'
-import { persistStudentsSync, persistClassesSync, persistAdmin, loadAdminFromStorage, fbDeleteStudent, fbSaveAnnouncement, fbDeleteAnnouncement, fbPushAnnouncementNotifs, fbAddAnnouncementComment, fbAddCommentReply } from '@/firebase/persistence'
+import {
+  persistStudentsSync, persistClassesSync, persistAdmin, loadAdminFromStorage,
+  fbDeleteStudent, fbSaveAnnouncement, fbDeleteAnnouncement, fbPushAnnouncementNotifs,
+  fbAddAnnouncementComment, fbAddCommentReply,
+  fbSaveMeetLink, fbScheduleMeeting, fbStartMeeting, fbEndMeeting, fbCancelMeeting, fbPushMeetingNotifs,
+} from '@/firebase/persistence'
 import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase } from '@/firebase/settings'
 import { loadFbConfigFromStorage, readStoredEJS } from '@/utils/crypto'
 import { DEFAULT_EQ_SCALE } from '@/utils/grades'
@@ -16,6 +21,7 @@ export function DataProvider({ children }) {
   const [adminNotifs, setAdminNotifs]   = useState([])
   const [quizzes, setQuizzes]           = useState([])
   const [announcements, setAnnouncements] = useState([])
+  const [meetings, setMeetings]           = useState([])
   const [fbReady, setFbReady]           = useState(false)
   const [fbConfig, setFbConfig]         = useState(null) // decrypted config object
   const dbRef = useRef(null)
@@ -80,6 +86,7 @@ export function DataProvider({ children }) {
       onAdminNotifUpdate: setAdminNotifs,
       onQuizzesUpdate:    setQuizzes,
       onAnnouncementsUpdate: setAnnouncements,
+      onMeetingsUpdate: setMeetings,
       onConfigUpdate: async ({ ejsConfig }) => {
         if (ejsConfig) {
           setEjs({ ...ejsConfig, configured: true })
@@ -118,6 +125,7 @@ export function DataProvider({ children }) {
       onAdminNotifUpdate: setAdminNotifs,
       onQuizzesUpdate:    setQuizzes,
       onAnnouncementsUpdate: setAnnouncements,
+      onMeetingsUpdate: setMeetings,
       onConfigUpdate: async ({ ejsConfig }) => {
         if (ejsConfig) {
           setEjs({ ...ejsConfig, configured: true })
@@ -183,6 +191,31 @@ export function DataProvider({ children }) {
     await fbDeleteAnnouncement(dbRef.current, id)
   }, [])
 
+  const saveMeetLink = useCallback(async (classId, meetLink) => {
+    setClasses(prev => prev.map(c => c.id === classId ? { ...c, meetLink } : c))
+    await fbSaveMeetLink(dbRef.current, classId, meetLink)
+  }, [])
+
+  const scheduleMeeting = useCallback(async (meetingData) => {
+    const meeting = await fbScheduleMeeting(dbRef.current, meetingData)
+    if (meeting) await fbPushMeetingNotifs(dbRef.current, meeting, students, 'meeting_scheduled')
+  }, [students])
+
+  const startMeeting = useCallback(async (meeting) => {
+    await fbStartMeeting(dbRef.current, meeting.id)
+    await fbPushMeetingNotifs(dbRef.current, meeting, students, 'meeting_live')
+  }, [students])
+
+  const endMeeting = useCallback(async (meeting) => {
+    await fbEndMeeting(dbRef.current, meeting.id)
+    await fbPushMeetingNotifs(dbRef.current, meeting, students, 'meeting_ended')
+  }, [students])
+
+  const cancelMeeting = useCallback(async (meeting) => {
+    await fbCancelMeeting(dbRef.current, meeting.id)
+    await fbPushMeetingNotifs(dbRef.current, meeting, students, 'meeting_cancelled')
+  }, [students])
+
   const pushAnnouncementNotifs = useCallback(async (announcement) => {
     await fbPushAnnouncementNotifs(dbRef.current, announcement, students)
   }, [students])
@@ -238,6 +271,9 @@ export function DataProvider({ children }) {
       adminNotifs, setAdminNotifs,
       quizzes, setQuizzes,
       announcements, setAnnouncements, saveAnnouncement, deleteAnnouncement, pushAnnouncementNotifs, addAnnouncementComment, addCommentReply,
+      meetings, setMeetings,
+      liveMeetings: meetings.filter(m => m.status === 'live'),
+      saveMeetLink, scheduleMeeting, startMeeting, endMeeting, cancelMeeting,
       fbReady, fbConfig, reinitFirebase,
       db: dbRef,
       ejs, setEjs, saveEjs,
