@@ -135,13 +135,7 @@ export default function AdminLayout() {
               {adminTab === 'quizzes'        && <QuizTab />}
               {adminTab === 'notifications'  && <NotificationsTab />}
               {adminTab === 'calendar'       && <CalendarTab />}
-              {adminTab === 'onlineClasses' && (
-                <TabErrorBoundary>
-                  <Suspense fallback={<SkeletonRows />}>
-                    <OnlineClassesTab />
-                  </Suspense>
-                </TabErrorBoundary>
-              )}
+              {adminTab === 'onlineClasses' && <OnlineClassesTab />}
             </Suspense>
           </TabErrorBoundary>
         </div>
