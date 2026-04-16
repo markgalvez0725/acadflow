@@ -221,3 +221,109 @@ export async function persistAdmin(db, admin) {
       .catch(e => console.warn('[FB] persistAdmin Firebase sync failed:', e.message));
   }
 }
+
+// ── Online Meetings ────────────────────────────────────────────────────────
+
+/**
+ * Save a Google Meet link to a class document inside portal/classes.
+ * Classes are stored as portal/classes.list (array), so we read-modify-write.
+ */
+export async function fbSaveMeetLink(db, classId, meetLink) {
+  if (!db || !classId) return;
+  const { doc: fbDoc, getDoc, setDoc } = await import('firebase/firestore');
+  const ref = fbDoc(db, 'portal', 'classes');
+  const snap = await fbWithTimeout(getDoc(ref));
+  if (!snap.exists()) return;
+  const list = snap.data()?.list || [];
+  const updated = list.map(c => c.id === classId ? { ...c, meetLink } : c);
+  await fbWithTimeout(setDoc(ref, { list: updated }));
+}
+
+export async function fbScheduleMeeting(db, meetingData) {
+  if (!db) return;
+  const { doc: fbDoc, setDoc, serverTimestamp } = await import('firebase/firestore');
+  const id = uuidv4();
+  const meeting = {
+    id,
+    classId: meetingData.classId,
+    className: meetingData.className,
+    title: meetingData.title,
+    description: meetingData.description || '',
+    meetLink: meetingData.meetLink || '',
+    scheduledAt: meetingData.scheduledAt, // JS timestamp (ms)
+    status: 'scheduled',
+    createdAt: Date.now(),
+    endedAt: null,
+  };
+  await fbWithTimeout(setDoc(fbDoc(db, 'onlineMeetings', id), meeting));
+  return meeting;
+}
+
+export async function fbStartMeeting(db, meetingId) {
+  if (!db || !meetingId) return;
+  const { doc: fbDoc, updateDoc } = await import('firebase/firestore');
+  await fbWithTimeout(updateDoc(fbDoc(db, 'onlineMeetings', meetingId), {
+    status: 'live',
+  }));
+}
+
+export async function fbEndMeeting(db, meetingId) {
+  if (!db || !meetingId) return;
+  const { doc: fbDoc, updateDoc } = await import('firebase/firestore');
+  await fbWithTimeout(updateDoc(fbDoc(db, 'onlineMeetings', meetingId), {
+    status: 'ended',
+    endedAt: Date.now(),
+  }));
+}
+
+export async function fbCancelMeeting(db, meetingId) {
+  if (!db || !meetingId) return;
+  const { doc: fbDoc, deleteDoc } = await import('firebase/firestore');
+  await fbWithTimeout(deleteDoc(fbDoc(db, 'onlineMeetings', meetingId)));
+}
+
+export async function fbPushMeetingNotifs(db, meeting, students, type) {
+  if (!db || !meeting || !students?.length) return;
+  const enrolled = students.filter(s => {
+    const ids = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : []);
+    return ids.includes(meeting.classId);
+  });
+  if (!enrolled.length) return;
+
+  const { doc: fbDoc, getDoc, setDoc } = await import('firebase/firestore');
+
+  const messages = {
+    meeting_scheduled: `${meeting.className}: Online class scheduled for ${new Date(meeting.scheduledAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })} at ${new Date(meeting.scheduledAt).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })}`,
+    meeting_live: `${meeting.className} is LIVE now! Join the meeting.`,
+    meeting_cancelled: `${meeting.className}: Scheduled online class on ${new Date(meeting.scheduledAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })} has been cancelled.`,
+    meeting_ended: `${meeting.className}: Online class session has ended.`,
+  };
+
+  const notif = {
+    id: `n_${uuidv4()}`,
+    type,
+    read: false,
+    ts: Date.now(),
+    title: messages[type] || `${meeting.className}: Meeting update`,
+    body: meeting.title,
+    link: 'onlineClasses',
+    meetingId: meeting.id,
+    meetLink: meeting.meetLink || null,
+    classId: meeting.classId,
+    className: meeting.className,
+    scheduledAt: meeting.scheduledAt || null,
+  };
+
+  for (let i = 0; i < enrolled.length; i += BATCH) {
+    await Promise.all(enrolled.slice(i, i + BATCH).map(async s => {
+      try {
+        const ref = fbDoc(db, 'notifications', s.id);
+        const snap = await getDoc(ref);
+        const existing = snap.exists() ? (snap.data().items || []) : [];
+        await setDoc(ref, { items: [notif, ...existing] }, { merge: false });
+      } catch (e) {
+        console.warn('[FB] fbPushMeetingNotifs student:', s.id, e.message);
+      }
+    }));
+  }
+}
