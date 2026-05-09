@@ -2,13 +2,11 @@
 // PASS_SALT is hardcoded so it never changes across deployments or env var mismatches.
 // Changing this value would invalidate ALL stored password hashes — do not modify.
 const PASS_SALT  = '1MXiaxEkgBLYRSXJRY28Dg=='
-const _EJS_SECRET = import.meta.env.VITE_EJS_SECRET || _throwMissing('VITE_EJS_SECRET')
-const _EJS_SALT   = import.meta.env.VITE_EJS_SALT   || _throwMissing('VITE_EJS_SALT')
-const _FB_SECRET  = import.meta.env.VITE_FB_SECRET  || _throwMissing('VITE_FB_SECRET')
-const _FB_SALT    = import.meta.env.VITE_FB_SALT    || _throwMissing('VITE_FB_SALT')
 
-function _throwMissing(key) {
-  throw new Error(`SECURITY: Environment variable "${key}" is required but not set. Add it to .env.local (never commit to git).`)
+function _requireEnv(key) {
+  const val = import.meta.env[key]
+  if (!val) throw new Error(`SECURITY: Environment variable "${key}" is required but not set. Add it to your Vercel project settings or .env.local (never commit to git).`)
+  return val
 }
 
 // ── SHA-256 password hashing ──────────────────────────────────────────────
@@ -82,22 +80,22 @@ async function _aesDecrypt(blob, secret, salt) {
 
 // ── EmailJS config encryption ─────────────────────────────────────────────
 export async function encryptEJS(ejsObj) {
-  return _aesEncrypt(ejsObj, _EJS_SECRET, _EJS_SALT);
+  return _aesEncrypt(ejsObj, _requireEnv('VITE_EJS_SECRET'), _requireEnv('VITE_EJS_SALT'));
 }
 
 export async function decryptEJS(blob) {
-  const obj = await _aesDecrypt(blob, _EJS_SECRET, _EJS_SALT);
+  const obj = await _aesDecrypt(blob, _requireEnv('VITE_EJS_SECRET'), _requireEnv('VITE_EJS_SALT'));
   if (obj?.publicKey && obj?.serviceId && obj?.templateId) return obj;
   return null;
 }
 
 // ── Firebase config encryption ────────────────────────────────────────────
 export async function encryptFbConfig(cfgObj) {
-  return _aesEncrypt(cfgObj, _FB_SECRET, _FB_SALT);
+  return _aesEncrypt(cfgObj, _requireEnv('VITE_FB_SECRET'), _requireEnv('VITE_FB_SALT'));
 }
 
 export async function decryptFbConfig(blob) {
-  const obj = await _aesDecrypt(blob, _FB_SECRET, _FB_SALT);
+  const obj = await _aesDecrypt(blob, _requireEnv('VITE_FB_SECRET'), _requireEnv('VITE_FB_SALT'));
   if (obj?.apiKey && obj?.projectId) return obj;
   return null;
 }

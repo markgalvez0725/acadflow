@@ -65,10 +65,10 @@ npm install
 
 ### Configure
 
-Create a `.env` file in the project root:
+Create a `.env.local` file in the project root (never commit this file):
 
 ```bash
-# Required
+# Required — Firebase project credentials
 VITE_FB_API_KEY=
 VITE_FB_PROJECT_ID=
 
@@ -78,15 +78,17 @@ VITE_FB_STORAGE_BUCKET=
 VITE_FB_MESSAGING_SENDER_ID=
 VITE_FB_APP_ID=
 
-# Optional — crypto key overrides (safe defaults apply for new installs)
-VITE_PASS_SALT=
+# Required — AES encryption keys for securing stored credentials.
+# Generate unique values with: head -c 32 /dev/urandom | base64
 VITE_EJS_SECRET=
 VITE_EJS_SALT=
 VITE_FB_SECRET=
 VITE_FB_SALT=
 ```
 
-> If env vars are absent, Firebase config can also be entered in-app via **Admin Settings → Firebase**. It is AES-encrypted before being stored in `localStorage`.
+> **Vercel deployment:** Add all required variables in **Vercel → Project → Settings → Environment Variables**. The app will crash on startup if `VITE_EJS_SECRET`, `VITE_EJS_SALT`, `VITE_FB_SECRET`, or `VITE_FB_SALT` are missing.
+
+> If Firebase env vars are absent, config can also be entered in-app via **Admin Settings → Firebase**. It is AES-encrypted before being stored in `localStorage`.
 
 ### Run
 
