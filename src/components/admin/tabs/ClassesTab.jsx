@@ -27,8 +27,15 @@ function AddClassModal({ onClose }) {
     const subs = subjects.split(',').map(s => s.trim()).filter(Boolean)
     if (!name.trim() || !section.trim()) { setErr('Course name and section are required.'); return }
     if (!subs.length) { setErr('At least one subject is required.'); return }
-    if (classes.find(c => !c.archived && c.name.toLowerCase() === name.trim().toLowerCase() && c.section.toLowerCase() === section.trim().toLowerCase())) {
-      setErr(`Class "${name.trim()} ${section.trim()}" already exists.`); return
+    const duplicate = classes.find(c =>
+      !c.archived &&
+      c.name.toLowerCase() === name.trim().toLowerCase() &&
+      c.section.toLowerCase() === section.trim().toLowerCase() &&
+      subs.some(sub => c.subjects?.map(s => s.toLowerCase()).includes(sub.toLowerCase()))
+    )
+    if (duplicate) {
+      const overlap = subs.filter(sub => duplicate.subjects?.map(s => s.toLowerCase()).includes(sub.toLowerCase()))
+      setErr(`Subject${overlap.length > 1 ? 's' : ''} "${overlap.join('", "')}" already exist${overlap.length > 1 ? '' : 's'} in ${duplicate.name} ${duplicate.section}.`); return
     }
     setSaving(true)
     try {
@@ -109,8 +116,16 @@ function EditClassModal({ cls, onClose }) {
     const subs = subjects.split(',').map(s => s.trim()).filter(Boolean)
     if (!name.trim() || !section.trim()) { setErr('Course name and section are required.'); return }
     if (!subs.length) { setErr('At least one subject is required.'); return }
-    if (classes.find(c => c.id !== cls.id && !c.archived && c.name.toLowerCase() === name.trim().toLowerCase() && c.section.toLowerCase() === section.trim().toLowerCase())) {
-      setErr(`Class "${name.trim()} ${section.trim()}" already exists.`); return
+    const duplicate = classes.find(c =>
+      c.id !== cls.id &&
+      !c.archived &&
+      c.name.toLowerCase() === name.trim().toLowerCase() &&
+      c.section.toLowerCase() === section.trim().toLowerCase() &&
+      subs.some(sub => c.subjects?.map(s => s.toLowerCase()).includes(sub.toLowerCase()))
+    )
+    if (duplicate) {
+      const overlap = subs.filter(sub => duplicate.subjects?.map(s => s.toLowerCase()).includes(sub.toLowerCase()))
+      setErr(`Subject${overlap.length > 1 ? 's' : ''} "${overlap.join('", "')}" already exist${overlap.length > 1 ? '' : 's'} in another class with the same section.`); return
     }
 
     const removedSubs = cls.subjects.filter(s => !subs.includes(s))
