@@ -62,35 +62,31 @@ function SemesterTab() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div className="flex flex-col gap-5">
       {/* Current semester info banner */}
       {semester && (
-        <div style={{ background: 'var(--accent-l)', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+        <div className="bg-[var(--accent-l)] rounded-[10px] px-4 py-3 flex items-center justify-between flex-wrap gap-2">
           <div>
-            <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 2 }}>Current Semester</div>
-            <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--accent)' }}>
+            <div className="text-xs text-[var(--ink3)] mb-0.5">Current Semester</div>
+            <div className="font-bold text-[15px] text-[var(--accent)]">
               {semester.label || `${semester.term} AY ${semester.year}`}
             </div>
             {(semester.startDate || semester.endDate) && (
-              <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 2 }}>
+              <div className="text-[11px] text-[var(--ink3)] mt-0.5">
                 {semester.startDate && new Date(semester.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 {semester.startDate && semester.endDate && ' → '}
                 {semester.endDate && new Date(semester.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
               </div>
             )}
           </div>
-          <span style={{
-            fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 99,
-            background: semester.status === 'active' ? 'var(--green)' : semester.status === 'ended' ? 'var(--red)' : 'var(--yellow)',
-            color: '#fff',
-          }}>
+          <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full text-white ${semester.status === 'active' ? 'bg-[var(--green)]' : semester.status === 'ended' ? 'bg-[var(--red)]' : 'bg-[var(--yellow)]'}`}>
             {STATUS_OPTS.find(o => o.value === semester.status)?.label || semester.status}
           </span>
         </div>
       )}
 
-      <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <form onSubmit={handleSave} className="flex flex-col gap-3.5">
+        <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="form-label">Semester Term</label>
             <select className="form-input" value={term} onChange={e => setTerm(e.target.value)}>
@@ -117,7 +113,7 @@ function SemesterTab() {
           </select>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="form-label">Start Date</label>
             <input className="form-input" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
@@ -129,8 +125,8 @@ function SemesterTab() {
         </div>
 
         {previewLabel && (
-          <div style={{ fontSize: 12, background: 'var(--surface2)', borderRadius: 8, padding: '8px 12px', color: 'var(--ink2)' }}>
-            Label preview: <strong style={{ color: 'var(--ink)' }}>{previewLabel}</strong>
+          <div className="text-xs bg-[var(--surface2)] rounded-lg px-3 py-2 text-[var(--ink2)]">
+            Label preview: <strong className="text-[var(--ink)]">{previewLabel}</strong>
           </div>
         )}
 
@@ -141,7 +137,7 @@ function SemesterTab() {
         </div>
       </form>
 
-      <div style={{ fontSize: 12, color: 'var(--ink3)', background: 'var(--surface2)', borderRadius: 8, padding: '10px 12px', lineHeight: 1.6 }}>
+      <div className="text-xs text-[var(--ink3)] bg-[var(--surface2)] rounded-lg px-3 py-2.5 leading-relaxed">
         <strong>💡 Semester Workflow:</strong><br />
         1. Set the semester here before the term begins.<br />
         2. When a class is <em>archived</em>, enrolled students' subject records are automatically snapshotted and cleared — they appear in each student's Academic History.<br />

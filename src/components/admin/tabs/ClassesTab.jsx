@@ -320,9 +320,8 @@ export default function ClassesTab() {
     <div>
       {/* Semester indicator */}
       {semester && (
-        <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg text-xs font-medium"
-          style={{ background: semester.status === 'active' ? 'var(--accent-l)' : 'var(--surface2)', color: semester.status === 'active' ? 'var(--accent)' : 'var(--ink3)' }}>
-          <CalendarDays size={13} />
+        <div className={`flex items-center gap-2 mb-3 px-3 py-2 rounded-lg text-xs font-medium ${semester.status === 'active' ? 'bg-[var(--accent-l)] text-[var(--accent)]' : 'bg-[var(--surface2)] text-[var(--ink3)]'}`}>
+          <CalendarDays className="w-3 h-3" />
           <span>
             <strong>{semester.label || `${semester.term} AY ${semester.year}`}</strong>
             {' — '}

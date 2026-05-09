@@ -107,11 +107,7 @@ export default function AdminLayout() {
           <div className="flex items-center gap-3">
             {semester && (
               <span
-                className="hidden md:inline text-xs font-semibold px-2.5 py-1 rounded-full"
-                style={{
-                  background: semester.status === 'active' ? 'var(--accent-l)' : 'var(--surface2)',
-                  color:      semester.status === 'active' ? 'var(--accent)' : 'var(--ink3)',
-                }}
+                className={`hidden md:inline text-xs font-semibold px-2.5 py-1 rounded-full ${semester.status === 'active' ? 'bg-[var(--accent-l)] text-[var(--accent)]' : 'bg-[var(--surface2)] text-[var(--ink3)]'}`}
                 title={`Status: ${semester.status}`}
               >
                 📅 {semester.label || `${semester.term} AY ${semester.year}`}
