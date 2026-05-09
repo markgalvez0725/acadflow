@@ -64,6 +64,14 @@ export async function persistClassesSync(db, classes) {
   }
 }
 
+// ── Subject representative ────────────────────────────────────────────────
+// Persists the already-updated classes list (computed by DataContext).
+// studentId = null clears the rep.
+export async function fbSetSubjectRep(db, classes) {
+  if (!db) return;
+  await persistClassesSync(db, classes);
+}
+
 // ── Admin credentials ─────────────────────────────────────────────────────
 // SECURITY: Admin encryption key must come from environment, never hardcoded.
 const ADMIN_KEY = import.meta.env.VITE_ADMIN_CRYPTO_KEY || _throwAdminKeyMissing()

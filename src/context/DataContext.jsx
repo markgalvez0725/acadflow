@@ -6,6 +6,7 @@ import {
   fbDeleteStudent, fbSaveAnnouncement, fbDeleteAnnouncement, fbPushAnnouncementNotifs,
   fbAddAnnouncementComment, fbAddCommentReply,
   fbSaveMeetLink, fbScheduleMeeting, fbStartMeeting, fbEndMeeting, fbCancelMeeting, fbPushMeetingNotifs,
+  fbSetSubjectRep,
 } from '@/firebase/persistence'
 import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase } from '@/firebase/settings'
 import { loadFbConfigFromStorage, readStoredEJS } from '@/utils/crypto'
@@ -155,6 +156,15 @@ export function DataProvider({ children }) {
     await persistClassesSync(dbRef.current, updatedClasses)
   }, [])
 
+  const setSubjectRep = useCallback(async (classId, subject, studentId) => {
+    const updated = classes.map(c => {
+      if (c.id !== classId) return c
+      return { ...c, reps: { ...(c.reps || {}), [subject]: studentId ?? null } }
+    })
+    setClasses(updated) // always update local state immediately
+    await fbSetSubjectRep(dbRef.current, updated)
+  }, [classes])
+
   const saveAdmin = useCallback(async (updatedAdmin) => {
     setAdmin(updatedAdmin)
     await persistAdmin(dbRef.current, updatedAdmin)
@@ -268,7 +278,7 @@ export function DataProvider({ children }) {
   return (
     <DataContext.Provider value={{
       students, setStudents, saveStudents, deleteStudent,
-      classes, setClasses, saveClasses,
+      classes, setClasses, saveClasses, setSubjectRep,
       messages, setMessages,
       activities, setActivities,
       adminNotifs, setAdminNotifs,

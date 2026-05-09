@@ -1,12 +1,15 @@
 import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
-import { CalendarCheck, Calendar, CheckCircle2, FileCheck, XCircle, Award } from 'lucide-react'
+import { useAuth } from '@/context/AuthContext'
+import { CalendarCheck, Calendar, CheckCircle2, FileCheck, XCircle, Award, UserCheck } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
+import TakeAttendanceModal from '@/components/student/modals/TakeAttendanceModal'
 
 const DAY_LETTERS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
 export default function AttendanceTab({ student: s, viewClassId, classes }) {
   const { students, fbReady } = useData()
+  const { currentStudent }    = useAuth()
 
   const cls = classes?.find(c => c.id === viewClassId) || null
 
@@ -19,6 +22,21 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
   const subs = allEnrolledSubs.length ? allEnrolledSubs : Object.keys(s.attendance || {})
 
   const [activeSub, setActiveSub] = useState(() => subs[0] || null)
+  const [takeAttModal, setTakeAttModal] = useState(null) // subject string
+
+  // Determine which subjects this student is a rep for
+  const repSubjects = useMemo(() => {
+    if (!currentStudent) return {}
+    const map = {}
+    enrolledIds.forEach(classId => {
+      const c = classes?.find(x => x.id === classId)
+      if (!c?.reps) return
+      Object.entries(c.reps).forEach(([sub, repId]) => {
+        if (repId === currentStudent.id) map[sub] = classId
+      })
+    })
+    return map // { [subject]: classId }
+  }, [currentStudent, enrolledIds, classes])
 
   // Global totals
   const classMates = enrolledIds.length ? students.filter(x => {
@@ -82,18 +100,39 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
           const subRate = held > 0 ? p / held * 100 : 0
           const dot = subRate >= 90 ? 'var(--green)' : subRate >= 80 ? 'var(--yellow)' : 'var(--red)'
           const isActive = sub === activeSub
+          const isRep = !!repSubjects[sub]
           return (
-            <button
-              key={sub}
-              className={`sa-sub-pill${isActive ? ' active' : ''}`}
-              onClick={() => setActiveSub(sub)}
-            >
-              <span className="sa-pill-dot" style={{ background: isActive ? '#fff' : dot }} />
-              {sub}
-            </button>
+            <div key={sub} className="flex items-center gap-1">
+              <button
+                className={`sa-sub-pill${isActive ? ' active' : ''}`}
+                onClick={() => setActiveSub(sub)}
+              >
+                <span className="sa-pill-dot" style={{ background: isActive ? '#fff' : dot }} />
+                {sub}
+              </button>
+              {isRep && (
+                <button
+                  className="btn btn-sm flex items-center gap-1"
+                  style={{ fontSize: 11, padding: '3px 8px', background: 'var(--accent)', color: '#fff', borderRadius: 'var(--radius)' }}
+                  onClick={() => setTakeAttModal({ subject: sub, classId: repSubjects[sub] })}
+                  title={`You are the rep for ${sub} — take attendance`}
+                >
+                  <UserCheck size={11} />Take Attendance
+                </button>
+              )}
+            </div>
           )
         })}
       </div>
+
+      {/* Take Attendance Modal (rep only) */}
+      {takeAttModal && (
+        <TakeAttendanceModal
+          classId={takeAttModal.classId}
+          subject={takeAttModal.subject}
+          onClose={() => setTakeAttModal(null)}
+        />
+      )}
 
       {/* Detail */}
       {activeSub && (

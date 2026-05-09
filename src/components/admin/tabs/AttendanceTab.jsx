@@ -5,7 +5,7 @@ import { sortByLastName, fmtDateShort } from '@/utils/format'
 import { getHeldDays } from '@/utils/grades'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
-import { Download, Upload, AlertTriangle, Shuffle, RefreshCw, CalendarDays, Check, ClipboardList, X, Trash2, ClipboardCheck } from 'lucide-react'
+import { Download, Upload, AlertTriangle, Shuffle, RefreshCw, CalendarDays, Check, ClipboardList, X, Trash2, ClipboardCheck, Archive, ArchiveRestore, UserCheck, UserX } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
@@ -352,7 +352,7 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
 
 // ── AttendanceCalendarModal ────────────────────────────────────────────────────
 // Two views: 'calendar' and 'day'
-function AttendanceCalendarModal({ classId, subject, onClose }) {
+function AttendanceCalendarModal({ classId, subject, readOnly, onClose }) {
   const { students, classes, saveStudents } = useData()
   const { toast } = useUI()
 
@@ -500,9 +500,9 @@ function AttendanceCalendarModal({ classId, subject, onClose }) {
                   else if (eCnt > 0) cls2 += ' cal-has-excuse'
 
                   return (
-                    <div key={dateStr} className={cls2} style={{ position: 'relative', cursor: 'pointer' }}
-                      onClick={() => openDay(dateStr)}
-                      title={`${dateStr} — Click to mark attendance`}>
+                    <div key={dateStr} className={cls2} style={{ position: 'relative', cursor: readOnly ? 'default' : 'pointer' }}
+                      onClick={() => !readOnly && openDay(dateStr)}
+                      title={readOnly ? dateStr : `${dateStr} — Click to mark attendance`}>
                       {d}
                       {pCnt > 0 && (
                         <span style={{ position: 'absolute', top: 2, right: 2, fontSize: 8, fontWeight: 700,
@@ -535,7 +535,7 @@ function AttendanceCalendarModal({ classId, subject, onClose }) {
                 {label}
               </div>
             ))}
-            <span className="text-xs font-semibold" style={{ color: 'var(--accent)' }}><CalendarDays size={12} className="inline-block mr-1 align-text-bottom" />Click any day to mark attendance</span>
+            <span className="text-xs font-semibold" style={{ color: 'var(--accent)' }}>{readOnly ? '(archived — read-only)' : <><CalendarDays size={12} className="inline-block mr-1 align-text-bottom" />Click any day to mark attendance</>}</span>
           </div>
 
           <div className="modal-footer">
@@ -571,11 +571,11 @@ function AttendanceCalendarModal({ classId, subject, onClose }) {
 
           {/* Bulk actions */}
           <div className="flex gap-2 mb-3 flex-wrap">
-            <button className="btn btn-green btn-sm" onClick={() => setAll('present')}><Check size={13} className="inline-block mr-1" />All Present</button>
-            <button className="btn btn-sm" style={{ background: 'var(--purple-l)', color: 'var(--purple)' }}
-              onClick={() => setAll('excuse')}><ClipboardList size={13} className="inline-block mr-1" />All Excused</button>
-            <button className="btn btn-danger btn-sm" onClick={() => setAll('absent')}><X size={13} className="inline-block mr-1" />All Absent</button>
-            <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }}
+            {!readOnly && <button className="btn btn-green btn-sm" onClick={() => setAll('present')}><Check size={13} className="inline-block mr-1" />All Present</button>}
+            {!readOnly && <button className="btn btn-sm" style={{ background: 'var(--purple-l)', color: 'var(--purple)' }}
+              onClick={() => setAll('excuse')}><ClipboardList size={13} className="inline-block mr-1" />All Excused</button>}
+            {!readOnly && <button className="btn btn-danger btn-sm" onClick={() => setAll('absent')}><X size={13} className="inline-block mr-1" />All Absent</button>}
+            <button className="btn btn-ghost btn-sm" style={{ marginLeft: readOnly ? undefined : 'auto' }}
               onClick={() => setView('calendar')}>← Back</button>
           </div>
 
@@ -614,7 +614,8 @@ function AttendanceCalendarModal({ classId, subject, onClose }) {
                       return (
                         <button key={opt} type="button"
                           className={`att-toggle-btn ${active ? activeCls : ''}`}
-                          onClick={() => setStatus(s.id, opt)}>
+                          onClick={() => !readOnly && setStatus(s.id, opt)}
+                          disabled={readOnly}>
                           {label}
                         </button>
                       )
@@ -625,13 +626,15 @@ function AttendanceCalendarModal({ classId, subject, onClose }) {
             })}
           </div>
 
-          <p className="text-xs text-ink2 mt-2.5">Toggle each student's status then click Save. <ClipboardList size={12} className="inline-block mx-0.5 align-text-bottom" />Excused counts separately from absent.</p>
+          <p className="text-xs text-ink2 mt-2.5">{readOnly ? 'This class is archived — attendance records are read-only.' : <>Toggle each student's status then click Save. <ClipboardList size={12} className="inline-block mx-0.5 align-text-bottom" />Excused counts separately from absent.</>}</p>
 
           <div className="modal-footer">
             <button className="btn btn-ghost" onClick={() => setView('calendar')}>← Back</button>
-            <button className="btn btn-primary" onClick={saveDay} disabled={saving}>
-              {saving ? 'Saving…' : 'Save Attendance'}
-            </button>
+            {!readOnly && (
+              <button className="btn btn-primary" onClick={saveDay} disabled={saving}>
+                {saving ? 'Saving…' : 'Save Attendance'}
+              </button>
+            )}
           </div>
         </>
       )}
@@ -645,10 +648,100 @@ function SortIcon({ col, sort }) {
   return <span className={`th-sort-icon ${sort.dir === 'asc' ? 'asc' : 'desc'}`}>↕</span>
 }
 
+// ── SetRepModal ───────────────────────────────────────────────────────────────
+function SetRepModal({ classId, subject, studs, onClose }) {
+  const { classes, setSubjectRep } = useData()
+  const { toast } = useUI()
+  const [saving, setSaving] = useState(false)
+
+  const cls     = classes.find(c => c.id === classId)
+  const current = cls?.reps?.[subject] || null
+
+  async function assign(studentId) {
+    setSaving(true)
+    try {
+      await setSubjectRep(classId, subject, studentId)
+      const name = studs.find(s => s.id === studentId)?.name || studentId
+      toast(`${name} set as representative for ${subject}`, 'green')
+      onClose()
+    } catch (e) {
+      toast('Failed to save: ' + e.message, 'red')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function clearRep() {
+    setSaving(true)
+    try {
+      await setSubjectRep(classId, subject, null)
+      toast(`Representative cleared for ${subject}`, 'green')
+      onClose()
+    } catch (e) {
+      toast('Failed to clear: ' + e.message, 'red')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal onClose={onClose} size="sm">
+      <div className="flex items-center gap-2 mb-1">
+        <UserCheck size={16} />
+        <h3 className="mb-0">Set Attendance Representative</h3>
+      </div>
+      <p className="modal-sub mb-4">{subject} · {cls?.name} {cls?.section}</p>
+
+      {current && (
+        <div className="rounded-lg p-3 mb-3 flex items-center justify-between gap-2"
+          style={{ background: 'var(--accent-l)', border: '1px solid var(--accent)' }}>
+          <div className="text-sm">
+            <span className="font-semibold text-accent">Current rep: </span>
+            <span>{studs.find(s => s.id === current)?.name || current}</span>
+          </div>
+          <button className="btn btn-ghost btn-sm text-xs" onClick={clearRep} disabled={saving}>
+            <UserX size={12} className="inline-block mr-1" />Clear
+          </button>
+        </div>
+      )}
+
+      <div className="text-xs font-bold text-ink2 uppercase tracking-wider mb-2">Select a student</div>
+      <div className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)', maxHeight: 300, overflowY: 'auto' }}>
+        {studs.length === 0 && (
+          <div className="p-4 text-center text-sm text-ink3">No students in this class.</div>
+        )}
+        {sortByLastName(studs).map(s => {
+          const isRep = s.id === current
+          return (
+            <button key={s.id} type="button" disabled={saving}
+              className="w-full text-left px-4 py-2.5 flex items-center justify-between gap-3 hover:bg-[var(--bg)] transition-colors"
+              style={{ borderBottom: '1px solid var(--border)', background: isRep ? 'var(--accent-l)' : undefined }}
+              onClick={() => assign(s.id)}>
+              <div>
+                <div className="text-sm font-semibold">{s.name}</div>
+                <div className="text-xs text-ink2">{s.id}</div>
+              </div>
+              {isRep && <span className="badge badge-blue text-xs">Rep</span>}
+            </button>
+          )
+        })}
+      </div>
+      <div className="modal-footer">
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+      </div>
+    </Modal>
+  )
+}
+
 // ── SubjectAttCard ─────────────────────────────────────────────────────────────
-function SubjectAttCard({ classId, sub, studs, onCalendar, onExport, onImport }) {
+function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, onImport }) {
+  const { classes } = useData()
   const [sort, setSort] = useState({ col: 'name', dir: 'asc' })
   const [page, setPage] = useState(1)
+  const [repModal, setRepModal] = useState(false)
+
+  const repId   = classes.find(c => c.id === classId)?.reps?.[sub] || null
+  const repName = studs.find(s => s.id === repId)?.name || null
 
   const held = getHeldDays(classId, sub, studs)
 
@@ -698,13 +791,31 @@ function SubjectAttCard({ classId, sub, studs, onCalendar, onExport, onImport })
     <div className="card card-pad mb-3">
       {/* Header */}
       <div className="sec-hdr mb-2 flex-wrap gap-2">
-        <strong style={{ fontSize: 15 }}>{sub}</strong>
+        <div className="flex items-center gap-2 flex-wrap">
+          <strong style={{ fontSize: 15 }}>{sub}</strong>
+          {repName && (
+            <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold"
+              style={{ background: 'var(--accent-l)', color: 'var(--accent)', border: '1px solid var(--accent)' }}>
+              <UserCheck size={11} />Rep: {repName}
+            </span>
+          )}
+        </div>
         <div className="flex gap-1.5">
           <button className="btn btn-primary btn-sm" onClick={() => onCalendar(sub)}><CalendarDays size={13} className="inline-block mr-1" />Calendar</button>
-          <button className="btn btn-ghost btn-sm" onClick={() => onImport(sub)} title="Import attendance from Excel"><Download size={13} className="inline-block mr-1" />Import</button>
+          {!readOnly && <button className="btn btn-ghost btn-sm" onClick={() => setRepModal(true)} title="Assign attendance representative"><UserCheck size={13} className="inline-block mr-1" />Set Rep</button>}
+          {!readOnly && <button className="btn btn-ghost btn-sm" onClick={() => onImport(sub)} title="Import attendance from Excel"><Download size={13} className="inline-block mr-1" />Import</button>}
           <button className="btn btn-ghost btn-sm" onClick={() => onExport(sub)} title="Export attendance"><Upload size={13} className="inline-block mr-1" />Export</button>
         </div>
       </div>
+
+      {repModal && (
+        <SetRepModal
+          classId={classId}
+          subject={sub}
+          studs={studs}
+          onClose={() => setRepModal(false)}
+        />
+      )}
 
       {/* Distribution */}
       <div className="rounded-lg p-3 mb-3" style={{ background: 'var(--bg)' }}>
@@ -784,13 +895,18 @@ function SubjectAttCard({ classId, sub, studs, onCalendar, onExport, onImport })
 // ── AttendanceTab ──────────────────────────────────────────────────────────────
 export default function AttendanceTab() {
   const { classes, students, fbReady } = useData()
-  const [selClassId,   setSelClassId]   = useState(() => classes[0]?.id || null)
+  const [showArchived,  setShowArchived]  = useState(false)
+  const activeClasses   = useMemo(() => classes.filter(c => !c.archived), [classes])
+  const archivedClasses = useMemo(() => classes.filter(c =>  c.archived), [classes])
+  const visibleClasses  = showArchived ? archivedClasses : activeClasses
+
+  const [selClassId,   setSelClassId]   = useState(() => activeClasses[0]?.id || null)
   const [search,       setSearch]       = useState('')
   const [calModal,     setCalModal]     = useState(null) // subject string
   const [exportModal,  setExportModal]  = useState(null) // subject string
   const [importModal,  setImportModal]  = useState(null) // subject string
 
-  const cls = classes.find(c => c.id === selClassId) || classes[0] || null
+  const cls = visibleClasses.find(c => c.id === selClassId) || visibleClasses[0] || null
   const effectiveId = cls?.id || null
 
   const filteredStuds = useMemo(() => {
@@ -806,14 +922,30 @@ export default function AttendanceTab() {
     <div>
       <div className="sec-hdr mb-3">
         <div className="sec-title">Attendance</div>
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={() => { setShowArchived(v => !v); setSelClassId(null); setSearch('') }}
+        >
+          {showArchived
+            ? <><ArchiveRestore size={14} className="inline-block mr-1" />Active Classes</>
+            : <><Archive size={14} className="inline-block mr-1" />Archived Classes</>}
+        </button>
       </div>
+
+      {showArchived && (
+        <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg text-sm"
+          style={{ background: 'var(--yellow-l, #fef9c3)', color: 'var(--yellow-d, #854d0e)', border: '1px solid var(--yellow, #ca8a04)' }}>
+          <Archive size={14} className="shrink-0" />
+          Viewing archived class data — read-only.
+        </div>
+      )}
 
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <select className="input" style={{ maxWidth: 280 }}
           value={effectiveId || ''}
           onChange={e => { setSelClassId(e.target.value); setSearch('') }}>
           <option value="">— Select a class —</option>
-          {classes.map(c => (
+          {visibleClasses.map(c => (
             <option key={c.id} value={c.id}>{c.name} · {c.section}</option>
           ))}
         </select>
@@ -824,7 +956,7 @@ export default function AttendanceTab() {
       </div>
 
       {!effectiveId ? (
-        <div className="empty"><div className="empty-icon"><ClipboardCheck size={32} /></div>No classes yet.</div>
+        <div className="empty"><div className="empty-icon"><ClipboardCheck size={32} /></div>{showArchived ? 'No archived classes.' : 'No classes yet.'}</div>
       ) : !cls?.subjects?.length ? (
         <div className="empty">This class has no subjects.</div>
       ) : (
@@ -834,9 +966,10 @@ export default function AttendanceTab() {
             classId={effectiveId}
             sub={sub}
             studs={filteredStuds}
+            readOnly={showArchived}
             onCalendar={sub => setCalModal(sub)}
             onExport={sub => setExportModal(sub)}
-            onImport={sub => setImportModal(sub)}
+            onImport={showArchived ? null : sub => setImportModal(sub)}
           />
         ))
       )}
@@ -845,6 +978,7 @@ export default function AttendanceTab() {
         <AttendanceCalendarModal
           classId={effectiveId}
           subject={calModal}
+          readOnly={showArchived}
           onClose={() => setCalModal(null)}
         />
       )}
