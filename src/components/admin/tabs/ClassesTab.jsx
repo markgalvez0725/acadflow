@@ -20,12 +20,10 @@ function AddClassModal({ onClose }) {
   const [schedule, setSchedule]         = useState('')
   const [subjects, setSubjects]         = useState('')
   const [courseReq, setCourseReq]       = useState('')
-  const [activeSemester, setActiveSemester] = useState(
-    semester ? (semester.label || `${semester.term} AY ${semester.year}`) : ''
-  )
   const [enrollmentOpen, setEnrollmentOpen] = useState(
     semester?.status === 'active'
   )
+  const autoSemLabel = semester ? (semester.label || `${semester.term} AY ${semester.year}`) : null
   const [err, setErr]           = useState('')
   const [saving, setSaving]     = useState(false)
 
@@ -54,7 +52,7 @@ function AddClassModal({ onClose }) {
         schedule: schedule.trim() || 'TBA',
         subjects: subs,
         courseReq: courseReq.trim() || name.trim(),
-        activeSemester: activeSemester.trim() || null,
+        activeSemester: autoSemLabel,
         enrollmentOpen,
       }
       await saveClasses([...classes, newClass])
@@ -107,19 +105,22 @@ function AddClassModal({ onClose }) {
           <input value={courseReq} onChange={e => setCourseReq(e.target.value)} placeholder="BS Computer Science" />
         </div>
         <div className="field">
-          <label>Active Semester</label>
-          <input
-            value={activeSemester}
-            onChange={e => {
-              const val = e.target.value
-              setActiveSemester(val)
-              const semLabel = semester ? (semester.label || `${semester.term} AY ${semester.year}`) : ''
-              if (semLabel && val.trim() === semLabel) {
-                setEnrollmentOpen(semester.status === 'active')
-              }
-            }}
-            placeholder="1st Sem AY 2025-2026"
-          />
+          <label>Semester</label>
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--surface2)] text-xs text-ink2">
+            {autoSemLabel ? (
+              <>
+                <CalendarDays size={13} className="shrink-0 text-ink3" />
+                <span>{autoSemLabel}</span>
+                <span className={`ml-1 font-semibold px-1.5 py-0.5 rounded-full ${
+                  semester.status === 'active'  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                  semester.status === 'ended'   ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
+                                                  'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                }`}>
+                  {semester.status === 'active' ? 'Open / Active' : semester.status === 'ended' ? 'Ended' : 'Upcoming'}
+                </span>
+              </>
+            ) : <span className="text-ink3">No semester configured</span>}
+          </div>
         </div>
       </div>
       <div className="field">
@@ -145,7 +146,7 @@ function AddClassModal({ onClose }) {
 
 // ── Edit Class Modal ──────────────────────────────────────────────────
 function EditClassModal({ cls, onClose }) {
-  const { classes, students, saveClasses, saveStudents } = useData()
+  const { classes, students, saveClasses, saveStudents, semester } = useData()
   const { toast, openDialog } = useUI()
   const [name, setName]                 = useState(cls.name)
   const [section, setSection]           = useState(cls.section)
@@ -153,8 +154,8 @@ function EditClassModal({ cls, onClose }) {
   const [schedule, setSchedule]         = useState(cls.schedule || '')
   const [subjects, setSubjects]         = useState(cls.subjects.join(', '))
   const [courseReq, setCourseReq]       = useState(cls.courseReq || cls.name)
-  const [activeSemester, setActiveSemester] = useState(cls.activeSemester || '')
   const [enrollmentOpen, setEnrollmentOpen] = useState(cls.enrollmentOpen || false)
+  const autoSemLabel = semester ? (semester.label || `${semester.term} AY ${semester.year}`) : cls.activeSemester || null
   const [err, setErr]           = useState('')
   const [saving, setSaving]     = useState(false)
 
@@ -199,7 +200,7 @@ function EditClassModal({ cls, onClose }) {
     try {
       const updatedClasses = classes.map(c => {
         if (c.id !== cls.id) return c
-        return { ...c, name: name.trim(), section: section.trim(), room: room.trim() || 'TBA', schedule: schedule.trim() || 'TBA', subjects: subs, courseReq: courseReq.trim() || name.trim(), activeSemester: activeSemester.trim() || null, enrollmentOpen }
+        return { ...c, name: name.trim(), section: section.trim(), room: room.trim() || 'TBA', schedule: schedule.trim() || 'TBA', subjects: subs, courseReq: courseReq.trim() || name.trim(), activeSemester: autoSemLabel, enrollmentOpen }
       })
 
       let updatedStudents = students
@@ -281,8 +282,24 @@ function EditClassModal({ cls, onClose }) {
           <input value={courseReq} onChange={e => setCourseReq(e.target.value)} placeholder="BS Computer Science" />
         </div>
         <div className="field">
-          <label>Active Semester</label>
-          <input value={activeSemester} onChange={e => setActiveSemester(e.target.value)} placeholder="1st Sem AY 2025-2026" />
+          <label>Semester</label>
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--surface2)] text-xs text-ink2">
+            {autoSemLabel ? (
+              <>
+                <CalendarDays size={13} className="shrink-0 text-ink3" />
+                <span>{autoSemLabel}</span>
+                {semester && (
+                  <span className={`ml-1 font-semibold px-1.5 py-0.5 rounded-full ${
+                    semester.status === 'active'  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                    semester.status === 'ended'   ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
+                                                    'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                  }`}>
+                    {semester.status === 'active' ? 'Open / Active' : semester.status === 'ended' ? 'Ended' : 'Upcoming'}
+                  </span>
+                )}
+              </>
+            ) : <span className="text-ink3">No semester configured</span>}
+          </div>
         </div>
       </div>
       <div className="field">
@@ -511,7 +528,7 @@ export default function ClassesTab() {
                         {cls.activeSemester ? (
                           <div className="flex flex-col gap-0.5">
                             <span className="text-xs text-ink2">{cls.activeSemester}</span>
-                            {semLabel && cls.activeSemester === semLabel && (
+                            {semester && (
                               <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full w-fit ${
                                 semester.status === 'active'  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
                                 semester.status === 'ended'   ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
