@@ -274,18 +274,57 @@ export default function LoginScreen() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-bg" id="login-screen">
+    <div className="min-h-screen flex relative overflow-hidden bg-bg" id="login-screen">
       <WeatherScene isDark={theme === 'dark'} showBadge style={{ position: 'absolute', inset: 0, zIndex: 0 }} />
       <ThemeToggle />
 
-      <div className="relative z-10 w-full max-w-[400px] mx-4">
-        {/* Branding */}
-        <div className="text-center mb-6">
+      {/* ── Left branding panel (desktop only) ── */}
+      <div className="hidden lg:flex flex-col justify-between flex-1 relative z-10 p-10 pointer-events-none select-none">
+        <div className="flex items-center gap-3">
+          <img src="/logo.png" alt="AcadFlow" className="w-9 h-9 object-contain drop-shadow" />
+          <span className="font-display text-xl font-bold text-ink tracking-tight">AcadFlow</span>
+        </div>
+        <div>
+          <p className="text-4xl font-display font-bold text-ink leading-tight mb-4" style={{ letterSpacing: '-.03em' }}>
+            Your academic<br />
+            <span style={{ background: 'var(--grad-brand)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              universe, unified.
+            </span>
+          </p>
+          <p className="text-sm text-ink2 max-w-xs leading-relaxed">
+            Grades, attendance, announcements, and messages — all in one modern academic platform built for students and educators.
+          </p>
+          <div className="flex gap-6 mt-8">
+            {[['📊', 'Grades'], ['📅', 'Attendance'], ['📢', 'Stream'], ['💬', 'Messages']].map(([icon, label]) => (
+              <div key={label} className="flex flex-col items-center gap-1">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: 'var(--accent-l)', color: 'var(--accent)' }}>{icon}</div>
+                <span className="text-xs font-semibold text-ink3">{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <p className="text-xs text-ink3">© {new Date().getFullYear()} AcadFlow. All rights reserved.</p>
+      </div>
+
+      {/* ── Right form panel ── */}
+      <div className="relative z-10 flex flex-col justify-center w-full lg:max-w-[460px] lg:min-h-screen px-4 py-8 lg:px-12 lg:bg-surface/80 lg:backdrop-blur-xl lg:border-l lg:border-border">
+        {/* Mobile branding (hidden on desktop) */}
+        <div className="text-center mb-6 lg:hidden">
           <div className="inline-flex items-center justify-center mb-3">
             <img src="/logo.png" alt="AcadFlow" className="w-16 h-16 object-contain" />
           </div>
           <h1 className="font-display text-3xl font-bold text-ink">AcadFlow</h1>
           <p className="text-xs text-ink3 mt-1">Academic Management System</p>
+        </div>
+
+        {/* Desktop welcome text */}
+        <div className="hidden lg:block mb-7">
+          <h2 className="text-2xl font-bold text-ink mb-1" style={{ letterSpacing: '-.02em' }}>
+            {mode === 'student' ? 'Welcome back' : mode === 'register' ? 'Create account' : 'Account recovery'}
+          </h2>
+          <p className="text-sm text-ink3">
+            {mode === 'student' ? 'Sign in to your student portal.' : mode === 'register' ? 'Register your AcadFlow student account.' : 'Recover access to your account.'}
+          </p>
         </div>
 
         {/* Mode tabs — only on sign-in / register screens */}

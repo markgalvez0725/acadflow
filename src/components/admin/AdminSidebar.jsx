@@ -55,6 +55,9 @@ export default function AdminSidebar({ onSettingsOpen, onToggle }) {
     return 0
   }
 
+  const adminName = admin?.name || admin?.displayName || 'Teacher'
+  const adminInitial = adminName.charAt(0).toUpperCase()
+
   return (
     <div className="sidebar flex flex-col h-full">
       {/* Brand */}
@@ -79,6 +82,7 @@ export default function AdminSidebar({ onSettingsOpen, onToggle }) {
                   className={`nav-item${adminTab === item.id ? ' active' : ''}`}
                   onClick={() => setAdminTab(item.id)}
                   title={item.label}
+                  aria-label={item.label}
                 >
                   <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <item.Icon size={18} />
@@ -105,29 +109,29 @@ export default function AdminSidebar({ onSettingsOpen, onToggle }) {
       {/* Footer */}
       <div className="sb-footer">
         <div className="sb-user">
-          <div className="sb-avatar" style={{ flexShrink: 0 }}>A</div>
+          <div className="sb-avatar" style={{ flexShrink: 0 }}>{adminInitial}</div>
           <div className="sb-user-info">
-            <strong>Teacher</strong>
+            <strong>{adminName}</strong>
             <span>{admin?.email || '—'}</span>
           </div>
         </div>
-        <button className="sb-logout" onClick={onSettingsOpen} title="Settings">
+        <button className="sb-logout" onClick={onSettingsOpen} title="Settings" aria-label="Settings">
           <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <Settings size={16} />
           </span>
           <span className="nav-label">Settings</span>
         </button>
-        <button className="sb-logout" onClick={() => logout()} title="Logout">
+        <button className="sb-logout" onClick={() => logout()} title="Logout" aria-label="Logout">
           <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <LogOut size={16} />
           </span>
           <span className="nav-label">Logout</span>
         </button>
-        <div className="credit-footer" style={{ opacity: 0, transition: 'opacity 150ms ease' }} ref={el => el && (el.style.opacity = '')}>by lexark25</div>
+        <div className="credit-footer">by lexark25</div>
       </div>
 
       {/* Collapse toggle (desktop only) */}
-      <button className="sb-toggle" onClick={onToggle} title="Toggle sidebar">
+      <button className="sb-toggle" onClick={onToggle} title="Toggle sidebar" aria-label="Toggle sidebar">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
           <path d="M5 3l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
