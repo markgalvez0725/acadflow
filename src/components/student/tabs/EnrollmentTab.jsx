@@ -4,7 +4,7 @@ import { useUI } from '@/context/UIContext'
 import Badge from '@/components/primitives/Badge'
 import {
   BookOpen, CheckCircle2, XCircle, LockOpen, Lock,
-  CalendarDays, Clock, MapPin, GraduationCap, Users,
+  CalendarDays, Clock, MapPin, GraduationCap, Users, MessageSquare,
 } from 'lucide-react'
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -22,7 +22,7 @@ function StatusBadge({ enrolled, open, matches }) {
 }
 
 // ── Class Card ────────────────────────────────────────────────────────
-function ClassCard({ cls, student, onEnroll, onUnenroll, busy }) {
+function ClassCard({ cls, student, onEnroll, busy }) {
   const enrolled = (student.classIds?.length
     ? student.classIds
     : student.classId ? [student.classId] : []
@@ -30,7 +30,6 @@ function ClassCard({ cls, student, onEnroll, onUnenroll, busy }) {
 
   const matches  = courseMatches(student.course, cls.courseReq)
   const canEnroll  = !enrolled && cls.enrollmentOpen && matches
-  const canUnenroll = enrolled
 
   return (
     <div
@@ -96,16 +95,13 @@ function ClassCard({ cls, student, onEnroll, onUnenroll, busy }) {
             {busy ? 'Enrolling…' : 'Enroll'}
           </button>
         )}
-        {canUnenroll && (
-          <button
-            className="btn btn-ghost btn-sm flex-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-            onClick={() => onUnenroll(cls.id)}
-            disabled={busy}
-          >
-            {busy ? 'Removing…' : 'Unenroll'}
-          </button>
+        {enrolled && (
+          <div className="flex items-start gap-1.5 text-xs text-[var(--ink3)] bg-[var(--surface2)] px-2.5 py-2 rounded-lg w-full">
+            <Lock size={12} className="shrink-0 mt-0.5" />
+            <span>Enrollment is locked. Message your teacher if you need to make changes.</span>
+          </div>
         )}
-        {!canEnroll && !canUnenroll && (
+        {!canEnroll && !enrolled && (
           <div className="text-xs text-[var(--ink3)] py-1">
             {!cls.enrollmentOpen ? 'Enrollment is currently closed.' : 'You are not eligible to enroll.'}
           </div>
@@ -117,7 +113,7 @@ function ClassCard({ cls, student, onEnroll, onUnenroll, busy }) {
 
 // ── Main Tab ──────────────────────────────────────────────────────────
 export default function EnrollmentTab({ student }) {
-  const { classes, semester, enrollInClass, unenrollFromClass } = useData()
+  const { classes, semester, enrollInClass } = useData()
   const { toast, openDialog } = useUI()
   const [busyId, setBusyId] = useState(null)
   const [filter, setFilter] = useState('all') // 'all' | 'enrolled' | 'available'
@@ -144,32 +140,19 @@ export default function EnrollmentTab({ student }) {
   ), [activeClasses, studentClassIds, filter])
 
   async function handleEnroll(classId) {
-    setBusyId(classId)
-    try {
-      await enrollInClass(student.id, classId)
-      const cls = classes.find(c => c.id === classId)
-      toast(`Enrolled in ${cls?.name} ${cls?.section}!`, 'green')
-    } catch (e) {
-      toast(e.message, 'red')
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  async function handleUnenroll(classId) {
     const cls = classes.find(c => c.id === classId)
     const ok  = await openDialog({
-      title: 'Unenroll from this class?',
-      msg: `Remove yourself from "${cls?.name} ${cls?.section}"? Your grades and attendance records will be kept. You can re-enroll if enrollment is reopened.`,
+      title: 'Confirm Enrollment',
+      msg: `You are about to enroll in "${cls?.name} ${cls?.section}". Once enrolled, your enrollment cannot be changed or removed. If you need to make any corrections, you will need to message your teacher directly.`,
       type: 'warn',
-      confirmLabel: 'Unenroll',
+      confirmLabel: 'Enroll Now',
       showCancel: true,
     })
     if (!ok) return
     setBusyId(classId)
     try {
-      await unenrollFromClass(student.id, classId)
-      toast(`Unenrolled from ${cls?.name} ${cls?.section}.`, 'blue')
+      await enrollInClass(student.id, classId)
+      toast(`Enrolled in ${cls?.name} ${cls?.section}!`, 'green')
     } catch (e) {
       toast(e.message, 'red')
     } finally {
@@ -199,6 +182,15 @@ export default function EnrollmentTab({ student }) {
             {availableClasses.length > 0 && ` ${availableClasses.length} class${availableClasses.length !== 1 ? 'es' : ''} open for enrollment.`}
           </div>
         </div>
+      </div>
+
+      {/* Enrollment finality notice */}
+      <div className="flex items-start gap-2.5 px-3 py-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40 text-xs text-amber-800 dark:text-amber-300">
+        <MessageSquare size={14} className="shrink-0 mt-0.5" />
+        <span>
+          <strong>Important:</strong> Enrollment is final. Once you click <em>Enroll</em>, your selection cannot be changed.
+          If you need to update your enrollment, please message your teacher directly.
+        </span>
       </div>
 
       {/* Student course info */}
@@ -247,7 +239,6 @@ export default function EnrollmentTab({ student }) {
               cls={cls}
               student={student}
               onEnroll={handleEnroll}
-              onUnenroll={handleUnenroll}
               busy={busyId === cls.id}
             />
           ))}
