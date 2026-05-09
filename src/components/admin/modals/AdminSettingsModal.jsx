@@ -4,7 +4,7 @@ import { fbWithTimeout } from '@/firebase/firebaseInit'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { encryptEJS, encryptFbConfig, loadFbConfigFromStorage } from '@/utils/crypto'
+import { encryptFbConfig, loadFbConfigFromStorage } from '@/utils/crypto'
 import { getFbConfigFromEnv } from '@/firebase/firebaseInit'
 import { verifyPassword, hashPassword } from '@/utils/crypto'
 import { gradeInfo, DEFAULT_EQ_SCALE } from '@/utils/grades'
@@ -13,7 +13,6 @@ import { saveSettingsToFirebase } from '@/firebase/settings'
 const TABS = [
   { id: 'semester', label: '🗓 Semester' },
   { id: 'cred',     label: 'Credentials' },
-  { id: 'ejs',      label: 'EmailJS' },
   { id: 'eq',       label: 'Equiv Scale' },
   { id: 'firebase', label: 'Firebase' },
 ]
@@ -261,118 +260,6 @@ function CredentialsTab() {
   )
 }
 
-// ── EmailJS Tab ───────────────────────────────────────────────────────────────
-function EmailJSTab() {
-  const { ejs, saveEjs, db, fbReady } = useData()
-  const { toast } = useUI()
-
-  const [pub,     setPub]     = useState(ejs.publicKey    || '')
-  const [svcId,   setSvcId]   = useState(ejs.serviceId    || '')
-  const [tplId,   setTplId]   = useState(ejs.templateId   || '')
-  const [testTo,  setTestTo]  = useState('')
-  const [saving,  setSaving]  = useState(false)
-  const [testing, setTesting] = useState(false)
-
-  async function handleSave(e) {
-    e.preventDefault()
-    if (!pub.trim() || !svcId.trim() || !tplId.trim()) { toast('All three EmailJS fields are required.', 'warn'); return }
-    setSaving(true)
-    const ejsObj = { publicKey: pub.trim(), serviceId: svcId.trim(), templateId: tplId.trim() }
-    try {
-      await saveEjs(ejsObj)
-      toast('EmailJS settings saved.', 'success')
-    } catch (err) {
-      toast('Failed to save EmailJS settings.', 'error')
-    }
-    setSaving(false)
-  }
-
-  async function handleTest() {
-    if (!testTo.trim()) { toast('Enter a recipient email to test.', 'warn'); return }
-    if (!pub.trim() || !svcId.trim() || !tplId.trim()) { toast('Save EmailJS settings first.', 'warn'); return }
-    setTesting(true)
-    try {
-      if (window.emailjs) {
-        window.emailjs.init(pub.trim())
-        await window.emailjs.send(svcId.trim(), tplId.trim(), {
-          to_email: testTo.trim(),
-          otp_code: '123456',
-          student_name: 'Test User',
-        })
-        toast('Test email sent! Check your inbox.', 'success')
-      } else {
-        toast('EmailJS library not loaded.', 'error')
-      }
-    } catch (err) {
-      toast('Test email failed: ' + (err?.text || err?.message || 'Unknown error'), 'error')
-    }
-    setTesting(false)
-  }
-
-  async function handleClear() {
-    try {
-      localStorage.removeItem('cp_ejs')
-      if (fbReady && db.current) {
-        await fbWithTimeout(setDoc(doc(db.current, 'portal', 'config'), { ejs: null, ejs_enc: null }, { merge: true }))
-      }
-      setPub(''); setSvcId(''); setTplId('')
-      toast('EmailJS configuration cleared.', 'success')
-    } catch (err) {
-      toast('Failed to clear EmailJS configuration.', 'error')
-    }
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ fontSize: 12, color: 'var(--ink3)', background: 'var(--surface2)', borderRadius: 8, padding: '8px 12px' }}>
-        EmailJS is used to send OTP verification codes to students. Get credentials from{' '}
-        <span style={{ color: 'var(--accent)' }}>emailjs.com</span>.
-      </div>
-
-      <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div>
-          <label className="form-label">Public Key</label>
-          <input className="form-input" value={pub} onChange={e => setPub(e.target.value)} placeholder="user_xxxxxxxxxxxx" />
-        </div>
-        <div>
-          <label className="form-label">Service ID</label>
-          <input className="form-input" value={svcId} onChange={e => setSvcId(e.target.value)} placeholder="service_xxxxxxx" />
-        </div>
-        <div>
-          <label className="form-label">Template ID</label>
-          <input className="form-input" value={tplId} onChange={e => setTplId(e.target.value)} placeholder="template_xxxxxxx" />
-        </div>
-        <div className="flex gap-2" style={{ marginTop: 4 }}>
-          <button className="btn btn-primary btn-sm" type="submit" disabled={saving}>
-            {saving ? 'Saving…' : 'Save Settings'}
-          </button>
-          {ejs.configured && (
-            <button className="btn btn-ghost btn-sm" type="button" onClick={handleClear}>Clear Config</button>
-          )}
-        </div>
-      </form>
-
-      <hr style={{ border: 'none', borderTop: '1px solid var(--border)' }} />
-
-      <div>
-        <div className="form-label" style={{ fontWeight: 600, marginBottom: 8 }}>Test Email</div>
-        <div className="flex gap-2">
-          <input
-            className="form-input flex-1"
-            type="email"
-            placeholder="Recipient email"
-            value={testTo}
-            onChange={e => setTestTo(e.target.value)}
-          />
-          <button className="btn btn-ghost btn-sm" type="button" onClick={handleTest} disabled={testing}>
-            {testing ? 'Sending…' : 'Send Test'}
-          </button>
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>Sends a test OTP (123456) to verify your template.</div>
-      </div>
-    </div>
-  )
-}
 
 // ── Equiv Scale Tab ───────────────────────────────────────────────────────────
 const EQ_LABELS = ['1.00', '1.25', '1.50', '1.75', '2.00', '2.25', '2.50', '2.75', '3.00', '4.00']
@@ -589,13 +476,6 @@ function FirebaseTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Status banner */}
-      <div style={{ fontSize: 12, color: 'var(--ink3)', background: 'var(--surface2)', borderRadius: 8, padding: '8px 12px' }}>
-        Status:{' '}
-        <strong style={{ color: fbReady ? 'var(--green)' : cleared ? 'var(--red)' : 'var(--yellow)' }}>
-          {fbReady ? `Connected — ${fbConfig?.projectId}` : cleared ? 'Disconnected' : 'Not configured'}
-        </strong>
-      </div>
 
       {usingEnv ? (
         /* ── Env-based config (read-only) ── */
@@ -686,7 +566,6 @@ export default function AdminSettingsModal({ onClose }) {
 
       {activeTab === 'semester'  && <SemesterTab />}
       {activeTab === 'cred'     && <CredentialsTab />}
-      {activeTab === 'ejs'      && <EmailJSTab />}
       {activeTab === 'eq'       && <EquivScaleTab />}
       {activeTab === 'firebase' && <FirebaseTab />}
     </Modal>

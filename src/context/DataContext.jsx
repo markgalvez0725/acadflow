@@ -90,13 +90,9 @@ export function DataProvider({ children }) {
       onQuizzesUpdate:    setQuizzes,
       onAnnouncementsUpdate: setAnnouncements,
       onMeetingsUpdate: setMeetings,
-      onConfigUpdate: async ({ ejsConfig }) => {
+      onConfigUpdate: ({ ejsConfig }) => {
         if (ejsConfig) {
           setEjs({ ...ejsConfig, configured: true })
-          try {
-            const { init } = await import('@emailjs/browser')
-            init(ejsConfig.publicKey)
-          } catch (e) {}
         }
       },
       onSettingsUpdate: data => {
@@ -130,13 +126,9 @@ export function DataProvider({ children }) {
       onQuizzesUpdate:    setQuizzes,
       onAnnouncementsUpdate: setAnnouncements,
       onMeetingsUpdate: setMeetings,
-      onConfigUpdate: async ({ ejsConfig }) => {
+      onConfigUpdate: ({ ejsConfig }) => {
         if (ejsConfig) {
           setEjs({ ...ejsConfig, configured: true })
-          try {
-            const { init } = await import('@emailjs/browser')
-            init(ejsConfig.publicKey)
-          } catch (e) {}
         }
       },
       onSettingsUpdate: data => {
