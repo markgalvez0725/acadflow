@@ -1,9 +1,9 @@
-import React, { useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 import {
   gradeInfo, combineEquiv, computeFinalGradeFromTerms,
 } from '@/utils/grades'
 import { useData } from '@/context/DataContext'
-import { BookOpen, Clock } from 'lucide-react'
+import { BookOpen, Clock, ChevronDown, ChevronUp, Award } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 export default function GradesTab({ student: s, viewClassId, classes }) {
@@ -23,6 +23,26 @@ export default function GradesTab({ student: s, viewClassId, classes }) {
     ])]
   }
 
+  // GWA equivalency banner: average of uploaded subject equivalencies (true 1.00–5.00 scale)
+  const gwaData = useMemo(() => {
+    const equivNums = subs
+      .map(sub => {
+        const comp = s.gradeComponents?.[sub] || {}
+        const midG = comp.midterm ?? null
+        const finG = comp.finals  ?? null
+        const ts   = s.gradeUploadedAt?.[sub]
+        if (midG == null || finG == null || !ts) return null
+        const eq = combineEquiv(gradeInfo(midG, eqScale).eq, gradeInfo(finG, eqScale).eq).eq
+        return typeof eq === 'number' ? eq : parseFloat(eq)
+      })
+      .filter(v => v != null && !isNaN(v))
+    if (!equivNums.length) return null
+    const avg = parseFloat((equivNums.reduce((t, v) => t + v, 0) / equivNums.length).toFixed(2))
+    const remarks = avg <= 1.5 ? 'Excellent' : avg <= 2.0 ? 'Very Good' : avg <= 2.5 ? 'Good' : avg <= 3.0 ? 'Passed' : 'Conditional'
+    const color   = avg <= 2.0 ? 'var(--green)' : avg <= 3.0 ? 'var(--yellow)' : 'var(--red)'
+    return { avg, remarks, color, count: equivNums.length, total: subs.length }
+  }, [subs, s, eqScale])
+
   if (!subs.length) {
     return (
       <div className="empty"><div className="empty-icon"><BookOpen size={40} /></div>No subjects enrolled yet.</div>
@@ -31,6 +51,21 @@ export default function GradesTab({ student: s, viewClassId, classes }) {
 
   return (
     <div className="student-grades">
+      {gwaData && (
+        <div className="sg-gwa-banner">
+          <div className="sg-gwa-left">
+            <Award size={20} style={{ color: gwaData.color, flexShrink: 0 }} />
+            <div>
+              <div className="sg-gwa-title">Grade Weighted Average</div>
+              <div className="sg-gwa-sub">{gwaData.count} of {gwaData.total} subject{gwaData.total !== 1 ? 's' : ''} with uploaded grades</div>
+            </div>
+          </div>
+          <div className="sg-gwa-right">
+            <div className="sg-gwa-eq" style={{ color: gwaData.color }}>{gwaData.avg.toFixed(2)}</div>
+            <div className="sg-gwa-remarks" style={{ color: gwaData.color }}>{gwaData.remarks}</div>
+          </div>
+        </div>
+      )}
       <div className="sec-hdr mb-3">
         <div className="sec-title">Grade Breakdown</div>
       </div>
@@ -66,10 +101,25 @@ function Bar({ val, label, weight }) {
   )
 }
 
+// ── Trail Step: one row in the computation trail ──────────────────────────────
+function TrailRow({ label, value, sub, isResult, isFinal }) {
+  return (
+    <div className={`sg-trail-row${isResult ? ' sg-trail-row--result' : ''}${isFinal ? ' sg-trail-row--final' : ''}`}>
+      <span className="sg-trail-lbl">{label}</span>
+      <span className="sg-trail-val">{value}</span>
+      {sub && <span className="sg-trail-sub">{sub}</span>}
+    </div>
+  )
+}
+
 function SubjectCard({ sub, student: s, classes, activities, students, eqScale }) {
+  const [showTrail, setShowTrail] = useState(false)
+
   const comp = s.gradeComponents?.[sub] || {}
-  const midG = comp.midterm ?? null
-  const finG = comp.finals  ?? null
+  const midG = comp.midterm ?? null      // midterm TERM grade %
+  const finG = comp.finals  ?? null      // finals  TERM grade %
+  const midExamRaw = comp.midtermExam ?? null  // raw midterm exam score
+  const finExamRaw = comp.finalsExam  ?? null  // raw finals  exam score
   const ts   = s.gradeUploadedAt?.[sub]
 
   const gradeFullyUploaded = midG != null && finG != null && ts
@@ -77,10 +127,10 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
   const g = derivedFinalPct ?? s.grades?.[sub] ?? null
 
   const tsLabel = ts
-    ? <span style={{ fontSize: 10, color: 'var(--green)', fontWeight: 600 }}>
-        Uploaded {new Date(ts).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
+    ? <span className="sg-upload-status sg-upload-status--done">
+        ✓ Uploaded {new Date(ts).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
       </span>
-    : <span style={{ fontSize: 10, color: 'var(--ink3)' }}>Not yet uploaded</span>
+    : <span className="sg-upload-status">Pending upload</span>
 
   const { eq, ltr, rem } = gradeFullyUploaded
     ? combineEquiv(gradeInfo(midG, eqScale).eq, gradeInfo(finG, eqScale).eq)
@@ -130,7 +180,6 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
   const actVal = panelActAvg ?? comp.activities ?? null
 
   // Quiz display
-  // comp.quizzes may be a number (average) or an array of quiz result objects
   const quizzesRaw = comp.quizzes
   const quizzesIsArray = Array.isArray(quizzesRaw)
   const quizzesAvg = quizzesIsArray
@@ -164,10 +213,23 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
   }, 0)
   const attRate = held > 0 ? parseFloat(((attSet.size / held) * 100).toFixed(1)) : 0
 
+  // Compute class standing (CS) for the computation trail
+  const csParts = [actVal, quizzesAvg, attRate].filter(x => x != null)
+  const cs = csParts.length
+    ? parseFloat((csParts.reduce((t, x) => t + x, 0) / csParts.length).toFixed(2))
+    : comp.midtermCS ?? null
+
+  const midEq = midG != null ? gradeInfo(midG, eqScale).eq : null
+  const finEq = finG != null ? gradeInfo(finG, eqScale).eq : null
+
   const hasAny = actVal != null || quizzesAvg != null || midG != null || finG != null
+  const hasTrailData = (midG != null || finG != null)
+
+  const gradeColor = g != null ? (g >= 75 ? 'var(--green)' : g >= 60 ? 'var(--yellow)' : 'var(--red)') : 'var(--ink3)'
 
   return (
     <div className="sg-card">
+      {/* ── Header ── */}
       <div className="sg-card-header">
         <div className="sg-card-title">
           <div className="sg-subject-name">{sub}</div>
@@ -178,7 +240,9 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
             ? <>
                 <div className="sg-grade-num" style={{ color: 'var(--ink3)' }}>—</div>
                 <div className="sg-grade-badges">
-                  <span className="badge badge-gray" title="Final grade not yet uploaded by teacher" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={11} />Pending</span>
+                  <span className="badge badge-gray" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                    <Clock size={11} />Pending
+                  </span>
                   {midG != null && (
                     <div style={{ marginTop: 6, fontSize: 10, color: 'var(--ink3)' }}>
                       Midterm: <strong style={{ color: midG >= 75 ? 'var(--green)' : 'var(--yellow)' }}>{gradeInfo(midG, eqScale).eq}</strong>
@@ -187,14 +251,10 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
                 </div>
               </>
             : <>
-                <div
-                  className="sg-grade-num"
-                  style={{ color: g != null ? (g >= 75 ? 'var(--green)' : g >= 60 ? 'var(--yellow)' : 'var(--red)') : 'var(--ink3)' }}
-                  title={g != null ? `${g}%` : ''}
-                >
+                <div className="sg-grade-num" style={{ color: gradeColor }} title={g != null ? `${g}%` : ''}>
                   {eq !== '—' ? eq : '—'}
                 </div>
-                {g != null && <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 2 }}>{g}%</div>}
+                {g != null && <div className="sg-grade-pct">{g}%</div>}
                 <div className="sg-grade-badges">
                   <span className={`badge ${remarksColor}`}>{rem}</span>
                 </div>
@@ -203,20 +263,129 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
         </div>
       </div>
 
-      {hasAny ? (
-        <div className="sg-breakdown">
-          <div className="sg-section-label">Grade Breakdown</div>
-          <Bar val={actVal}       label="Activities" weight="CS" />
-          <Bar val={quizzesAvg}   label="Quizzes"    weight="CS" />
-          <Bar val={attRate}      label="Attendance" weight="CS" />
-          <Bar val={midG}         label="Midterm"    weight="Term grade" />
-          <Bar val={finG}         label="Finals"     weight={finG != null ? 'Term grade' : 'Pending upload'} />
+      {/* ── Term Summary Grid ── */}
+      {(midG != null || finG != null) && (
+        <div className="sg-term-grid">
+          <div className="sg-term-item">
+            <div className="sg-term-label">Midterm Term</div>
+            {midG != null
+              ? <>
+                  <div className="sg-term-val" style={{ color: midG >= 75 ? 'var(--green)' : midG >= 60 ? 'var(--yellow)' : 'var(--red)' }}>{midG}%</div>
+                  <div className="sg-term-eq">{midEq}</div>
+                </>
+              : <div className="sg-term-val" style={{ color: 'var(--ink3)' }}>—</div>
+            }
+          </div>
+          <div className="sg-term-divider" />
+          <div className="sg-term-item">
+            <div className="sg-term-label">Finals Term</div>
+            {finG != null
+              ? <>
+                  <div className="sg-term-val" style={{ color: finG >= 75 ? 'var(--green)' : finG >= 60 ? 'var(--yellow)' : 'var(--red)' }}>{finG}%</div>
+                  <div className="sg-term-eq">{finEq}</div>
+                </>
+              : <div className="sg-term-val" style={{ color: 'var(--ink3)' }}>—</div>
+            }
+          </div>
+          <div className="sg-term-divider" />
+          <div className="sg-term-item">
+            <div className="sg-term-label">Final Grade</div>
+            {eq !== '—'
+              ? <>
+                  <div className="sg-term-val sg-term-val--final" style={{ color: gradeColor }}>{eq}</div>
+                  <div className="sg-term-eq">{g != null ? `${g}%` : ''}</div>
+                </>
+              : <div className="sg-term-val" style={{ color: 'var(--ink3)' }}>—</div>
+            }
+          </div>
         </div>
-      ) : (
-        <div className="sg-no-data">No grade components uploaded yet.</div>
       )}
 
-      {/* Activity scores */}
+      {/* ── Grade Breakdown Bars ── */}
+      {hasAny && (
+        <div className="sg-breakdown">
+          <div className="sg-section-label">Class Standing Components</div>
+          <Bar val={actVal}     label="Activities" weight="CS" />
+          <Bar val={quizzesAvg} label="Quizzes"    weight="CS" />
+          <Bar val={attRate}    label="Attendance" weight="CS" />
+        </div>
+      )}
+
+      {/* ── Grade Computation Trail (Best Feature) ── */}
+      {hasTrailData && (
+        <div className="sg-trail">
+          <button
+            className="sg-trail-toggle"
+            onClick={() => setShowTrail(v => !v)}
+            type="button"
+          >
+            <span className="sg-trail-toggle-label">How was this grade computed?</span>
+            {showTrail ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+
+          {showTrail && (
+            <div className="sg-trail-body">
+              {/* Step 1: Class Standing */}
+              {(actVal != null || quizzesAvg != null) && (
+                <div className="sg-trail-step">
+                  <div className="sg-trail-step-title">① Class Standing (CS)</div>
+                  {actVal     != null && <TrailRow label="Activities" value={`${actVal}%`} />}
+                  {quizzesAvg != null && <TrailRow label="Quizzes"    value={`${quizzesAvg}%`} />}
+                  {attRate    != null && <TrailRow label="Attendance" value={`${attRate}%`} />}
+                  {cs         != null && <TrailRow label="→ CS Average" value={`${cs}%`} isResult />}
+                </div>
+              )}
+
+              {/* Step 2: Midterm Term */}
+              {midG != null && (
+                <div className="sg-trail-step">
+                  <div className="sg-trail-step-title">② Midterm Term Grade</div>
+                  {cs          != null && <TrailRow label="Class Standing (CS)" value={`${cs}%`} />}
+                  {midExamRaw  != null && <TrailRow label="Midterm Exam"        value={`${midExamRaw}%`} />}
+                  <TrailRow
+                    label="→ Midterm Term"
+                    value={`${midG}%`}
+                    sub={`Equivalency: ${midEq}`}
+                    isResult
+                  />
+                </div>
+              )}
+
+              {/* Step 3: Finals Term */}
+              {finG != null && (
+                <div className="sg-trail-step">
+                  <div className="sg-trail-step-title">③ Finals Term Grade</div>
+                  {cs         != null && <TrailRow label="Class Standing (CS)" value={`${cs}%`} />}
+                  {finExamRaw != null && <TrailRow label="Finals Exam"         value={`${finExamRaw}%`} />}
+                  <TrailRow
+                    label="→ Finals Term"
+                    value={`${finG}%`}
+                    sub={`Equivalency: ${finEq}`}
+                    isResult
+                  />
+                </div>
+              )}
+
+              {/* Step 4: Final Grade */}
+              {midG != null && finG != null && eq !== '—' && (
+                <div className="sg-trail-step">
+                  <div className="sg-trail-step-title">④ Final Grade (School Equivalency Table)</div>
+                  <TrailRow label={`Midterm equiv`} value={String(midEq)} />
+                  <TrailRow label={`Finals equiv`}  value={String(finEq)} />
+                  <TrailRow
+                    label="→ Final Grade"
+                    value={`${eq}`}
+                    sub={rem !== 'Pending' ? rem : undefined}
+                    isFinal
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Activity Scores ── */}
       {displayActs.length > 0 && (
         <div className="sg-score-block">
           <div className="sg-section-label">Activity Scores</div>
@@ -253,7 +422,7 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
         </div>
       )}
 
-      {/* Quiz scores */}
+      {/* ── Quiz Scores ── */}
       {qzEntries.length > 0 && (
         <div className="sg-score-block">
           <div className="sg-section-label">Quiz Scores</div>
@@ -288,29 +457,8 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
         </div>
       )}
 
-      {/* Exam grades */}
-      {(midG != null || finG != null) && (
-        <div className="sg-score-block">
-          <div className="sg-section-label">Exam Grades</div>
-          {midG != null && (
-            <div className="sg-exam-row">
-              <div className="sg-exam-label">Midterm Exam<span className="sg-exam-weight">used in Midterm Term</span></div>
-              <div className="sg-exam-right">
-                <span className="sg-exam-pct" style={{ color: midG >= 75 ? 'var(--green)' : midG >= 60 ? 'var(--yellow)' : 'var(--red)' }}>{midG}%</span>
-                <span className={`badge ${midG >= 75 ? 'badge-green' : midG >= 72 ? 'badge-yellow' : 'badge-red'}`}>{gradeInfo(midG, eqScale).eq}</span>
-              </div>
-            </div>
-          )}
-          {finG != null && (
-            <div className="sg-exam-row">
-              <div className="sg-exam-label">Final Exam<span className="sg-exam-weight">used in Finals Term</span></div>
-              <div className="sg-exam-right">
-                <span className="sg-exam-pct" style={{ color: finG >= 75 ? 'var(--green)' : finG >= 60 ? 'var(--yellow)' : 'var(--red)' }}>{finG}%</span>
-                <span className={`badge ${finG >= 75 ? 'badge-green' : finG >= 72 ? 'badge-yellow' : 'badge-red'}`}>{gradeInfo(finG, eqScale).eq}</span>
-              </div>
-            </div>
-          )}
-        </div>
+      {!hasAny && (
+        <div className="sg-no-data">No grade components uploaded yet.</div>
       )}
     </div>
   )

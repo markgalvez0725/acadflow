@@ -195,6 +195,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
   , [studs, subject])
 
   // Recompute actAvg and qzAvg from individual inputs, then recompute final grade
+  // Uses combineEquiv (school lookup table) for correct equivalency — not just gradeInfo on raw %
   function recomputeRow(r) {
     const actNums = r.actInputs.map(v => toNum(v)).filter(v => v !== null)
     const actAvg  = actNums.length > 0
@@ -212,14 +213,44 @@ function GradeEntryModal({ classId, subject, onClose }) {
     const midV = toNum(r.midtermExam)
     const finV = toNum(r.finalsExam)
 
-    let fg = r.finalGrade
-    if (midV !== null || finV !== null) {
-      const computed = computeGrade(actV, qzV, attV, midV, finV)
-      if (computed !== null) fg = String(computed)
+    // CS = avg(activities, quizzes, attendance) — mirrors handleSave formula
+    const csParts = [actV, qzV, attV].filter(x => x !== null)
+    const cs = csParts.length
+      ? parseFloat((csParts.reduce((s, x) => s + x, 0) / csParts.length).toFixed(2))
+      : null
+
+    // Midterm Term = avg(CS, Midterm Exam)
+    let midtermTerm = null
+    if (midV !== null) {
+      const p = [cs, midV].filter(x => x !== null)
+      midtermTerm = p.length ? parseFloat((p.reduce((s, x) => s + x, 0) / p.length).toFixed(2)) : null
     }
 
-    const fgN = toNum(fg)
-    return { ...r, actAvg, qzAvg, finalGrade: fg, equivPreview: gradeInfo(fgN, eqScale).eq }
+    // Finals Term = avg(CS, Finals Exam)
+    let finalsTerm = null
+    if (finV !== null) {
+      const p = [cs, finV].filter(x => x !== null)
+      finalsTerm = p.length ? parseFloat((p.reduce((s, x) => s + x, 0) / p.length).toFixed(2)) : null
+    }
+
+    let fg = r.finalGrade
+    let equivPreview = '—'
+
+    if (midtermTerm !== null || finalsTerm !== null) {
+      const computed = computeFinalGradeFromTerms(midtermTerm, finalsTerm)
+      if (computed !== null) fg = String(computed)
+      // Use combineEquiv (school lookup table) for proper equivalency
+      const midEq = midtermTerm !== null ? gradeInfo(midtermTerm, eqScale).eq : null
+      const finEq = finalsTerm  !== null ? gradeInfo(finalsTerm,  eqScale).eq : null
+      if (midEq && finEq)  equivPreview = combineEquiv(midEq, finEq).eq
+      else if (midEq)       equivPreview = midEq
+      else if (finEq)       equivPreview = finEq
+    } else {
+      const fgN = toNum(fg)
+      if (fgN !== null) equivPreview = gradeInfo(fgN, eqScale).eq
+    }
+
+    return { ...r, actAvg, qzAvg, finalGrade: fg, equivPreview }
   }
 
   // Update an activity input by index
