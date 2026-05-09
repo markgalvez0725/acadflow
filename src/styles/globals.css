@@ -1687,6 +1687,9 @@ textarea.input { resize: vertical; }
 }
 .grade-input:focus { border-color: var(--accent); }
 .grade-input::placeholder { color: var(--ink3); }
+.grade-input::-webkit-inner-spin-button,
+.grade-input::-webkit-outer-spin-button { -webkit-appearance: none; appearance: none; display: none; margin: 0; }
+.grade-input { -moz-appearance: textfield; appearance: textfield; }
 
 /* ══════════════════════════════════════════
    STUDENT STAT CARDS (Overview)

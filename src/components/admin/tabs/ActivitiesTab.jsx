@@ -7,7 +7,7 @@ import { getHeldDays, computeFinalGradeFromTerms } from '@/utils/grades'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
-import { Clock, AlertCircle, X } from 'lucide-react'
+import { Clock, AlertCircle, X, Archive, ArchiveRestore } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -209,7 +209,7 @@ function ActivityFormModal({ act, onClose }) {
           <label className="text-xs font-semibold text-ink2 mb-1 block">Class <span className="text-red-500">*</span></label>
           <select className="input w-full" value={classId} onChange={e => handleClassChange(e.target.value)} disabled={isEdit}>
             <option value="">— Select Class —</option>
-            {classes.map(c => <option key={c.id} value={c.id}>{c.name} {c.section}</option>)}
+            {classes.filter(c => !c.archived).map(c => <option key={c.id} value={c.id}>{c.name} {c.section}</option>)}
           </select>
         </div>
         <div className="field flex-1">
@@ -649,24 +649,67 @@ const PER_PAGE = 10
 
 export default function ActivitiesTab() {
   const { activities, students, classes, fbReady } = useData()
-  const [page,        setPage]       = useState(1)
-  const [showCreate,  setShowCreate] = useState(false)
-  const [viewAct,     setViewAct]    = useState(null)
-  const [editAct,     setEditAct]    = useState(null)
+  const [page,            setPage]           = useState(1)
+  const [archivedPage,    setArchivedPage]   = useState(1)
+  const [showCreate,      setShowCreate]     = useState(false)
+  const [viewAct,         setViewAct]        = useState(null)
+  const [editAct,         setEditAct]        = useState(null)
+  const [showArchivedActs, setShowArchivedActs] = useState(false)
 
   const sorted = useMemo(
     () => [...activities].sort((a, b) => b.createdAt - a.createdAt),
     [activities]
   )
 
+  const activeActs   = useMemo(() => sorted.filter(a => !classes.find(c => c.id === a.classId)?.archived), [sorted, classes])
+  const archivedActs = useMemo(() => sorted.filter(a =>  classes.find(c => c.id === a.classId)?.archived), [sorted, classes])
+
   const slice = useMemo(
-    () => sorted.slice((page - 1) * PER_PAGE, page * PER_PAGE),
-    [sorted, page]
+    () => activeActs.slice((page - 1) * PER_PAGE, page * PER_PAGE),
+    [activeActs, page]
+  )
+
+  const archivedSlice = useMemo(
+    () => archivedActs.slice((archivedPage - 1) * PER_PAGE, archivedPage * PER_PAGE),
+    [archivedActs, archivedPage]
   )
 
   if (!fbReady) return <SkeletonTable />
 
   const now = Date.now()
+
+  function ActivityCard({ act, readOnly }) {
+    const cls       = classes.find(c => c.id === act.classId)
+    const subs      = students.filter(s => s.classId === act.classId && s.account?.registered)
+    const isPast    = act.deadline < now
+    const submitted = Object.values(act.submissions || {}).filter(s => s.link).length
+    const graded    = Object.values(act.submissions || {}).filter(s => s.score != null).length
+    const dlLabel   = new Date(act.deadline).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+    return (
+      <div className="card card-pad">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <strong style={{ fontSize: 14 }}>{act.title}</strong>
+              <Badge variant={isPast ? 'red' : 'green'}>{isPast ? 'Closed' : 'Open'}</Badge>
+              <Badge variant="blue">{act.subject}</Badge>
+              {readOnly && <Badge variant="yellow">Archived</Badge>}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
+              {cls ? cls.name + ' ' + cls.section : '—'} · Max: {act.maxScore} pts
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 3 }}>
+              Deadline: {dlLabel} · {submitted}/{subs.length} submitted · {graded} graded
+            </div>
+          </div>
+          <div className="flex gap-1.5 flex-shrink-0">
+            <button className="btn btn-ghost btn-sm" onClick={() => setViewAct(act)}>View</button>
+            {!readOnly && <button className="btn btn-ghost btn-sm" onClick={() => setEditAct(act)}>Edit</button>}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -676,8 +719,8 @@ export default function ActivitiesTab() {
         <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>➕ New Activity</button>
       </div>
 
-      {/* List */}
-      {!activities.length ? (
+      {/* Active Activities */}
+      {activeActs.length === 0 ? (
         <div className="empty">
           <div className="empty-icon" style={{ fontSize: '2rem' }}>—</div>
           No activities posted yet. Click "New Activity" to get started.
@@ -685,52 +728,37 @@ export default function ActivitiesTab() {
       ) : (
         <>
           <div className="flex flex-col gap-3 mb-3">
-            {slice.map(act => {
-              const cls       = classes.find(c => c.id === act.classId)
-              const subs      = students.filter(s => s.classId === act.classId && s.account?.registered)
-              const isPast    = act.deadline < now
-              const submitted = Object.values(act.submissions || {}).filter(s => s.link).length
-              const graded    = Object.values(act.submissions || {}).filter(s => s.score != null).length
-              const dlLabel   = new Date(act.deadline).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
-
-              return (
-                <div key={act.id} className="card card-pad">
-                  <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <strong style={{ fontSize: 14 }}>{act.title}</strong>
-                        <Badge variant={isPast ? 'red' : 'green'}>{isPast ? 'Closed' : 'Open'}</Badge>
-                        <Badge variant="blue">{act.subject}</Badge>
-                      </div>
-                      <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
-                        {cls ? cls.name + ' ' + cls.section : '—'} · Max: {act.maxScore} pts
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 3 }}>
-                        Deadline: {dlLabel} · {submitted}/{subs.length} submitted · {graded} graded
-                      </div>
-                    </div>
-                    <div className="flex gap-1.5 flex-shrink-0">
-                      <button
-                        className="btn btn-ghost btn-sm"
-                        onClick={() => setViewAct(act)}
-                      >
-                        View
-                      </button>
-                      <button
-                        className="btn btn-ghost btn-sm"
-                        onClick={() => setEditAct(act)}
-                      >
-                        Edit
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
+            {slice.map(act => <ActivityCard key={act.id} act={act} readOnly={false} />)}
           </div>
-
-          <Pagination total={sorted.length} perPage={PER_PAGE} page={page} onChange={setPage} />
+          <Pagination total={activeActs.length} perPage={PER_PAGE} page={page} onChange={setPage} />
         </>
+      )}
+
+      {/* Archived Activities Section */}
+      {archivedActs.length > 0 && (
+        <div className="mt-5">
+          <button
+            className="flex items-center gap-2 text-sm font-semibold mb-3"
+            style={{ color: 'var(--amber, #d97706)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            onClick={() => setShowArchivedActs(v => !v)}
+          >
+            {showArchivedActs ? <ArchiveRestore size={15} /> : <Archive size={15} />}
+            {showArchivedActs ? 'Hide' : 'Show'} Archived Class Activities ({archivedActs.length})
+          </button>
+          {showArchivedActs && (
+            <>
+              <div className="rounded-lg px-3 py-2 mb-3 text-sm font-medium"
+                style={{ background: '#fef9c3', color: '#92400e', border: '1px solid #fde68a' }}>
+                <Archive size={13} className="inline-block mr-1 align-text-bottom" />
+                These activities belong to archived classes and are read-only.
+              </div>
+              <div className="flex flex-col gap-3 mb-3">
+                {archivedSlice.map(act => <ActivityCard key={act.id} act={act} readOnly={true} />)}
+              </div>
+              <Pagination total={archivedActs.length} perPage={PER_PAGE} page={archivedPage} onChange={setArchivedPage} />
+            </>
+          )}
+        </div>
       )}
 
       {/* Modals */}

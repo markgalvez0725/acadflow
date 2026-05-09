@@ -43,7 +43,7 @@ const TAB_TITLES = {
 
 export default function AdminLayout() {
   const { adminTab, toastQueue, dismissToast, dialog, resolveDialog } = useUI()
-  const { ejs, fbReady, messages } = useData()
+  const { ejs, fbReady, messages, semester } = useData()
   const { loginTime, lastLogin } = useAuth()
   const unreadMsgCount = messages.filter(m => m.from !== 'admin' && !m.adminRead).length
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -105,6 +105,18 @@ export default function AdminLayout() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {semester && (
+              <span
+                className="hidden md:inline text-xs font-semibold px-2.5 py-1 rounded-full"
+                style={{
+                  background: semester.status === 'active' ? 'var(--accent-l)' : 'var(--surface2)',
+                  color:      semester.status === 'active' ? 'var(--accent)' : 'var(--ink3)',
+                }}
+                title={`Status: ${semester.status}`}
+              >
+                📅 {semester.label || `${semester.term} AY ${semester.year}`}
+              </span>
+            )}
             <span className="adm-clock hidden sm:inline">{clock}</span>
             <SessionChip name="Admin" loginTime={loginTime} lastLogin={lastLogin} />
             <ThemeToggle style={{ position: 'static', width: 32, height: 32, fontSize: 14 }} />

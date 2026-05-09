@@ -11,11 +11,145 @@ import { gradeInfo, DEFAULT_EQ_SCALE } from '@/utils/grades'
 import { saveSettingsToFirebase } from '@/firebase/settings'
 
 const TABS = [
+  { id: 'semester', label: '🗓 Semester' },
   { id: 'cred',     label: 'Credentials' },
   { id: 'ejs',      label: 'EmailJS' },
   { id: 'eq',       label: 'Equiv Scale' },
   { id: 'firebase', label: 'Firebase' },
 ]
+
+// ── Semester Tab ──────────────────────────────────────────────────────────────
+const STATUS_OPTS = [
+  { value: 'upcoming', label: '⏳ Upcoming' },
+  { value: 'active',   label: '✅ Active / Open' },
+  { value: 'ended',    label: '🏁 Ended' },
+]
+
+function SemesterTab() {
+  const { semester, saveSemester } = useData()
+  const { toast } = useUI()
+
+  const [term,      setTerm]      = useState(semester?.term      || '1st Semester')
+  const [year,      setYear]      = useState(semester?.year      || '')
+  const [status,    setStatus]    = useState(semester?.status    || 'active')
+  const [startDate, setStartDate] = useState(semester?.startDate || '')
+  const [endDate,   setEndDate]   = useState(semester?.endDate   || '')
+  const [saving,    setSaving]    = useState(false)
+
+  const previewLabel = term && year ? `${term} AY ${year.trim()}` : ''
+
+  async function handleSave(e) {
+    e.preventDefault()
+    if (!year.trim()) { toast('Academic year is required (e.g. 2025-2026).', 'warn'); return }
+    setSaving(true)
+    try {
+      const sem = {
+        term,
+        year: year.trim(),
+        status,
+        startDate,
+        endDate,
+        label: `${term} AY ${year.trim()}`,
+        updatedAt: new Date().toISOString(),
+      }
+      await saveSemester(sem)
+      toast('Semester info saved!', 'success')
+    } catch (e) {
+      toast('Failed to save semester: ' + e.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Current semester info banner */}
+      {semester && (
+        <div style={{ background: 'var(--accent-l)', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 2 }}>Current Semester</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--accent)' }}>
+              {semester.label || `${semester.term} AY ${semester.year}`}
+            </div>
+            {(semester.startDate || semester.endDate) && (
+              <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 2 }}>
+                {semester.startDate && new Date(semester.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                {semester.startDate && semester.endDate && ' → '}
+                {semester.endDate && new Date(semester.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </div>
+            )}
+          </div>
+          <span style={{
+            fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 99,
+            background: semester.status === 'active' ? 'var(--green)' : semester.status === 'ended' ? 'var(--red)' : 'var(--yellow)',
+            color: '#fff',
+          }}>
+            {STATUS_OPTS.find(o => o.value === semester.status)?.label || semester.status}
+          </span>
+        </div>
+      )}
+
+      <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div>
+            <label className="form-label">Semester Term</label>
+            <select className="form-input" value={term} onChange={e => setTerm(e.target.value)}>
+              <option value="1st Semester">1st Semester</option>
+              <option value="2nd Semester">2nd Semester</option>
+              <option value="Summer">Summer</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label">Academic Year</label>
+            <input
+              className="form-input"
+              value={year}
+              onChange={e => setYear(e.target.value)}
+              placeholder="e.g. 2025-2026"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="form-label">Status</label>
+          <select className="form-input" value={status} onChange={e => setStatus(e.target.value)}>
+            {STATUS_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div>
+            <label className="form-label">Start Date</label>
+            <input className="form-input" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label">End Date</label>
+            <input className="form-input" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+          </div>
+        </div>
+
+        {previewLabel && (
+          <div style={{ fontSize: 12, background: 'var(--surface2)', borderRadius: 8, padding: '8px 12px', color: 'var(--ink2)' }}>
+            Label preview: <strong style={{ color: 'var(--ink)' }}>{previewLabel}</strong>
+          </div>
+        )}
+
+        <div>
+          <button className="btn btn-primary btn-sm" type="submit" disabled={saving}>
+            {saving ? 'Saving…' : 'Save Semester Info'}
+          </button>
+        </div>
+      </form>
+
+      <div style={{ fontSize: 12, color: 'var(--ink3)', background: 'var(--surface2)', borderRadius: 8, padding: '10px 12px', lineHeight: 1.6 }}>
+        <strong>💡 Semester Workflow:</strong><br />
+        1. Set the semester here before the term begins.<br />
+        2. When a class is <em>archived</em>, enrolled students' subject records are automatically snapshotted and cleared — they appear in each student's Academic History.<br />
+        3. <em>Unarchive</em> a class to make it active again, then re-enroll students manually via the Students tab.
+      </div>
+    </div>
+  )
+}
 
 // ── Credentials Tab ──────────────────────────────────────────────────────────
 function CredentialsTab() {
@@ -523,7 +657,7 @@ function FirebaseTab() {
 
 // ── Main Modal ────────────────────────────────────────────────────────────────
 export default function AdminSettingsModal({ onClose }) {
-  const [activeTab, setActiveTab] = useState('cred')
+  const [activeTab, setActiveTab] = useState('semester')
 
   return (
     <Modal onClose={onClose} size="lg">
@@ -554,6 +688,7 @@ export default function AdminSettingsModal({ onClose }) {
         ))}
       </div>
 
+      {activeTab === 'semester'  && <SemesterTab />}
       {activeTab === 'cred'     && <CredentialsTab />}
       {activeTab === 'ejs'      && <EmailJSTab />}
       {activeTab === 'eq'       && <EquivScaleTab />}

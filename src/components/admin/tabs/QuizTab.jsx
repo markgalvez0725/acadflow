@@ -5,7 +5,7 @@ import { useUI } from '@/context/UIContext'
 import Modal from '@/components/primitives/Modal'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
-import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList, Pencil, Save, Rocket, FileText, X, Lock, Circle } from 'lucide-react'
+import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList, Pencil, Save, Rocket, FileText, X, Lock, Circle, Archive, ArchiveRestore } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 
@@ -377,7 +377,7 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
           <p className="text-xs text-ink3">No classes available.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
-            {classes.map(c => (
+            {classes.filter(c => !c.archived).map(c => (
               <button key={c.id} type="button" onClick={() => toggleClass(c.id)}
                 className={`btn btn-sm ${classIds.includes(c.id) ? 'btn-primary' : 'btn-ghost'}`}
                 style={{ fontSize: 12 }}>
@@ -652,6 +652,8 @@ const PER_PAGE = 10
 export default function QuizTab() {
   const { quizzes, classes, fbReady } = useData()
   const [page, setPage] = useState(1)
+  const [archivedPage, setArchivedPage] = useState(1)
+  const [showArchivedQuizzes, setShowArchivedQuizzes] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [showForm, setShowForm] = useState(false)
@@ -664,9 +666,23 @@ export default function QuizTab() {
     [quizzes]
   )
 
+  const activeQuizzes = useMemo(
+    () => sorted.filter(q => (q.classIds || []).some(id => !classes.find(c => c.id === id)?.archived)),
+    [sorted, classes]
+  )
+  const archivedQuizzes = useMemo(
+    () => sorted.filter(q => (q.classIds || []).length > 0 && (q.classIds || []).every(id => classes.find(c => c.id === id)?.archived)),
+    [sorted, classes]
+  )
+
   const slice = useMemo(
-    () => sorted.slice((page - 1) * PER_PAGE, page * PER_PAGE),
-    [sorted, page]
+    () => activeQuizzes.slice((page - 1) * PER_PAGE, page * PER_PAGE),
+    [activeQuizzes, page]
+  )
+
+  const archivedSlice = useMemo(
+    () => archivedQuizzes.slice((archivedPage - 1) * PER_PAGE, archivedPage * PER_PAGE),
+    [archivedQuizzes, archivedPage]
   )
 
   const now = Date.now()
@@ -695,10 +711,15 @@ export default function QuizTab() {
         </div>
       </div>
 
-      {!quizzes.length ? (
+      {!activeQuizzes.length && !archivedQuizzes.length ? (
         <div className="empty">
           <div className="empty-icon"><FileText size={32} /></div>
           No quizzes yet. Export a template, generate with AI, then import the response.
+        </div>
+      ) : activeQuizzes.length === 0 ? (
+        <div className="empty">
+          <div className="empty-icon"><FileText size={32} /></div>
+          No active quizzes. All quizzes belong to archived classes.
         </div>
       ) : (
         <>
@@ -738,8 +759,67 @@ export default function QuizTab() {
               )
             })}
           </div>
-          <Pagination total={sorted.length} perPage={PER_PAGE} page={page} onChange={setPage} />
+          <Pagination total={activeQuizzes.length} perPage={PER_PAGE} page={page} onChange={setPage} />
         </>
+      )}
+
+      {/* Archived Quizzes Section */}
+      {archivedQuizzes.length > 0 && (
+        <div className="mt-5">
+          <button
+            className="flex items-center gap-2 text-sm font-semibold mb-3"
+            style={{ color: 'var(--amber, #d97706)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            onClick={() => setShowArchivedQuizzes(v => !v)}
+          >
+            {showArchivedQuizzes ? <ArchiveRestore size={15} /> : <Archive size={15} />}
+            {showArchivedQuizzes ? 'Hide' : 'Show'} Archived Class Quizzes ({archivedQuizzes.length})
+          </button>
+          {showArchivedQuizzes && (
+            <>
+              <div className="rounded-lg px-3 py-2 mb-3 text-sm font-medium"
+                style={{ background: '#fef9c3', color: '#92400e', border: '1px solid #fde68a' }}>
+                <Archive size={13} className="inline-block mr-1 align-text-bottom" />
+                These quizzes belong to archived classes and are read-only.
+              </div>
+              <div className="flex flex-col gap-3 mb-3">
+                {archivedSlice.map(q => {
+                  const { label, variant } = statusInfo(q)
+                  const clsNames = (q.classIds || []).map(id => {
+                    const c = classes.find(x => x.id === id)
+                    return c ? `${c.name} ${c.section}` : id
+                  }).join(', ')
+                  const attempted = Object.keys(q.submissions || {}).length
+                  const openLabel = new Date(q.openAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+                  const closeLabel = new Date(q.closeAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+                  return (
+                    <div key={q.id} className="card card-pad" style={{ opacity: 0.85 }}>
+                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <strong style={{ fontSize: 14 }}>{q.title}</strong>
+                            <Badge variant={variant}>{label}</Badge>
+                            <Badge variant="blue">{q.subject}</Badge>
+                            <Badge variant="yellow">Archived</Badge>
+                          </div>
+                          <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
+                            {clsNames} · {q.questions?.length || 0} questions · {q.timeLimit} min
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 3 }}>
+                            Open: {openLabel} → Close: {closeLabel} · {attempted} submitted
+                          </div>
+                        </div>
+                        <div className="flex gap-1.5 flex-shrink-0">
+                          <button className="btn btn-ghost btn-sm" onClick={() => setViewQuiz(q)}>View</button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <Pagination total={archivedQuizzes.length} perPage={PER_PAGE} page={archivedPage} onChange={setArchivedPage} />
+            </>
+          )}
+        </div>
       )}
 
       {showExport && (

@@ -1,0 +1,105 @@
+<h2>Dark Mode Color Direction</h2>
+<p class="subtitle">The current palette uses a green-tinted dark. Which direction feels better for an academic app?</p>
+
+<div class="cards">
+
+  <!-- Current -->
+  <div class="card" data-choice="current" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0f1a17;padding:16px;border-radius:8px;font-family:sans-serif;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+          <div style="width:32px;height:32px;border-radius:50%;background:#1a2e28;border:2px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;color:#14b8a6;font-weight:700;font-size:13px;">M</div>
+          <div>
+            <div style="color:#e8f5f0;font-size:13px;font-weight:600;">Mark Galvez</div>
+            <div style="color:#5a8c7e;font-size:11px;">20260001</div>
+          </div>
+        </div>
+        <div style="background:#1a2e28;border:1px solid rgba(255,255,255,.09);border-radius:10px;padding:12px;margin-bottom:8px;">
+          <div style="color:#9dbfb3;font-size:10px;margin-bottom:6px;">ATTENDANCE</div>
+          <div style="color:#14b8a6;font-size:22px;font-weight:700;">66.7%</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          <div style="background:#1a2e28;border:1px solid rgba(255,255,255,.09);border-radius:8px;padding:8px;">
+            <div style="color:#9dbfb3;font-size:10px;">GWA</div>
+            <div style="color:#e8f5f0;font-size:14px;font-weight:600;">—</div>
+          </div>
+          <div style="background:#1a2e28;border:1px solid rgba(255,255,255,.09);border-radius:8px;padding:8px;">
+            <div style="color:#9dbfb3;font-size:10px;">STATUS</div>
+            <div style="color:#14b8a6;font-size:12px;font-weight:600;">Pending</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Current — Green-Tinted Dark</h3>
+      <p>Deep green shadows (#0f1a17), green-washed surfaces. Feels botanical but surfaces can look muddy in low light.</p>
+    </div>
+  </div>
+
+  <!-- Option A: Neutral Slate Dark -->
+  <div class="card" data-choice="slate" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0f1117;padding:16px;border-radius:8px;font-family:sans-serif;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+          <div style="width:32px;height:32px;border-radius:50%;background:#1c2333;border:2px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;color:#14b8a6;font-weight:700;font-size:13px;">M</div>
+          <div>
+            <div style="color:#e8edf5;font-size:13px;font-weight:600;">Mark Galvez</div>
+            <div style="color:#5a7090;font-size:11px;">20260001</div>
+          </div>
+        </div>
+        <div style="background:#1c2333;border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:12px;margin-bottom:8px;">
+          <div style="color:#8a9db8;font-size:10px;margin-bottom:6px;">ATTENDANCE</div>
+          <div style="color:#14b8a6;font-size:22px;font-weight:700;">66.7%</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          <div style="background:#1c2333;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:8px;">
+            <div style="color:#8a9db8;font-size:10px;">GWA</div>
+            <div style="color:#e8edf5;font-size:14px;font-weight:600;">—</div>
+          </div>
+          <div style="background:#1c2333;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:8px;">
+            <div style="color:#8a9db8;font-size:10px;">STATUS</div>
+            <div style="color:#14b8a6;font-size:12px;font-weight:600;">Pending</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Option A — Neutral Slate Dark</h3>
+      <p>True near-black base (#0f1117) with blue-slate surfaces. Teal accent pops more cleanly. Familiar, professional — like VS Code or Notion dark mode.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Warmer Dark -->
+  <div class="card" data-choice="warm" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#111210;padding:16px;border-radius:8px;font-family:sans-serif;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+          <div style="width:32px;height:32px;border-radius:50%;background:#1e2219;border:2px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;color:#14b8a6;font-weight:700;font-size:13px;">M</div>
+          <div>
+            <div style="color:#eef3e8;font-size:13px;font-weight:600;">Mark Galvez</div>
+            <div style="color:#7a8c6a;font-size:11px;">20260001</div>
+          </div>
+        </div>
+        <div style="background:#1e2219;border:1px solid rgba(255,255,255,.09);border-radius:10px;padding:12px;margin-bottom:8px;">
+          <div style="color:#9aab88;font-size:10px;margin-bottom:6px;">ATTENDANCE</div>
+          <div style="color:#14b8a6;font-size:22px;font-weight:700;">66.7%</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          <div style="background:#1e2219;border:1px solid rgba(255,255,255,.09);border-radius:8px;padding:8px;">
+            <div style="color:#9aab88;font-size:10px;">GWA</div>
+            <div style="color:#eef3e8;font-size:14px;font-weight:600;">—</div>
+          </div>
+          <div style="background:#1e2219;border:1px solid rgba(255,255,255,.09);border-radius:8px;padding:8px;">
+            <div style="color:#9aab88;font-size:10px;">STATUS</div>
+            <div style="color:#14b8a6;font-size:12px;font-weight:600;">Pending</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Option B — Subtle Warm Green</h3>
+      <p>Near-black base (#111210) with subtle warm-olive surfaces. Keeps the green identity but much more muted — easier on the eyes, less "swampy".</p>
+    </div>
+  </div>
+
+</div>

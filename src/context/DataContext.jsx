@@ -8,7 +8,7 @@ import {
   fbSaveMeetLink, fbScheduleMeeting, fbStartMeeting, fbEndMeeting, fbCancelMeeting, fbPushMeetingNotifs,
   fbSetSubjectRep,
 } from '@/firebase/persistence'
-import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase } from '@/firebase/settings'
+import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase, saveSemesterToFirebase } from '@/firebase/settings'
 import { loadFbConfigFromStorage, readStoredEJS } from '@/utils/crypto'
 import { DEFAULT_EQ_SCALE } from '@/utils/grades'
 
@@ -25,6 +25,7 @@ export function DataProvider({ children }) {
   const [meetings, setMeetings]           = useState([])
   const [fbReady, setFbReady]           = useState(false)
   const [fbConfig, setFbConfig]         = useState(null) // decrypted config object
+  const [semester, setSemester]         = useState(null)
   const dbRef = useRef(null)
 
   const [ejs, setEjs] = useState({ publicKey: '', serviceId: '', templateId: '', configured: false })
@@ -74,9 +75,10 @@ export function DataProvider({ children }) {
       if (local?.pass) setAdmin(local)
     }
 
-    // 4. Load portal settings (equiv scale)
+    // 4. Load portal settings (equiv scale, semester)
     const settings = await syncSettingsFromFirebase(db)
     if (settings?.equivScale) setEqScale(settings.equivScale)
+    if (settings?.semester) setSemester(settings.semester)
 
     // 5. Start real-time listeners
     fbStartListening(db, {
@@ -101,6 +103,7 @@ export function DataProvider({ children }) {
         if (Array.isArray(data?.equivScale) && data.equivScale.length === DEFAULT_EQ_SCALE.length) {
           setEqScale(data.equivScale)
         }
+        if (data?.semester) setSemester(data.semester)
       },
     })
 
@@ -140,6 +143,7 @@ export function DataProvider({ children }) {
         if (Array.isArray(data?.equivScale) && data.equivScale.length === DEFAULT_EQ_SCALE.length) {
           setEqScale(data.equivScale)
         }
+        if (data?.semester) setSemester(data.semester)
       },
     })
     return true
@@ -182,6 +186,88 @@ export function DataProvider({ children }) {
       console.warn('[DataContext] saveEquivScale Firebase sync failed:', e.message)
     }
   }, [])
+
+  const saveSemester = useCallback(async (sem) => {
+    setSemester(sem)
+    try { await saveSemesterToFirebase(dbRef.current, sem) } catch (e) {
+      console.warn('[DataContext] saveSemester Firebase sync failed:', e.message)
+      throw e
+    }
+  }, [])
+
+  // ── Archive a class + auto-archive enrolled students' subject data ──────────
+  // When called, each enrolled student's subject records for this class are
+  // snapshotted into archivedSemesters[], then cleared from their active data,
+  // and the class is removed from their classIds. Teacher re-enrolls manually.
+  const archiveClassWithStudents = useCallback(async (cls) => {
+    const semLabel = semester
+      ? (semester.label || `${semester.term} AY ${semester.year}`)
+      : 'Unknown Semester'
+
+    const enrolled = students.filter(s =>
+      s.classId === cls.id || s.classIds?.includes(cls.id)
+    )
+
+    const updatedStudents = students.map(s => {
+      if (s.classId !== cls.id && !s.classIds?.includes(cls.id)) return s
+
+      // Snapshot current subject data, serializing Sets → arrays for Firestore
+      const subjectArchive = {}
+      cls.subjects.forEach(sub => {
+        subjectArchive[sub] = {
+          grade: s.grades?.[sub] ?? null,
+          gradeComponents: s.gradeComponents?.[sub] ? { ...s.gradeComponents[sub] } : {},
+          gradeUploadedAt: s.gradeUploadedAt?.[sub] ?? null,
+          _att: s.attendance?.[sub] ? [...s.attendance[sub]] : [],
+          _exc: s.excuse?.[sub] ? [...s.excuse[sub]] : [],
+        }
+      })
+
+      const archiveEntry = {
+        semester: semLabel,
+        classId: cls.id,
+        className: cls.name,
+        section: cls.section,
+        archivedAt: new Date().toISOString(),
+        subjects: subjectArchive,
+      }
+
+      const ns = {
+        ...s,
+        archivedSemesters: [...(s.archivedSemesters || []), archiveEntry],
+        grades:         { ...s.grades },
+        attendance:     { ...s.attendance },
+        excuse:         { ...s.excuse },
+        gradeComponents: { ...(s.gradeComponents || {}) },
+      }
+      if (s.gradeUploadedAt) ns.gradeUploadedAt = { ...s.gradeUploadedAt }
+
+      // Strip active subject data for this class
+      cls.subjects.forEach(sub => {
+        delete ns.grades[sub]
+        delete ns.attendance[sub]
+        delete ns.excuse[sub]
+        delete ns.gradeComponents[sub]
+        if (ns.gradeUploadedAt) delete ns.gradeUploadedAt[sub]
+      })
+
+      // Un-enroll from this class
+      ns.classIds = (s.classIds || []).filter(id => id !== cls.id)
+      if (ns.classId === cls.id) ns.classId = ns.classIds[0] || null
+
+      return ns
+    })
+
+    const updatedClasses = classes.map(c =>
+      c.id === cls.id ? { ...c, archived: true } : c
+    )
+
+    await saveClasses(updatedClasses)
+    if (enrolled.length) {
+      setStudents(updatedStudents)
+      await persistStudentsSync(dbRef.current, updatedStudents, enrolled.map(s => s.id))
+    }
+  }, [students, classes, semester, saveClasses])
 
   const saveAnnouncement = useCallback(async (announcement) => {
     setAnnouncements(prev => {
@@ -278,7 +364,7 @@ export function DataProvider({ children }) {
   return (
     <DataContext.Provider value={{
       students, setStudents, saveStudents, deleteStudent,
-      classes, setClasses, saveClasses, setSubjectRep,
+      classes, setClasses, saveClasses, setSubjectRep, archiveClassWithStudents,
       messages, setMessages,
       activities, setActivities,
       adminNotifs, setAdminNotifs,
@@ -291,6 +377,7 @@ export function DataProvider({ children }) {
       db: dbRef,
       ejs, setEjs, saveEjs,
       eqScale, saveEquivScale,
+      semester, saveSemester,
       admin, setAdmin, saveAdmin,
     }}>
       {children}

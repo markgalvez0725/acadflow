@@ -32,7 +32,7 @@ function AddStudentModal({ onClose }) {
   const [passErr, setPassErr]   = useState('')
   const [saving, setSaving]     = useState(false)
 
-  const otherClasses = classes.filter(c => c.id !== classId)
+  const otherClasses = classes.filter(c => !c.archived && c.id !== classId)
 
   function toggleExtra(cid) {
     setExtraIds(prev => prev.includes(cid) ? prev.filter(x => x !== cid) : [...prev, cid])
@@ -118,7 +118,7 @@ function AddStudentModal({ onClose }) {
         <label>Primary Class <span className="font-normal text-ink3">(home class for grades &amp; attendance)</span></label>
         <select value={classId} onChange={e => { setClassId(e.target.value); setExtraIds(prev => prev.filter(x => x !== e.target.value)) }}>
           <option value="">— Select Class —</option>
-          {classes.map(c => <option key={c.id} value={c.id}>{c.name} · {c.section}</option>)}
+          {classes.filter(c => !c.archived).map(c => <option key={c.id} value={c.id}>{c.name} · {c.section}</option>)}
         </select>
       </div>
 
@@ -194,10 +194,12 @@ function EditStudentModal({ student, onClose }) {
   const [extraIds, setExtraIds] = useState(
     (student.classIds || []).filter(id => id !== student.classId)
   )
-  const [err, setErr]     = useState('')
-  const [saving, setSaving] = useState(false)
+  const [err, setErr]         = useState('')
+  const [saving, setSaving]   = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
 
-  const otherClasses = useMemo(() => classes.filter(c => c.id !== classId), [classes, classId])
+  const activeClasses = useMemo(() => classes.filter(c => !c.archived), [classes])
+  const otherClasses  = useMemo(() => activeClasses.filter(c => c.id !== classId), [activeClasses, classId])
 
   const allSubjects = useMemo(() => {
     const allIds = [...new Set([classId, ...extraIds].filter(Boolean))]
@@ -277,7 +279,7 @@ function EditStudentModal({ student, onClose }) {
         <label>Primary Class <span className="font-normal text-ink3">(home class for grades &amp; attendance)</span></label>
         <select value={classId} onChange={e => { setClassId(e.target.value); setExtraIds(prev => prev.filter(x => x !== e.target.value)) }}>
           <option value="">— Unassigned —</option>
-          {classes.map(c => <option key={c.id} value={c.id}>{c.name} · {c.section}</option>)}
+          {activeClasses.map(c => <option key={c.id} value={c.id}>{c.name} · {c.section}</option>)}
         </select>
       </div>
 
@@ -328,6 +330,52 @@ function EditStudentModal({ student, onClose }) {
           )}
         </div>
       </div>
+
+      {/* Academic History */}
+      {(student.archivedSemesters?.length > 0) && (
+        <div className="border-t border-border pt-3 mt-1">
+          <button
+            type="button"
+            className="flex items-center gap-2 text-xs font-semibold text-ink2 hover:text-ink transition-colors mb-2"
+            onClick={() => setHistoryOpen(v => !v)}
+          >
+            <span>{historyOpen ? '▾' : '▸'}</span>
+            📋 Academic History ({student.archivedSemesters.length} archived semester{student.archivedSemesters.length !== 1 ? 's' : ''})
+          </button>
+          {historyOpen && (
+            <div className="flex flex-col gap-3">
+              {[...student.archivedSemesters].reverse().map((entry, i) => (
+                <div key={i} className="bg-surface2 border border-border rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2 flex-wrap gap-1">
+                    <div>
+                      <div className="text-xs font-bold text-ink">{entry.semester}</div>
+                      <div className="text-xs text-ink3">{entry.className} · {entry.section}</div>
+                    </div>
+                    <div className="text-xs text-ink3">
+                      Archived {new Date(entry.archivedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {Object.entries(entry.subjects || {}).map(([sub, data]) => (
+                      <div key={sub} className="text-xs bg-bg border border-border rounded px-2 py-1">
+                        <span className="font-semibold text-ink">{sub}</span>
+                        {data.grade != null && (
+                          <span className="ml-1.5 text-ink2">
+                            {typeof data.grade === 'number' ? data.grade.toFixed(2) : data.grade}
+                          </span>
+                        )}
+                        {data._att?.length > 0 && (
+                          <span className="ml-1 text-ink3">· {data._att.length} attendance records</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="modal-footer">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>

@@ -17,11 +17,17 @@ export async function syncSettingsFromFirebase(db) {
     if (d?.eqUserDefault) {
       try { localStorage.setItem('cp_eq_user_default', JSON.stringify(d.eqUserDefault)); } catch (e) {}
     }
+    if (d?.semester) result.semester = d.semester;
     return result;
   } catch (e) {
     if (!e.message?.includes('offline')) console.warn('[Firebase] Settings sync failed:', e.message);
     return null;
   }
+}
+
+export async function saveSemesterToFirebase(db, semester) {
+  if (!db) return;
+  await fbWithTimeout(setDoc(doc(db, 'portal', 'settings'), { semester }, { merge: true }));
 }
 
 export async function saveSettingsToFirebase(db, equivScale) {

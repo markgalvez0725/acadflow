@@ -5,7 +5,7 @@ import { deserializeStudents } from '@/utils/attendance'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
-import { Plus, Pencil, School, Archive, ArchiveRestore } from 'lucide-react'
+import { Plus, Pencil, School, Archive, ArchiveRestore, CalendarDays } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const PER_PAGE = 10
@@ -223,7 +223,7 @@ function EditClassModal({ cls, onClose }) {
 
 // ── Classes Tab ───────────────────────────────────────────────────────
 export default function ClassesTab() {
-  const { classes, students, saveClasses, saveStudents, fbReady } = useData()
+  const { classes, students, saveClasses, saveStudents, archiveClassWithStudents, semester, fbReady } = useData()
   const { toast, openDialog } = useUI()
   const [page, setPage]           = useState(1)
   const [showAdd, setShowAdd]     = useState(false)
@@ -241,18 +241,49 @@ export default function ClassesTab() {
   )
 
   async function handleArchive(cls) {
-    const label = cls.archived ? 'Unarchive' : 'Archive'
-    const msg = cls.archived
-      ? `Unarchive "${cls.name} ${cls.section}"? It will become active again and visible to enrolled students.`
-      : `Archive "${cls.name} ${cls.section}"? It will be hidden from students but all data will be preserved.`
-    const ok = await openDialog({ title: `${label} this class?`, msg, type: cls.archived ? 'info' : 'warn', confirmLabel: `${label} Class`, showCancel: true })
-    if (!ok) return
-    try {
-      await saveClasses(classes.map(c => c.id === cls.id ? { ...c, archived: !cls.archived } : c))
-      toast(`Class ${cls.archived ? 'unarchived' : 'archived'}.`, 'green')
-      if (page > 1 && slice.length === 1) setPage(p => p - 1)
-    } catch (e) {
-      toast(`Could not ${label.toLowerCase()} class: ` + e.message, 'red')
+    if (cls.archived) {
+      // Unarchiving: simple toggle
+      const ok = await openDialog({
+        title: 'Unarchive this class?',
+        msg: `Unarchive "${cls.name} ${cls.section}"? It will become active again. Remember to re-enroll students manually for the new semester.`,
+        type: 'info',
+        confirmLabel: 'Unarchive Class',
+        showCancel: true,
+      })
+      if (!ok) return
+      try {
+        await saveClasses(classes.map(c => c.id === cls.id ? { ...c, archived: false } : c))
+        toast('Class unarchived. Re-enroll students via the Students tab.', 'green')
+        if (page > 1 && slice.length === 1) setPage(p => p - 1)
+      } catch (e) {
+        toast('Could not unarchive class: ' + e.message, 'red')
+      }
+    } else {
+      // Archiving: snapshot + clear student subject data
+      const enrolledCount = students.filter(s => s.classId === cls.id || s.classIds?.includes(cls.id)).length
+      const studentNote = enrolledCount > 0
+        ? ` ${enrolledCount} enrolled student${enrolledCount !== 1 ? 's' : ''} will have their subject records for this class automatically saved to their Academic History and cleared from their active profile.`
+        : ''
+      const ok = await openDialog({
+        title: 'Archive this class?',
+        msg: `Archive "${cls.name} ${cls.section}"?${studentNote} Students can be re-enrolled when the new semester begins.`,
+        type: 'warn',
+        confirmLabel: 'Archive & Snapshot Data',
+        showCancel: true,
+      })
+      if (!ok) return
+      try {
+        await archiveClassWithStudents(cls)
+        toast(
+          enrolledCount > 0
+            ? `Class archived. Subject records for ${enrolledCount} student${enrolledCount !== 1 ? 's' : ''} saved to Academic History.`
+            : 'Class archived.',
+          'green'
+        )
+        if (page > 1 && slice.length === 1) setPage(p => p - 1)
+      } catch (e) {
+        toast('Could not archive class: ' + e.message, 'red')
+      }
     }
   }
 
@@ -287,6 +318,19 @@ export default function ClassesTab() {
 
   return (
     <div>
+      {/* Semester indicator */}
+      {semester && (
+        <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg text-xs font-medium"
+          style={{ background: semester.status === 'active' ? 'var(--accent-l)' : 'var(--surface2)', color: semester.status === 'active' ? 'var(--accent)' : 'var(--ink3)' }}>
+          <CalendarDays size={13} />
+          <span>
+            <strong>{semester.label || `${semester.term} AY ${semester.year}`}</strong>
+            {' — '}
+            {semester.status === 'active' ? 'Active Semester' : semester.status === 'ended' ? 'Semester Ended' : 'Upcoming Semester'}
+          </span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="sec-hdr mb-3">
         <div className="sec-title">Classes</div>
