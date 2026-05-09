@@ -255,11 +255,18 @@ function GradeEntryModal({ classId, subject, onClose }) {
     return { ...r, actAvg, qzAvg, finalGrade: fg, equivPreview }
   }
 
+  const clampGrade = val => {
+    if (val === '' || val === null || val === undefined) return val
+    const n = parseFloat(val)
+    if (isNaN(n)) return val
+    return String(Math.min(100, Math.max(0, n)))
+  }
+
   // Update an activity input by index
   const updateActInput = useCallback((rowIdx, actIdx, val) => {
     setRows(prev => prev.map((r, i) => {
       if (i !== rowIdx) return r
-      const actInputs = r.actInputs.map((v, j) => j === actIdx ? val : v)
+      const actInputs = r.actInputs.map((v, j) => j === actIdx ? clampGrade(val) : v)
       return recomputeRow({ ...r, actInputs })
     }))
   }, [eqScale]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -268,7 +275,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
   const updateQzInput = useCallback((rowIdx, qzIdx, val) => {
     setRows(prev => prev.map((r, i) => {
       if (i !== rowIdx) return r
-      const qzInputs = r.qzInputs.map((v, j) => j === qzIdx ? val : v)
+      const qzInputs = r.qzInputs.map((v, j) => j === qzIdx ? clampGrade(val) : v)
       return recomputeRow({ ...r, qzInputs })
     }))
   }, [eqScale]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -277,7 +284,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
   const updateRow = useCallback((i, field, val) => {
     setRows(prev => prev.map((r, idx) => {
       if (idx !== i) return r
-      return recomputeRow({ ...r, [field]: val })
+      return recomputeRow({ ...r, [field]: clampGrade(val) })
     }))
   }, [eqScale]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -285,8 +292,9 @@ function GradeEntryModal({ classId, subject, onClose }) {
   const updateFinalGrade = useCallback((i, val) => {
     setRows(prev => prev.map((r, idx) => {
       if (idx !== i) return r
-      const fgN = toNum(val)
-      return { ...r, finalGrade: val, equivPreview: gradeInfo(fgN, eqScale).eq }
+      const clamped = clampGrade(val)
+      const fgN = toNum(clamped)
+      return { ...r, finalGrade: clamped, equivPreview: gradeInfo(fgN, eqScale).eq }
     }))
   }, [eqScale])
 
@@ -466,7 +474,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
           <thead>
             {/* Row 1: group headers */}
             <tr>
-              <th rowSpan={2} style={{ verticalAlign: 'bottom' }}>Student</th>
+              <th rowSpan={2} style={{ verticalAlign: 'bottom', position: 'sticky', left: 0, zIndex: 3, background: 'var(--surface)', boxShadow: '2px 0 4px -1px var(--border)' }}>Student</th>
               <th colSpan={actInputCount} className="text-center" style={{ borderBottom: '1px solid var(--border)' }}>
                 Activities
               </th>
@@ -530,7 +538,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
 
               return (
                 <tr key={s.id}>
-                  <td style={{ minWidth: 150 }}>
+                  <td style={{ minWidth: 160, position: 'sticky', left: 0, zIndex: 1, background: 'var(--surface)', boxShadow: '2px 0 4px -1px var(--border)' }}>
                     <strong>{s.name}</strong><br />
                     <small className="text-ink2">{s.id}</small>
                   </td>
