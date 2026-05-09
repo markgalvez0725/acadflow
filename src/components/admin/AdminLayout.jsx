@@ -8,7 +8,6 @@ import ThemeToggle from '@/components/primitives/ThemeToggle'
 import SessionChip from '@/components/primitives/SessionChip'
 import ToastManager from '@/components/primitives/ToastManager'
 import Dialog from '@/components/primitives/Dialog'
-import SecurityPill from './SecurityPill'
 import FloatingMessenger from './FloatingMessenger'
 
 // Lazy-load tabs
@@ -155,9 +154,6 @@ export default function AdminLayout() {
           <AdminSettingsModal onClose={() => setSettingsOpen(false)} />
         </Suspense>
       )}
-
-      {/* Security pill */}
-      <SecurityPill />
 
       {/* Floating Messenger */}
       <FloatingMessenger unreadCount={unreadMsgCount} />
