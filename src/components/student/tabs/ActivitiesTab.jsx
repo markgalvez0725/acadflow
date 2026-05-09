@@ -3,7 +3,7 @@ import { doc, updateDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Pagination from '@/components/primitives/Pagination'
-import { ClipboardList, ArrowRight, ExternalLink } from 'lucide-react'
+import { ClipboardList, ArrowRight, ExternalLink, Check, Circle } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const PER_PAGE = 10
@@ -174,7 +174,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                         >
                           {met
                             ? <Check size={11} />
-                            : <span style={{ width: 11, height: 11, borderRadius: '50%', border: '1.5px solid currentColor', display: 'inline-block', flexShrink: 0 }} />
+                            : <Circle size={11} />
                           }
                           {c.name} ({c.points}pt{c.points !== 1 ? 's' : ''})
                         </span>
@@ -210,7 +210,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                         onKeyDown={e => { if (e.key === 'Enter') submitActivity(act.id) }}
                       />
                       <div className="flex gap-2 mt-2">
-                      <button
+                        <button
                           className="btn btn-primary btn-sm"
                           onClick={() => submitActivity(act.id)}
                           disabled={submitting[act.id] || !(linkInputs[act.id] ?? sub.link).trim()}
