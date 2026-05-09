@@ -5,7 +5,7 @@ import { deserializeStudents } from '@/utils/attendance'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
-import { Plus, Pencil, School, Archive, ArchiveRestore, CalendarDays, Users, LockOpen, Lock } from 'lucide-react'
+import { Plus, Pencil, School, Archive, ArchiveRestore, CalendarDays, Users, LockOpen, Lock, CheckCircle2 } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const PER_PAGE = 10
@@ -23,7 +23,9 @@ function AddClassModal({ onClose }) {
   const [activeSemester, setActiveSemester] = useState(
     semester ? (semester.label || `${semester.term} AY ${semester.year}`) : ''
   )
-  const [enrollmentOpen, setEnrollmentOpen] = useState(false)
+  const [enrollmentOpen, setEnrollmentOpen] = useState(
+    semester?.status === 'active'
+  )
   const [err, setErr]           = useState('')
   const [saving, setSaving]     = useState(false)
 
@@ -106,7 +108,18 @@ function AddClassModal({ onClose }) {
         </div>
         <div className="field">
           <label>Active Semester</label>
-          <input value={activeSemester} onChange={e => setActiveSemester(e.target.value)} placeholder="1st Sem AY 2025-2026" />
+          <input
+            value={activeSemester}
+            onChange={e => {
+              const val = e.target.value
+              setActiveSemester(val)
+              const semLabel = semester ? (semester.label || `${semester.term} AY ${semester.year}`) : ''
+              if (semLabel && val.trim() === semLabel) {
+                setEnrollmentOpen(semester.status === 'active')
+              }
+            }}
+            placeholder="1st Sem AY 2025-2026"
+          />
         </div>
       </div>
       <div className="field">
@@ -416,17 +429,34 @@ export default function ClassesTab() {
 
   if (!fbReady) return <SkeletonTable />
 
+  const semLabel = semester ? (semester.label || `${semester.term} AY ${semester.year}`) : null
+  const semClasses = semLabel ? classes.filter(c => !c.archived && c.activeSemester === semLabel) : []
+  const semOpenCount = semClasses.filter(c => c.enrollmentOpen).length
+
   return (
     <div>
-      {/* Semester indicator */}
+      {/* Semester indicator with enrollment summary */}
       {semester && (
-        <div className={`flex items-center gap-2 mb-3 px-3 py-2 rounded-lg text-xs font-medium ${semester.status === 'active' ? 'bg-[var(--accent-l)] text-[var(--accent)]' : 'bg-[var(--surface2)] text-[var(--ink3)]'}`}>
-          <CalendarDays className="w-3 h-3" />
-          <span>
-            <strong>{semester.label || `${semester.term} AY ${semester.year}`}</strong>
-            {' — '}
-            {semester.status === 'active' ? 'Active Semester' : semester.status === 'ended' ? 'Semester Ended' : 'Upcoming Semester'}
-          </span>
+        <div className={`flex items-center justify-between gap-3 mb-3 px-3 py-2.5 rounded-lg text-xs font-medium flex-wrap ${semester.status === 'active' ? 'bg-[var(--accent-l)] text-[var(--accent)]' : 'bg-[var(--surface2)] text-[var(--ink3)]'}`}>
+          <div className="flex items-center gap-2">
+            <CalendarDays className="w-3.5 h-3.5 shrink-0" />
+            <span>
+              <strong>{semLabel}</strong>
+              {' — '}
+              {semester.status === 'active' ? 'Active Semester' : semester.status === 'ended' ? 'Semester Ended' : 'Upcoming Semester'}
+            </span>
+          </div>
+          {semClasses.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 size={12} className={semester.status === 'active' ? 'text-green-600' : ''} />
+              <span className={semester.status === 'active' ? 'text-green-700 dark:text-green-400' : ''}>
+                <strong>{semOpenCount}</strong> / {semClasses.length} classes have enrollment open
+              </span>
+            </div>
+          )}
+          {semClasses.length === 0 && !showArchived && (
+            <span className="opacity-70">No classes assigned to this semester yet</span>
+          )}
         </div>
       )}
 

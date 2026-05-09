@@ -181,11 +181,26 @@ export function DataProvider({ children }) {
 
   const saveSemester = useCallback(async (sem) => {
     setSemester(sem)
+
+    // Auto-sync class enrollment status for all classes assigned to this semester
+    const semLabel = sem.label || `${sem.term} AY ${sem.year}`
+    const shouldOpen = sem.status === 'active'
+    const hasMatches = classes.some(c => !c.archived && c.activeSemester === semLabel)
+    if (hasMatches) {
+      const updatedClasses = classes.map(c =>
+        !c.archived && c.activeSemester === semLabel
+          ? { ...c, enrollmentOpen: shouldOpen }
+          : c
+      )
+      setClasses(updatedClasses)
+      await persistClassesSync(dbRef.current, updatedClasses)
+    }
+
     try { await saveSemesterToFirebase(dbRef.current, sem) } catch (e) {
       console.warn('[DataContext] saveSemester Firebase sync failed:', e.message)
       throw e
     }
-  }, [])
+  }, [classes])
 
   // ── Archive a class + auto-archive enrolled students' subject data ──────────
   // When called, each enrolled student's subject records for this class are
@@ -411,6 +426,11 @@ export function DataProvider({ children }) {
     if (cls.archived) throw new Error('This class is archived and not available for enrollment.')
     if (!cls.enrollmentOpen) throw new Error('Enrollment for this class is currently closed.')
 
+    // Cross-check semester status: block if semester has ended
+    if (semester?.status === 'ended') {
+      throw new Error('The enrollment period for this semester has ended. Contact your teacher for assistance.')
+    }
+
     const courseReq = (cls.courseReq || cls.name).trim().toLowerCase()
     const studentCourse = (student.course || '').trim().toLowerCase()
     if (studentCourse !== courseReq) {
@@ -444,7 +464,7 @@ export function DataProvider({ children }) {
     const updatedStudents = students.map(s => s.id === studentId ? updatedStudent : s)
     setStudents(updatedStudents)
     await persistStudentsSync(dbRef.current, updatedStudents, [studentId])
-  }, [students, classes])
+  }, [students, classes, semester])
 
   // Un-enroll a student from a class. Keeps all grade/attendance data intact
   // (archived-semester pattern is used for permanent removal via archiveClass).

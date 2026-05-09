@@ -139,8 +139,9 @@ function SemesterTab() {
       <div className="text-xs text-[var(--ink3)] bg-[var(--surface2)] rounded-lg px-3 py-2.5 leading-relaxed">
         <strong>💡 Semester Workflow:</strong><br />
         1. Set the semester here before the term begins.<br />
-        2. When a class is <em>archived</em>, enrolled students' subject records are automatically snapshotted and cleared — they appear in each student's Academic History.<br />
-        3. <em>Unarchive</em> a class to make it active again, then re-enroll students manually via the Students tab.
+        2. <strong>Setting status to ✅ Active / Open</strong> automatically opens enrollment for all classes assigned to this semester. Setting it to ⏳ Upcoming or 🏁 Ended automatically closes their enrollment.<br />
+        3. When a class is <em>archived</em>, enrolled students' subject records are automatically snapshotted and cleared — they appear in each student's Academic History.<br />
+        4. <em>Unarchive</em> a class to make it active again, then re-enroll students manually via the Students tab.
       </div>
     </div>
   )

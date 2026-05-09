@@ -1,16 +1,110 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Badge from '@/components/primitives/Badge'
 import {
   BookOpen, CheckCircle2, XCircle, LockOpen, Lock,
   CalendarDays, Clock, MapPin, GraduationCap, Users, MessageSquare,
+  AlertTriangle, Sparkles, TimerOff, Bell,
 } from 'lucide-react'
 
 // ── Helpers ───────────────────────────────────────────────────────────
 function courseMatches(studentCourse, clsCourseReq) {
   if (!clsCourseReq) return true // no requirement = open to all
   return (studentCourse || '').trim().toLowerCase() === clsCourseReq.trim().toLowerCase()
+}
+
+function fmtDate(iso) {
+  if (!iso) return null
+  try {
+    return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  } catch { return null }
+}
+
+// ── Semester Status Banner ────────────────────────────────────────────
+function SemesterBanner({ semester }) {
+  if (!semester) return null
+
+  const semLabel = semester.label || `${semester.term} AY ${semester.year}`
+  const startFmt = fmtDate(semester.startDate)
+  const endFmt   = fmtDate(semester.endDate)
+
+  if (semester.status === 'active') {
+    return (
+      <div className="rounded-xl border border-green-300 dark:border-green-700/50 bg-green-50 dark:bg-green-900/20 px-4 py-3.5 flex items-start gap-3">
+        <Sparkles size={18} className="shrink-0 mt-0.5 text-green-600 dark:text-green-400" />
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-sm text-green-700 dark:text-green-300">
+            Enrollment is now open!
+          </div>
+          <div className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+            <strong>{semLabel}</strong> — Pre-enrollment period is currently active. Select and enroll in your classes below.
+          </div>
+          {endFmt && (
+            <div className="flex items-center gap-1 text-[11px] text-green-600/80 dark:text-green-400/70 mt-1.5">
+              <Clock size={10} className="shrink-0" />
+              Enrollment deadline: <strong className="ml-1">{endFmt}</strong>
+            </div>
+          )}
+        </div>
+        <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-600 text-white">OPEN</span>
+      </div>
+    )
+  }
+
+  if (semester.status === 'upcoming') {
+    return (
+      <div className="rounded-xl border border-amber-300 dark:border-amber-700/50 bg-amber-50 dark:bg-amber-900/20 px-4 py-3.5 flex items-start gap-3">
+        <Bell size={18} className="shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-sm text-amber-700 dark:text-amber-300">
+            Upcoming: {semLabel}
+          </div>
+          <div className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+            Enrollment has not opened yet. Check back when the semester starts.
+          </div>
+          {startFmt && (
+            <div className="flex items-center gap-1 text-[11px] text-amber-600/80 dark:text-amber-400/70 mt-1.5">
+              <CalendarDays size={10} className="shrink-0" />
+              Semester starts: <strong className="ml-1">{startFmt}</strong>
+            </div>
+          )}
+        </div>
+        <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white">UPCOMING</span>
+      </div>
+    )
+  }
+
+  if (semester.status === 'ended') {
+    return (
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface2)] px-4 py-3.5 flex items-start gap-3">
+        <TimerOff size={18} className="shrink-0 mt-0.5 text-[var(--ink3)]" />
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-sm text-[var(--ink2)]">
+            {semLabel} — Enrollment Closed
+          </div>
+          <div className="text-xs text-[var(--ink3)] mt-0.5">
+            The enrollment period for this semester has ended. Contact your teacher for any changes.
+          </div>
+          {endFmt && (
+            <div className="flex items-center gap-1 text-[11px] text-[var(--ink3)] mt-1.5">
+              <CalendarDays size={10} className="shrink-0" />
+              Enrollment closed: <strong className="ml-1">{endFmt}</strong>
+            </div>
+          )}
+        </div>
+        <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--ink3)] text-white">ENDED</span>
+      </div>
+    )
+  }
+
+  // Fallback — unknown status
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--surface2)] text-xs text-[var(--ink3)]">
+      <CalendarDays className="w-3.5 h-3.5 shrink-0" />
+      <span>Current semester: <strong className="text-[var(--ink2)]">{semLabel}</strong></span>
+    </div>
+  )
 }
 
 // ── Enrollment status badge ───────────────────────────────────────────
@@ -22,7 +116,7 @@ function StatusBadge({ enrolled, open, matches }) {
 }
 
 // ── Class Card ────────────────────────────────────────────────────────
-function ClassCard({ cls, student, onEnroll, busy }) {
+function ClassCard({ cls, student, onEnroll, busy, isCurrentSem }) {
   const enrolled = (student.classIds?.length
     ? student.classIds
     : student.classId ? [student.classId] : []
@@ -33,7 +127,7 @@ function ClassCard({ cls, student, onEnroll, busy }) {
 
   return (
     <div
-      className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 flex flex-col gap-3 transition-shadow hover:shadow-md"
+      className={`rounded-xl border bg-[var(--surface)] p-4 flex flex-col gap-3 transition-shadow hover:shadow-md ${isCurrentSem ? 'border-[var(--accent)]/40' : 'border-[var(--border)]'}`}
       style={{ opacity: (!cls.enrollmentOpen && !enrolled) ? 0.7 : 1 }}
     >
       {/* Header */}
@@ -42,7 +136,12 @@ function ClassCard({ cls, student, onEnroll, busy }) {
           <div className="font-semibold text-sm text-[var(--ink)]">{cls.name}</div>
           <div className="text-xs text-[var(--ink3)] mt-0.5">Section <strong>{cls.section}</strong></div>
         </div>
-        <StatusBadge enrolled={enrolled} open={cls.enrollmentOpen} matches={matches} />
+        <div className="flex flex-col items-end gap-1">
+          <StatusBadge enrolled={enrolled} open={cls.enrollmentOpen} matches={matches} />
+          {isCurrentSem && (
+            <span className="text-[10px] font-semibold text-[var(--accent)] bg-[var(--accent-l)] px-1.5 py-0.5 rounded">Current Sem</span>
+          )}
+        </div>
       </div>
 
       {/* Meta */}
@@ -92,7 +191,7 @@ function ClassCard({ cls, student, onEnroll, busy }) {
             onClick={() => onEnroll(cls.id)}
             disabled={busy}
           >
-            {busy ? 'Enrolling…' : 'Enroll'}
+            {busy ? 'Enrolling…' : 'Enroll Now'}
           </button>
         )}
         {enrolled && (
@@ -117,6 +216,7 @@ export default function EnrollmentTab({ student }) {
   const { toast, openDialog } = useUI()
   const [busyId, setBusyId] = useState(null)
   const [filter, setFilter] = useState('all') // 'all' | 'enrolled' | 'available'
+  const autoSwitched = useRef(false)
 
   const studentClassIds = useMemo(() =>
     student.classIds?.length
@@ -125,19 +225,51 @@ export default function EnrollmentTab({ student }) {
     [student]
   )
 
+  const semLabel = semester ? (semester.label || `${semester.term} AY ${semester.year}`) : null
+
   // Only show non-archived classes
   const activeClasses = useMemo(
     () => classes.filter(c => !c.archived),
     [classes]
   )
 
-  const enrolledClasses   = useMemo(() => activeClasses.filter(c => studentClassIds.includes(c.id)), [activeClasses, studentClassIds])
-  const availableClasses  = useMemo(() => activeClasses.filter(c => !studentClassIds.includes(c.id) && c.enrollmentOpen), [activeClasses, studentClassIds])
-  const allVisible        = useMemo(() => activeClasses.filter(c =>
-    filter === 'enrolled'  ? studentClassIds.includes(c.id) :
-    filter === 'available' ? (!studentClassIds.includes(c.id) && c.enrollmentOpen) :
-    true
-  ), [activeClasses, studentClassIds, filter])
+  // Classes belonging to the current semester
+  const currentSemClasses = useMemo(() =>
+    semLabel ? activeClasses.filter(c => c.activeSemester === semLabel) : [],
+    [activeClasses, semLabel]
+  )
+
+  const enrolledClasses  = useMemo(() => activeClasses.filter(c => studentClassIds.includes(c.id)), [activeClasses, studentClassIds])
+  const availableClasses = useMemo(() => activeClasses.filter(c => !studentClassIds.includes(c.id) && c.enrollmentOpen), [activeClasses, studentClassIds])
+
+  // Sort: current-semester classes first, then others; enrolled at top within each group
+  const allVisible = useMemo(() => {
+    const base = activeClasses.filter(c =>
+      filter === 'enrolled'  ? studentClassIds.includes(c.id) :
+      filter === 'available' ? (!studentClassIds.includes(c.id) && c.enrollmentOpen) :
+      true
+    )
+    return [...base].sort((a, b) => {
+      const aEnrolled = studentClassIds.includes(a.id)
+      const bEnrolled = studentClassIds.includes(b.id)
+      const aCurrent  = semLabel && a.activeSemester === semLabel
+      const bCurrent  = semLabel && b.activeSemester === semLabel
+      // enrolled first
+      if (aEnrolled !== bEnrolled) return aEnrolled ? -1 : 1
+      // current-semester next
+      if (aCurrent !== bCurrent) return aCurrent ? -1 : 1
+      return 0
+    })
+  }, [activeClasses, studentClassIds, filter, semLabel])
+
+  // Auto-switch to "available" tab when semester opens and student has un-enrolled classes
+  useEffect(() => {
+    if (autoSwitched.current) return
+    if (semester?.status === 'active' && availableClasses.length > 0 && enrolledClasses.length === 0) {
+      setFilter('available')
+      autoSwitched.current = true
+    }
+  }, [semester?.status, availableClasses.length, enrolledClasses.length])
 
   async function handleEnroll(classId) {
     const cls = classes.find(c => c.id === classId)
@@ -160,16 +292,21 @@ export default function EnrollmentTab({ student }) {
     }
   }
 
+  const enrolledInCurrentSem = useMemo(() =>
+    enrolledClasses.filter(c => semLabel && c.activeSemester === semLabel).length,
+    [enrolledClasses, semLabel]
+  )
+
   return (
     <div className="space-y-5">
-      {/* Semester banner */}
-      {semester && (
-        <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium ${semester.status === 'active' ? 'bg-[var(--accent-l)] text-[var(--accent)]' : 'bg-[var(--surface2)] text-[var(--ink3)]'}`}>
-          <CalendarDays className="w-3.5 h-3.5 shrink-0" />
-          <span>
-            Current semester: <strong>{semester.label || `${semester.term} AY ${semester.year}`}</strong>
-            {semester.status === 'active' && <span className="ml-2 opacity-70">— Active</span>}
-          </span>
+      {/* Rich semester status banner */}
+      <SemesterBanner semester={semester} />
+
+      {/* No semester configured */}
+      {!semester && (
+        <div className="flex items-start gap-2.5 px-3 py-3 rounded-lg bg-[var(--surface2)] border border-[var(--border)] text-xs text-[var(--ink3)]">
+          <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+          <span>No semester is currently configured. Contact your teacher or administrator.</span>
         </div>
       )}
 
@@ -178,8 +315,15 @@ export default function EnrollmentTab({ student }) {
         <div>
           <div className="sec-title">Class Enrollment</div>
           <div className="text-xs text-[var(--ink3)] mt-0.5">
-            You are enrolled in <strong>{enrolledClasses.length}</strong> class{enrolledClasses.length !== 1 ? 'es' : ''}.
-            {availableClasses.length > 0 && ` ${availableClasses.length} class${availableClasses.length !== 1 ? 'es' : ''} open for enrollment.`}
+            {enrolledClasses.length > 0
+              ? <>You are enrolled in <strong>{enrolledClasses.length}</strong> class{enrolledClasses.length !== 1 ? 'es' : ''}
+                  {semLabel && enrolledInCurrentSem > 0 && <> (<strong>{enrolledInCurrentSem}</strong> in current semester)</>}
+                  .{availableClasses.length > 0 && ` ${availableClasses.length} more class${availableClasses.length !== 1 ? 'es' : ''} available.`}
+                </>
+              : semester?.status === 'active'
+              ? <span className="text-green-600 dark:text-green-400 font-medium">Enrollment is open — select your classes below.</span>
+              : 'You are not enrolled in any classes yet.'
+            }
           </div>
         </div>
       </div>
@@ -188,7 +332,7 @@ export default function EnrollmentTab({ student }) {
       <div className="flex items-start gap-2.5 px-3 py-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40 text-xs text-amber-800 dark:text-amber-300">
         <MessageSquare size={14} className="shrink-0 mt-0.5" />
         <span>
-          <strong>Important:</strong> Enrollment is final. Once you click <em>Enroll</em>, your selection cannot be changed.
+          <strong>Important:</strong> Enrollment is final. Once you click <em>Enroll Now</em>, your selection cannot be changed.
           If you need to update your enrollment, please message your teacher directly.
         </span>
       </div>
@@ -204,18 +348,21 @@ export default function EnrollmentTab({ student }) {
         {[
           { id: 'all',       label: `All Classes (${activeClasses.length})` },
           { id: 'enrolled',  label: `My Enrollments (${enrolledClasses.length})` },
-          { id: 'available', label: `Open for Enrollment (${availableClasses.length})` },
+          { id: 'available', label: `Open for Enrollment (${availableClasses.length})`, highlight: semester?.status === 'active' && availableClasses.length > 0 },
         ].map(tab => (
           <button
             key={tab.id}
             onClick={() => setFilter(tab.id)}
-            className={`text-xs px-3 py-2 font-medium border-b-2 -mb-px transition-colors ${
+            className={`text-xs px-3 py-2 font-medium border-b-2 -mb-px transition-colors relative ${
               filter === tab.id
                 ? 'border-[var(--accent)] text-[var(--accent)]'
                 : 'border-transparent text-[var(--ink3)] hover:text-[var(--ink2)]'
             }`}
           >
             {tab.label}
+            {tab.highlight && filter !== tab.id && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500" />
+            )}
           </button>
         ))}
       </div>
@@ -224,12 +371,18 @@ export default function EnrollmentTab({ student }) {
       {allVisible.length === 0 ? (
         <div className="empty py-12">
           <div className="empty-icon"><BookOpen size={32} /></div>
-          {filter === 'enrolled'
-            ? 'You are not enrolled in any classes yet.'
-            : filter === 'available'
-            ? 'No classes are currently open for enrollment.'
-            : 'No active classes found.'
-          }
+          <div className="text-sm text-[var(--ink3)] mt-2">
+            {filter === 'enrolled'
+              ? 'You are not enrolled in any classes yet.'
+              : filter === 'available'
+              ? semester?.status === 'upcoming'
+                ? 'Enrollment is not open yet. Check back when the semester starts.'
+                : semester?.status === 'ended'
+                ? 'Enrollment for this semester has ended.'
+                : 'No classes are currently open for enrollment.'
+              : 'No active classes found.'
+            }
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -240,6 +393,7 @@ export default function EnrollmentTab({ student }) {
               student={student}
               onEnroll={handleEnroll}
               busy={busyId === cls.id}
+              isCurrentSem={!!(semLabel && cls.activeSemester === semLabel)}
             />
           ))}
         </div>
