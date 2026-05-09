@@ -116,7 +116,7 @@ function StatusBadge({ enrolled, open, matches }) {
 }
 
 // ── Class Card ────────────────────────────────────────────────────────
-function ClassCard({ cls, student, onEnroll, busy, isCurrentSem }) {
+function ClassCard({ cls, student, onEnroll, busy, isCurrentSem, semesterStatus }) {
   const enrolled = (student.classIds?.length
     ? student.classIds
     : student.classId ? [student.classId] : []
@@ -158,7 +158,17 @@ function ClassCard({ cls, student, onEnroll, busy, isCurrentSem }) {
         )}
         {cls.activeSemester && (
           <div className="flex items-center gap-1.5 text-xs text-[var(--ink2)] col-span-2">
-            <CalendarDays size={11} className="shrink-0" />{cls.activeSemester}
+            <CalendarDays size={11} className="shrink-0" />
+            <span>{cls.activeSemester}</span>
+            {semesterStatus && (
+              <span className={`ml-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                semesterStatus === 'active'   ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                semesterStatus === 'ended'    ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
+                                               'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+              }`}>
+                {semesterStatus === 'active' ? 'Active' : semesterStatus === 'ended' ? 'Ended' : 'Upcoming'}
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -394,6 +404,13 @@ export default function EnrollmentTab({ student }) {
               onEnroll={handleEnroll}
               busy={busyId === cls.id}
               isCurrentSem={!!(semLabel && cls.activeSemester === semLabel)}
+              semesterStatus={
+                (semLabel && cls.activeSemester === semLabel)
+                  ? semester?.status
+                  : cls.activeSemester
+                  ? 'ended'
+                  : semester?.status ?? null
+              }
             />
           ))}
         </div>

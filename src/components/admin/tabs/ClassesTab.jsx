@@ -514,6 +514,13 @@ export default function ClassesTab() {
               <tbody>
                 {slice.map(cls => {
                   const cnt = students.filter(s => s.classId === cls.id || s.classIds?.includes(cls.id)).length
+                  const clsSemLabel = cls.activeSemester || semLabel
+                  const isCurrentSem = semLabel && cls.activeSemester === semLabel
+                  const clsSemStatus = !clsSemLabel
+                    ? null
+                    : (isCurrentSem || !cls.activeSemester)
+                    ? semester?.status
+                    : 'ended'
                   return (
                     <tr key={cls.id}>
                       <td>
@@ -525,16 +532,16 @@ export default function ClassesTab() {
                       <td style={{ fontSize: 12 }}>{cls.schedule}</td>
                       <td><small className="text-ink2">{cls.subjects?.join(', ')}</small></td>
                       <td>
-                        {cls.activeSemester ? (
+                        {clsSemLabel ? (
                           <div className="flex flex-col gap-0.5">
-                            <span className="text-xs text-ink2">{cls.activeSemester}</span>
-                            {semester && (
+                            <span className="text-xs text-ink2">{clsSemLabel}</span>
+                            {clsSemStatus && (
                               <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full w-fit ${
-                                semester.status === 'active'  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                                semester.status === 'ended'   ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
-                                                                'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                clsSemStatus === 'active'  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                clsSemStatus === 'ended'   ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
+                                                             'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
                               }`}>
-                                {semester.status === 'active' ? 'Open / Active' : semester.status === 'ended' ? 'Ended' : 'Upcoming'}
+                                {clsSemStatus === 'active' ? 'Open / Active' : clsSemStatus === 'ended' ? 'Ended' : 'Upcoming'}
                               </span>
                             )}
                           </div>
