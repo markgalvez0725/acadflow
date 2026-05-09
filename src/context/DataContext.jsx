@@ -182,14 +182,15 @@ export function DataProvider({ children }) {
   const saveSemester = useCallback(async (sem) => {
     setSemester(sem)
 
-    // Auto-sync class enrollment status for all classes assigned to this semester
+    // Auto-sync all active (non-archived) classes: assign current semester label
+    // and sync enrollmentOpen with semester status
     const semLabel = sem.label || `${sem.term} AY ${sem.year}`
     const shouldOpen = sem.status === 'active'
-    const hasMatches = classes.some(c => !c.archived && c.activeSemester === semLabel)
-    if (hasMatches) {
+    const hasActive = classes.some(c => !c.archived)
+    if (hasActive) {
       const updatedClasses = classes.map(c =>
-        !c.archived && c.activeSemester === semLabel
-          ? { ...c, enrollmentOpen: shouldOpen }
+        !c.archived
+          ? { ...c, activeSemester: semLabel, enrollmentOpen: shouldOpen }
           : c
       )
       setClasses(updatedClasses)

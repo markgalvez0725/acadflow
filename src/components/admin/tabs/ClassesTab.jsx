@@ -508,10 +508,22 @@ export default function ClassesTab() {
                       <td style={{ fontSize: 12 }}>{cls.schedule}</td>
                       <td><small className="text-ink2">{cls.subjects?.join(', ')}</small></td>
                       <td>
-                        {cls.activeSemester
-                          ? <span className="text-xs text-ink2">{cls.activeSemester}</span>
-                          : <span className="text-xs text-ink3">—</span>
-                        }
+                        {cls.activeSemester ? (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-xs text-ink2">{cls.activeSemester}</span>
+                            {semLabel && cls.activeSemester === semLabel && (
+                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full w-fit ${
+                                semester.status === 'active'  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                semester.status === 'ended'   ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
+                                                                'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                              }`}>
+                                {semester.status === 'active' ? 'Open / Active' : semester.status === 'ended' ? 'Ended' : 'Upcoming'}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-ink3">—</span>
+                        )}
                       </td>
                       <td>
                         {!cls.archived && (
