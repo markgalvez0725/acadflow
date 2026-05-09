@@ -42,7 +42,7 @@ const TAB_TITLES = {
 
 export default function AdminLayout() {
   const { adminTab, toastQueue, dismissToast, dialog, resolveDialog } = useUI()
-  const { ejs, fbReady, messages, semester } = useData()
+  const { fbReady, messages, semester } = useData()
   const { loginTime, lastLogin } = useAuth()
   const unreadMsgCount = messages.filter(m => m.from !== 'admin' && !m.adminRead).length
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -119,16 +119,6 @@ export default function AdminLayout() {
         </div>
 
         <div className="admin-body">
-          {/* EJS status bar */}
-          {!ejs.configured && (
-            <div className="ejs-status-bar mb-3">
-              <span>⚠️ Email (OTP) not configured.</span>
-              <button className="link-btn text-xs" onClick={() => setSettingsOpen(true)}>
-                Configure now →
-              </button>
-            </div>
-          )}
-
           {/* Tab panels */}
           <TabErrorBoundary key={adminTab}>
             <Suspense fallback={<SkeletonRows />}>

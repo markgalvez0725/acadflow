@@ -180,7 +180,7 @@ export default function StudentLayout() {
   const activeClass = classes.find(c => c.id === effectiveClassId)
 
   return (
-    <div className="student-layout" id="student-portal">
+    <div className={`student-layout${navCollapsed ? ' nav-collapsed' : ''}`} id="student-portal">
       {/* Top bar */}
       <div className="student-topbar">
         <div className="flex items-center gap-3 min-w-0">
@@ -266,9 +266,9 @@ export default function StudentLayout() {
             </button>
           )
         })}
-        {/* Collapse toggle */}
+        {/* Collapse toggle — desktop only */}
         <button
-          className="nav-item"
+          className="nav-item nav-collapse-toggle"
           onClick={() => setNavCollapsed(c => !c)}
           title={navCollapsed ? 'Expand nav' : 'Collapse nav'}
         >
