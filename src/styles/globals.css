@@ -531,6 +531,16 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
   .sidebar { height: 100vh; box-shadow: 4px 0 24px rgba(15,23,42,.12); }
 }
 
+/* Mobile drawer: reveal all labels when sidebar slides open */
+@media (max-width: 767px) {
+  .sidebar-wrap.open .sb-brand h2  { opacity: 1; max-width: 160px; }
+  .sidebar-wrap.open .sb-brand span { opacity: 1; max-width: 160px; }
+  .sidebar-wrap.open .nav-group-label { max-height: 30px; opacity: 1; }
+  .sidebar-wrap.open .sb-nav .nav-item .nav-label { opacity: 1; max-width: 160px; }
+  .sidebar-wrap.open .sb-user-info { opacity: 1; max-width: 160px; }
+  .sidebar-wrap.open .sb-logout .nav-label { opacity: 1; max-width: 120px; }
+}
+
 .sb-brand {
   padding: 14px 12px 12px;
   display: flex;
@@ -655,7 +665,8 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
   pointer-events: none;
   transition: opacity 180ms ease, max-width 220ms ease;
 }
-.sidebar-wrap.expanded .sb-nav .nav-item .nav-label {
+.sidebar-wrap.expanded .sb-nav .nav-item .nav-label,
+.sidebar-wrap.open .sb-nav .nav-item .nav-label {
   opacity: 1;
   max-width: 160px;
 }
@@ -676,7 +687,8 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
   transition: opacity 180ms ease;
   flex-shrink: 0;
 }
-.sidebar-wrap.expanded .nav-badge { opacity: 1; }
+.sidebar-wrap.expanded .nav-badge,
+.sidebar-wrap.open .nav-badge { opacity: 1; }
 
 /* Sidebar toggle button */
 .sb-toggle {
@@ -738,7 +750,8 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
   white-space: nowrap;
   transition: opacity 180ms ease, max-width 220ms ease;
 }
-.sidebar-wrap.expanded .sb-user-info {
+.sidebar-wrap.expanded .sb-user-info,
+.sidebar-wrap.open .sb-user-info {
   opacity: 1;
   max-width: 160px;
 }
@@ -787,7 +800,8 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
   pointer-events: none;
   transition: opacity 180ms ease, max-width 220ms ease;
 }
-.sidebar-wrap.expanded .sb-logout .nav-label {
+.sidebar-wrap.expanded .sb-logout .nav-label,
+.sidebar-wrap.open .sb-logout .nav-label {
   opacity: 1;
   max-width: 120px;
 }
@@ -863,19 +877,18 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
   align-items: center;
   justify-content: center;
   gap: 3px;
-  padding: 6px 10px;
+  padding: 6px 8px;
+  flex: 1 0 auto;
   min-width: 52px;
-  flex: 1;
   border-radius: 12px;
   border: none;
   background: transparent;
-  color: var(--ink3);
+  color: var(--ink2);
   cursor: pointer;
-  flex-shrink: 0;
   transition: background .15s var(--ease-out), color .15s var(--ease-out);
   position: relative;
 }
-.student-bottom-nav .nav-item:hover  { color: var(--ink2); background: var(--bg2); }
+.student-bottom-nav .nav-item:hover  { color: var(--ink); background: var(--bg2); }
 .student-bottom-nav .nav-item.active { color: var(--accent); }
 .student-bottom-nav .nav-item.active .nav-icon {
   background: var(--accent-l);
