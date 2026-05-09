@@ -4,7 +4,7 @@ import {
 } from '@/utils/grades'
 import { useData } from '@/context/DataContext'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
-import { BookOpen, Clock, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send } from 'lucide-react'
+import { BookOpen, Clock, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, ExternalLink } from 'lucide-react'
 import { SkeletonDashboard } from '@/components/primitives/SkeletonLoader'
 
 function formatAnnDate(ms) {
@@ -434,9 +434,9 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={e => e.stopPropagation()}
-                    style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600, marginTop: 4, display: 'inline-block' }}
+                    style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600, marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 4 }}
                   >
-                    Join Meeting →
+                    Join Meeting <ExternalLink size={12} />
                   </a>
                 )}
                 {ann.moduleLink && (
@@ -447,7 +447,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
                     onClick={e => e.stopPropagation()}
                     style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600, marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 4 }}
                   >
-                    <Link size={12} /> View Module →
+                    <Link size={12} /> View Module <ExternalLink size={12} />
                   </a>
                 )}
               </div>

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { ChevronLeft, ChevronRight, CalendarDays, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CalendarDays, X, ArrowRight } from 'lucide-react'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -293,8 +293,9 @@ export default function CalendarTab({ student, viewClassId, classes }) {
                     <button
                       className="btn btn-secondary text-xs py-1 px-3 flex-shrink-0"
                       onClick={() => { setStudentTab(TAB_MAP[ev.type] || 'overview'); setSelectedKey(null) }}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
                     >
-                      View →
+                      View <ArrowRight size={13} />
                     </button>
                   </div>
                 )

@@ -2,29 +2,29 @@ import React from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { LayoutDashboard, School, Users, BookOpen, CalendarCheck, Bell, ClipboardList, Settings, LogOut, FileQuestion, Rss, CalendarDays, Video } from 'lucide-react'
+import { LayoutDashboard, Building2, Users, GraduationCap, CalendarCheck, Bell, ListChecks, Settings, LogOut, PenLine, Newspaper, CalendarDays, MonitorPlay } from 'lucide-react'
 
 const NAV_GROUPS = [
   {
     label: 'Overview',
     items: [
-      { id: 'stream',    label: 'Stream',    Icon: Rss },
+      { id: 'stream',    label: 'Stream',    Icon: Newspaper },
       { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
     ],
   },
   {
     label: 'Management',
     items: [
-      { id: 'classes',  label: 'Classes',  Icon: School },
+      { id: 'classes',  label: 'Classes',  Icon: Building2 },
       { id: 'students', label: 'Students', Icon: Users },
     ],
   },
   {
     label: 'Academic',
     items: [
-      { id: 'grades',     label: 'Grades',     Icon: BookOpen },
+      { id: 'grades',     label: 'Grades',     Icon: GraduationCap },
       { id: 'attendance', label: 'Attendance', Icon: CalendarCheck },
-      { id: 'quizzes',    label: 'Quizzes',    Icon: FileQuestion },
+      { id: 'quizzes',    label: 'Quizzes',    Icon: PenLine },
       { id: 'calendar',   label: 'Calendar',   Icon: CalendarDays },
     ],
   },
@@ -32,8 +32,8 @@ const NAV_GROUPS = [
     label: 'Communication',
     items: [
       { id: 'notifications',  label: 'Notifications',  badgeId: 'notif', Icon: Bell },
-      { id: 'activities',     label: 'Activities',     badgeId: 'act',   Icon: ClipboardList },
-      { id: 'onlineClasses',  label: 'Online Classes', Icon: Video },
+      { id: 'activities',     label: 'Activities',     badgeId: 'act',   Icon: ListChecks },
+      { id: 'onlineClasses',  label: 'Online Classes', Icon: MonitorPlay },
     ],
   },
 ]

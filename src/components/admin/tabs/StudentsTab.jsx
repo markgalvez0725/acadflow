@@ -6,7 +6,7 @@ import { validateSnum } from '@/utils/validate'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
-import { Download, Upload, FileDown, KeyRound } from 'lucide-react'
+import { Download, Upload, FileDown, KeyRound, BookOpen, ChevronDown, ChevronRight, Copy, Check } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
@@ -81,7 +81,7 @@ function AddStudentModal({ onClose }) {
       toast('Student added!', 'green')
       onClose()
     } catch (e) {
-      setErr('❌ Failed to save student: ' + e.message)
+      setErr('Failed to save student: ' + e.message)
     } finally {
       setSaving(false)
     }
@@ -318,8 +318,8 @@ function EditStudentModal({ student, onClose }) {
           {!student.account?.registered
             ? <Badge variant="gray">No account yet</Badge>
             : student.account?.activated
-              ? <Badge variant="green">✅ Active ({student.account.email || '—'})</Badge>
-              : <Badge variant="yellow">⏳ Pending — not yet activated</Badge>}
+              ? <Badge variant="green">Active ({student.account.email || '—'})</Badge>
+              : <Badge variant="yellow">Pending — not yet activated</Badge>}
           {student.account?.firstLoginAt && (
             <div className="text-xs text-ink3 mt-1">
               First login: {new Date(student.account.firstLoginAt).toLocaleString('en-US', {
@@ -339,8 +339,8 @@ function EditStudentModal({ student, onClose }) {
             className="flex items-center gap-2 text-xs font-semibold text-ink2 hover:text-ink transition-colors mb-2"
             onClick={() => setHistoryOpen(v => !v)}
           >
-            <span>{historyOpen ? '▾' : '▸'}</span>
-            📋 Academic History ({student.archivedSemesters.length} archived semester{student.archivedSemesters.length !== 1 ? 's' : ''})
+            {historyOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            <BookOpen size={14} /> Academic History ({student.archivedSemesters.length} archived semester{student.archivedSemesters.length !== 1 ? 's' : ''})
           </button>
           {historyOpen && (
             <div className="flex flex-col gap-3">
@@ -448,7 +448,10 @@ function ResetPasswordModal({ student, onClose }) {
             title="Copy to clipboard"
             style={{ flexShrink: 0 }}
           >
-            {copied ? '✓ Copied' : '📋 Copy'}
+            {copied
+              ? <><Check size={13} style={{ display: 'inline', marginRight: 3 }} />Copied</>
+              : <><Copy size={13} style={{ display: 'inline', marginRight: 3 }} />Copy</>
+            }
           </button>
         </div>
         <div className="text-xs text-ink3 mt-1">
@@ -617,7 +620,7 @@ function ImportStudentsModal({ onClose }) {
                     <td>{r.name || '—'}</td>
                     <td>{r.course || '—'}</td>
                     <td>{r.year || '1st Year'}</td>
-                    <td>{errors[i] ? <span className="text-red-500">{errors[i]}</span> : <span className="text-green-600">✓ OK</span>}</td>
+                    <td>{errors[i] ? <span className="text-red-500">{errors[i]}</span> : <span className="text-green-600" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Check size={13} /> OK</span>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -827,8 +830,8 @@ export default function StudentsTab() {
                         {!s.account?.registered
                           ? <Badge variant="gray" style={{ fontSize: 11 }}>No Account</Badge>
                           : s.account?.activated
-                            ? <Badge variant="green" style={{ fontSize: 11 }}>✓ Active</Badge>
-                            : <Badge variant="yellow" style={{ fontSize: 11 }}>⏳ Pending</Badge>}
+                            ? <Badge variant="green" style={{ fontSize: 11 }}>Active</Badge>
+                            : <Badge variant="yellow" style={{ fontSize: 11 }}>Pending</Badge>}
                       </td>
                       <td>
                         <div className="stu-actions-cell">
