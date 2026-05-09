@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Eye, EyeOff, BarChart2, CalendarCheck, Rss, MessageSquare } from 'lucide-react'
+import { Eye, EyeOff, GraduationCap, CalendarCheck, Newspaper, MessageSquare } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -11,9 +11,9 @@ import ThemeToggle from '@/components/primitives/ThemeToggle'
 import WeatherScene from '@/components/canvas/WeatherScene'
 
 const STUDENT_FEATURES = [
-  { Icon: BarChart2,     label: 'Grades' },
+  { Icon: GraduationCap, label: 'Grades' },
   { Icon: CalendarCheck, label: 'Attendance' },
-  { Icon: Rss,           label: 'Stream' },
+  { Icon: Newspaper,     label: 'Stream' },
   { Icon: MessageSquare, label: 'Messages' },
 ]
 

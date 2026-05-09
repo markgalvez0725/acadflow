@@ -9,7 +9,7 @@ import ToastManager from '@/components/primitives/ToastManager'
 import Dialog from '@/components/primitives/Dialog'
 import FloatingMessenger from './FloatingMessenger'
 import { SkeletonRows, SkeletonDashboard, TabErrorBoundary } from '@/components/primitives/SkeletonLoader'
-import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video } from 'lucide-react'
+import { LayoutDashboard, GraduationCap, CalendarCheck, ListChecks, Bell, PenLine, Newspaper, CalendarDays, MonitorPlay } from 'lucide-react'
 
 // Lazy-load tabs
 const StreamTab        = lazy(() => import('./tabs/StreamTab'))
@@ -28,15 +28,15 @@ const ForceChangePasswordModal = lazy(() => import('./modals/ForceChangePassword
 const StudentActionSheet       = lazy(() => import('./modals/StudentActionSheet'))
 
 const NAV_ITEMS = [
-  { id: 'stream',        label: 'Stream',         Icon: Rss },
+  { id: 'stream',        label: 'Stream',         Icon: Newspaper },
   { id: 'overview',      label: 'Overview',      Icon: LayoutDashboard },
-  { id: 'grades',        label: 'Grades',         Icon: BookOpen },
+  { id: 'grades',        label: 'Grades',         Icon: GraduationCap },
   { id: 'attendance',    label: 'Attendance',     Icon: CalendarCheck },
-  { id: 'activities',    label: 'Activities',     Icon: ClipboardList },
-  { id: 'quizzes',       label: 'Quizzes',        Icon: FileQuestion },
+  { id: 'activities',    label: 'Activities',     Icon: ListChecks },
+  { id: 'quizzes',       label: 'Quizzes',        Icon: PenLine },
   { id: 'notifications', label: 'Notifications',  Icon: Bell },
   { id: 'calendar',      label: 'Calendar',       Icon: CalendarDays },
-  { id: 'onlineClasses', label: 'Online Classes', Icon: Video },
+  { id: 'onlineClasses', label: 'Online Classes', Icon: MonitorPlay },
 ]
 
 export default function StudentLayout() {

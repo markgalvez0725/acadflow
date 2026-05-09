@@ -4,7 +4,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { relativeTime } from '@/utils/format'
 import Pagination from '@/components/primitives/Pagination'
-import { MessageSquare, GraduationCap, CheckCheck } from 'lucide-react'
+import { MessageSquare, GraduationCap, CheckCheck, ChevronLeft, Send } from 'lucide-react'
 
 const PER_PAGE = 10
 
@@ -183,7 +183,7 @@ export default function MessagesTab({ student: s, messages }) {
     return (
       <div className="student-messages thread-view">
         <div className="s-thread-header">
-          <button className="btn btn-ghost btn-sm" onClick={() => setView('list')}>← Back</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setView('list')} style={{ display: 'flex', alignItems: 'center', gap: 4 }}><ChevronLeft size={16} /> Back</button>
           <div>
             <div style={{ fontWeight: 700, fontSize: 15 }}>{threadTitle}</div>
             {threadEntries[0] && (
@@ -238,8 +238,8 @@ export default function MessagesTab({ student: s, messages }) {
             />
             <div className="flex gap-2 justify-end mt-2">
               <button className="btn btn-ghost btn-sm" onClick={() => setView('list')}>Cancel</button>
-              <button className="btn btn-primary btn-sm" onClick={sendReply} disabled={sending || !replyText.trim()}>
-                {sending ? 'Sending…' : 'Send Reply →'}
+              <button className="btn btn-primary btn-sm" onClick={sendReply} disabled={sending || !replyText.trim()} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                {sending ? 'Sending…' : <><Send size={14} /> Reply</>}
               </button>
             </div>
           </div>

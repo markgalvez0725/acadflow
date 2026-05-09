@@ -3,7 +3,7 @@ import { doc, updateDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Pagination from '@/components/primitives/Pagination'
-import { ClipboardList } from 'lucide-react'
+import { ClipboardList, ArrowRight, ExternalLink, Check, Circle } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const PER_PAGE = 10
@@ -167,9 +167,16 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                             border: '1px solid var(--border)',
                             background: met ? 'var(--green-l)' : 'var(--surface2)',
                             color: met ? 'var(--green)' : 'var(--ink3)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 3,
                           }}
                         >
-                          {met ? '✓' : '○'} {c.name} ({c.points}pt{c.points !== 1 ? 's' : ''})
+                          {met
+                            ? <Check size={11} />
+                            : <Circle size={11} />
+                          }
+                          {c.name} ({c.points}pt{c.points !== 1 ? 's' : ''})
                         </span>
                       )
                     })}
@@ -185,7 +192,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--ink3)' }}>Grade received</div>
                   {sub.link && (
-                    <a href={sub.link} target="_blank" rel="noreferrer" className="sa-act-link">View submission ↗</a>
+                    <a href={sub.link} target="_blank" rel="noreferrer" className="sa-act-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>View submission <ExternalLink size={12} /></a>
                   )}
                 </div>
               ) : hasLink ? (
@@ -207,8 +214,9 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                           className="btn btn-primary btn-sm"
                           onClick={() => submitActivity(act.id)}
                           disabled={submitting[act.id] || !(linkInputs[act.id] ?? sub.link).trim()}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
                         >
-                          {submitting[act.id] ? 'Saving…' : 'Save changes →'}
+                          {submitting[act.id] ? 'Saving…' : <><ArrowRight size={14} /> Save changes</>}
                         </button>
                         <button
                           className="btn btn-ghost btn-sm"
@@ -224,7 +232,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                   ) : (
                     <>
                       <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 4 }}>Submitted — awaiting grade</div>
-                      <a href={sub.link} target="_blank" rel="noreferrer" className="sa-act-link">View your submission ↗</a>
+                      <a href={sub.link} target="_blank" rel="noreferrer" className="sa-act-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>View your submission <ExternalLink size={12} /></a>
                       <div className="mt-2">
                         {!isPast ? (
                           <button
@@ -261,8 +269,9 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                     className="btn btn-primary btn-sm mt-2"
                     onClick={() => submitActivity(act.id)}
                     disabled={submitting[act.id] || !(linkInputs[act.id] || '').trim()}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
                   >
-                    {submitting[act.id] ? 'Submitting…' : 'Submit →'}
+                    {submitting[act.id] ? 'Submitting…' : <><ArrowRight size={14} /> Submit</>}
                   </button>
                 </div>
               )}

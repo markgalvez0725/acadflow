@@ -100,12 +100,12 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
           value={to}
           onChange={e => setTo(e.target.value)}
         >
-          <option value="all">📢 All Students (Announcement)</option>
+          <option value="all">All Students (Announcement)</option>
           {Object.keys(classGroups).sort().map(label => {
             const grp = classGroups[label]
             const cls = classes.find(c => c.id === grp[0]?.classId)
             if (cls) {
-              return <option key={'class:' + cls.id} value={'class:' + cls.id}>📋 All in {label}</option>
+              return <option key={'class:' + cls.id} value={'class:' + cls.id}>All in {label}</option>
             }
             return null
           })}

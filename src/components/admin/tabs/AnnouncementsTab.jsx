@@ -5,7 +5,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import Badge from '@/components/primitives/Badge'
-import { Megaphone, Plus, Trash2, CalendarOff, Video, BookOpen, ToggleLeft, ToggleRight, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered } from 'lucide-react'
+import { Megaphone, Plus, Trash2, CalendarOff, Video, BookOpen, ToggleLeft, ToggleRight, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered, ExternalLink } from 'lucide-react'
 
 // ── HTML Sanitization Config ──────────────────────────────────────────
 const SANITIZE_CONFIG = {
@@ -783,9 +783,9 @@ export default function AnnouncementsTab() {
                         href={ann.meetingLink}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ fontSize: 12, color: 'var(--accent)', marginTop: 4, display: 'inline-block' }}
+                        style={{ fontSize: 12, color: 'var(--accent)', marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 4 }}
                       >
-                        Join Meeting →
+                        Join Meeting <ExternalLink size={12} />
                       </a>
                     )}
                     {ann.moduleLink && (
@@ -795,7 +795,7 @@ export default function AnnouncementsTab() {
                         rel="noopener noreferrer"
                         style={{ fontSize: 12, color: 'var(--green)', marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 4 }}
                       >
-                        <Link size={12} /> View Module →
+                        <Link size={12} /> View Module <ExternalLink size={12} />
                       </a>
                     )}
                     <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 6, display: 'flex', gap: 12, flexWrap: 'wrap' }}>

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
-import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, ChevronDown, ChevronUp, Clock, Users, Award, CheckCircle2, XCircle, AlertCircle, Plus, Trash2, CalendarOff, Video, ToggleLeft, ToggleRight, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered } from 'lucide-react'
+import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Clock, Users, Award, CheckCircle2, XCircle, AlertCircle, Plus, Trash2, CalendarOff, Video, ToggleLeft, ToggleRight, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered } from 'lucide-react'
 import DOMPurify from 'dompurify'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -56,9 +56,9 @@ function Pagination({ page, total, pageSize, onPrev, onNext }) {
   const to = Math.min((page + 1) * pageSize, total)
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 12, fontSize: 13, color: 'var(--ink2)' }}>
-      <button className="btn btn-ghost btn-sm" onClick={onPrev} disabled={page === 0}>← Prev</button>
+      <button className="btn btn-ghost btn-sm" onClick={onPrev} disabled={page === 0} style={{ display: 'flex', alignItems: 'center', gap: 4 }}><ChevronLeft size={15} /> Prev</button>
       <span>Showing {from}–{to} of {total}</span>
-      <button className="btn btn-ghost btn-sm" onClick={onNext} disabled={to >= total}>Next →</button>
+      <button className="btn btn-ghost btn-sm" onClick={onNext} disabled={to >= total} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>Next <ChevronRight size={15} /></button>
     </div>
   )
 }

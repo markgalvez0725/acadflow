@@ -5,7 +5,7 @@ import { sortByLastName, fmtDateShort } from '@/utils/format'
 import { getHeldDays } from '@/utils/grades'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
-import { Download, Upload, AlertTriangle, Shuffle, RefreshCw, CalendarDays, Check, ClipboardList, X, Trash2, ClipboardCheck, Archive, ArchiveRestore, UserCheck, UserX } from 'lucide-react'
+import { Download, Upload, AlertTriangle, Shuffle, RefreshCw, CalendarDays, Check, ClipboardList, ChevronLeft, X, Trash2, ClipboardCheck, Archive, ArchiveRestore, UserCheck, UserX } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
@@ -575,8 +575,8 @@ function AttendanceCalendarModal({ classId, subject, readOnly, onClose }) {
             {!readOnly && <button className="btn btn-sm" style={{ background: 'var(--purple-l)', color: 'var(--purple)' }}
               onClick={() => setAll('excuse')}><ClipboardList size={13} className="inline-block mr-1" />All Excused</button>}
             {!readOnly && <button className="btn btn-danger btn-sm" onClick={() => setAll('absent')}><X size={13} className="inline-block mr-1" />All Absent</button>}
-            <button className="btn btn-ghost btn-sm" style={{ marginLeft: readOnly ? undefined : 'auto' }}
-              onClick={() => setView('calendar')}>← Back</button>
+            <button className="btn btn-ghost btn-sm" style={{ marginLeft: readOnly ? undefined : 'auto', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+              onClick={() => setView('calendar')}><ChevronLeft size={15} /> Back</button>
           </div>
 
           {/* Student list */}
@@ -629,7 +629,7 @@ function AttendanceCalendarModal({ classId, subject, readOnly, onClose }) {
           <p className="text-xs text-ink2 mt-2.5">{readOnly ? 'This class is archived — attendance records are read-only.' : <>Toggle each student's status then click Save. <ClipboardList size={12} className="inline-block mx-0.5 align-text-bottom" />Excused counts separately from absent.</>}</p>
 
           <div className="modal-footer">
-            <button className="btn btn-ghost" onClick={() => setView('calendar')}>← Back</button>
+            <button className="btn btn-ghost" onClick={() => setView('calendar')} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><ChevronLeft size={15} /> Back</button>
             {!readOnly && (
               <button className="btn btn-primary" onClick={saveDay} disabled={saving}>
                 {saving ? 'Saving…' : 'Save Attendance'}

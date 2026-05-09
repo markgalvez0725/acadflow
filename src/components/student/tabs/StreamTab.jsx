@@ -51,13 +51,13 @@ function Pagination({ page, total, pageSize, onPrev, onNext }) {
   const to = Math.min((page + 1) * pageSize, total)
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 12, fontSize: 13, color: 'var(--ink2)' }}>
-      <button className="btn btn-ghost btn-sm" onClick={onPrev} disabled={page === 0}>← Prev</button>
+      <button className="btn btn-ghost btn-sm" onClick={onPrev} disabled={page === 0} style={{ display: 'flex', alignItems: 'center', gap: 4 }}><ChevronLeft size={15} /> Prev</button>
       <span>Showing {from}–{to} of {total}</span>
-      <button className="btn btn-ghost btn-sm" onClick={onNext} disabled={to >= total}>Next →</button>
+      <button className="btn btn-ghost btn-sm" onClick={onNext} disabled={to >= total} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>Next <ChevronRight size={15} /></button>
     </div>
   )
 }
-import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, Clock, CheckCircle2, XCircle, AlertCircle, Award, Video, Link } from 'lucide-react'
+import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, Clock, CheckCircle2, XCircle, AlertCircle, Award, Video, Link, ChevronLeft, ChevronRight } from 'lucide-react'
 
 function timeAgo(ms) {
   if (!ms) return ''
