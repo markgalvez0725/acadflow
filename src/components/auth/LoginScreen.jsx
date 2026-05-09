@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { Eye, EyeOff, BarChart2, CalendarCheck, Rss, MessageSquare } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -9,9 +10,12 @@ import LoadingButton from '@/components/primitives/LoadingButton'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 import WeatherScene from '@/components/canvas/WeatherScene'
 
-const EyeIcon = ({ visible }) => visible
-  ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-  : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+const STUDENT_FEATURES = [
+  { Icon: BarChart2,     label: 'Grades' },
+  { Icon: CalendarCheck, label: 'Attendance' },
+  { Icon: Rss,           label: 'Stream' },
+  { Icon: MessageSquare, label: 'Messages' },
+]
 
 // Modes: 'student' | 'register' | 'reg-sq' | 'forgot' | 'fp-set-sq' | 'fp-sq'
 export default function LoginScreen() {
@@ -295,9 +299,11 @@ export default function LoginScreen() {
             Grades, attendance, announcements, and messages — all in one modern academic platform built for students and educators.
           </p>
           <div className="flex gap-6 mt-8">
-            {[['📊', 'Grades'], ['📅', 'Attendance'], ['📢', 'Stream'], ['💬', 'Messages']].map(([icon, label]) => (
+            {STUDENT_FEATURES.map(({ Icon, label }) => (
               <div key={label} className="flex flex-col items-center gap-1">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: 'var(--accent-l)', color: 'var(--accent)' }}>{icon}</div>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--accent-l)', color: 'var(--accent)' }}>
+                  <Icon size={18} />
+                </div>
                 <span className="text-xs font-semibold text-ink3">{label}</span>
               </div>
             ))}
@@ -368,8 +374,8 @@ export default function LoginScreen() {
                   autoComplete="current-password"
                   style={{ paddingRight: 38 }}
                 />
-                <button type="button" className="pw-toggle" onClick={() => setShowPass(v => !v)} tabIndex={-1}>
-                  <EyeIcon visible={showPass} />
+                <button type="button" className="pw-toggle" onClick={() => setShowPass(v => !v)} tabIndex={-1} aria-label={showPass ? 'Hide password' : 'Show password'}>
+                  {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
                 <label>Password</label>
               </div>
@@ -405,8 +411,8 @@ export default function LoginScreen() {
                   onChange={e => setRegPass(e.target.value)}
                   style={{ paddingRight: 38 }}
                 />
-                <button type="button" className="pw-toggle" onClick={() => setShowRegPass(v => !v)} tabIndex={-1}>
-                  <EyeIcon visible={showRegPass} />
+                <button type="button" className="pw-toggle" onClick={() => setShowRegPass(v => !v)} tabIndex={-1} aria-label={showRegPass ? 'Hide password' : 'Show password'}>
+                  {showRegPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
                 <label>Password</label>
               </div>
@@ -418,8 +424,8 @@ export default function LoginScreen() {
                   onChange={e => setRegPass2(e.target.value)}
                   style={{ paddingRight: 38 }}
                 />
-                <button type="button" className="pw-toggle" onClick={() => setShowRegPass2(v => !v)} tabIndex={-1}>
-                  <EyeIcon visible={showRegPass2} />
+                <button type="button" className="pw-toggle" onClick={() => setShowRegPass2(v => !v)} tabIndex={-1} aria-label={showRegPass2 ? 'Hide password' : 'Show password'}>
+                  {showRegPass2 ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
                 <label>Confirm Password</label>
               </div>
@@ -555,8 +561,8 @@ export default function LoginScreen() {
                     onChange={e => setFpNewPass(e.target.value)}
                     style={{ paddingRight: 38 }}
                   />
-                  <button type="button" className="pw-toggle" onClick={() => setShowFpPass(v => !v)} tabIndex={-1}>
-                    <EyeIcon visible={showFpPass} />
+                  <button type="button" className="pw-toggle" onClick={() => setShowFpPass(v => !v)} tabIndex={-1} aria-label={showFpPass ? 'Hide password' : 'Show password'}>
+                    {showFpPass ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                   <label>New Password</label>
                 </div>
@@ -568,8 +574,8 @@ export default function LoginScreen() {
                     onChange={e => setFpNewPass2(e.target.value)}
                     style={{ paddingRight: 38 }}
                   />
-                  <button type="button" className="pw-toggle" onClick={() => setShowFpPass2(v => !v)} tabIndex={-1}>
-                    <EyeIcon visible={showFpPass2} />
+                  <button type="button" className="pw-toggle" onClick={() => setShowFpPass2(v => !v)} tabIndex={-1} aria-label={showFpPass2 ? 'Hide password' : 'Show password'}>
+                    {showFpPass2 ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                   <label>Confirm New Password</label>
                 </div>
