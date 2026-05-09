@@ -223,7 +223,7 @@ function EditClassModal({ cls, onClose }) {
 
 // ── Classes Tab ───────────────────────────────────────────────────────
 export default function ClassesTab() {
-  const { classes, students, saveClasses, saveStudents, archiveClassWithStudents, semester, fbReady } = useData()
+  const { classes, students, saveClasses, saveStudents, archiveClassWithStudents, unarchiveClassWithStudents, semester, fbReady } = useData()
   const { toast, openDialog } = useUI()
   const [page, setPage]           = useState(1)
   const [showAdd, setShowAdd]     = useState(false)
@@ -242,18 +242,29 @@ export default function ClassesTab() {
 
   async function handleArchive(cls) {
     if (cls.archived) {
-      // Unarchiving: simple toggle
+      // Unarchiving: restore students and their subject data from archivedSemesters
+      const restorable = students.filter(s =>
+        s.archivedSemesters?.some(e => e.classId === cls.id)
+      ).length
+      const studentNote = restorable > 0
+        ? ` ${restorable} previously enrolled student${restorable !== 1 ? 's' : ''} will be automatically re-enrolled and their data restored.`
+        : ''
       const ok = await openDialog({
         title: 'Unarchive this class?',
-        msg: `Unarchive "${cls.name} ${cls.section}"? It will become active again. Remember to re-enroll students manually for the new semester.`,
+        msg: `Unarchive "${cls.name} ${cls.section}"? It will become active again.${studentNote}`,
         type: 'info',
         confirmLabel: 'Unarchive Class',
         showCancel: true,
       })
       if (!ok) return
       try {
-        await saveClasses(classes.map(c => c.id === cls.id ? { ...c, archived: false } : c))
-        toast('Class unarchived. Re-enroll students via the Students tab.', 'green')
+        await unarchiveClassWithStudents(cls)
+        toast(
+          restorable > 0
+            ? `Class unarchived. ${restorable} student${restorable !== 1 ? 's' : ''} re-enrolled with data restored.`
+            : 'Class unarchived.',
+          'green'
+        )
         if (page > 1 && slice.length === 1) setPage(p => p - 1)
       } catch (e) {
         toast('Could not unarchive class: ' + e.message, 'red')

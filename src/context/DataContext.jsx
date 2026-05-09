@@ -261,6 +261,70 @@ export function DataProvider({ children }) {
     }
   }, [students, classes, semester, saveClasses])
 
+  // ── Unarchive a class + restore enrolled students' subject data ─────────────
+  // Reverses archiveClassWithStudents: finds every student whose archivedSemesters
+  // contains an entry for this class, restores their grades/attendance/enrollment,
+  // and removes that archive entry (since it is now live again).
+  const unarchiveClassWithStudents = useCallback(async (cls) => {
+    const studentsToRestore = students.filter(s =>
+      s.archivedSemesters?.some(e => e.classId === cls.id)
+    )
+
+    const updatedStudents = students.map(s => {
+      const entries = (s.archivedSemesters || []).filter(e => e.classId === cls.id)
+      if (entries.length === 0) return s
+
+      // Use the most-recently archived entry for this class
+      const mostRecent = entries.reduce((a, b) =>
+        new Date(a.archivedAt) >= new Date(b.archivedAt) ? a : b
+      )
+
+      const ns = {
+        ...s,
+        grades:          { ...s.grades },
+        attendance:      { ...(s.attendance || {}) },
+        excuse:          { ...(s.excuse || {}) },
+        gradeComponents: { ...(s.gradeComponents || {}) },
+      }
+      if (s.gradeUploadedAt) ns.gradeUploadedAt = { ...s.gradeUploadedAt }
+
+      // Restore subject data from the archived snapshot
+      cls.subjects.forEach(sub => {
+        const subData = mostRecent.subjects?.[sub]
+        if (!subData) return
+        ns.grades[sub] = subData.grade ?? null
+        ns.gradeComponents[sub] = subData.gradeComponents ? { ...subData.gradeComponents } : {}
+        if (subData.gradeUploadedAt != null) {
+          ns.gradeUploadedAt = ns.gradeUploadedAt || {}
+          ns.gradeUploadedAt[sub] = subData.gradeUploadedAt
+        }
+        ns.attendance[sub] = new Set(subData._att || [])
+        ns.excuse[sub]     = new Set(subData._exc || [])
+      })
+
+      // Re-enroll in the class
+      if (!ns.classIds?.includes(cls.id)) {
+        ns.classIds = [...(ns.classIds || []), cls.id]
+      }
+      if (!ns.classId) ns.classId = cls.id
+
+      // Drop the restored archive entry so it is not double-counted in history
+      ns.archivedSemesters = (s.archivedSemesters || []).filter(e => e !== mostRecent)
+
+      return ns
+    })
+
+    const updatedClasses = classes.map(c =>
+      c.id === cls.id ? { ...c, archived: false } : c
+    )
+
+    await saveClasses(updatedClasses)
+    if (studentsToRestore.length > 0) {
+      setStudents(updatedStudents)
+      await persistStudentsSync(dbRef.current, updatedStudents, studentsToRestore.map(s => s.id))
+    }
+  }, [students, classes, saveClasses])
+
   const saveAnnouncement = useCallback(async (announcement) => {
     setAnnouncements(prev => {
       const idx = prev.findIndex(a => a.id === announcement.id)
@@ -356,7 +420,7 @@ export function DataProvider({ children }) {
   return (
     <DataContext.Provider value={{
       students, setStudents, saveStudents, deleteStudent,
-      classes, setClasses, saveClasses, setSubjectRep, archiveClassWithStudents,
+      classes, setClasses, saveClasses, setSubjectRep, archiveClassWithStudents, unarchiveClassWithStudents,
       messages, setMessages,
       activities, setActivities,
       adminNotifs, setAdminNotifs,
