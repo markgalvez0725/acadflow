@@ -705,7 +705,7 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
   border-radius: 10px;
   transition: background .15s var(--ease-out), color .15s var(--ease-out), transform .12s var(--ease-out);
   white-space: nowrap;
-  overflow: hidden;
+  overflow: visible;
   position: relative;
   letter-spacing: -.01em;
 }
@@ -722,7 +722,7 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 .sb-nav .nav-item.active::before {
   content: '';
   position: absolute;
-  left: 0;
+  left: -6px;
   top: 50%;
   transform: translateY(-50%);
   width: 3px;
@@ -1059,7 +1059,7 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
   .student-bottom-nav .nav-item.active::before {
     content: '';
     position: absolute;
-    left: 0;
+    left: -8px;
     top: 50%;
     transform: translateY(-50%);
     width: 3px;
