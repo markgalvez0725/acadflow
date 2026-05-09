@@ -9,7 +9,7 @@ import ToastManager from '@/components/primitives/ToastManager'
 import Dialog from '@/components/primitives/Dialog'
 import FloatingMessenger from './FloatingMessenger'
 import { SkeletonRows, SkeletonDashboard, TabErrorBoundary } from '@/components/primitives/SkeletonLoader'
-import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video } from 'lucide-react'
+import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature } from 'lucide-react'
 
 // Lazy-load tabs
 const StreamTab        = lazy(() => import('./tabs/StreamTab'))
@@ -21,6 +21,7 @@ const NotificationsTab = lazy(() => import('./tabs/NotificationsTab'))
 const StudentQuizTab   = lazy(() => import('./tabs/QuizTab'))
 const CalendarTab      = lazy(() => import('./tabs/CalendarTab'))
 const OnlineClassesTab = lazy(() => import('./tabs/OnlineClassesTab'))
+const EnrollmentTab    = lazy(() => import('./tabs/EnrollmentTab'))
 
 // Lazy-load modals
 const EditProfileModal         = lazy(() => import('./modals/EditProfileModal'))
@@ -37,6 +38,7 @@ const NAV_ITEMS = [
   { id: 'notifications', label: 'Notifications',  Icon: Bell },
   { id: 'calendar',      label: 'Calendar',       Icon: CalendarDays },
   { id: 'onlineClasses', label: 'Online Classes', Icon: Video },
+  { id: 'enrollment',    label: 'Enrollment',     Icon: ClipboardSignature },
 ]
 
 export default function StudentLayout() {
@@ -233,6 +235,7 @@ export default function StudentLayout() {
             {studentTab === 'notifications' && <NotificationsTab student={student} notifs={studentNotifs} setNotifs={setStudentNotifs} />}
             {studentTab === 'calendar'     && <CalendarTab      student={student} viewClassId={effectiveClassId} classes={classes} />}
             {studentTab === 'onlineClasses' && <OnlineClassesTab student={student} />}
+            {studentTab === 'enrollment'    && <EnrollmentTab    student={student} />}
           </Suspense>
         </TabErrorBoundary>
       </div>

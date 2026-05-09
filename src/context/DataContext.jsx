@@ -400,6 +400,72 @@ export function DataProvider({ children }) {
     await fbAddCommentReply(dbRef.current, announcementId, commentId, reply)
   }, [])
 
+  // ── Enrollment helpers ─────────────────────────────────────────────────
+  // Enroll a student in a class: validates course match, initialises subject
+  // slots, then persists. Throws on validation failure so the caller can show
+  // a user-facing error.
+  const enrollInClass = useCallback(async (studentId, classId) => {
+    const student = students.find(s => s.id === studentId)
+    const cls     = classes.find(c => c.id === classId)
+    if (!student || !cls) throw new Error('Student or class not found.')
+    if (cls.archived) throw new Error('This class is archived and not available for enrollment.')
+    if (!cls.enrollmentOpen) throw new Error('Enrollment for this class is currently closed.')
+
+    const courseReq = (cls.courseReq || cls.name).trim().toLowerCase()
+    const studentCourse = (student.course || '').trim().toLowerCase()
+    if (studentCourse !== courseReq) {
+      throw new Error(`Course mismatch. This class requires "${cls.courseReq || cls.name}" but your enrolled course is "${student.course || 'not set'}".`)
+    }
+
+    const currentIds = student.classIds?.length ? student.classIds : (student.classId ? [student.classId] : [])
+    if (currentIds.includes(classId)) throw new Error('You are already enrolled in this class.')
+
+    // Initialise subject slots for the new class
+    const grades          = { ...student.grades }
+    const attendance      = { ...student.attendance }
+    const excuse          = { ...student.excuse }
+    const gradeComponents = { ...(student.gradeComponents || {}) }
+    cls.subjects.forEach(sub => {
+      if (grades[sub] === undefined)    grades[sub] = null
+      if (!attendance[sub])             attendance[sub] = new Set()
+      if (!excuse[sub])                 excuse[sub] = new Set()
+    })
+
+    const newClassIds = [...currentIds, classId]
+    const updatedStudent = {
+      ...student,
+      classId:  student.classId || classId,
+      classIds: newClassIds,
+      grades,
+      attendance,
+      excuse,
+      gradeComponents,
+    }
+    const updatedStudents = students.map(s => s.id === studentId ? updatedStudent : s)
+    setStudents(updatedStudents)
+    await persistStudentsSync(dbRef.current, updatedStudents, [studentId])
+  }, [students, classes])
+
+  // Un-enroll a student from a class. Keeps all grade/attendance data intact
+  // (archived-semester pattern is used for permanent removal via archiveClass).
+  const unenrollFromClass = useCallback(async (studentId, classId) => {
+    const student = students.find(s => s.id === studentId)
+    if (!student) throw new Error('Student not found.')
+
+    const currentIds = student.classIds?.length ? student.classIds : (student.classId ? [student.classId] : [])
+    if (!currentIds.includes(classId)) throw new Error('Not enrolled in this class.')
+
+    const newClassIds = currentIds.filter(id => id !== classId)
+    const updatedStudent = {
+      ...student,
+      classId:  student.classId === classId ? (newClassIds[0] || null) : student.classId,
+      classIds: newClassIds,
+    }
+    const updatedStudents = students.map(s => s.id === studentId ? updatedStudent : s)
+    setStudents(updatedStudents)
+    await persistStudentsSync(dbRef.current, updatedStudents, [studentId])
+  }, [students])
+
   const saveEjs = useCallback(async (ejsConfig) => {
     setEjs({ ...ejsConfig, configured: true })
 
@@ -421,6 +487,7 @@ export function DataProvider({ children }) {
     <DataContext.Provider value={{
       students, setStudents, saveStudents, deleteStudent,
       classes, setClasses, saveClasses, setSubjectRep, archiveClassWithStudents, unarchiveClassWithStudents,
+      enrollInClass, unenrollFromClass,
       messages, setMessages,
       activities, setActivities,
       adminNotifs, setAdminNotifs,

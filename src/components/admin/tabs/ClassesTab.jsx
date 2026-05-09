@@ -5,20 +5,25 @@ import { deserializeStudents } from '@/utils/attendance'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
-import { Plus, Pencil, School, Archive, ArchiveRestore, CalendarDays } from 'lucide-react'
+import { Plus, Pencil, School, Archive, ArchiveRestore, CalendarDays, Users, LockOpen, Lock } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const PER_PAGE = 10
 
 // ── Add Class Modal ───────────────────────────────────────────────────
 function AddClassModal({ onClose }) {
-  const { classes, students, saveClasses, saveStudents } = useData()
+  const { classes, students, saveClasses, saveStudents, semester } = useData()
   const { toast } = useUI()
-  const [name, setName]         = useState('')
-  const [section, setSection]   = useState('')
-  const [room, setRoom]         = useState('')
-  const [schedule, setSchedule] = useState('')
-  const [subjects, setSubjects] = useState('')
+  const [name, setName]                 = useState('')
+  const [section, setSection]           = useState('')
+  const [room, setRoom]                 = useState('')
+  const [schedule, setSchedule]         = useState('')
+  const [subjects, setSubjects]         = useState('')
+  const [courseReq, setCourseReq]       = useState('')
+  const [activeSemester, setActiveSemester] = useState(
+    semester ? (semester.label || `${semester.term} AY ${semester.year}`) : ''
+  )
+  const [enrollmentOpen, setEnrollmentOpen] = useState(false)
   const [err, setErr]           = useState('')
   const [saving, setSaving]     = useState(false)
 
@@ -46,6 +51,9 @@ function AddClassModal({ onClose }) {
         room: room.trim() || 'TBA',
         schedule: schedule.trim() || 'TBA',
         subjects: subs,
+        courseReq: courseReq.trim() || name.trim(),
+        activeSemester: activeSemester.trim() || null,
+        enrollmentOpen,
       }
       await saveClasses([...classes, newClass])
       toast('Class added!', 'green')
@@ -64,7 +72,7 @@ function AddClassModal({ onClose }) {
       <div className="input-row">
         <div className="field">
           <label>Course Name <span className="text-red-500">*</span></label>
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="BS Computer Science" />
+          <input value={name} onChange={e => { setName(e.target.value); if (!courseReq) setCourseReq(e.target.value) }} placeholder="BS Computer Science" />
         </div>
         <div className="field">
           <label>Year &amp; Section <span className="text-red-500">*</span></label>
@@ -88,6 +96,29 @@ function AddClassModal({ onClose }) {
         </label>
         <input value={subjects} onChange={e => setSubjects(e.target.value)} placeholder="Calculus, Physics, Programming, English, PE" />
       </div>
+      <div className="input-row">
+        <div className="field">
+          <label>
+            Course Requirement{' '}
+            <span className="font-normal text-xs text-ink2">(students must match this course to enroll)</span>
+          </label>
+          <input value={courseReq} onChange={e => setCourseReq(e.target.value)} placeholder="BS Computer Science" />
+        </div>
+        <div className="field">
+          <label>Active Semester</label>
+          <input value={activeSemester} onChange={e => setActiveSemester(e.target.value)} placeholder="1st Sem AY 2025-2026" />
+        </div>
+      </div>
+      <div className="field">
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input type="checkbox" checked={enrollmentOpen} onChange={e => setEnrollmentOpen(e.target.checked)} className="w-4 h-4 rounded" />
+          <span>Open for student enrollment</span>
+          {enrollmentOpen
+            ? <span className="text-xs text-green-600 font-medium">(Students can self-enroll)</span>
+            : <span className="text-xs text-ink3">(Enrollment closed)</span>
+          }
+        </label>
+      </div>
       {err && <div className="err-msg mb-2">{err}</div>}
       <div className="modal-footer">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
@@ -103,11 +134,14 @@ function AddClassModal({ onClose }) {
 function EditClassModal({ cls, onClose }) {
   const { classes, students, saveClasses, saveStudents } = useData()
   const { toast, openDialog } = useUI()
-  const [name, setName]         = useState(cls.name)
-  const [section, setSection]   = useState(cls.section)
-  const [room, setRoom]         = useState(cls.room || '')
-  const [schedule, setSchedule] = useState(cls.schedule || '')
-  const [subjects, setSubjects] = useState(cls.subjects.join(', '))
+  const [name, setName]                 = useState(cls.name)
+  const [section, setSection]           = useState(cls.section)
+  const [room, setRoom]                 = useState(cls.room || '')
+  const [schedule, setSchedule]         = useState(cls.schedule || '')
+  const [subjects, setSubjects]         = useState(cls.subjects.join(', '))
+  const [courseReq, setCourseReq]       = useState(cls.courseReq || cls.name)
+  const [activeSemester, setActiveSemester] = useState(cls.activeSemester || '')
+  const [enrollmentOpen, setEnrollmentOpen] = useState(cls.enrollmentOpen || false)
   const [err, setErr]           = useState('')
   const [saving, setSaving]     = useState(false)
 
@@ -152,7 +186,7 @@ function EditClassModal({ cls, onClose }) {
     try {
       const updatedClasses = classes.map(c => {
         if (c.id !== cls.id) return c
-        return { ...c, name: name.trim(), section: section.trim(), room: room.trim() || 'TBA', schedule: schedule.trim() || 'TBA', subjects: subs }
+        return { ...c, name: name.trim(), section: section.trim(), room: room.trim() || 'TBA', schedule: schedule.trim() || 'TBA', subjects: subs, courseReq: courseReq.trim() || name.trim(), activeSemester: activeSemester.trim() || null, enrollmentOpen }
       })
 
       let updatedStudents = students
@@ -225,6 +259,29 @@ function EditClassModal({ cls, onClose }) {
         </label>
         <input value={subjects} onChange={e => setSubjects(e.target.value)} placeholder="Calculus, Physics, Programming" />
       </div>
+      <div className="input-row">
+        <div className="field">
+          <label>
+            Course Requirement{' '}
+            <span className="font-normal text-xs text-ink2">(students must match this course to enroll)</span>
+          </label>
+          <input value={courseReq} onChange={e => setCourseReq(e.target.value)} placeholder="BS Computer Science" />
+        </div>
+        <div className="field">
+          <label>Active Semester</label>
+          <input value={activeSemester} onChange={e => setActiveSemester(e.target.value)} placeholder="1st Sem AY 2025-2026" />
+        </div>
+      </div>
+      <div className="field">
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input type="checkbox" checked={enrollmentOpen} onChange={e => setEnrollmentOpen(e.target.checked)} className="w-4 h-4 rounded" />
+          <span>Open for student enrollment</span>
+          {enrollmentOpen
+            ? <span className="text-xs text-green-600 font-medium">(Students can self-enroll)</span>
+            : <span className="text-xs text-ink3">(Enrollment closed)</span>
+          }
+        </label>
+      </div>
       {err && <div className="err-msg mb-2">{err}</div>}
       <div className="modal-footer">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
@@ -244,6 +301,7 @@ export default function ClassesTab() {
   const [showAdd, setShowAdd]     = useState(false)
   const [editClass, setEditClass] = useState(null)
   const [showArchived, setShowArchived] = useState(false)
+  const [togglingId, setTogglingId] = useState(null)
 
   const filtered = useMemo(
     () => classes.filter(c => showArchived ? c.archived : !c.archived),
@@ -254,6 +312,22 @@ export default function ClassesTab() {
     () => filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE),
     [filtered, page]
   )
+
+  async function handleToggleEnrollment(cls) {
+    const newState = !cls.enrollmentOpen
+    setTogglingId(cls.id)
+    try {
+      const updatedClasses = classes.map(c =>
+        c.id === cls.id ? { ...c, enrollmentOpen: newState } : c
+      )
+      await saveClasses(updatedClasses)
+      toast(newState ? `Enrollment opened for ${cls.name} ${cls.section}` : `Enrollment closed for ${cls.name} ${cls.section}`, newState ? 'green' : 'blue')
+    } catch (e) {
+      toast('Could not update enrollment status: ' + e.message, 'red')
+    } finally {
+      setTogglingId(null)
+    }
+  }
 
   async function handleArchive(cls) {
     if (cls.archived) {
@@ -384,6 +458,8 @@ export default function ClassesTab() {
                   <th>Room</th>
                   <th>Schedule</th>
                   <th>Subjects</th>
+                  <th>Semester</th>
+                  <th>Enrollment</th>
                   <th>Students</th>
                   <th></th>
                 </tr>
@@ -393,12 +469,43 @@ export default function ClassesTab() {
                   const cnt = students.filter(s => s.classId === cls.id || s.classIds?.includes(cls.id)).length
                   return (
                     <tr key={cls.id}>
-                      <td><strong>{cls.name}</strong>{cls.archived && <Badge variant="yellow" className="ml-2">Archived</Badge>}</td>
+                      <td>
+                        <strong>{cls.name}</strong>
+                        {cls.archived && <Badge variant="yellow" className="ml-2">Archived</Badge>}
+                      </td>
                       <td><Badge variant="blue">{cls.section}</Badge></td>
                       <td>{cls.room}</td>
                       <td style={{ fontSize: 12 }}>{cls.schedule}</td>
                       <td><small className="text-ink2">{cls.subjects?.join(', ')}</small></td>
-                      <td>{cnt}</td>
+                      <td>
+                        {cls.activeSemester
+                          ? <span className="text-xs text-ink2">{cls.activeSemester}</span>
+                          : <span className="text-xs text-ink3">—</span>
+                        }
+                      </td>
+                      <td>
+                        {!cls.archived && (
+                          <button
+                            className={`btn btn-sm ${cls.enrollmentOpen ? 'btn-success' : 'btn-ghost'}`}
+                            style={cls.enrollmentOpen ? { background: 'rgba(34,197,94,0.12)', color: 'var(--green)', border: '1px solid rgba(34,197,94,0.3)' } : {}}
+                            onClick={() => handleToggleEnrollment(cls)}
+                            disabled={togglingId === cls.id}
+                            title={cls.enrollmentOpen ? 'Click to close enrollment' : 'Click to open enrollment'}
+                          >
+                            {cls.enrollmentOpen
+                              ? <><LockOpen size={12} className="inline-block mr-1" />Open</>
+                              : <><Lock size={12} className="inline-block mr-1" />Closed</>
+                            }
+                          </button>
+                        )}
+                        {cls.archived && <span className="text-xs text-ink3">—</span>}
+                      </td>
+                      <td>
+                        <span className="flex items-center gap-1 text-sm">
+                          <Users size={12} className="text-ink3" />
+                          {cnt}
+                        </span>
+                      </td>
                       <td>
                         <div className="flex gap-1.5 flex-wrap">
                           {!cls.archived && <button className="btn btn-ghost btn-sm" onClick={() => setEditClass(cls)}><Pencil size={13} className="inline-block mr-1" />Edit</button>}
