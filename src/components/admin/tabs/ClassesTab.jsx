@@ -27,7 +27,7 @@ function AddClassModal({ onClose }) {
     const subs = subjects.split(',').map(s => s.trim()).filter(Boolean)
     if (!name.trim() || !section.trim()) { setErr('Course name and section are required.'); return }
     if (!subs.length) { setErr('At least one subject is required.'); return }
-    if (classes.find(c => c.name.toLowerCase() === name.trim().toLowerCase() && c.section.toLowerCase() === section.trim().toLowerCase())) {
+    if (classes.find(c => !c.archived && c.name.toLowerCase() === name.trim().toLowerCase() && c.section.toLowerCase() === section.trim().toLowerCase())) {
       setErr(`Class "${name.trim()} ${section.trim()}" already exists.`); return
     }
     setSaving(true)
@@ -109,7 +109,7 @@ function EditClassModal({ cls, onClose }) {
     const subs = subjects.split(',').map(s => s.trim()).filter(Boolean)
     if (!name.trim() || !section.trim()) { setErr('Course name and section are required.'); return }
     if (!subs.length) { setErr('At least one subject is required.'); return }
-    if (classes.find(c => c.id !== cls.id && c.name.toLowerCase() === name.trim().toLowerCase() && c.section.toLowerCase() === section.trim().toLowerCase())) {
+    if (classes.find(c => c.id !== cls.id && !c.archived && c.name.toLowerCase() === name.trim().toLowerCase() && c.section.toLowerCase() === section.trim().toLowerCase())) {
       setErr(`Class "${name.trim()} ${section.trim()}" already exists.`); return
     }
 
