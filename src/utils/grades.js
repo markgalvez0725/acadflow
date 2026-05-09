@@ -110,12 +110,12 @@ export function computeFinalGradeFromTerms(midtermTerm, finalsTerm) {
   return Math.min(100, Math.max(0, parseFloat(raw.toFixed(2))));
 }
 
-export function computeGrade(actV, qzV, attV, midExamV, finExamV) {
-  const v   = x => (x !== null && x !== undefined && !isNaN(x)) ? x : null;
-  const act = v(actV), qz = v(qzV), att = v(attV);
+export function computeGrade(actV, qzV, attV, midExamV, finExamV, charV = null) {
+  const v    = x => (x !== null && x !== undefined && !isNaN(x)) ? x : null;
+  const act  = v(actV), qz = v(qzV), att = v(attV), char = v(charV);
   const midE = v(midExamV), finE = v(finExamV);
 
-  const csP = [act, qz, att].filter(x => x !== null);
+  const csP = [act, qz, att, char].filter(x => x !== null);
   const cs  = csP.length ? csP.reduce((s, x) => s + x, 0) / csP.length : null;
 
   let midterm = null;

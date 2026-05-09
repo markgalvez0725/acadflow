@@ -179,6 +179,9 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
     : null
   const actVal = panelActAvg ?? comp.activities ?? null
 
+  // Attitude / Character grade
+  const attitudeVal = comp.attitude ?? null
+
   // Quiz display
   const quizzesRaw = comp.quizzes
   const quizzesIsArray = Array.isArray(quizzesRaw)
@@ -214,7 +217,7 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
   const attRate = held > 0 ? parseFloat(((attSet.size / held) * 100).toFixed(1)) : 0
 
   // Compute class standing (CS) for the computation trail
-  const csParts = [actVal, quizzesAvg, attRate].filter(x => x != null)
+  const csParts = [actVal, quizzesAvg, attRate, attitudeVal].filter(x => x != null)
   const cs = csParts.length
     ? parseFloat((csParts.reduce((t, x) => t + x, 0) / csParts.length).toFixed(2))
     : comp.midtermCS ?? null
@@ -222,7 +225,7 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
   const midEq = midG != null ? gradeInfo(midG, eqScale).eq : null
   const finEq = finG != null ? gradeInfo(finG, eqScale).eq : null
 
-  const hasAny = actVal != null || quizzesAvg != null || midG != null || finG != null
+  const hasAny = actVal != null || quizzesAvg != null || attitudeVal != null || midG != null || finG != null
   const hasTrailData = (midG != null || finG != null)
 
   const gradeColor = g != null ? (g >= 75 ? 'var(--green)' : g >= 60 ? 'var(--yellow)' : 'var(--red)') : 'var(--ink3)'
@@ -305,9 +308,10 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
       {hasAny && (
         <div className="sg-breakdown">
           <div className="sg-section-label">Class Standing Components</div>
-          <Bar val={actVal}     label="Activities" weight="CS" />
-          <Bar val={quizzesAvg} label="Quizzes"    weight="CS" />
-          <Bar val={attRate}    label="Attendance" weight="CS" />
+          <Bar val={actVal}      label="Activities"          weight="CS" />
+          <Bar val={quizzesAvg}  label="Quizzes"             weight="CS" />
+          <Bar val={attRate}     label="Attendance"          weight="CS" />
+          <Bar val={attitudeVal} label="Attitude / Character" weight="CS" />
         </div>
       )}
 
@@ -326,13 +330,14 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
           {showTrail && (
             <div className="sg-trail-body">
               {/* Step 1: Class Standing */}
-              {(actVal != null || quizzesAvg != null) && (
+              {(actVal != null || quizzesAvg != null || attitudeVal != null) && (
                 <div className="sg-trail-step">
                   <div className="sg-trail-step-title">① Class Standing (CS)</div>
-                  {actVal     != null && <TrailRow label="Activities" value={`${actVal}%`} />}
-                  {quizzesAvg != null && <TrailRow label="Quizzes"    value={`${quizzesAvg}%`} />}
-                  {attRate    != null && <TrailRow label="Attendance" value={`${attRate}%`} />}
-                  {cs         != null && <TrailRow label="→ CS Average" value={`${cs}%`} isResult />}
+                  {actVal      != null && <TrailRow label="Activities"          value={`${actVal}%`} />}
+                  {quizzesAvg  != null && <TrailRow label="Quizzes"             value={`${quizzesAvg}%`} />}
+                  {attRate     != null && <TrailRow label="Attendance"          value={`${attRate}%`} />}
+                  {attitudeVal != null && <TrailRow label="Attitude / Character" value={`${attitudeVal}%`} />}
+                  {cs          != null && <TrailRow label="→ CS Average"        value={`${cs}%`} isResult />}
                 </div>
               )}
 

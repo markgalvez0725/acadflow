@@ -10,7 +10,7 @@ import { exportGradingSheet, parseGradingSheetImport, exportCurrentGrades } from
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
-import { Clock, Pencil, BarChart2, Upload, Download, Trash2, BarChart, RefreshCw } from 'lucide-react'
+import { Clock, Pencil, BarChart2, Upload, Download, Trash2, BarChart, RefreshCw, Archive, ArchiveRestore } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const GRADE_PER_PAGE = 10
@@ -161,6 +161,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
         actAvg,      // computed avg of actInputs
         qzInputs,    // per-quiz score strings
         qzAvg,       // computed avg of qzInputs (fallback to stored quizzes avg)
+        attitude: comp.attitude != null ? String(comp.attitude) : '',
         midtermExam: String(mid),
         finalsExam:  String(fin),
         finalGrade: s.grades?.[subject] != null ? String(s.grades[subject]) : '',
@@ -207,14 +208,15 @@ function GradeEntryModal({ classId, subject, onClose }) {
       ? parseFloat((qzNums.reduce((a, b) => a + b, 0) / qzNums.length).toFixed(2))
       : null
 
-    const actV = actAvg
-    const qzV  = qzAvg
-    const attV = r.attRate
-    const midV = toNum(r.midtermExam)
-    const finV = toNum(r.finalsExam)
+    const actV        = actAvg
+    const qzV         = qzAvg
+    const attV        = r.attRate
+    const attitudeV   = toNum(r.attitude)
+    const midV        = toNum(r.midtermExam)
+    const finV        = toNum(r.finalsExam)
 
-    // CS = avg(activities, quizzes, attendance) — mirrors handleSave formula
-    const csParts = [actV, qzV, attV].filter(x => x !== null)
+    // CS = avg(activities, quizzes, attendance, attitude) — mirrors handleSave formula
+    const csParts = [actV, qzV, attV, attitudeV].filter(x => x !== null)
     const cs = csParts.length
       ? parseFloat((csParts.reduce((s, x) => s + x, 0) / csParts.length).toFixed(2))
       : null
@@ -305,26 +307,28 @@ function GradeEntryModal({ classId, subject, onClose }) {
       const ns   = { ...s, grades: { ...s.grades }, gradeComponents: { ...(s.gradeComponents || {}) }, gradeUploadedAt: { ...(s.gradeUploadedAt || {}) } }
       const comp = { ...(ns.gradeComponents[subject] || {}) }
 
-      const actV     = r.actAvg !== null ? clamp(r.actAvg) : null
-      const qzV      = r.qzAvg  !== null ? clamp(r.qzAvg)  : null
-      const midExamV = clamp(toNum(r.midtermExam))
-      const finExamV = clamp(toNum(r.finalsExam))
-      const attV     = r.attRate
+      const actV      = r.actAvg !== null ? clamp(r.actAvg) : null
+      const qzV       = r.qzAvg  !== null ? clamp(r.qzAvg)  : null
+      const attitudeV = clamp(toNum(r.attitude))
+      const midExamV  = clamp(toNum(r.midtermExam))
+      const finExamV  = clamp(toNum(r.finalsExam))
+      const attV      = r.attRate
 
       // Persist raw inputs
-      if (actV     != null) comp.activities   = actV
-      if (qzV      != null) comp.quizzes      = qzV
-      if (midExamV != null) comp.midtermExam  = midExamV
-      if (finExamV != null) comp.finalsExam   = finExamV
+      if (actV      != null) comp.activities   = actV
+      if (qzV       != null) comp.quizzes      = qzV
+      if (attitudeV != null) comp.attitude     = attitudeV
+      if (midExamV  != null) comp.midtermExam  = midExamV
+      if (finExamV  != null) comp.finalsExam   = finExamV
 
-      // CS Midterm = avg(acts, qz, att)
-      const csMidParts = [actV, qzV, attV].filter(x => x !== null)
+      // CS Midterm = avg(acts, qz, att, attitude)
+      const csMidParts = [actV, qzV, attV, attitudeV].filter(x => x !== null)
       const csMid = csMidParts.length
         ? parseFloat((csMidParts.reduce((s, x) => s + x, 0) / csMidParts.length).toFixed(2))
         : null
 
-      // CS Finals = avg(acts, qz, att)
-      const csFinParts = [actV, qzV, attV].filter(x => x !== null)
+      // CS Finals = avg(acts, qz, att, attitude)
+      const csFinParts = [actV, qzV, attV, attitudeV].filter(x => x !== null)
       const csFin = csFinParts.length
         ? parseFloat((csFinParts.reduce((s, x) => s + x, 0) / csFinParts.length).toFixed(2))
         : null
@@ -475,6 +479,9 @@ function GradeEntryModal({ classId, subject, onClose }) {
               <th rowSpan={2} title="Quizzes average — computed from individual scores">
                 Quiz Avg<br /><small className="font-normal text-ink3">auto</small>
               </th>
+              <th rowSpan={2} title="Attitude/Character grade — entered manually by teacher">
+                Attitude<br /><small className="font-normal text-ink3">character · CS</small>
+              </th>
               <th rowSpan={2} title="Attendance % — auto from records">
                 Attendance<br /><small className="font-normal text-ink3">auto · CS</small>
               </th>
@@ -559,6 +566,14 @@ function GradeEntryModal({ classId, subject, onClose }) {
                       {r.qzAvg ?? '—'}
                     </div>
                   </td>
+                  {/* Attitude / Character input */}
+                  <td>
+                    <input className="grade-input" type="number" min="0" max="100"
+                      value={r.attitude} placeholder="0–100"
+                      title="Attitude/Character grade (included in Class Standing)"
+                      style={{ background: 'var(--purple-l, #ede9fe)' }}
+                      onChange={e => updateRow(i, 'attitude', e.target.value)} />
+                  </td>
                   <td>
                     <div className="px-2 py-1.5 rounded-md text-sm font-semibold"
                       style={{ background: 'var(--bg)', color: attColor }}
@@ -597,8 +612,8 @@ function GradeEntryModal({ classId, subject, onClose }) {
       </div>
 
       <div className="mt-3 px-3 py-2 rounded-lg text-xs text-ink2" style={{ background: 'var(--bg)', lineHeight: 2 }}>
-        <strong>CS Midterm</strong> = Average(Activities, Quizzes, Attendance)<br />
-        <strong>CS Finals</strong> = Average(Activities, Quizzes, Attendance)<br />
+        <strong>CS Midterm</strong> = Average(Activities, Quizzes, Attendance, Attitude)<br />
+        <strong>CS Finals</strong> = Average(Activities, Quizzes, Attendance, Attitude)<br />
         <strong>Midterm Term</strong> = Average(CS Midterm, Midterm Exam)<br />
         <strong>Finals Term</strong> = Average(CS Finals, Finals Exam)<br />
         <strong>Final Grade %</strong> = Average(Midterm Term, Finals Term) → converted to 1.00–5.00 via school lookup table<br />
@@ -639,7 +654,7 @@ function SortIcon({ col, sort }) {
 }
 
 // ── SubjectCard ───────────────────────────────────────────────────────────────
-function SubjectCard({ cls, sub, studs, eqScale, onEdit, onClear, onExport, onExportGrades, onImport }) {
+function SubjectCard({ cls, sub, studs, eqScale, readOnly, onEdit, onClear, onExport, onExportGrades, onImport }) {
   const [sort, setSort]   = useState({ col: 'name', dir: 'asc' })
   const [page, setPage]   = useState(1)
 
@@ -722,12 +737,12 @@ function SubjectCard({ cls, sub, studs, eqScale, onEdit, onClear, onExport, onEx
             : <span className="ml-2 text-xs text-ink3">Not yet uploaded</span>}
         </div>
         <div className="flex gap-1.5 flex-wrap">
-          <button className="btn btn-primary btn-sm" onClick={() => onEdit(sub)}><Pencil size={13} className="inline-block mr-1" />Edit Grades</button>
+          {!readOnly && <button className="btn btn-primary btn-sm" onClick={() => onEdit(sub)}><Pencil size={13} className="inline-block mr-1" />Edit Grades</button>}
           <button className="btn btn-ghost btn-sm" onClick={() => onExportGrades(sub)} title="Export current grade data"><BarChart2 size={13} className="inline-block mr-1" />Export Grades</button>
           <button className="btn btn-ghost btn-sm" onClick={() => onExport(sub)} title="Export blank grading sheet template"><Upload size={13} className="inline-block mr-1" />Template</button>
-          <button className="btn btn-ghost btn-sm" onClick={() => onImport(sub)} title="Import grading sheet"><Download size={13} className="inline-block mr-1" />Import</button>
-          <button className="btn btn-warning btn-sm" onClick={() => onClear(sub)}
-            title="Clear all grade data for this subject"><Trash2 size={13} className="inline-block mr-1" />Clear Grades</button>
+          {!readOnly && <button className="btn btn-ghost btn-sm" onClick={() => onImport(sub)} title="Import grading sheet"><Download size={13} className="inline-block mr-1" />Import</button>}
+          {!readOnly && <button className="btn btn-warning btn-sm" onClick={() => onClear(sub)}
+            title="Clear all grade data for this subject"><Trash2 size={13} className="inline-block mr-1" />Clear Grades</button>}
         </div>
       </div>
 
@@ -895,14 +910,19 @@ export default function GradesTab() {
   const { classes, students, activities, eqScale, saveStudents, fbReady } = useData()
   const { toast, openDialog } = useUI()
 
-  const [selClassId, setSelClassId] = useState(() => classes[0]?.id || null)
+  const [showArchived, setShowArchived] = useState(false)
+  const activeClasses   = useMemo(() => classes.filter(c => !c.archived),  [classes])
+  const archivedClasses = useMemo(() => classes.filter(c =>  c.archived),  [classes])
+  const visibleClasses  = showArchived ? archivedClasses : activeClasses
+
+  const [selClassId, setSelClassId] = useState(() => activeClasses[0]?.id || null)
   const [search,     setSearch]     = useState('')
   const [editModal,  setEditModal]  = useState(null) // subject string
   const [importSub,  setImportSub]  = useState(null) // subject string for import
   const importFileRef = useRef(null)
 
-  // Auto-select first class if current selection no longer exists
-  const cls = classes.find(c => c.id === selClassId) || classes[0] || null
+  // Auto-select first visible class when toggling archived/active or when classes change
+  const cls = visibleClasses.find(c => c.id === selClassId) || visibleClasses[0] || null
   const effectiveId = cls?.id || null
 
   const filteredStuds = useMemo(() => {
@@ -1140,7 +1160,24 @@ export default function GradesTab() {
       {/* Header */}
       <div className="sec-hdr mb-3">
         <div className="sec-title">Grades</div>
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={() => { setShowArchived(v => !v); setSelClassId(null); setSearch('') }}
+        >
+          {showArchived
+            ? <><ArchiveRestore size={14} className="inline-block mr-1" />Active Classes</>
+            : <><Archive size={14} className="inline-block mr-1" />Archived Classes</>}
+        </button>
       </div>
+
+      {/* Archived mode banner */}
+      {showArchived && (
+        <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg text-sm"
+          style={{ background: 'var(--yellow-l, #fef9c3)', color: 'var(--yellow-d, #854d0e)', border: '1px solid var(--yellow, #ca8a04)' }}>
+          <Archive size={14} className="shrink-0" />
+          Viewing archived class data — read-only.
+        </div>
+      )}
 
       {/* Controls */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
@@ -1148,7 +1185,7 @@ export default function GradesTab() {
           value={effectiveId || ''}
           onChange={e => { setSelClassId(e.target.value); setSearch('') }}>
           <option value="">— Select a class —</option>
-          {classes.map(c => (
+          {visibleClasses.map(c => (
             <option key={c.id} value={c.id}>{c.name} · {c.section}</option>
           ))}
         </select>
@@ -1156,7 +1193,7 @@ export default function GradesTab() {
           placeholder="Search student…"
           value={search}
           onChange={e => setSearch(e.target.value)} />
-        {effectiveId && (
+        {effectiveId && !showArchived && (
           <button className="btn btn-ghost btn-sm" onClick={handleRecompute}
             title="Recompute all final grades from stored grade components">
             <RefreshCw size={13} className="inline-block mr-1" />Recompute Grades
@@ -1165,7 +1202,10 @@ export default function GradesTab() {
       </div>
 
       {!effectiveId ? (
-        <div className="empty"><div className="empty-icon"><BarChart size={32} /></div>No classes yet.</div>
+        <div className="empty">
+          <div className="empty-icon"><BarChart size={32} /></div>
+          {showArchived ? 'No archived classes.' : 'No classes yet.'}
+        </div>
       ) : !cls?.subjects?.length ? (
         <div className="empty">This class has no subjects.</div>
       ) : (
@@ -1176,11 +1216,12 @@ export default function GradesTab() {
             sub={sub}
             studs={filteredStuds}
             eqScale={eqScale}
-            onEdit={sub => setEditModal(sub)}
-            onClear={handleClear}
+            readOnly={showArchived}
+            onEdit={showArchived ? null : sub => setEditModal(sub)}
+            onClear={showArchived ? null : handleClear}
             onExport={handleExport}
             onExportGrades={handleExportGrades}
-            onImport={sub => { setImportSub(sub); importFileRef.current?.click() }}
+            onImport={showArchived ? null : sub => { setImportSub(sub); importFileRef.current?.click() }}
           />
         ))
       )}
