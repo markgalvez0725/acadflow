@@ -84,9 +84,10 @@ VITE_EJS_SECRET=
 VITE_EJS_SALT=
 VITE_FB_SECRET=
 VITE_FB_SALT=
+VITE_ADMIN_CRYPTO_KEY=
 ```
 
-> **Vercel deployment:** Add all required variables in **Vercel → Project → Settings → Environment Variables**. The app will crash on startup if `VITE_EJS_SECRET`, `VITE_EJS_SALT`, `VITE_FB_SECRET`, or `VITE_FB_SALT` are missing.
+> **Vercel deployment:** Add all required variables in **Vercel → Project → Settings → Environment Variables**. The app will crash on startup if `VITE_EJS_SECRET`, `VITE_EJS_SALT`, `VITE_FB_SECRET`, `VITE_FB_SALT`, or `VITE_ADMIN_CRYPTO_KEY` are missing.
 
 > If Firebase env vars are absent, config can also be entered in-app via **Admin Settings → Firebase**. It is AES-encrypted before being stored in `localStorage`.
 
