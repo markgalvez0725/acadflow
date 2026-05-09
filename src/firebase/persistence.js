@@ -74,17 +74,15 @@ export async function fbSetSubjectRep(db, classes) {
 
 // ── Admin credentials ─────────────────────────────────────────────────────
 // SECURITY: Admin encryption key must come from environment, never hardcoded.
-const ADMIN_KEY = import.meta.env.VITE_ADMIN_CRYPTO_KEY || _throwAdminKeyMissing()
-
-function _throwAdminKeyMissing() {
-  throw new Error('SECURITY: VITE_ADMIN_CRYPTO_KEY is required but not set. Add it to .env.local (minimum 16 characters). Never commit to git.')
-}
-
 async function _getAdminCryptoKey(mode) {
-  if (!ADMIN_KEY || ADMIN_KEY.length < 16) {
+  const adminKey = import.meta.env.VITE_ADMIN_CRYPTO_KEY
+  if (!adminKey) {
+    throw new Error('SECURITY: VITE_ADMIN_CRYPTO_KEY is required but not set. Add it to your Vercel project settings or .env.local (minimum 16 characters). Never commit to git.')
+  }
+  if (adminKey.length < 16) {
     throw new Error('SECURITY: Invalid VITE_ADMIN_CRYPTO_KEY — must be at least 16 characters.')
   }
-  const keyData = new TextEncoder().encode(ADMIN_KEY.padEnd(32, '_').slice(0, 32))
+  const keyData = new TextEncoder().encode(adminKey.padEnd(32, '_').slice(0, 32))
   return crypto.subtle.importKey('raw', keyData, { name: 'AES-GCM' }, false, [mode])
 }
 
