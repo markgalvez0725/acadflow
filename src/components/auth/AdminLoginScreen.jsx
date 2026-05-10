@@ -3,7 +3,6 @@ import { Eye, EyeOff, ShieldCheck, BookOpen, Users, CalendarCheck, BarChart2, Gr
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import OTPBoxes from '@/components/primitives/OTPBoxes'
 import LoadingButton from '@/components/primitives/LoadingButton'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 import WeatherScene from '@/components/canvas/WeatherScene'
@@ -18,13 +17,11 @@ const ADMIN_FEATURES = [
   { Icon: BookOpen,      label: 'Quizzes' },
 ]
 
-// Modes: 'login' | 'forgot' | 'af-otp'
 export default function AdminLoginScreen() {
-  const { loginAdmin, createOTP, checkOTP, clearOTP, hashPassword } = useAuth()
-  const { admin, saveAdmin } = useData()
+  const { loginAdmin } = useAuth()
+  const { admin } = useData()
   const { toast, theme } = useUI()
 
-  const [mode, setMode]           = useState('login')
   const [pinResetOpen, setPinResetOpen] = useState(false)
   const [loading, setLoading]   = useState(false)
   const [err, setErr]           = useState('')
@@ -39,16 +36,7 @@ export default function AdminLoginScreen() {
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-
-  const [showPass, setShowPass]     = useState(false)
-  const [showAfPass, setShowAfPass] = useState(false)
-  const [showAfPass2, setShowAfPass2] = useState(false)
-
-  const [afEmail, setAfEmail]   = useState('')
-  const [otpValue, setOtpValue] = useState('')
-  const [afNewPass, setAfNewPass]   = useState('')
-  const [afNewPass2, setAfNewPass2] = useState('')
-  const [otpEmailDisplay, setOtpEmailDisplay] = useState('')
+  const [showPass, setShowPass] = useState(false)
 
   const clearMessages = () => { setErr(''); setOkMsg('') }
 
@@ -68,53 +56,8 @@ export default function AdminLoginScreen() {
     }
   }
 
-  // ── Forgot step 1 ───────────────────────────────────────────────────────
-  async function handleForgotStep1(e) {
-    e.preventDefault()
-    clearMessages()
-    if (afEmail.toLowerCase() !== admin.email.toLowerCase())
-      return setErr('Email not recognized.')
-
-    setLoading(true)
-    try {
-      const code = createOTP('af', afEmail)
-      setOtpEmailDisplay(afEmail)
-      setOtpValue('')
-      setMode('af-otp')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // ── Forgot step 2 ───────────────────────────────────────────────────────
-  async function handleForgotStep2(e) {
-    e.preventDefault()
-    clearMessages()
-    if (otpValue.length < 6) return setErr('Please enter the full 6-digit OTP.')
-    if (afNewPass.length < 8) return setErr('Password must be at least 8 characters.')
-    if (!/[A-Z]/.test(afNewPass) || !/[0-9]/.test(afNewPass))
-      return setErr('Password must include at least one uppercase letter and one number.')
-    if (afNewPass !== afNewPass2) return setErr('Passwords do not match.')
-
-    const result = checkOTP('af', otpValue)
-    if (!result.ok) return setErr(result.msg)
-
-    setLoading(true)
-    try {
-      const newPass = await hashPassword(afNewPass)
-      await saveAdmin({ ...admin, pass: newPass })
-      clearOTP('af')
-      setOkMsg('✅ Admin password updated!')
-      setTimeout(() => { setMode('login'); setOkMsg('') }, 1800)
-    } catch (e2) {
-      setErr('Failed to save: ' + e2.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const modeTitle = mode === 'login' ? 'Admin portal' : mode === 'forgot' ? 'Reset password' : 'OTP verification'
-  const modeSub   = mode === 'login' ? 'Sign in to manage your classes.' : mode === 'forgot' ? 'Enter your email to receive an OTP.' : 'Enter the code sent to your email.'
+  const modeTitle = 'Admin portal'
+  const modeSub   = 'Sign in to manage your classes.'
 
   const sceneForcesLight = !scene?.isLightScene && theme !== 'dark'
   const sceneTextOverride = sceneForcesLight
@@ -220,74 +163,13 @@ export default function AdminLoginScreen() {
               <LoadingButton loading={loading} loadingText="Signing in…" className="btn btn-primary btn-full mt-2">
                 Sign In
               </LoadingButton>
-              <button type="button" className="link-btn w-full text-center mt-3" onClick={() => { setMode('forgot'); clearMessages() }}>
+              <button type="button" className="link-btn w-full text-center mt-3" onClick={() => { clearMessages(); setPinResetOpen(true) }}>
                 Forgot Password?
               </button>
             </form>
           )}
 
-          {/* ── Forgot ─────────────────────────────────────────────────── */}
-          {mode === 'forgot' && (
-            <form onSubmit={handleForgotStep1}>
-              <h3 className="font-display text-lg font-bold text-ink mb-1">Reset Admin Password</h3>
-              <p className="text-xs text-ink2 mb-4">Enter the admin email address to receive an OTP.</p>
-              <div className="field-float">
-                <input type="email" placeholder=" " value={afEmail} onChange={e => setAfEmail(e.target.value)} />
-                <label>Admin Email</label>
-              </div>
-              <LoadingButton loading={loading} loadingText="Sending…" className="btn btn-primary btn-full mt-2">
-                Send OTP →
-              </LoadingButton>
-              <button type="button" className="link-btn w-full text-center mt-2" onClick={() => { setMode('login'); clearMessages() }}>
-                ← Back to Login
-              </button>
-              <button type="button" className="link-btn w-full text-center mt-1" onClick={() => { clearMessages(); setPinResetOpen(true) }}>
-                Use Recovery PIN instead
-              </button>
-            </form>
-          )}
 
-          {/* ── OTP + new password ─────────────────────────────────────── */}
-          {mode === 'af-otp' && (
-            <form onSubmit={handleForgotStep2}>
-              <p className="text-sm text-ink2 mb-2 text-center">
-                Enter the 6-digit OTP sent to <strong>{otpEmailDisplay}</strong>
-              </p>
-              <OTPBoxes value={otpValue} onChange={setOtpValue} disabled={loading} />
-              <div className="field-float" style={{ marginTop: 10 }}>
-                <input
-                  type={showAfPass ? 'text' : 'password'}
-                  placeholder=" "
-                  value={afNewPass}
-                  onChange={e => setAfNewPass(e.target.value)}
-                  style={{ paddingRight: 38 }}
-                />
-                <button type="button" className="pw-toggle" onClick={() => setShowAfPass(v => !v)} tabIndex={-1} aria-label={showAfPass ? 'Hide password' : 'Show password'}>
-                  {showAfPass ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-                <label>New Password</label>
-              </div>
-              <div className="field-float">
-                <input
-                  type={showAfPass2 ? 'text' : 'password'}
-                  placeholder=" "
-                  value={afNewPass2}
-                  onChange={e => setAfNewPass2(e.target.value)}
-                  style={{ paddingRight: 38 }}
-                />
-                <button type="button" className="pw-toggle" onClick={() => setShowAfPass2(v => !v)} tabIndex={-1} aria-label={showAfPass2 ? 'Hide password' : 'Show password'}>
-                  {showAfPass2 ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-                <label>Confirm New Password</label>
-              </div>
-              <LoadingButton loading={loading} loadingText="Saving…" className="btn btn-primary btn-full mt-2">
-                Set New Password
-              </LoadingButton>
-              <button type="button" className="link-btn w-full text-center mt-2" onClick={() => { setMode('forgot'); clearMessages() }}>
-                ← Back
-              </button>
-            </form>
-          )}
         </div>
 
         <p className="text-center text-xs text-ink3 mt-4">
@@ -298,7 +180,7 @@ export default function AdminLoginScreen() {
 
       {pinResetOpen && (
         <Suspense fallback={null}>
-          <ResetPinModal onClose={() => setPinResetOpen(false)} onReset={() => setMode('login')} />
+          <ResetPinModal onClose={() => setPinResetOpen(false)} onReset={() => setPinResetOpen(false)} />
         </Suspense>
       )}
     </div>
