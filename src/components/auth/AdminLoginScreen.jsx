@@ -134,7 +134,6 @@ export default function AdminLoginScreen() {
           {okMsg && <div className="ok-msg"  style={{ display: 'block' }}>{okMsg}</div>}
 
           {/* ── Login ──────────────────────────────────────────────────── */}
-          {mode === 'login' && (
             <form onSubmit={handleLogin}>
               <div className="field-float">
                 <input
@@ -167,7 +166,6 @@ export default function AdminLoginScreen() {
                 Forgot Password?
               </button>
             </form>
-          )}
 
 
         </div>
