@@ -19,16 +19,15 @@
 }
 
 /*
- * Wordmark gradient sweep:
- *   background-size: 300% → at position 100% the visible slice sits in the
- *   right-side ink zone (looks solid), at position 28% the slice centres on
- *   the accent→purple→accent band (brand gradient visible).
- *   Using display:inline on letter children (not inline-block) keeps
- *   background-clip:text working through all descendants.
+ * Wordmark: always-visible brand gradient using only accent/purple —
+ * never var(--ink) which can become near-white in dark-theme or
+ * scene-override contexts and blend into the background.
+ * A slow continuous flow keeps it visually lively.
  */
-@keyframes acadflow-wordmark-sweep {
-  from { background-position: 100% center; }
-  to   { background-position:  28% center; }
+@keyframes acadflow-wordmark-flow {
+  0%   { background-position: 0%   center; }
+  50%  { background-position: 100% center; }
+  100% { background-position: 0%   center; }
 }
 
 /* Sparkle: pop in then continuously twinkle */
@@ -50,29 +49,26 @@
 }
 
 /*
- * Wordmark: always-visible brand gradient.
- * Initial position (100%) shows the ink zone so letters fade in looking dark,
- * then the sweep animation reveals the accent/purple gradient.
- * Letter spans MUST be display:inline (not inline-block) for background-clip
- * to paint through them correctly.
+ * Wordmark: accent → purple → accent gradient — always vivid, always
+ * readable regardless of theme or weather-scene ink override.
+ * Letter spans MUST be display:inline (not inline-block) so background-clip
+ * paints through all descendants correctly.
  */
 .acadflow-wordmark {
   background: linear-gradient(
     90deg,
-    var(--ink)    0%,
-    var(--ink)   20%,
-    var(--accent) 36%,
-    var(--purple) 50%,
-    var(--accent) 64%,
-    var(--ink)   80%,
-    var(--ink)  100%
+    var(--accent)  0%,
+    var(--purple)  40%,
+    var(--accent)  70%,
+    var(--purple) 100%
   );
-  background-size: 300% 100%;
-  background-position: 100% center;
+  background-size: 250% 100%;
+  background-position: 0% center;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: acadflow-wordmark-sweep 1.3s cubic-bezier(.4,0,.2,1) 0.5s both;
+  /* slow continuous shimmer flow */
+  animation: acadflow-wordmark-flow 5s ease-in-out 0.1s infinite;
 }
 
 /* 4-pointed star sparkle shape */
