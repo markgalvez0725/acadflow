@@ -50,16 +50,16 @@ export default function SemesterCalendarChip({ semester, className = '' }) {
   const isActive   = semester.status === 'active'
   const isUpcoming = semester.status === 'upcoming'
 
-  // Colour tokens
+  // Colour tokens — no background, text colour only
   const chipCls = isActive
-    ? 'bg-[var(--accent-l)] text-[var(--accent)]'
+    ? 'text-[var(--accent)]'
     : isUpcoming
-    ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
-    : 'bg-[var(--surface2)] text-[var(--ink3)]'
+    ? 'text-amber-500 dark:text-amber-400'
+    : 'text-[var(--ink3)]'
 
   return (
     <div
-      className={`hidden md:inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-semibold select-none ${chipCls} ${className}`}
+      className={`hidden md:inline-flex items-center gap-2 px-1 py-1 text-xs font-semibold select-none ${chipCls} ${className}`}
       title={`Semester: ${label}${daysDetail ? ` · ${daysDetail}` : ''}`}
     >
       {/* ── Mini calendar icon ── */}
