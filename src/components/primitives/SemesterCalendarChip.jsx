@@ -87,10 +87,14 @@ export default function SemesterCalendarChip({ semester, className = '' }) {
             fontSize: 6,
             fontWeight: 800,
             letterSpacing: '0.04em',
-            background: 'currentColor',
+            background: isActive
+              ? 'var(--accent, #4f6ef7)'
+              : isUpcoming
+              ? '#f59e0b'
+              : '#6b7280',
             color: '#fff',
-            paddingTop: 1.5,
-            paddingBottom: 1.5,
+            paddingTop: 2,
+            paddingBottom: 2,
           }}
         >
           {monthAbb}
