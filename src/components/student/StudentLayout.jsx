@@ -9,6 +9,7 @@ import ToastManager from '@/components/primitives/ToastManager'
 import Dialog from '@/components/primitives/Dialog'
 import FloatingMessenger from './FloatingMessenger'
 import { SkeletonRows, SkeletonDashboard, TabErrorBoundary } from '@/components/primitives/SkeletonLoader'
+import SemesterCalendarChip from '@/components/primitives/SemesterCalendarChip'
 import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature } from 'lucide-react'
 
 // Lazy-load tabs
@@ -43,7 +44,7 @@ const NAV_ITEMS = [
 
 export default function StudentLayout() {
   const { studentTab, setStudentTab, toastQueue, dismissToast, dialog, resolveDialog, toast } = useUI()
-  const { students, classes, messages, activities, quizzes, db, fbReady } = useData()
+  const { students, classes, messages, activities, quizzes, db, fbReady, semester } = useData()
   const { currentStudent, setCurrentStudent, logout, loginTime, lastLogin } = useAuth()
 
   // Resolve pending student (session restore — only id is known until students load)
@@ -217,6 +218,7 @@ export default function StudentLayout() {
               ))}
             </select>
           )}
+          <SemesterCalendarChip semester={semester} />
           <SessionChip name={student.name || 'Student'} loginTime={loginTime} lastLogin={lastLogin} />
           <ThemeToggle style={{ position: 'static', width: 32, height: 32, fontSize: 14 }} />
         </div>

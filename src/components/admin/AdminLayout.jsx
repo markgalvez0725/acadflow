@@ -9,6 +9,7 @@ import SessionChip from '@/components/primitives/SessionChip'
 import ToastManager from '@/components/primitives/ToastManager'
 import Dialog from '@/components/primitives/Dialog'
 import FloatingMessenger from './FloatingMessenger'
+import SemesterCalendarChip from '@/components/primitives/SemesterCalendarChip'
 
 // Lazy-load tabs
 const DashboardTab    = lazy(() => import('./tabs/DashboardTab'))
@@ -104,14 +105,7 @@ export default function AdminLayout() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {semester && (
-              <span
-                className={`hidden md:inline text-xs font-semibold px-2.5 py-1 rounded-full ${semester.status === 'active' ? 'bg-[var(--accent-l)] text-[var(--accent)]' : 'bg-[var(--surface2)] text-[var(--ink3)]'}`}
-                title={`Status: ${semester.status}`}
-              >
-                📅 {semester.label || `${semester.term} AY ${semester.year}`}
-              </span>
-            )}
+            <SemesterCalendarChip semester={semester} />
             <span className="adm-clock hidden sm:inline">{clock}</span>
             <SessionChip name="Admin" loginTime={loginTime} lastLogin={lastLogin} />
             <ThemeToggle style={{ position: 'static', width: 32, height: 32, fontSize: 14 }} />
