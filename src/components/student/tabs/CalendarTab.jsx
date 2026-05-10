@@ -124,10 +124,67 @@ export default function CalendarTab({ student, viewClassId, classes }) {
     return count
   }, [eventMap, year, month, days])
 
+  const monthTypeCounts = useMemo(() => {
+    const counts = { activity: 0, quiz: 0, announcement: 0 }
+    for (let d = 1; d <= days; d++) {
+      const key = `${year}-${month}-${d}`
+      ;(eventMap[key] || []).forEach(ev => {
+        counts[ev.type] = (counts[ev.type] || 0) + 1
+      })
+    }
+    return counts
+  }, [eventMap, year, month, days])
+
+  const upcomingEvents = useMemo(() => {
+    const now = Date.now()
+    return Object.values(eventMap)
+      .flat()
+      .filter(ev => ev.ts >= now)
+      .sort((a, b) => a.ts - b.ts)
+      .slice(0, 5)
+  }, [eventMap])
+
   if (!fbReady) return <SkeletonRows />
 
   return (
     <div className="space-y-4 pb-4">
+      <div
+        className="card"
+        style={{
+          padding: 16,
+          background: 'linear-gradient(135deg, var(--accent-l), rgba(255,255,255,0))',
+          borderColor: 'var(--border2)',
+        }}
+      >
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-ink3">Study Timeline</div>
+            <h3 className="text-base font-bold text-ink mt-1">Your Calendar</h3>
+            <p className="text-xs text-ink2 mt-1">See due dates, quiz closings, and important announcements in one place.</p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-surface text-ink2 border border-line">
+              {monthEventCount} this month
+            </span>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-surface text-ink2 border border-line">
+              {upcomingEvents.length} upcoming
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        {Object.entries(EVENT_COLORS).map(([type, color]) => (
+          <div key={type} className="card" style={{ padding: 12 }}>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-ink2">{color.label}</span>
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: color.dot }} />
+            </div>
+            <div className="mt-2 text-lg font-bold text-ink">{monthTypeCounts[type] || 0}</div>
+          </div>
+        ))}
+      </div>
+
       {/* Header */}
       <div className="card py-3 px-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -303,6 +360,35 @@ export default function CalendarTab({ student, viewClassId, classes }) {
           )}
         </div>
       )}
+
+      <div className="card p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="font-semibold text-ink text-sm">Upcoming Agenda</h4>
+          <span className="text-xs text-ink3">Next 5 events</span>
+        </div>
+        {upcomingEvents.length === 0 ? (
+          <p className="text-ink3 text-sm text-center py-2">No upcoming events yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {upcomingEvents.map((ev, idx) => {
+              const color = EVENT_COLORS[ev.type]
+              return (
+                <div
+                  key={ev.id + idx}
+                  className="flex items-center gap-3 p-3 rounded-lg border border-line"
+                  style={{ borderLeftWidth: 3, borderLeftColor: color.dot }}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold text-ink truncate">{ev.title}</div>
+                    <div className="text-xs text-ink2 truncate">{ev.subtitle || color.label}</div>
+                  </div>
+                  <span className="text-xs text-ink3 whitespace-nowrap">{new Date(ev.ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

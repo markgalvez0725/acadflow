@@ -6,6 +6,7 @@ import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle
 export default function OnlineClassesTab() {
   const { classes, meetings, saveMeetLink, scheduleMeeting, startMeeting, endMeeting, cancelMeeting } = useData()
   const { toast } = useUI()
+  const [panel, setPanel] = useState('links')
 
   // ── Section 1: Meet Links ─────────────────────────────────────────────
   const [linkDrafts, setLinkDrafts] = useState({})
@@ -38,7 +39,7 @@ export default function OnlineClassesTab() {
     try {
       await scheduleMeeting({
         classId: cls.id,
-        className: cls.name,
+        className: classLabel(cls),
         title: form.title.trim(),
         description: form.description.trim(),
         meetLink: cls.meetLink || '',
@@ -103,8 +104,31 @@ export default function OnlineClassesTab() {
   return (
     <div className="online-classes-tab" style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
 
+      <section className="card" style={{ padding: 12, background: 'var(--surface2)' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            className={`btn btn-sm ${panel === 'links' ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={() => setPanel('links')}
+          >
+            <Video size={14} /> Meet Links
+          </button>
+          <button
+            className={`btn btn-sm ${panel === 'schedule' ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={() => setPanel('schedule')}
+          >
+            <CalendarPlus size={14} /> Schedule
+          </button>
+          <button
+            className={`btn btn-sm ${panel === 'meetings' ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={() => setPanel('meetings')}
+          >
+            <Clock size={14} /> Meetings
+          </button>
+        </div>
+      </section>
+
       {/* Section 1 — Class Meet Links */}
-      <section>
+      {panel === 'links' && <section>
         <div className="sec-hdr mb-3">
           <div className="sec-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Video size={18} /> Class Meet Links
@@ -116,7 +140,14 @@ export default function OnlineClassesTab() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
           {activeClasses.map(cls => (
             <div key={cls.id} className="card" style={{ padding: '14px 16px' }}>
-              <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>{cls.name}</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{cls.name}</div>
+                {cls.section && (
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-l)', borderRadius: 999, padding: '2px 8px' }}>
+                    {cls.section}
+                  </span>
+                )}
+              </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <input
                   className="input"
@@ -136,10 +167,10 @@ export default function OnlineClassesTab() {
             </div>
           ))}
         </div>
-      </section>
+      </section>}
 
       {/* Section 2 — Schedule Meeting Form */}
-      <section>
+      {panel === 'schedule' && <section>
         <div className="sec-hdr mb-3">
           <div className="sec-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <CalendarPlus size={18} /> Schedule a Meeting
@@ -157,7 +188,7 @@ export default function OnlineClassesTab() {
               >
                 <option value="">Select class...</option>
                 {activeClasses.map(cls => (
-                  <option key={cls.id} value={cls.id}>{cls.name}</option>
+                  <option key={cls.id} value={cls.id}>{classLabel(cls)}</option>
                 ))}
               </select>
             </div>
@@ -200,10 +231,10 @@ export default function OnlineClassesTab() {
             </button>
           </div>
         </form>
-      </section>
+      </section>}
 
       {/* Section 3 — Meetings List */}
-      <section>
+      {panel === 'meetings' && <section>
         <div className="sec-hdr mb-3">
           <div className="sec-title">Meetings</div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -233,9 +264,13 @@ export default function OnlineClassesTab() {
                 {past.map(m => <MeetingRow key={m.id} m={m} />)}
               </div>
         )}
-      </section>
+      </section>}
     </div>
   )
+}
+
+function classLabel(cls) {
+  return cls?.section ? `${cls.name} - ${cls.section}` : cls?.name || 'Class'
 }
 
 function MeetingRow({ m, onStart, onEnd, onCancel }) {

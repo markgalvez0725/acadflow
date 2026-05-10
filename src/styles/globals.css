@@ -722,11 +722,11 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 .sb-nav .nav-item.active::before {
   content: '';
   position: absolute;
-  left: -6px;
-  top: 50%;
-  transform: translateY(-50%);
+  left: 0;
+  top: 8px;
+  bottom: 8px;
   width: 3px;
-  height: 65%;
+  height: auto;
   border-radius: 0 3px 3px 0;
   background: var(--accent);
   animation: navActivePop .3s var(--ease-spring) both;
@@ -1059,11 +1059,11 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
   .student-bottom-nav .nav-item.active::before {
     content: '';
     position: absolute;
-    left: -8px;
-    top: 50%;
-    transform: translateY(-50%);
+    left: 0;
+    top: 8px;
+    bottom: 8px;
     width: 3px;
-    height: 60%;
+    height: auto;
     border-radius: 0 3px 3px 0;
     background: var(--accent);
     animation: navActivePop .3s var(--ease-spring) both;
