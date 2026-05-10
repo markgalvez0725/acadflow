@@ -87,11 +87,7 @@ export default function SemesterCalendarChip({ semester, className = '' }) {
             fontWeight: 800,
             letterSpacing: '0.03em',
             background: 'currentColor',
-            color: isActive
-              ? 'var(--accent-l, #e8f0ff)'
-              : isUpcoming
-              ? 'rgb(254 243 199)'   /* amber-100 */
-              : 'var(--surface2)',
+            color: '#fff',
             paddingTop: 1,
             paddingBottom: 1,
           }}
