@@ -57,44 +57,51 @@ export default function AcadFlowLogo({ variant = 'horizontal', size = 'md', clas
   )
 
   const wordmarkEl = (
-    // position:relative is the containing block for absolute sparkles
+    // Outer span carries drop-shadow filter — must be a WRAPPER, not the
+    // background-clip:text element itself, to avoid browser painting bugs.
+    // The shadow makes the text pop from any weather-scene background.
     <span
-      className={`relative inline-block acadflow-wordmark font-display font-bold tracking-tight ${textCls}`}
-      aria-label="AcadFlow"
+      style={{ filter: 'drop-shadow(0 1px 6px rgba(0,0,0,0.70)) drop-shadow(0 0 14px rgba(0,0,0,0.45))' }}
     >
-      {LETTERS.map((l, i) => (
-        // display:inline (NOT inline-block) keeps background-clip:text working
-        // position:relative + top provides the drop-in stagger effect
-        <span
-          key={i}
-          aria-hidden="true"
-          style={{
-            display:    'inline',
-            position:   'relative',
-            opacity:    visible ? 1 : 0,
-            top:        visible ? '0em' : '0.28em',
-            transition: `opacity .38s ease ${0.12 + i * 0.045}s, top .38s cubic-bezier(.34,1.56,.64,1) ${0.12 + i * 0.045}s`,
-          }}
-        >
-          {l}
-        </span>
-      ))}
+      {/* position:relative is the containing block for absolute sparkles */}
+      <span
+        className={`relative inline-block acadflow-wordmark font-display font-bold tracking-tight ${textCls}`}
+        aria-label="AcadFlow"
+      >
+        {LETTERS.map((l, i) => (
+          // display:inline (NOT inline-block) keeps background-clip:text working
+          // position:relative + top provides the drop-in stagger effect
+          <span
+            key={i}
+            aria-hidden="true"
+            style={{
+              display:    'inline',
+              position:   'relative',
+              opacity:    visible ? 1 : 0,
+              top:        visible ? '0em' : '0.28em',
+              transition: `opacity .38s ease ${0.12 + i * 0.045}s, top .38s cubic-bezier(.34,1.56,.64,1) ${0.12 + i * 0.045}s`,
+            }}
+          >
+            {l}
+          </span>
+        ))}
 
-      {/* Sparkle particles — positioned absolutely outside letter bounds */}
-      {sparkle && SPARKLES.map((sp, i) => (
-        <span
-          key={i}
-          aria-hidden="true"
-          className="acadflow-sparkle"
-          style={{
-            width:          sp.sz,
-            height:         sp.sz,
-            background:     sp.clr,
-            animationDelay: sp.delay,
-            ...sp.style,
-          }}
-        />
-      ))}
+        {/* Sparkle particles — positioned absolutely outside letter bounds */}
+        {sparkle && SPARKLES.map((sp, i) => (
+          <span
+            key={i}
+            aria-hidden="true"
+            className="acadflow-sparkle"
+            style={{
+              width:          sp.sz,
+              height:         sp.sz,
+              background:     sp.clr,
+              animationDelay: sp.delay,
+              ...sp.style,
+            }}
+          />
+        ))}
+      </span>
     </span>
   )
 

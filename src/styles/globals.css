@@ -19,10 +19,14 @@
 }
 
 /*
- * Wordmark: always-visible brand gradient using only accent/purple —
+ * Wordmark: always-visible brand gradient using only accent/purple — 
  * never var(--ink) which can become near-white in dark-theme or
  * scene-override contexts and blend into the background.
+ * Lighter stop values (mix toward white) ensure the gradient stays vivid
+ * on dark evening/night weather-canvas backgrounds.
  * A slow continuous flow keeps it visually lively.
+ * NOTE: filter: drop-shadow is applied on a WRAPPER span in the component,
+ * not here, to avoid browser painting bugs with background-clip:text.
  */
 @keyframes acadflow-wordmark-flow {
   0%   { background-position: 0%   center; }
@@ -57,10 +61,11 @@
 .acadflow-wordmark {
   background: linear-gradient(
     90deg,
-    var(--accent)  0%,
-    var(--purple)  40%,
-    var(--accent)  70%,
-    var(--purple) 100%
+    #a78bfa  0%,
+    #818cf8 35%,
+    #c4b5fd 50%,
+    #818cf8 65%,
+    #a78bfa 100%
   );
   background-size: 250% 100%;
   background-position: 0% center;
