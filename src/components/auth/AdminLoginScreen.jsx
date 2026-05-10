@@ -121,6 +121,12 @@ export default function AdminLoginScreen() {
     ? { '--ink': '#e8edf8', '--ink2': '#8d9ab8', '--ink3': '#5a6880' }
     : undefined
 
+  // The right panel has its own opaque surface background, so always restore
+  // ink tokens to the theme-native values regardless of the scene.
+  const panelInkReset = theme === 'dark'
+    ? { '--ink': '#e8edf8', '--ink2': '#8d9ab8', '--ink3': '#5a6880' }
+    : { '--ink': '#0d1526', '--ink2': '#52637a', '--ink3': '#8b9ab0' }
+
   return (
     <div className="min-h-screen flex relative overflow-hidden bg-bg" id="admin-login-screen" style={sceneTextOverride}>
       <WeatherScene isDark={theme === 'dark'} showBadge style={{ position: 'absolute', inset: 0, zIndex: 0 }} />
@@ -163,7 +169,7 @@ export default function AdminLoginScreen() {
       </div>
 
       {/* ── Right form panel ── */}
-      <div className="relative z-10 flex flex-col justify-center w-full lg:max-w-[460px] lg:min-h-screen px-4 py-8 lg:px-12 lg:bg-surface/80 lg:backdrop-blur-xl lg:border-l lg:border-border">
+      <div className="relative z-10 flex flex-col justify-center w-full lg:max-w-[460px] lg:min-h-screen px-4 py-8 lg:px-12 lg:bg-surface/80 lg:backdrop-blur-xl lg:border-l lg:border-border" style={panelInkReset}>
 
         {/* Mobile branding */}
         <div className="text-center mb-6 lg:hidden">
