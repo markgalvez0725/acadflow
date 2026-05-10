@@ -14,6 +14,29 @@ function courseMatches(studentCourse, clsCourseReq) {
   return (studentCourse || '').trim().toLowerCase() === clsCourseReq.trim().toLowerCase()
 }
 
+// Extract the leading year digit from a section string (e.g. "2A", "2-A", "3B" → 2, 3)
+function extractSectionYear(section) {
+  if (!section) return null
+  const m = String(section).match(/^(\d)/)
+  return m ? parseInt(m[1], 10) : null
+}
+
+// Extract year number from student year-level string (e.g. "2nd Year" → 2)
+function extractStudentYear(yearStr) {
+  if (!yearStr) return null
+  const m = String(yearStr).match(/(\d)/)
+  return m ? parseInt(m[1], 10) : null
+}
+
+// Returns true when the class section year matches the student's year level.
+// If either side cannot be determined, allow the class through.
+function yearLevelMatches(studentYear, clsSection) {
+  const stuYear = extractStudentYear(studentYear)
+  const clsYear = extractSectionYear(clsSection)
+  if (!stuYear || !clsYear) return true
+  return stuYear === clsYear
+}
+
 function fmtDate(iso) {
   if (!iso) return null
   try {
@@ -312,10 +335,15 @@ export default function EnrollmentTab({ student }) {
 
   const semLabel = semester ? (semester.label || `${semester.term} AY ${semester.year}`) : null
 
-  // Only show non-archived classes
+  // Only show non-archived classes that match the student's year level.
+  // Already-enrolled classes are always included so existing enrollments remain visible.
   const activeClasses = useMemo(
-    () => classes.filter(c => !c.archived),
-    [classes]
+    () => classes.filter(c => {
+      if (c.archived) return false
+      if (studentClassIds.includes(c.id)) return true // always show enrolled
+      return yearLevelMatches(student.year, c.section)
+    }),
+    [classes, studentClassIds, student.year]
   )
 
   // Classes belonging to the current semester
@@ -433,7 +461,10 @@ export default function EnrollmentTab({ student }) {
       {/* Student course info */}
       <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--surface2)] text-xs text-[var(--ink2)]">
         <GraduationCap size={14} className="shrink-0" />
-        <span>Your course: <strong className="text-[var(--ink)]">{student.course || <em className="text-red-500">Not set — contact admin to update your profile</em>}</strong></span>
+        <span>
+          Your course: <strong className="text-[var(--ink)]">{student.course || <em className="text-red-500">Not set — contact admin to update your profile</em>}</strong>
+          {student.year && <> &middot; <strong className="text-[var(--ink)]">{student.year}</strong></>}
+        </span>
       </div>
 
       {/* Filter tabs */}
