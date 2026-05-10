@@ -335,15 +335,15 @@ export default function EnrollmentTab({ student }) {
 
   const semLabel = semester ? (semester.label || `${semester.term} AY ${semester.year}`) : null
 
-  // Only show non-archived classes that match the student's year level.
+  // Only show non-archived classes that match the student's year level AND course.
   // Already-enrolled classes are always included so existing enrollments remain visible.
   const activeClasses = useMemo(
     () => classes.filter(c => {
       if (c.archived) return false
       if (studentClassIds.includes(c.id)) return true // always show enrolled
-      return yearLevelMatches(student.year, c.section)
+      return yearLevelMatches(student.year, c.section) && courseMatches(student.course, c.courseReq)
     }),
-    [classes, studentClassIds, student.year]
+    [classes, studentClassIds, student.year, student.course]
   )
 
   // Classes belonging to the current semester
