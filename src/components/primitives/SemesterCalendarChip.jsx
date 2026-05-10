@@ -69,9 +69,9 @@ export default function SemesterCalendarChip({ semester, className = '' }) {
           display: 'inline-flex',
           flexDirection: 'column',
           alignItems: 'center',
-          width: 20,
-          height: 20,
-          borderRadius: 4,
+          width: 24,
+          height: 24,
+          borderRadius: 5,
           border: '1.5px solid currentColor',
           overflow: 'hidden',
           flexShrink: 0,
@@ -83,13 +83,13 @@ export default function SemesterCalendarChip({ semester, className = '' }) {
           style={{
             width: '100%',
             textAlign: 'center',
-            fontSize: 5,
+            fontSize: 6,
             fontWeight: 800,
-            letterSpacing: '0.03em',
+            letterSpacing: '0.04em',
             background: 'currentColor',
             color: '#fff',
-            paddingTop: 1,
-            paddingBottom: 1,
+            paddingTop: 1.5,
+            paddingBottom: 1.5,
           }}
         >
           {monthAbb}
@@ -101,8 +101,9 @@ export default function SemesterCalendarChip({ semester, className = '' }) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 8,
-            fontWeight: 700,
+            fontSize: 11,
+            fontWeight: 800,
+            letterSpacing: '-0.03em',
           }}
         >
           {dayNum}
