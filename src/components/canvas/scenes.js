@@ -328,7 +328,7 @@ function weatherOverlay(vw, vh, cond = 'clear', timeOfDay) {
 export const SCENES = [
 
   // ── 12:00 AM – 4:00 AM · Midnight ─────────────────────────────
-  { id: 'midnight', from: 0, to: 4,
+  { id: 'midnight', from: 0, to: 4, isLightScene: false,
     darkBg:  ['#000005', '#01040e', '#030820'],
     lightBg: ['#080c1a', '#0d1530', '#111e42'],
     buildSVG(vw, vh, wx) { return `
@@ -345,7 +345,7 @@ export const SCENES = [
   },
 
   // ── 4:00 AM – 6:00 AM · Rooster / Pre-Dawn ────────────────────
-  { id: 'rooster', from: 4, to: 6,
+  { id: 'rooster', from: 4, to: 6, isLightScene: false,
     darkBg:  ['#02020a', '#080418', '#100628'],
     lightBg: ['#06040f', '#1a0838', '#3d1258', '#7a2060', '#c04030'],
     buildSVG(vw, vh, wx) { return `
@@ -375,7 +375,7 @@ export const SCENES = [
   },
 
   // ── 6:00 AM – 8:00 AM · Sunrise ───────────────────────────────
-  { id: 'sunrise', from: 6, to: 8,
+  { id: 'sunrise', from: 6, to: 8, isLightScene: false,
     darkBg:  ['#0d0520', '#1a0a35', '#2d1060'],
     lightBg: ['#1a0830', '#ff6b35', '#ffb347', '#ffe0a0'],
     buildSVG(vw, vh, wx) { return `
@@ -403,7 +403,7 @@ export const SCENES = [
   },
 
   // ── 8:00 AM – 12:00 NN · Morning ──────────────────────────────
-  { id: 'morning', from: 8, to: 12,
+  { id: 'morning', from: 8, to: 12, isLightScene: true,
     darkBg:  ['#061524', '#0a2540', '#0d3060'],
     lightBg: ['#87ceeb', '#aadff7', '#e8f8ff', '#fff8e7'],
     buildSVG(vw, vh, wx) { return `
@@ -420,7 +420,7 @@ export const SCENES = [
   },
 
   // ── 12:00 NN – 3:00 PM · Mid-day ──────────────────────────────
-  { id: 'midday', from: 12, to: 15,
+  { id: 'midday', from: 12, to: 15, isLightScene: true,
     darkBg:  ['#041020', '#071830', '#0a2040'],
     lightBg: ['#55b8f5', '#87ceeb', '#c8edff', '#fffde7'],
     buildSVG(vw, vh, wx) { return `
@@ -437,7 +437,7 @@ export const SCENES = [
   },
 
   // ── 3:00 PM – 5:00 PM · Afternoon ─────────────────────────────
-  { id: 'afternoon', from: 15, to: 17,
+  { id: 'afternoon', from: 15, to: 17, isLightScene: true,
     darkBg:  ['#06101e', '#0a1a30', '#0e2248'],
     lightBg: ['#4da8e8', '#78c8f8', '#b8e4ff', '#fff3d6'],
     buildSVG(vw, vh, wx) { return `
@@ -454,7 +454,7 @@ export const SCENES = [
   },
 
   // ── 5:00 PM – 6:00 PM · Sunset ────────────────────────────────
-  { id: 'sunset', from: 17, to: 18,
+  { id: 'sunset', from: 17, to: 18, isLightScene: false,
     darkBg:  ['#0a0318', '#1c0828', '#3a1040'],
     lightBg: ['#12051e', '#6b1a3a', '#d44820', '#f5851a', '#ffd060'],
     buildSVG(vw, vh, wx) { return `
@@ -483,7 +483,7 @@ export const SCENES = [
   },
 
   // ── 6:00 PM – 8:00 PM · Night ─────────────────────────────────
-  { id: 'night', from: 18, to: 20,
+  { id: 'night', from: 18, to: 20, isLightScene: false,
     darkBg:  ['#020408', '#04080f', '#060c18'],
     lightBg: ['#020408', '#06090f', '#0a1020', '#12182e'],
     buildSVG(vw, vh, wx) { return `
@@ -502,7 +502,7 @@ export const SCENES = [
   },
 
   // ── 8:00 PM – 12:00 AM · Evening ──────────────────────────────
-  { id: 'evening', from: 20, to: 24,
+  { id: 'evening', from: 20, to: 24, isLightScene: false,
     darkBg:  ['#010306', '#030610', '#070e1e'],
     lightBg: ['#010306', '#04080e', '#080e1e', '#0e1830'],
     buildSVG(vw, vh, wx) { return `

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Eye, EyeOff, BarChart2, CalendarCheck, Rss, MessageSquare } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
@@ -9,6 +9,7 @@ import { SECURITY_QUESTIONS } from '@/utils/securityQuestions'
 import LoadingButton from '@/components/primitives/LoadingButton'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 import WeatherScene from '@/components/canvas/WeatherScene'
+import { getScene } from '@/components/canvas/scenes'
 
 const STUDENT_FEATURES = [
   { Icon: BarChart2,     label: 'Grades' },
@@ -27,6 +28,13 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false)
   const [err, setErr]         = useState('')
   const [okMsg, setOkMsg]     = useState('')
+
+  // Track scene for background-aware text contrast
+  const [scene, setScene] = useState(() => getScene())
+  useEffect(() => {
+    const id = setInterval(() => setScene(getScene()), 60_000)
+    return () => clearInterval(id)
+  }, [])
 
   // Login form
   const [snum, setSnum] = useState('')
@@ -277,8 +285,16 @@ export default function LoginScreen() {
     }
   }
 
+  // When the scene background is inherently dark (night/dusk/etc.) and the user
+  // has the light theme active, force text tokens to light values so text remains
+  // readable against the dark canvas.
+  const sceneForcesLight = !scene?.isLightScene && theme !== 'dark'
+  const sceneTextOverride = sceneForcesLight
+    ? { '--ink': '#e8edf8', '--ink2': '#8d9ab8', '--ink3': '#5a6880' }
+    : undefined
+
   return (
-    <div className="min-h-screen flex relative overflow-hidden bg-bg" id="login-screen">
+    <div className="min-h-screen flex relative overflow-hidden bg-bg" id="login-screen" style={sceneTextOverride}>
       <WeatherScene isDark={theme === 'dark'} showBadge style={{ position: 'absolute', inset: 0, zIndex: 0 }} />
       <ThemeToggle />
 
