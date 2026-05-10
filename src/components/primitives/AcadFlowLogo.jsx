@@ -2,6 +2,18 @@ import React, { useEffect, useState } from 'react'
 
 const LETTERS = 'AcadFlow'.split('')
 
+// Sparkle specs: position around the wordmark text
+// Mix of accent (indigo) and purple for colour variety
+const SPARKLES = [
+  { style: { top: '-11px', left:  '0%'    }, sz: 10, delay: '1.05s', clr: 'var(--accent)' },
+  { style: { top:  '-7px', left:  '17%'   }, sz:  6, delay: '1.35s', clr: 'var(--purple)' },
+  { style: { top: '-15px', left:  '40%'   }, sz: 13, delay: '1.15s', clr: 'var(--accent)' },
+  { style: { top:  '-9px', right: '21%'   }, sz:  8, delay: '1.28s', clr: 'var(--purple)' },
+  { style: { top: '-13px', right:  '2%'   }, sz: 11, delay: '1.08s', clr: 'var(--accent)' },
+  { style: { bottom: '-8px', left:  '30%' }, sz:  7, delay: '1.42s', clr: 'var(--accent)' },
+  { style: { bottom:'-10px', right: '26%' }, sz:  9, delay: '1.20s', clr: 'var(--purple)' },
+]
+
 /**
  * Animated AcadFlow logo + wordmark.
  *
@@ -9,16 +21,21 @@ const LETTERS = 'AcadFlow'.split('')
  *   variant  'horizontal' (default) | 'stacked'
  *   size     'sm' | 'md' | 'lg'
  *   className  extra wrapper classes
+ *
+ * Implementation notes:
+ *   – Letter spans use display:inline + position:relative/top so that the parent's
+ *     background-clip:text paints through them (inline-block breaks background-clip).
+ *   – The wordmark gradient is always present; a CSS animation sweeps the
+ *     background-position once from the ink zone into the brand-colour zone.
+ *   – Sparkle particles appear after the letters settle and twinkle continuously.
  */
 export default function AcadFlowLogo({ variant = 'horizontal', size = 'md', className = '' }) {
-  const [visible,   setVisible]   = useState(false)
-  const [shimmered, setShimmered] = useState(false)
+  const [visible, setVisible] = useState(false)
+  const [sparkle, setSparkle] = useState(false)
 
   useEffect(() => {
-    // Stagger: logo bounces in first, then letters start falling in
-    const t1 = setTimeout(() => setVisible(true),    60)
-    // Shimmer fires after all letters have settled (~0.12 + 7*0.042 + 0.38 ≈ 0.8s)
-    const t2 = setTimeout(() => setShimmered(true), 900)
+    const t1 = setTimeout(() => setVisible(true),  60)   // logo + letters start
+    const t2 = setTimeout(() => setSparkle(true), 980)   // after letters settle
     return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [])
 
@@ -40,22 +57,43 @@ export default function AcadFlowLogo({ variant = 'horizontal', size = 'md', clas
   )
 
   const wordmarkEl = (
+    // position:relative is the containing block for absolute sparkles
     <span
-      className={`font-display font-bold tracking-tight ${textCls} ${shimmered ? 'acadflow-wordmark-shimmer' : 'acadflow-wordmark-base'}`}
+      className={`relative inline-block acadflow-wordmark font-display font-bold tracking-tight ${textCls}`}
       aria-label="AcadFlow"
     >
       {LETTERS.map((l, i) => (
+        // display:inline (NOT inline-block) keeps background-clip:text working
+        // position:relative + top provides the drop-in stagger effect
         <span
           key={i}
-          className="inline-block"
+          aria-hidden="true"
           style={{
+            display:    'inline',
+            position:   'relative',
             opacity:    visible ? 1 : 0,
-            transform:  visible ? 'translateY(0)' : 'translateY(12px)',
-            transition: `opacity .38s ease ${0.12 + i * 0.045}s, transform .38s cubic-bezier(.34,1.56,.64,1) ${0.12 + i * 0.045}s`,
+            top:        visible ? '0em' : '0.28em',
+            transition: `opacity .38s ease ${0.12 + i * 0.045}s, top .38s cubic-bezier(.34,1.56,.64,1) ${0.12 + i * 0.045}s`,
           }}
         >
           {l}
         </span>
+      ))}
+
+      {/* Sparkle particles — positioned absolutely outside letter bounds */}
+      {sparkle && SPARKLES.map((sp, i) => (
+        <span
+          key={i}
+          aria-hidden="true"
+          className="acadflow-sparkle"
+          style={{
+            width:          sp.sz,
+            height:         sp.sz,
+            background:     sp.clr,
+            animationDelay: sp.delay,
+            ...sp.style,
+          }}
+        />
       ))}
     </span>
   )

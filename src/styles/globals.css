@@ -8,52 +8,80 @@
 
 /* ── AcadFlow Logo animations ──────────────────────────────────────────── */
 @keyframes acadflow-float {
-  0%, 100% { transform: translateY(0)   rotate(0deg);  }
+  0%, 100% { transform: translateY(0)    rotate(0deg);   }
   33%       { transform: translateY(-3px) rotate(.6deg);  }
   66%       { transform: translateY(-5px) rotate(-.6deg); }
 }
 
 @keyframes acadflow-glow {
   0%, 100% { filter: drop-shadow(0 0  8px rgba(80,70,228,.40)) drop-shadow(0 2px  4px rgba(0,0,0,.18)); }
-  50%       { filter: drop-shadow(0 0 18px rgba(80,70,228,.72)) drop-shadow(0 4px 10px rgba(0,0,0,.28)); }
+  50%       { filter: drop-shadow(0 0 20px rgba(80,70,228,.78)) drop-shadow(0 4px 12px rgba(0,0,0,.30)); }
 }
 
-/* One-time shimmer sweep: ink → accent/purple highlight → ink */
-@keyframes acadflow-shimmer {
-  0%   { background-position:  120% center; }
-  100% { background-position: -120% center; }
+/*
+ * Wordmark gradient sweep:
+ *   background-size: 300% → at position 100% the visible slice sits in the
+ *   right-side ink zone (looks solid), at position 28% the slice centres on
+ *   the accent→purple→accent band (brand gradient visible).
+ *   Using display:inline on letter children (not inline-block) keeps
+ *   background-clip:text working through all descendants.
+ */
+@keyframes acadflow-wordmark-sweep {
+  from { background-position: 100% center; }
+  to   { background-position:  28% center; }
 }
 
-/* Logo image: float + glow pulse — starts after entrance transition */
+/* Sparkle: pop in then continuously twinkle */
+@keyframes acadflow-sparkle-life {
+  0%   { opacity: 0;    transform: scale(0)    rotate(-18deg); }
+  14%  { opacity: 1;    transform: scale(1.45) rotate(7deg);   }
+  26%  { opacity: 0.92; transform: scale(1)    rotate(0deg);   }
+  58%  { opacity: 0.92; transform: scale(1)    rotate(0deg);   }
+  72%  { opacity: 0.12; transform: scale(.42)  rotate(24deg);  }
+  88%  { opacity: 1;    transform: scale(1)    rotate(-4deg);  }
+  100% { opacity: 0.45; transform: scale(.72)  rotate(12deg);  }
+}
+
+/* Logo image: continuous float + glow pulse */
 .acadflow-logo-img {
   animation:
-    acadflow-float 5s ease-in-out 0.7s infinite,
-    acadflow-glow  3s ease-in-out 0.7s infinite;
+    acadflow-float 5s  ease-in-out 0.7s infinite,
+    acadflow-glow  3s  ease-in-out 0.7s infinite;
 }
 
-/* Before shimmer fires: plain ink text */
-.acadflow-wordmark-base {
-  color: var(--ink);
-}
-
-/* After shimmer class is applied: gradient text + one sweep animation */
-.acadflow-wordmark-shimmer {
+/*
+ * Wordmark: always-visible brand gradient.
+ * Initial position (100%) shows the ink zone so letters fade in looking dark,
+ * then the sweep animation reveals the accent/purple gradient.
+ * Letter spans MUST be display:inline (not inline-block) for background-clip
+ * to paint through them correctly.
+ */
+.acadflow-wordmark {
   background: linear-gradient(
     90deg,
     var(--ink)    0%,
-    var(--ink)    28%,
-    var(--accent) 44%,
+    var(--ink)   20%,
+    var(--accent) 36%,
     var(--purple) 50%,
-    var(--accent) 56%,
-    var(--ink)    72%,
-    var(--ink)    100%
+    var(--accent) 64%,
+    var(--ink)   80%,
+    var(--ink)  100%
   );
   background-size: 300% 100%;
-  background-position: 120% center;
+  background-position: 100% center;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: acadflow-shimmer 1.4s cubic-bezier(.4,0,.2,1) both;
+  animation: acadflow-wordmark-sweep 1.3s cubic-bezier(.4,0,.2,1) 0.5s both;
+}
+
+/* 4-pointed star sparkle shape */
+.acadflow-sparkle {
+  display: block;
+  position: absolute;
+  pointer-events: none;
+  clip-path: polygon(50% 0%, 53% 47%, 100% 50%, 53% 53%, 50% 100%, 47% 53%, 0% 50%, 47% 47%);
+  animation: acadflow-sparkle-life 2.8s ease-in-out infinite both;
 }
 
 @theme inline {
