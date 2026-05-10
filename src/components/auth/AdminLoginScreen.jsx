@@ -1,4 +1,4 @@
-import React, { useState, lazy, Suspense } from 'react'
+import React, { useState, useEffect, lazy, Suspense } from 'react'
 import { Eye, EyeOff, ShieldCheck, BookOpen, Users, CalendarCheck, BarChart2, GraduationCap } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
@@ -7,6 +7,7 @@ import OTPBoxes from '@/components/primitives/OTPBoxes'
 import LoadingButton from '@/components/primitives/LoadingButton'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 import WeatherScene from '@/components/canvas/WeatherScene'
+import { getScene } from '@/components/canvas/scenes'
 
 const ResetPinModal = lazy(() => import('@/components/auth/ResetPinModal'))
 
@@ -28,6 +29,13 @@ export default function AdminLoginScreen() {
   const [loading, setLoading]   = useState(false)
   const [err, setErr]           = useState('')
   const [okMsg, setOkMsg]       = useState('')
+
+  // Track scene for background-aware text contrast
+  const [scene, setScene] = useState(() => getScene())
+  useEffect(() => {
+    const id = setInterval(() => setScene(getScene()), 60_000)
+    return () => clearInterval(id)
+  }, [])
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -108,8 +116,13 @@ export default function AdminLoginScreen() {
   const modeTitle = mode === 'login' ? 'Admin portal' : mode === 'forgot' ? 'Reset password' : 'OTP verification'
   const modeSub   = mode === 'login' ? 'Sign in to manage your classes.' : mode === 'forgot' ? 'Enter your email to receive an OTP.' : 'Enter the code sent to your email.'
 
+  const sceneForcesLight = !scene?.isLightScene && theme !== 'dark'
+  const sceneTextOverride = sceneForcesLight
+    ? { '--ink': '#e8edf8', '--ink2': '#8d9ab8', '--ink3': '#5a6880' }
+    : undefined
+
   return (
-    <div className="min-h-screen flex relative overflow-hidden bg-bg" id="admin-login-screen">
+    <div className="min-h-screen flex relative overflow-hidden bg-bg" id="admin-login-screen" style={sceneTextOverride}>
       <WeatherScene isDark={theme === 'dark'} showBadge style={{ position: 'absolute', inset: 0, zIndex: 0 }} />
       <ThemeToggle />
 
