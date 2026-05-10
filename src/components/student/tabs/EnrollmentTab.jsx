@@ -5,7 +5,7 @@ import Badge from '@/components/primitives/Badge'
 import {
   BookOpen, CheckCircle2, XCircle, LockOpen, Lock,
   CalendarDays, Clock, MapPin, GraduationCap, Users, MessageSquare,
-  AlertTriangle, Sparkles, TimerOff, Bell,
+  AlertTriangle, Sparkles, TimerOff, Bell, Archive, ChevronDown, ChevronRight,
 } from 'lucide-react'
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -113,6 +113,80 @@ function StatusBadge({ enrolled, open, matches }) {
   if (!matches)  return <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-500 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded-full"><XCircle size={11} />Course Mismatch</span>
   if (!open)     return <span className="inline-flex items-center gap-1 text-xs font-semibold text-ink3 bg-[var(--surface2)] px-2 py-0.5 rounded-full"><Lock size={11} />Closed</span>
   return <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-400 px-2 py-0.5 rounded-full"><LockOpen size={11} />Open</span>
+}
+
+// ── Archived Class Card ───────────────────────────────────────────────
+function ArchivedClassCard({ entry }) {
+  const [expanded, setExpanded] = useState(false)
+  const subjects = entry.subjects ? Object.entries(entry.subjects) : []
+  const archivedDate = entry.archivedAt
+    ? new Date(entry.archivedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : null
+
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden opacity-80 hover:opacity-100 transition-opacity">
+      <div
+        className="flex items-center justify-between gap-2 px-4 py-3 cursor-pointer select-none"
+        onClick={() => setExpanded(e => !e)}
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Archive size={14} className="shrink-0 text-[var(--ink3)]" />
+          <div className="min-w-0">
+            <div className="font-medium text-sm text-[var(--ink)] truncate">
+              {entry.className}
+              {entry.section && <span className="text-[var(--ink3)] font-normal"> · Section {entry.section}</span>}
+            </div>
+            <div className="text-xs text-[var(--ink3)] mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+              {entry.semester && <span>{entry.semester}</span>}
+              {archivedDate && <span>Archived {archivedDate}</span>}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--surface2)] text-[var(--ink3)] border border-[var(--border)]">
+            ARCHIVED
+          </span>
+          {expanded
+            ? <ChevronDown size={14} className="text-[var(--ink3)]" />
+            : <ChevronRight size={14} className="text-[var(--ink3)]" />
+          }
+        </div>
+      </div>
+
+      {expanded && subjects.length > 0 && (
+        <div className="border-t border-[var(--border)] px-4 py-3 space-y-2 bg-[var(--surface2)]/50">
+          <div className="text-[11px] font-semibold text-[var(--ink3)] uppercase tracking-wide mb-1">Subjects</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {subjects.map(([sub, data]) => {
+              const grade = data.grade != null ? data.grade : null
+              const attDays = data._att?.length ?? 0
+              return (
+                <div key={sub} className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-[var(--ink)] truncate">{sub}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {grade != null ? (
+                      <span className="text-xs font-semibold text-[var(--accent)]">{grade}</span>
+                    ) : (
+                      <span className="text-xs text-[var(--ink3)]">—</span>
+                    )}
+                    {attDays > 0 && (
+                      <span className="text-[10px] text-[var(--ink3)]">{attDays}d</span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {expanded && subjects.length === 0 && (
+        <div className="border-t border-[var(--border)] px-4 py-3 text-xs text-[var(--ink3)] bg-[var(--surface2)]/50">
+          No subject data recorded for this class.
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── Class Card ────────────────────────────────────────────────────────
@@ -227,6 +301,7 @@ export default function EnrollmentTab({ student }) {
   const [busyId, setBusyId] = useState(null)
   const [filter, setFilter] = useState('all') // 'all' | 'enrolled' | 'available'
   const autoSwitched = useRef(false)
+  const [showArchivedHistory, setShowArchivedHistory] = useState(false)
 
   const studentClassIds = useMemo(() =>
     student.classIds?.length
@@ -305,6 +380,14 @@ export default function EnrollmentTab({ student }) {
   const enrolledInCurrentSem = useMemo(() =>
     enrolledClasses.filter(c => semLabel && c.activeSemester === semLabel).length,
     [enrolledClasses, semLabel]
+  )
+
+  // Academic history: archived semesters sorted most-recent first
+  const archivedHistory = useMemo(() =>
+    [...(student.archivedSemesters || [])].sort((a, b) =>
+      new Date(b.archivedAt) - new Date(a.archivedAt)
+    ),
+    [student.archivedSemesters]
   )
 
   return (
@@ -413,6 +496,43 @@ export default function EnrollmentTab({ student }) {
               }
             />
           ))}
+        </div>
+      )}
+
+      {/* ── Academic History (Archived Classes) ──────────────────────── */}
+      {archivedHistory.length > 0 && (
+        <div className="pt-2 border-t border-[var(--border)]">
+          <button
+            className="flex items-center gap-2 w-full text-left group"
+            onClick={() => setShowArchivedHistory(h => !h)}
+          >
+            <Archive size={15} className="shrink-0 text-[var(--ink3)]" />
+            <span className="font-medium text-sm text-[var(--ink2)] group-hover:text-[var(--ink)] transition-colors">
+              Academic History
+            </span>
+            <span className="text-xs text-[var(--ink3)] ml-1">
+              ({archivedHistory.length} archived class{archivedHistory.length !== 1 ? 'es' : ''})
+            </span>
+            <span className="ml-auto">
+              {showArchivedHistory
+                ? <ChevronDown size={15} className="text-[var(--ink3)]" />
+                : <ChevronRight size={15} className="text-[var(--ink3)]" />
+              }
+            </span>
+          </button>
+
+          {showArchivedHistory && (
+            <div className="mt-3 space-y-2">
+              <p className="text-xs text-[var(--ink3)] px-0.5">
+                These are classes from previous semesters archived by your teacher. Your grades and attendance records are preserved.
+              </p>
+              <div className="space-y-2">
+                {archivedHistory.map((entry, i) => (
+                  <ArchivedClassCard key={`${entry.classId}-${i}`} entry={entry} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

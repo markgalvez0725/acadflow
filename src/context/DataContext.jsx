@@ -250,13 +250,12 @@ export function DataProvider({ children }) {
       }
       if (s.gradeUploadedAt) ns.gradeUploadedAt = { ...s.gradeUploadedAt }
 
-      // Strip active subject data for this class
+      // Strip attendance/excuse for this class from the active profile
+      // (already snapshotted above). Grades are retained so students can
+      // always view their results even after the class is archived.
       cls.subjects.forEach(sub => {
-        delete ns.grades[sub]
         delete ns.attendance[sub]
         delete ns.excuse[sub]
-        delete ns.gradeComponents[sub]
-        if (ns.gradeUploadedAt) delete ns.gradeUploadedAt[sub]
       })
 
       // Un-enroll from this class
