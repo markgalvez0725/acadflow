@@ -19,6 +19,12 @@ const STUDENT_FEATURES = [
   { Icon: MessageSquare, label: 'Messages' },
 ]
 
+const STUDENT_PHRASES = [
+  ['Your academic',    '\nuniverse, unified.'],
+  ['Track your grades', '\nwith ease.'],
+  ['Stay connected',   '\nwith your class.'],
+]
+
 // Modes: 'student' | 'register' | 'reg-sq' | 'forgot' | 'fp-set-sq' | 'fp-sq'
 export default function LoginScreen() {
   const { loginStudent } = useAuth()
@@ -290,10 +296,9 @@ export default function LoginScreen() {
   // has the light theme active, force text tokens to light values so text remains
   // readable against the dark canvas.
   const { displayed: typed, done: typingDone } = useTypingEffect(
-    ['Your academic', '\nuniverse, unified.'],
+    STUDENT_PHRASES,
     { speed: 45, deleteSpeed: 35, startDelay: 350, holdDelay: 30_000 }
   )
-  // typed[0] = first line, typed[1] starts with '\n' then the gradient phrase
   const typedLine1 = typed[0] ?? ''
   const typedLine2 = (typed[1] ?? '').replace(/^\n/, '')
 

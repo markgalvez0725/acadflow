@@ -1,101 +1,94 @@
 import { useState, useEffect } from 'react'
 
 /**
- * Looping typewriter effect for multi-segment text.
+ * Looping typewriter that cycles through multiple phrases.
  *
- * Phases per loop:
- *   1. Type all segments character-by-character (speed ms/char)
- *   2. Hold for `holdDelay` ms (30 s default)
- *   3. Delete all segments character-by-character (deleteSpeed ms/char)
- *   4. Pause for `startDelay` ms, then repeat from step 1
- *
- * @param {string | string[]} segments
- * @param {{ speed?: number, deleteSpeed?: number, startDelay?: number, holdDelay?: number }} options
- * @returns {{ displayed: string[], done: boolean }}
- *   `done` is true while the text is fully typed and being held (phase 2).
+ * @param {string[][]} phrases  Array of segment-arrays, e.g.
+ *   [['Line 1', '\nLine 2'], ['Other line 1', '\nOther line 2'], ...]
+ * @param {{ speed?, deleteSpeed?, startDelay?, holdDelay? }} options
+ * @returns {{ displayed: string[], done: boolean, phraseIndex: number }}
+ *   `displayed`   – segments of the CURRENT phrase typed so far
+ *   `done`        – true while fully typed & holding (cursor hidden)
+ *   `phraseIndex` – which phrase is active (for keying renders)
  */
 export function useTypingEffect(
-  segments,
+  phrases,
   { speed = 45, deleteSpeed = 35, startDelay = 350, holdDelay = 30_000 } = {}
 ) {
-  const parts = Array.isArray(segments) ? segments : [segments]
+  // Normalise: a single segment-array counts as one phrase
+  const allPhrases = (Array.isArray(phrases[0]) ? phrases : [phrases])
 
-  const [displayed, setDisplayed] = useState(() => parts.map(() => ''))
-  // `done` = fully typed (cursor hidden during hold phase)
-  const [done, setDone] = useState(false)
+  const blank = () => allPhrases[0].map(() => '')
+
+  const [displayed, setDisplayed]   = useState(blank)
+  const [done, setDone]             = useState(false)
+  const [phraseIndex, setPhraseIdx] = useState(0)
 
   useEffect(() => {
     let cancelled = false
-    let timer = null
+    let timer     = null
 
-    // Segments flattened for sequential typing/deleting
-    // Each entry: { partIndex, text }
-    const segs = parts.map((text, i) => ({ index: i, text }))
+    let pIdx = 0  // which phrase we're currently on
 
-    function schedule(fn, delay) {
-      timer = setTimeout(fn, delay)
-    }
+    function schedule(fn, delay) { timer = setTimeout(fn, delay) }
 
     function startCycle() {
       if (cancelled) return
+      const parts = allPhrases[pIdx]
       setDisplayed(parts.map(() => ''))
       setDone(false)
-      typePhase(0, 0)
+      setPhraseIdx(pIdx)
+      typePhase(parts, 0, 0)
     }
 
-    function typePhase(segIdx, charIdx) {
+    function typePhase(parts, segIdx, charIdx) {
       if (cancelled) return
-      if (segIdx >= segs.length) {
-        // All segments fully typed — hold
+      if (segIdx >= parts.length) {
+        // Fully typed — hold, then delete
         setDone(true)
-        schedule(deletePhase.bind(null, segs.length - 1), holdDelay)
+        schedule(() => deletePhase(parts, parts.length - 1), holdDelay)
         return
       }
-      const seg = segs[segIdx]
-      const nextChar = charIdx + 1
+      const next = charIdx + 1
       setDisplayed(prev => {
-        const next = [...prev]
-        next[seg.index] = seg.text.slice(0, nextChar)
-        return next
+        const arr = [...prev]
+        arr[segIdx] = parts[segIdx].slice(0, next)
+        return arr
       })
-      if (nextChar >= seg.text.length) {
-        // Move to next segment
-        schedule(() => typePhase(segIdx + 1, 0), speed)
+      if (next >= parts[segIdx].length) {
+        schedule(() => typePhase(parts, segIdx + 1, 0), speed)
       } else {
-        schedule(() => typePhase(segIdx, nextChar), speed)
+        schedule(() => typePhase(parts, segIdx, next), speed)
       }
     }
 
-    function deletePhase(segIdx) {
+    function deletePhase(parts, segIdx) {
       if (cancelled) return
       setDone(false)
       if (segIdx < 0) {
-        // All deleted — pause then restart
+        // All deleted — advance to next phrase and restart
+        pIdx = (pIdx + 1) % allPhrases.length
         schedule(startCycle, startDelay)
         return
       }
-      const seg = segs[segIdx]
-      deleteSeg(segIdx, seg.text.length)
+      deleteSeg(parts, segIdx, parts[segIdx].length)
     }
 
-    function deleteSeg(segIdx, charCount) {
+    function deleteSeg(parts, segIdx, charCount) {
       if (cancelled) return
-      const seg = segs[segIdx]
       const next = charCount - 1
       setDisplayed(prev => {
         const arr = [...prev]
-        arr[seg.index] = seg.text.slice(0, next)
+        arr[segIdx] = parts[segIdx].slice(0, next)
         return arr
       })
       if (next <= 0) {
-        // This segment cleared — move to previous segment
-        schedule(() => deletePhase(segIdx - 1), deleteSpeed)
+        schedule(() => deletePhase(parts, segIdx - 1), deleteSpeed)
       } else {
-        schedule(() => deleteSeg(segIdx, next), deleteSpeed)
+        schedule(() => deleteSeg(parts, segIdx, next), deleteSpeed)
       }
     }
 
-    // Kick off with initial delay
     timer = setTimeout(startCycle, startDelay)
 
     return () => {
@@ -103,7 +96,8 @@ export function useTypingEffect(
       clearTimeout(timer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(parts), speed, deleteSpeed, startDelay, holdDelay])
+  }, [JSON.stringify(allPhrases), speed, deleteSpeed, startDelay, holdDelay])
 
-  return { displayed, done }
+  return { displayed, done, phraseIndex }
 }
+

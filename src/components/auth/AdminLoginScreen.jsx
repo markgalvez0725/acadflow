@@ -18,6 +18,12 @@ const ADMIN_FEATURES = [
   { Icon: BookOpen,      label: 'Quizzes' },
 ]
 
+const ADMIN_PHRASES = [
+  ['Manage your',  '\nclassroom, smarter.'],
+  ['Full control', '\nat your fingertips.'],
+  ['Empower your', '\nstudents, today.'],
+]
+
 export default function AdminLoginScreen() {
   const { loginAdmin } = useAuth()
   const { admin } = useData()
@@ -58,7 +64,7 @@ export default function AdminLoginScreen() {
   }
 
   const { displayed: typed, done: typingDone } = useTypingEffect(
-    ['Manage your', '\nclassroom, smarter.'],
+    ADMIN_PHRASES,
     { speed: 45, deleteSpeed: 35, startDelay: 350, holdDelay: 30_000 }
   )
   const typedLine1 = typed[0] ?? ''
