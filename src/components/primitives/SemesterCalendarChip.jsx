@@ -22,7 +22,6 @@ export default function SemesterCalendarChip({ semester, className = '' }) {
 
   const dayNum   = now.getDate()
   const monthAbb = now.toLocaleString('default', { month: 'short' }).toUpperCase()
-  const dayAbb   = now.toLocaleString('default', { weekday: 'short' }).toUpperCase()
 
   const daysDetail = useMemo(() => {
     if (!semester) return null
@@ -71,7 +70,7 @@ export default function SemesterCalendarChip({ semester, className = '' }) {
           flexDirection: 'column',
           alignItems: 'center',
           width: 24,
-          height: 30,
+          height: 24,
           borderRadius: 5,
           border: '1.5px solid currentColor',
           overflow: 'hidden',
@@ -98,20 +97,6 @@ export default function SemesterCalendarChip({ semester, className = '' }) {
           }}
         >
           {monthAbb}
-        </span>
-        {/* Day of week */}
-        <span
-          style={{
-            width: '100%',
-            textAlign: 'center',
-            fontSize: 6,
-            fontWeight: 700,
-            letterSpacing: '0.03em',
-            opacity: 0.6,
-            paddingTop: 1.5,
-          }}
-        >
-          {dayAbb}
         </span>
         {/* Day number */}
         <span
