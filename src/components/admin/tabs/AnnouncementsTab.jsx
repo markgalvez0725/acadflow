@@ -401,7 +401,7 @@ function AnnouncementFormModal({ ann, onClose }) {
           >
             <option value="">— Select class —</option>
             <option value="all">All Classes</option>
-            {classes.map(c => (
+            {classes.filter(c => !c.archived).map(c => (
               <option key={c.id} value={c.id}>
                 {c.name}{c.section ? ` — ${c.section}` : ''}
               </option>

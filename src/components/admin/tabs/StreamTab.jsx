@@ -409,7 +409,7 @@ function AnnouncementFormModal({ ann, onClose }) {
           <select className="form-input" value={classId} onChange={e => handleClassChange(e.target.value)}>
             <option value="">— Select class —</option>
             <option value="all">All Classes</option>
-            {classes.map(c => <option key={c.id} value={c.id}>{c.name}{c.section ? ` — ${c.section}` : ''}</option>)}
+            {classes.filter(c => !c.archived).map(c => <option key={c.id} value={c.id}>{c.name}{c.section ? ` — ${c.section}` : ''}</option>)}
           </select>
         </div>
         <div>
