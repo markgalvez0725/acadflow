@@ -192,6 +192,19 @@
    KEYFRAMES
 ══════════════════════════════════════════ */
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes blink-caret { 0%, 100% { opacity: 1 } 50% { opacity: 0 } }
+
+/* Typing cursor — inline element that blinks */
+.typing-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--ink);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  border-radius: 1px;
+  animation: blink-caret .75s step-end infinite;
+}
 
 @keyframes navActivePop {
   0%   { transform: scaleX(0) scaleY(.7); opacity: 0; }

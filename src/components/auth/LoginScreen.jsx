@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Eye, EyeOff, BarChart2, CalendarCheck, Rss, MessageSquare } from 'lucide-react'
+import { useTypingEffect } from '@/hooks/useTypingEffect'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -288,6 +289,14 @@ export default function LoginScreen() {
   // When the scene background is inherently dark (night/dusk/etc.) and the user
   // has the light theme active, force text tokens to light values so text remains
   // readable against the dark canvas.
+  const { displayed: typed, done: typingDone } = useTypingEffect(
+    ['Your academic', '\nuniverse, unified.'],
+    { speed: 45, startDelay: 350 }
+  )
+  // typed[0] = first line, typed[1] starts with '\n' then the gradient phrase
+  const typedLine1 = typed[0] ?? ''
+  const typedLine2 = (typed[1] ?? '').replace(/^\n/, '')
+
   const sceneForcesLight = !scene?.isLightScene && theme !== 'dark'
   const sceneTextOverride = sceneForcesLight
     ? { '--ink': '#e8edf8', '--ink2': '#8d9ab8', '--ink3': '#5a6880' }
@@ -312,10 +321,22 @@ export default function LoginScreen() {
         </div>
         <div>
           <p className="text-4xl font-display font-bold text-ink leading-tight mb-4" style={{ letterSpacing: '-.03em' }}>
-            Your academic<br />
-            <span style={{ background: 'var(--grad-brand)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              universe, unified.
-            </span>
+            {typedLine1}
+            {/* blinking cursor while first line types */}
+            {!typed[1] && (
+              <span className="typing-cursor" aria-hidden="true" />
+            )}
+            {typed[1] !== undefined && (
+              <>
+                <br />
+                <span style={{ background: 'var(--grad-brand)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                  {typedLine2}
+                </span>
+                {!typingDone && (
+                  <span className="typing-cursor" aria-hidden="true" style={{ WebkitTextFillColor: 'var(--ink)', background: 'none' }} />
+                )}
+              </>
+            )}
           </p>
           <p className="text-sm text-ink2 max-w-xs leading-relaxed">
             Grades, attendance, announcements, and messages — all in one modern academic platform built for students and educators.

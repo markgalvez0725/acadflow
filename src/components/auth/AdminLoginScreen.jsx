@@ -1,5 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react'
 import { Eye, EyeOff, ShieldCheck, BookOpen, Users, CalendarCheck, BarChart2, GraduationCap } from 'lucide-react'
+import { useTypingEffect } from '@/hooks/useTypingEffect'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -56,6 +57,13 @@ export default function AdminLoginScreen() {
     }
   }
 
+  const { displayed: typed, done: typingDone } = useTypingEffect(
+    ['Manage your', '\nclassroom, smarter.'],
+    { speed: 45, startDelay: 350 }
+  )
+  const typedLine1 = typed[0] ?? ''
+  const typedLine2 = (typed[1] ?? '').replace(/^\n/, '')
+
   const modeTitle = 'Admin portal'
   const modeSub   = 'Sign in to manage your classes.'
 
@@ -89,10 +97,21 @@ export default function AdminLoginScreen() {
             <span className="text-xs font-bold uppercase tracking-widest text-ink3">Teacher Portal</span>
           </div>
           <p className="text-4xl font-display font-bold text-ink leading-tight mb-4" style={{ letterSpacing: '-.03em' }}>
-            Manage your<br />
-            <span style={{ background: 'var(--grad-brand)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              classroom, smarter.
-            </span>
+            {typedLine1}
+            {!typed[1] && (
+              <span className="typing-cursor" aria-hidden="true" />
+            )}
+            {typed[1] !== undefined && (
+              <>
+                <br />
+                <span style={{ background: 'var(--grad-brand)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                  {typedLine2}
+                </span>
+                {!typingDone && (
+                  <span className="typing-cursor" aria-hidden="true" style={{ WebkitTextFillColor: 'var(--ink)', background: 'none' }} />
+                )}
+              </>
+            )}
           </p>
           <p className="text-sm text-ink2 max-w-xs leading-relaxed">
             Full control over grades, attendance, quizzes, announcements and student records — all from one dashboard.
