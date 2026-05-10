@@ -388,7 +388,13 @@ export function DataProvider({ children }) {
     }
 
     // Delete related Firestore documents (activities, announcements, meetings, quizzes)
-    await fbDeleteClassRelatedData(dbRef.current, cls.id)
+    // Wrapped in try/catch — if Firestore security rules block the batch delete,
+    // the class is still fully removed from the app; orphaned docs are harmless.
+    try {
+      await fbDeleteClassRelatedData(dbRef.current, cls.id)
+    } catch (e) {
+      console.warn('[DataContext] deleteClass: related data cleanup failed (may be a Firestore rules issue):', e.message)
+    }
   }, [students, classes, saveClasses, saveStudents])
 
   const saveAnnouncement = useCallback(async (announcement) => {
