@@ -17,8 +17,10 @@ AcadFlow is a web-based school portal that provides a unified platform to manage
 - **Grades** — input and manage grades per subject and assessment type; Save All Grades button for bulk updates
 - **Attendance** — calendar-based daily attendance tracking (Present / Absent / Excuse); import from file
 - **Activities** — post assignments with deadlines, rubric builder, and grade submissions; students are notified when graded
-- **Quiz** — create and manage quizzes; export template with optional AI prompt for question generation
-- **Announcements** — post "No Class", "Online Class", or "Meeting Topics" notices targeting a specific class or all classes at once; optional meeting link and module link; students are notified instantly
+- **Quiz** — create and manage quizzes; AI-generated questions via Vercel serverless function; export template
+- **Stream** — class activity feed showing announcements, grades, activities, quizzes, and attendance in one view; rich-text announcements with comments and replies
+- **Calendar** — monthly calendar view of activities, quizzes, and announcements
+- **Online Classes** — schedule and manage Google Meet sessions; start/end/cancel meetings
 - **Messages** — one-on-one and broadcast messaging to students
 - **Notifications** — system-wide alerts and activity updates
 - **Settings** — admin credentials, EmailJS config, equivalence scale, Firebase config
@@ -28,6 +30,11 @@ AcadFlow is a web-based school portal that provides a unified platform to manage
 - **Grades** — view grades per subject with assessment breakdowns
 - **Attendance** — personal attendance calendar and summary
 - **Activities** — view and submit assignments; edit submission link before deadline
+- **Quiz** — take quizzes with auto-grading
+- **Stream** — class activity feed with announcement comments and replies
+- **Calendar** — personal calendar view of upcoming events
+- **Online Classes** — view and join scheduled Google Meet sessions
+- **Enrollment** — manage class enrollment
 - **Messages** — direct messaging with admin/teacher
 - **Notifications** — personal notification feed with badge for unread items
 
@@ -44,7 +51,7 @@ AcadFlow is a web-based school portal that provides a unified platform to manage
 | Layer | Choice |
 |---|---|
 | Framework | React 19 + Vite 6 |
-| Routing | React Router v6 (role-based, no URL routes) |
+| Routing | Role-based state routing (no URL router — tab state in `UIContext`) |
 | Styling | Tailwind CSS v4 |
 | Backend | Firebase Firestore (modular SDK v10, long-poll) |
 | Email | EmailJS (`@emailjs/browser`) |
@@ -135,9 +142,10 @@ src/
     persistence.js   # Firestore write helpers
     settings.js      # Settings and EJS config sync
   hooks/
-    usePagination.js
-    useSession.js
-    useTheme.js
+    usePagination.js  # Generic paginator (page, pageCount, paginated, setPage)
+    useSession.js     # Thin wrapper around useAuth for session state
+    useTheme.js       # Theme state + toggleTheme, isDark flag
+    useTypingEffect.js # Looping typewriter effect through multiple phrases
   utils/
     attendance.js    # Attendance calculation and serialization
     crypto.js        # SHA-256 hashing, AES encryption (EJS config, FB config)
@@ -162,6 +170,8 @@ index.html           # CDN scripts: SheetJS, jsPDF, jspdf-autotable
 | `announcements` | No-class / online-class notices with optional meeting and module links |
 | `notifications` | Per-student notification feed (doc ID = student ID) |
 | `adminNotifs` | Admin-side notifications |
+| `quizzes` | Quiz definitions and student responses |
+| `meetings` | Scheduled Google Meet sessions |
 | `admin` | Admin credentials (hashed password, email, reset PIN) |
 | `config` | EmailJS config (encrypted), portal settings |
 
