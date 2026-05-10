@@ -297,7 +297,7 @@ export default function LoginScreen() {
   // readable against the dark canvas.
   const { displayed: typed, done: typingDone } = useTypingEffect(
     STUDENT_PHRASES,
-    { speed: 45, deleteSpeed: 35, startDelay: 350, holdDelay: 30_000 }
+    { speed: 45, deleteSpeed: 35, startDelay: 350, holdDelay: 5_000 }
   )
   const typedLine1 = typed[0] ?? ''
   const typedLine2 = (typed[1] ?? '').replace(/^\n/, '')
