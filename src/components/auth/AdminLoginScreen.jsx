@@ -1,5 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react'
 import { Eye, EyeOff, ShieldCheck, BookOpen, Users, CalendarCheck, BarChart2, GraduationCap } from 'lucide-react'
+import AcadFlowLogo from '@/components/primitives/AcadFlowLogo'
 import { useTypingEffect } from '@/hooks/useTypingEffect'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
@@ -91,10 +92,7 @@ export default function AdminLoginScreen() {
 
       {/* ── Left branding panel (desktop only) ── */}
       <div className="hidden lg:flex flex-col justify-between flex-1 relative z-10 p-10 pointer-events-none select-none">
-        <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="AcadFlow" className="w-9 h-9 object-contain drop-shadow" />
-          <span className="font-display text-xl font-bold text-ink tracking-tight">AcadFlow</span>
-        </div>
+        <AcadFlowLogo size="sm" />
         <div>
           <div className="flex items-center gap-2 mb-4">
             <div className="flex items-center justify-center w-9 h-9 rounded-xl" style={{ background: 'var(--accent-l)', color: 'var(--accent)' }}>
@@ -141,11 +139,8 @@ export default function AdminLoginScreen() {
 
         {/* Mobile branding */}
         <div className="text-center mb-6 lg:hidden">
-          <div className="inline-flex items-center justify-center mb-3">
-            <img src="/logo.png" alt="AcadFlow" className="w-16 h-16 object-contain" />
-          </div>
-          <h1 className="font-display text-3xl font-bold text-ink">AcadFlow</h1>
-          <p className="text-xs text-ink3 mt-1">Teacher / Admin Portal</p>
+          <AcadFlowLogo variant="stacked" size="lg" className="justify-center mb-1" />
+          <p className="text-xs text-ink3 mt-2">Teacher / Admin Portal</p>
         </div>
 
         {/* Desktop welcome text */}

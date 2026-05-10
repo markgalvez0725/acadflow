@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Eye, EyeOff, BarChart2, CalendarCheck, Rss, MessageSquare } from 'lucide-react'
+import AcadFlowLogo from '@/components/primitives/AcadFlowLogo'
 import { useTypingEffect } from '@/hooks/useTypingEffect'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
@@ -320,10 +321,7 @@ export default function LoginScreen() {
 
       {/* ── Left branding panel (desktop only) ── */}
       <div className="hidden lg:flex flex-col justify-between flex-1 relative z-10 p-10 pointer-events-none select-none">
-        <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="AcadFlow" className="w-9 h-9 object-contain drop-shadow" />
-          <span className="font-display text-xl font-bold text-ink tracking-tight">AcadFlow</span>
-        </div>
+        <AcadFlowLogo size="sm" />
         <div>
           <p className="text-4xl font-display font-bold text-ink leading-tight mb-4" style={{ letterSpacing: '-.03em' }}>
             {typedLine1}
@@ -364,11 +362,8 @@ export default function LoginScreen() {
       <div className="relative z-10 flex flex-col justify-center w-full lg:max-w-[460px] lg:min-h-screen px-4 py-8 lg:px-12 lg:bg-surface/80 lg:backdrop-blur-xl lg:border-l lg:border-border" style={panelInkReset}>
         {/* Mobile branding (hidden on desktop) */}
         <div className="text-center mb-6 lg:hidden">
-          <div className="inline-flex items-center justify-center mb-3">
-            <img src="/logo.png" alt="AcadFlow" className="w-16 h-16 object-contain" />
-          </div>
-          <h1 className="font-display text-3xl font-bold text-ink">AcadFlow</h1>
-          <p className="text-xs text-ink3 mt-1">Academic Management System</p>
+          <AcadFlowLogo variant="stacked" size="lg" className="justify-center mb-1" />
+          <p className="text-xs text-ink3 mt-2">Academic Management System</p>
         </div>
 
         {/* Desktop welcome text */}

@@ -6,6 +6,56 @@
   100% { background-position: -200% center; }
 }
 
+/* ── AcadFlow Logo animations ──────────────────────────────────────────── */
+@keyframes acadflow-float {
+  0%, 100% { transform: translateY(0)   rotate(0deg);  }
+  33%       { transform: translateY(-3px) rotate(.6deg);  }
+  66%       { transform: translateY(-5px) rotate(-.6deg); }
+}
+
+@keyframes acadflow-glow {
+  0%, 100% { filter: drop-shadow(0 0  8px rgba(80,70,228,.40)) drop-shadow(0 2px  4px rgba(0,0,0,.18)); }
+  50%       { filter: drop-shadow(0 0 18px rgba(80,70,228,.72)) drop-shadow(0 4px 10px rgba(0,0,0,.28)); }
+}
+
+/* One-time shimmer sweep: ink → accent/purple highlight → ink */
+@keyframes acadflow-shimmer {
+  0%   { background-position:  120% center; }
+  100% { background-position: -120% center; }
+}
+
+/* Logo image: float + glow pulse — starts after entrance transition */
+.acadflow-logo-img {
+  animation:
+    acadflow-float 5s ease-in-out 0.7s infinite,
+    acadflow-glow  3s ease-in-out 0.7s infinite;
+}
+
+/* Before shimmer fires: plain ink text */
+.acadflow-wordmark-base {
+  color: var(--ink);
+}
+
+/* After shimmer class is applied: gradient text + one sweep animation */
+.acadflow-wordmark-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--ink)    0%,
+    var(--ink)    28%,
+    var(--accent) 44%,
+    var(--purple) 50%,
+    var(--accent) 56%,
+    var(--ink)    72%,
+    var(--ink)    100%
+  );
+  background-size: 300% 100%;
+  background-position: 120% center;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: acadflow-shimmer 1.4s cubic-bezier(.4,0,.2,1) both;
+}
+
 @theme inline {
   --color-navy:      #0a1628;
   --color-royal:     #0d2f6e;
