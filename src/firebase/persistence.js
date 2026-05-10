@@ -290,6 +290,37 @@ export async function fbCancelMeeting(db, meetingId) {
   await fbWithTimeout(deleteDoc(fbDoc(db, 'onlineMeetings', meetingId)));
 }
 
+// ── Delete all data related to a class (called on permanent class deletion) ──
+// Removes activities, announcements, online meetings, and quizzes that belong
+// to the given classId from Firestore using batched deletes.
+export async function fbDeleteClassRelatedData(db, classId) {
+  if (!db || !classId) return;
+  const { collection, query, where, getDocs, writeBatch } = await import('firebase/firestore');
+
+  const [actsSnap, annsSnap, meetingsSnap, quizzesSnap] = await Promise.all([
+    getDocs(query(collection(db, 'activities'),    where('classId',  '==',            classId))),
+    getDocs(query(collection(db, 'announcements'), where('classId',  '==',            classId))),
+    getDocs(query(collection(db, 'onlineMeetings'),where('classId',  '==',            classId))),
+    getDocs(query(collection(db, 'quizzes'),       where('classIds', 'array-contains', classId))),
+  ]);
+
+  const allDocs = [
+    ...actsSnap.docs,
+    ...annsSnap.docs,
+    ...meetingsSnap.docs,
+    ...quizzesSnap.docs,
+  ];
+
+  if (!allDocs.length) return;
+
+  // Firestore batch limit is 500 writes
+  for (let i = 0; i < allDocs.length; i += 500) {
+    const batch = writeBatch(db);
+    allDocs.slice(i, i + 500).forEach(d => batch.delete(d.ref));
+    await batch.commit();
+  }
+}
+
 export async function fbPushMeetingNotifs(db, meeting, students, type) {
   if (!db || !meeting || !students?.length) return;
   const enrolled = students.filter(s => {

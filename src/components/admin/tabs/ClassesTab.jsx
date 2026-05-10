@@ -325,7 +325,7 @@ function EditClassModal({ cls, onClose }) {
 
 // ── Classes Tab ───────────────────────────────────────────────────────
 export default function ClassesTab() {
-  const { classes, students, saveClasses, saveStudents, archiveClassWithStudents, unarchiveClassWithStudents, semester, fbReady } = useData()
+  const { classes, students, saveClasses, saveStudents, archiveClassWithStudents, unarchiveClassWithStudents, deleteClass, semester, fbReady } = useData()
   const { toast, openDialog } = useUI()
   const [page, setPage]           = useState(1)
   const [showAdd, setShowAdd]     = useState(false)
@@ -420,24 +420,13 @@ export default function ClassesTab() {
   async function handleDelete(cls) {
     const studsInClass = students.filter(s => s.classId === cls.id || s.classIds?.includes(cls.id)).length
     const msg = studsInClass > 0
-      ? `Delete "${cls.name} ${cls.section}"? ${studsInClass} student${studsInClass !== 1 ? 's' : ''} will be unassigned. This cannot be undone.`
-      : `Delete "${cls.name} ${cls.section}"? This cannot be undone.`
+      ? `Delete "${cls.name} ${cls.section}"? ${studsInClass} student${studsInClass !== 1 ? 's' : ''} will be unassigned and all class data (grades, attendance, activities, announcements, meetings) will be permanently deleted. This cannot be undone.`
+      : `Delete "${cls.name} ${cls.section}"? All class data (activities, announcements, meetings) will be permanently deleted. This cannot be undone.`
     const ok = await openDialog({ title: 'Delete this class?', msg, type: 'danger', confirmLabel: 'Delete Class', showCancel: true })
     if (!ok) return
 
-    const classesBackup  = classes.slice()
-    const unassigned     = students.filter(s => s.classId === cls.id || s.classIds?.includes(cls.id))
-    const updatedClasses = classes.filter(c => c.id !== cls.id)
-    const updatedStudents = students.map(s => {
-      const newStudent = { ...s }
-      if (s.classId === cls.id) newStudent.classId = null
-      if (s.classIds?.includes(cls.id)) newStudent.classIds = s.classIds.filter(id => id !== cls.id)
-      return newStudent
-    })
-
     try {
-      await saveClasses(updatedClasses)
-      if (unassigned.length) await saveStudents(updatedStudents, unassigned.map(s => s.id))
+      await deleteClass(cls)
       if (page > 1 && slice.length === 1) setPage(p => p - 1)
     } catch (e) {
       toast('Could not delete class: ' + e.message, 'red')

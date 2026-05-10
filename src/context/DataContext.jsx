@@ -6,7 +6,7 @@ import {
   fbDeleteStudent, fbSaveAnnouncement, fbDeleteAnnouncement, fbPushAnnouncementNotifs,
   fbAddAnnouncementComment, fbAddCommentReply,
   fbSaveMeetLink, fbScheduleMeeting, fbStartMeeting, fbEndMeeting, fbCancelMeeting, fbPushMeetingNotifs,
-  fbSetSubjectRep,
+  fbSetSubjectRep, fbDeleteClassRelatedData,
 } from '@/firebase/persistence'
 import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase, saveSemesterToFirebase } from '@/firebase/settings'
 import { loadFbConfigFromStorage, readStoredEJS } from '@/utils/crypto'
@@ -340,6 +340,57 @@ export function DataProvider({ children }) {
     }
   }, [students, classes, saveClasses])
 
+  // ── Permanently delete a class and all its related data ─────────────────
+  // Removes: the class record, all enrolled students' subject data (grades,
+  // attendance, gradeComponents, gradeUploadedAt), activities, announcements,
+  // online meetings, and quizzes that belong to this class from Firestore.
+  const deleteClass = useCallback(async (cls) => {
+    const updatedClasses = classes.filter(c => c.id !== cls.id)
+
+    const enrolled = students.filter(s => s.classId === cls.id || s.classIds?.includes(cls.id))
+    const updatedStudents = students.map(s => {
+      if (s.classId !== cls.id && !s.classIds?.includes(cls.id)) return s
+
+      const ns = {
+        ...s,
+        grades:          { ...s.grades },
+        attendance:      { ...(s.attendance || {}) },
+        excuse:          { ...(s.excuse || {}) },
+        gradeComponents: { ...(s.gradeComponents || {}) },
+      }
+      if (s.gradeUploadedAt) ns.gradeUploadedAt = { ...s.gradeUploadedAt }
+
+      // Strip all subject data belonging to this class
+      cls.subjects?.forEach(sub => {
+        delete ns.grades[sub]
+        delete ns.attendance[sub]
+        delete ns.excuse[sub]
+        delete ns.gradeComponents[sub]
+        if (ns.gradeUploadedAt) delete ns.gradeUploadedAt[sub]
+      })
+
+      // Unenroll
+      ns.classIds = (s.classIds || []).filter(id => id !== cls.id)
+      if (ns.classId === cls.id) ns.classId = ns.classIds[0] || null
+
+      return ns
+    })
+
+    // Update local state immediately
+    setActivities(prev => prev.filter(a => a.classId !== cls.id))
+    setAnnouncements(prev => prev.filter(a => a.classId !== cls.id))
+    setMeetings(prev => prev.filter(m => m.classId !== cls.id))
+    setQuizzes(prev => prev.filter(q => !q.classIds?.includes(cls.id)))
+
+    await saveClasses(updatedClasses)
+    if (enrolled.length) {
+      await saveStudents(updatedStudents, enrolled.map(s => s.id))
+    }
+
+    // Delete related Firestore documents (activities, announcements, meetings, quizzes)
+    await fbDeleteClassRelatedData(dbRef.current, cls.id)
+  }, [students, classes, saveClasses, saveStudents])
+
   const saveAnnouncement = useCallback(async (announcement) => {
     setAnnouncements(prev => {
       const idx = prev.findIndex(a => a.id === announcement.id)
@@ -506,7 +557,7 @@ export function DataProvider({ children }) {
   return (
     <DataContext.Provider value={{
       students, setStudents, saveStudents, deleteStudent,
-      classes, setClasses, saveClasses, setSubjectRep, archiveClassWithStudents, unarchiveClassWithStudents,
+      classes, setClasses, saveClasses, setSubjectRep, archiveClassWithStudents, unarchiveClassWithStudents, deleteClass,
       enrollInClass, unenrollFromClass,
       messages, setMessages,
       activities, setActivities,
