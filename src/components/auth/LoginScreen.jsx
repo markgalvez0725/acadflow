@@ -291,7 +291,7 @@ export default function LoginScreen() {
   // readable against the dark canvas.
   const { displayed: typed, done: typingDone } = useTypingEffect(
     ['Your academic', '\nuniverse, unified.'],
-    { speed: 45, startDelay: 350 }
+    { speed: 45, deleteSpeed: 35, startDelay: 350, holdDelay: 30_000 }
   )
   // typed[0] = first line, typed[1] starts with '\n' then the gradient phrase
   const typedLine1 = typed[0] ?? ''
