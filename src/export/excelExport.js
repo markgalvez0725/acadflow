@@ -1144,6 +1144,266 @@ export function buildStudentWorkbook(s, classes, students, eqScale = DEFAULT_EQ_
   return wb
 }
 
+// ── exportMasterGradingReport ─────────────────────────────────────────────
+/**
+ * Exports a comprehensive master grading workbook covering all active classes.
+ * Structure:
+ *   Sheet 1        – Summary: every student with GWA, attendance, overall status
+ *   Per class      – One overview sheet per class (all subjects, equiv only)
+ *   Per class+sub  – One detail sheet per class × subject with full computation:
+ *                    Acts Avg | Qz Avg | Att % | Class Standing |
+ *                    Midterm Exam | Midterm Term (%) | Finals Exam | Finals Term (%) |
+ *                    Final Grade (%) | Equiv | Letter | Remark
+ *   Last           – Grade Scale reference
+ *
+ * @param {{ students: object[], classes: object[], eqScale?: object[] }} opts
+ */
+export function exportMasterGradingReport({ students, classes, eqScale = DEFAULT_EQ_SCALE }) {
+  const XLSX = window.XLSX
+  if (!XLSX) { alert('SheetJS not loaded.'); return }
+
+  const exportDate    = new Date().toLocaleDateString('en-PH', { dateStyle: 'long' })
+  const activeClasses = classes.filter(c => !c.archived)
+  const wb            = XLSX.utils.book_new()
+
+  // ── Sheet 1: Summary (all students across all active classes) ──────────
+  const sortedStudents = sortByLastName(students)
+
+  const sumTitleRows = [
+    ['AcadFlow — Master Grading Report'],
+    [`Exported: ${exportDate}`],
+    [`Active Classes: ${activeClasses.length}  |  Total Students: ${students.length}`],
+    [''],
+    [''],
+  ]
+  const sumHeaders = [
+    '#', 'Student No.', 'Full Name', 'Course', 'Year Level',
+    'Class', 'Section', 'No. of Subjects',
+    'Passed', 'Failed', 'Conditional', 'Pending',
+    'GWA (Equiv)', 'Avg Attendance %', 'Overall Status',
+  ]
+  const sumRows = sortedStudents.map((s, idx) => {
+    const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
+    const allSubs     = [...new Set(
+      enrolledIds.flatMap(cid => classes.find(c => c.id === cid)?.subjects || [])
+    )]
+    let passed = 0, failed = 0, conditional = 0, pending = 0
+    allSubs.forEach(sub => {
+      const rem = gradeInfoForStudent(s, sub, eqScale).rem
+      if (rem === 'Passed')           passed++
+      else if (rem === 'Failed')      failed++
+      else if (rem === 'Conditional') conditional++
+      else                            pending++
+    })
+    const gwaVal     = getGWA(s, classes)
+    const gwaEquiv   = gwaVal != null ? gradeInfo(gwaVal, eqScale).eq : '—'
+    const attRate    = getAttRate(s, students, classes)
+    const attRateStr = attRate != null ? parseFloat(attRate.toFixed(1)) : '—'
+    const overallStatus =
+      allSubs.length === 0 ? '—'
+      : pending > 0        ? 'Incomplete'
+      : failed > 0         ? 'Failed'
+      : conditional > 0    ? 'Conditional'
+                           : 'Passed'
+    const primaryCls = classes.find(c => enrolledIds.includes(c.id))
+    return [
+      idx + 1, s.id, s.name, s.course || '', s.year || '',
+      primaryCls?.name || '', primaryCls?.section || '',
+      allSubs.length, passed, failed, conditional, pending,
+      gwaEquiv, attRateStr, overallStatus,
+    ]
+  })
+  const totalPassed      = sumRows.filter(r => r[14] === 'Passed').length
+  const totalFailed      = sumRows.filter(r => r[14] === 'Failed').length
+  const totalConditional = sumRows.filter(r => r[14] === 'Conditional').length
+  const totalIncomplete  = sumRows.filter(r => r[14] === 'Incomplete').length
+
+  const wsSum = XLSX.utils.aoa_to_sheet([
+    ...sumTitleRows, sumHeaders, ...sumRows,
+    Array(sumHeaders.length).fill(''),
+    ['', 'TOTALS', '', '', '', '', '', '',
+      totalPassed, totalFailed, totalConditional, totalIncomplete, '', '', ''],
+  ])
+  wsSum['!cols']   = [4,14,28,16,12,24,14,14,9,9,12,9,13,16,14].map(w => ({ wch: w }))
+  wsSum['!freeze'] = { xSplit: 0, ySplit: 6 }
+  XLSX.utils.book_append_sheet(wb, wsSum, 'Summary')
+
+  // ── Per-class overview + per-class-subject detail sheets ───────────────
+  // Track used sheet names to avoid duplicates
+  const usedNames = new Set(['Summary'])
+
+  function safeSheetName(raw, fallback) {
+    let name = raw.replace(/[*?:/\\[\]]/g, '').slice(0, 31).trim() || fallback.slice(0, 31)
+    if (usedNames.has(name)) {
+      // Append a suffix to deduplicate
+      let n = 2
+      while (usedNames.has(`${name.slice(0, 28)}(${n})`)) n++
+      name = `${name.slice(0, 28)}(${n})`
+    }
+    usedNames.add(name)
+    return name
+  }
+
+  activeClasses.forEach(cls => {
+    const subs   = cls.subjects || []
+    if (!subs.length) return
+
+    const roster = sortByLastName(
+      students.filter(s =>
+        (s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])).includes(cls.id)
+      )
+    )
+    if (!roster.length) return
+
+    const clsLabel = `${cls.name}${cls.section ? ` ${cls.section}` : ''}`
+
+    // ── Per-class overview sheet (all subjects, equiv summary) ────────────
+    const ovTitleRows = [
+      ['AcadFlow — Class Grade Overview'],
+      [`Class: ${cls.name}  |  Section: ${cls.section || '—'}  |  S.Y. ${cls.sy || '—'}`],
+      [`Subjects: ${subs.join(', ')}`],
+      [`Students: ${roster.length}  |  Exported: ${exportDate}`],
+      [''],
+    ]
+    const ovHeaders = [
+      '#', 'Student No.', 'Full Name', 'Course', 'Year Level',
+      ...subs.flatMap(sub => [`${sub} (Equiv)`, `${sub} Remark`]),
+      'GWA (Equiv)', 'Avg Att %', 'Overall Status',
+    ]
+    const ovRows = roster.map((s, idx) => {
+      const row = [idx + 1, s.id, s.name, s.course || '', s.year || '']
+      subs.forEach(sub => {
+        const { eq, rem } = gradeInfoForStudent(s, sub, eqScale)
+        row.push(eq, rem)
+      })
+      const gwaVal   = getGWA(s, classes)
+      const gwaEquiv = gwaVal != null ? gradeInfo(gwaVal, eqScale).eq : '—'
+      const attRate  = getAttRate(s, students, classes)
+      const attStr   = attRate != null ? parseFloat(attRate.toFixed(1)) : '—'
+      let passed = 0, failed = 0, conditional = 0, pending = 0
+      subs.forEach(sub => {
+        const rem = gradeInfoForStudent(s, sub, eqScale).rem
+        if (rem === 'Passed')           passed++
+        else if (rem === 'Failed')      failed++
+        else if (rem === 'Conditional') conditional++
+        else                            pending++
+      })
+      const overallStatus =
+        pending > 0       ? 'Incomplete'
+        : failed > 0      ? 'Failed'
+        : conditional > 0 ? 'Conditional'
+                          : passed > 0 ? 'Passed' : '—'
+      row.push(gwaEquiv, attStr, overallStatus)
+      return row
+    })
+    const wsOv = XLSX.utils.aoa_to_sheet([...ovTitleRows, ovHeaders, ...ovRows])
+    wsOv['!cols'] = [
+      { wch: 4 }, { wch: 14 }, { wch: 28 }, { wch: 14 }, { wch: 10 },
+      ...subs.flatMap(() => [{ wch: 14 }, { wch: 14 }]),
+      { wch: 12 }, { wch: 12 }, { wch: 14 },
+    ]
+    wsOv['!freeze'] = { xSplit: 3, ySplit: 6 }
+    XLSX.utils.book_append_sheet(wb, wsOv, safeSheetName(clsLabel, cls.id))
+
+    // ── Per-subject detail sheets (one per class × subject) ───────────────
+    subs.forEach(sub => {
+      const subTitleRows = [
+        ['AcadFlow — Grading Computation Detail'],
+        [`Class: ${cls.name}  |  Section: ${cls.section || '—'}  |  S.Y. ${cls.sy || '—'}`],
+        [`Subject: ${sub}`],
+        [`Students: ${roster.length}  |  Exported: ${exportDate}`],
+        [''],
+      ]
+      const subHeaders = [
+        '#', 'Student No.', 'Full Name', 'Course', 'Year Level',
+        'Acts Avg', 'Qz Avg', 'Attendance %', 'Class Standing',
+        'Midterm Exam', 'Midterm Term (%)',
+        'Finals Exam',  'Finals Term (%)',
+        'Final Grade (%)', 'Equiv', 'Letter', 'Remark',
+      ]
+
+      const subRows = roster.map((s, idx) => {
+        const comp    = s.gradeComponents?.[sub] || {}
+        const attSet  = s.attendance?.[sub]
+        const held    = getHeldDays(cls.id, sub, students)
+        const present = attSet instanceof Set ? attSet.size : (Array.isArray(attSet) ? attSet.length : 0)
+        const attRate = held > 0 ? parseFloat(((present / held) * 100).toFixed(1)) : null
+        const cs      = comp.midtermCS != null ? comp.midtermCS : comp.finalsCS ?? null
+        const { eq, ltr, rem } = gradeInfoForStudent(s, sub, eqScale)
+        return [
+          idx + 1, s.id, s.name, s.course || '', s.year || '',
+          comp.activities  != null ? comp.activities  : '—',
+          comp.quizzes     != null ? comp.quizzes     : '—',
+          attRate          != null ? attRate           : '—',
+          cs               != null ? cs               : '—',
+          comp.midtermExam != null ? comp.midtermExam : '—',
+          comp.midterm     != null ? comp.midterm     : '—',
+          comp.finalsExam  != null ? comp.finalsExam  : '—',
+          comp.finals      != null ? comp.finals      : '—',
+          s.grades?.[sub]  != null ? s.grades[sub]   : '—',
+          eq, ltr, rem,
+        ]
+      })
+
+      // Class average row for numeric columns
+      const numColOffsets = [5, 6, 7, 8, 9, 10, 11, 12, 13]
+      const avgRow = ['', 'CLASS AVERAGE', '', '', '']
+      subHeaders.slice(5).forEach((_, i) => {
+        const offset = 5 + i
+        if (numColOffsets.includes(offset)) {
+          const vals = subRows.map(r => {
+            const v = r[offset]
+            return typeof v === 'number' ? v : parseFloat(v)
+          }).filter(n => !isNaN(n))
+          avgRow.push(
+            vals.length ? parseFloat((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1)) : '—'
+          )
+        } else {
+          avgRow.push('—')
+        }
+      })
+
+      const subAoA = [...subTitleRows, subHeaders, ...subRows, Array(subHeaders.length).fill(''), avgRow]
+      const wsSub  = XLSX.utils.aoa_to_sheet(subAoA)
+      wsSub['!cols'] = [
+        { wch: 4 }, { wch: 14 }, { wch: 28 }, { wch: 14 }, { wch: 10 },
+        { wch: 10 }, { wch: 10 }, { wch: 13 }, { wch: 14 },
+        { wch: 13 }, { wch: 16 },
+        { wch: 13 }, { wch: 14 },
+        { wch: 15 }, { wch: 10 }, { wch: 8 }, { wch: 13 },
+      ]
+      wsSub['!freeze'] = { xSplit: 3, ySplit: 6 }
+
+      // Sheet name: "ClassName - Subject" truncated to 31 chars
+      const rawSubName = `${clsLabel} - ${sub}`
+      XLSX.utils.book_append_sheet(wb, wsSub, safeSheetName(rawSubName, `${cls.id}_${sub}`))
+    })
+  })
+
+  // ── Grade Scale reference sheet ────────────────────────────────────────
+  const wsScale = XLSX.utils.aoa_to_sheet([
+    ['AcadFlow — Grade Equivalency Scale'],
+    [`Reference for: ${exportDate}`],
+    [''],
+    ['Min Score', 'Max Score', 'Equivalent', 'Letter', 'Remark'],
+    ...eqScale.map(t => [t.minScore, t.maxScore, t.eq, t.ltr, t.rem]),
+    [''],
+    ['Below lowest tier', '', '5.00', 'F', 'Failed'],
+    [''],
+    ['Computation Formula:'],
+    ['  Class Standing   = Average(Activities, Quizzes, Attendance, Attitude)'],
+    ['  Midterm Term (%) = Average(Class Standing, Midterm Exam)'],
+    ['  Finals Term (%)  = Average(Class Standing, Finals Exam)'],
+    ['  Final Grade (%)  = Average(Midterm Term, Finals Term)'],
+    ['  Final Grade → Equiv via school combination lookup table'],
+  ])
+  wsScale['!cols'] = [22, 16, 14, 10, 14].map(w => ({ wch: w }))
+  XLSX.utils.book_append_sheet(wb, wsScale, 'Grade Scale')
+
+  const datePart = new Date().toISOString().slice(0, 10)
+  XLSX.writeFile(wb, `MasterGradingReport_${datePart}.xlsx`)
+}
+
 // ── Preview HTML builders ─────────────────────────────────────────────────
 
 /**

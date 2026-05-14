@@ -6,11 +6,11 @@ import {
   gradeInfo, combineEquiv, computeGrade, computeFinalGradeFromTerms,
   getHeldDays, gradeInfoForStudent, getGradeScaleLabel,
 } from '@/utils/grades'
-import { exportGradingSheet, parseGradingSheetImport, exportCurrentGrades } from '@/export/excelExport'
+import { exportGradingSheet, parseGradingSheetImport, exportCurrentGrades, exportMasterGradingReport } from '@/export/excelExport'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
-import { Clock, Pencil, BarChart2, Upload, Download, Trash2, BarChart, RefreshCw, Archive, ArchiveRestore } from 'lucide-react'
+import { Clock, Pencil, BarChart2, Upload, Download, Trash2, BarChart, RefreshCw, Archive, ArchiveRestore, FileSpreadsheet } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const GRADE_PER_PAGE = 10
@@ -1168,14 +1168,23 @@ export default function GradesTab() {
       {/* Header */}
       <div className="sec-hdr mb-3">
         <div className="sec-title">Grades</div>
-        <button
-          className="btn btn-ghost btn-sm"
-          onClick={() => { setShowArchived(v => !v); setSelClassId(null); setSearch('') }}
-        >
-          {showArchived
-            ? <><ArchiveRestore size={14} className="inline-block mr-1" />Active Classes</>
-            : <><Archive size={14} className="inline-block mr-1" />Archived Classes</>}
-        </button>
+        <div className="flex gap-2 flex-wrap">
+          <button
+            className="btn btn-primary btn-sm"
+            title="Export a master workbook with full grading computation for every student across all active classes"
+            onClick={() => exportMasterGradingReport({ students, classes, eqScale })}
+          >
+            <FileSpreadsheet size={14} className="inline-block mr-1" />Master Report
+          </button>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => { setShowArchived(v => !v); setSelClassId(null); setSearch('') }}
+          >
+            {showArchived
+              ? <><ArchiveRestore size={14} className="inline-block mr-1" />Active Classes</>
+              : <><Archive size={14} className="inline-block mr-1" />Archived Classes</>}
+          </button>
+        </div>
       </div>
 
       {/* Archived mode banner */}
