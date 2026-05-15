@@ -3589,8 +3589,17 @@ textarea.input { resize: vertical; }
 }
 
 /* ── Ensure AcadFlow wordmark always renders above weather overlays ──────── */
+/*
+ * backdrop-filter on an ancestor (e.g. .glass-login-card) creates a new
+ * compositing layer that breaks -webkit-background-clip:text — the gradient
+ * stops painting and leaves the text invisible.
+ * Promoting .acadflow-wordmark to its own GPU compositing layer via
+ * transform:translateZ(0) / will-change:transform restores correct rendering.
+ */
 .acadflow-wordmark {
   isolation: isolate;
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 /* ══════════════════════════════════════════

@@ -60,26 +60,24 @@ export default function AcadFlowLogo({ variant = 'horizontal', size = 'md', clas
     // Wrapper uses relative+inline-block to contain both the glow layer and wordmark.
     // CRITICAL: No `filter` on any ancestor of the wordmark span — filter on a parent
     // breaks -webkit-background-clip:text in Safari/WebKit.
-    // Instead, a sibling blurred span provides the glow/shadow (filter on itself = safe).
-    <span className="relative inline-block">
-      {/* Glow shadow layer — filter:blur on THIS element, not on an ancestor.
-          This avoids the Safari bug where parent filter breaks background-clip:text. */}
+    // Additionally, backdrop-filter on ANY ancestor (e.g. glass cards) has the same effect.
+    // We lift both the wrapper and wordmark to their own compositing layers via
+    // transform:translateZ(0) to restore background-clip:text rendering.
+    // The glow layer uses a solid color + blur so it never needs background-clip.
+    <span className="relative inline-block" style={{ transform: 'translateZ(0)', willChange: 'transform' }}>
+      {/* Glow shadow layer — solid colour + blur, no background-clip needed.
+          This avoids the Safari/Chrome bug where any ancestor filter or
+          backdrop-filter breaks background-clip:text on descendants. */}
       <span
         aria-hidden="true"
         className={`absolute inset-0 font-display font-bold tracking-tight pointer-events-none select-none ${textCls}`}
         style={{
-          opacity:             visible ? 0.7 : 0,
-          transition:          'opacity 0.8s ease 0.6s',
-          background:          'linear-gradient(90deg,#a78bfa 0%,#818cf8 35%,#c4b5fd 50%,#818cf8 65%,#a78bfa 100%)',
-          backgroundSize:      '250% 100%',
-          backgroundPosition:  '0% center',
-          WebkitBackgroundClip:'text',
-          backgroundClip:      'text',
-          WebkitTextFillColor: 'transparent',
-          filter:              'blur(14px)',
-          animation:           'acadflow-wordmark-flow 5s ease-in-out 0.1s infinite',
-          whiteSpace:          'nowrap',
-          lineHeight:          'inherit',
+          opacity:    visible ? 0.55 : 0,
+          transition: 'opacity 0.8s ease 0.6s',
+          color:      '#a78bfa',
+          filter:     'blur(12px)',
+          whiteSpace: 'nowrap',
+          lineHeight: 'inherit',
         }}
       >
         AcadFlow
