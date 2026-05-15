@@ -720,25 +720,22 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 .sb-nav { padding: 8px 0; overflow-y: auto; flex: 1; }
 
 .nav-group-label {
-  padding: 0;
-  margin: 0;
-  line-height: 0;
+  display: none;
+  padding: 10px 12px 3px;
   font-size: 9px;
   font-weight: 700;
   letter-spacing: .1em;
   text-transform: uppercase;
   color: var(--ink3);
-  overflow: hidden;
-  max-height: 0;
-  opacity: 0;
-  transition: max-height 200ms ease, opacity 200ms ease, padding 200ms ease, line-height 200ms ease;
 }
 .sidebar-wrap.expanded .nav-group-label,
 .sidebar-wrap.open .nav-group-label {
-  padding: 10px 12px 3px;
-  line-height: 1.2;
-  max-height: 30px;
-  opacity: 1;
+  display: block;
+  animation: navGroupFadeIn 180ms ease both;
+}
+@keyframes navGroupFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .sb-nav .nav-item {
@@ -792,16 +789,18 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 .sb-nav .nav-item .nav-label {
   opacity: 0;
   max-width: 0;
+  height: 0;
   overflow: hidden;
   white-space: nowrap;
   flex-shrink: 0;
   pointer-events: none;
-  transition: opacity 180ms ease, max-width 220ms ease;
+  transition: opacity 180ms ease, max-width 220ms ease, height 180ms ease;
 }
 .sidebar-wrap.expanded .sb-nav .nav-item .nav-label,
 .sidebar-wrap.open .sb-nav .nav-item .nav-label {
   opacity: 1;
   max-width: 160px;
+  height: auto;
 }
 
 /* Nav badge */
