@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, BarChart2, CalendarCheck, Rss, MessageSquare } from 'lucide-react'
 import AcadFlowLogo from '@/components/primitives/AcadFlowLogo'
+import { useTypingEffect } from '@/hooks/useTypingEffect'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -12,6 +13,20 @@ import ThemeToggle from '@/components/primitives/ThemeToggle'
 import WeatherScene from '@/components/canvas/WeatherScene'
 import { getScene } from '@/components/canvas/scenes'
 
+const STUDENT_FEATURES = [
+  { Icon: BarChart2,     label: 'Grades' },
+  { Icon: CalendarCheck, label: 'Attendance' },
+  { Icon: Rss,           label: 'Stream' },
+  { Icon: MessageSquare, label: 'Messages' },
+]
+
+const STUDENT_PHRASES = [
+  ['Your academic',    '\nuniverse, unified.'],
+  ['Track your grades', '\nwith ease.'],
+  ['Stay connected',   '\nwith your class.'],
+]
+
+// Modes: 'student' | 'register' | 'reg-sq' | 'forgot' | 'fp-set-sq' | 'fp-sq'
 export default function LoginScreen() {
   const { loginStudent } = useAuth()
   const { students, saveStudents, fbReady } = useData()
@@ -280,17 +295,26 @@ export default function LoginScreen() {
     }
   }
 
+  const { displayed: typed, done: typingDone } = useTypingEffect(
+    STUDENT_PHRASES,
+    { speed: 45, deleteSpeed: 35, startDelay: 350, holdDelay: 5_000 }
+  )
+  const typedLine1 = typed[0] ?? ''
+  const typedLine2 = (typed[1] ?? '').replace(/^\n/, '')
+
   const sceneForcesLight = !scene?.isLightScene && theme !== 'dark'
   const sceneTextOverride = sceneForcesLight
     ? { '--ink': '#e8edf8', '--ink2': '#8d9ab8', '--ink3': '#5a6880' }
     : undefined
 
+  // The right panel has its own glass surface, so always restore ink tokens
+  // to theme-native values regardless of the scene.
   const panelInkReset = theme === 'dark'
     ? { '--ink': '#e8edf8', '--ink2': '#8d9ab8', '--ink3': '#5a6880' }
     : { '--ink': '#0d1526', '--ink2': '#52637a', '--ink3': '#8b9ab0' }
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-bg" id="login-screen" data-scene={sceneId} data-weather={weatherCond} style={sceneTextOverride}>
+    <div className="min-h-screen flex relative overflow-hidden bg-bg" id="login-screen" data-scene={sceneId} data-weather={weatherCond} style={sceneTextOverride}>
       <WeatherScene isDark={theme === 'dark'} showBadge onSceneChange={({ scene: s, weather: w }) => { setSceneId(s); setWeatherCond(w) }} style={{ position: 'absolute', inset: 0, zIndex: 0 }} />
       {/* Atmospheric ambient overlay — responds to data-scene via CSS @property */}
       <div className="login-scene-overlay" aria-hidden="true" />
@@ -300,21 +324,59 @@ export default function LoginScreen() {
       <div className="login-stars-css" aria-hidden="true" />
       <ThemeToggle />
 
-      {/* ── MacBook glass card — centered ── */}
-      <div className="glass-login-card relative z-10 w-full max-w-[420px] mx-4 px-8 py-9 rounded-[28px]" style={panelInkReset}>
+      {/* ── Left branding panel (desktop only) ── */}
+      <div className="hidden lg:flex flex-col justify-between flex-1 relative z-10 p-10 pointer-events-none select-none">
+        <AcadFlowLogo size="sm" />
+        <div>
+          <p className="text-4xl font-display font-bold text-ink leading-tight mb-4" style={{ letterSpacing: '-.03em' }}>
+            {typedLine1}
+            {!typed[1] && (
+              <span className="typing-cursor" aria-hidden="true" />
+            )}
+            {typed[1] !== undefined && (
+              <>
+                <br />
+                <span style={{ background: 'var(--grad-brand)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                  {typedLine2}
+                </span>
+                {!typingDone && (
+                  <span className="typing-cursor" aria-hidden="true" style={{ WebkitTextFillColor: 'var(--ink)', background: 'none' }} />
+                )}
+              </>
+            )}
+          </p>
+          <p className="text-sm text-ink2 max-w-xs leading-relaxed">
+            Grades, attendance, announcements, and messages — all in one modern academic platform built for students and educators.
+          </p>
+          <div className="flex gap-6 mt-8">
+            {STUDENT_FEATURES.map(({ Icon, label }) => (
+              <div key={label} className="flex flex-col items-center gap-1">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--accent-l)', color: 'var(--accent)' }}>
+                  <Icon size={18} />
+                </div>
+                <span className="text-xs font-semibold text-ink3">{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <p className="text-xs text-ink3">© {new Date().getFullYear()} AcadFlow. All rights reserved.</p>
+      </div>
 
-        {/* Logo */}
-        <div className="flex flex-col items-center mb-5">
-          <AcadFlowLogo variant="stacked" size="lg" className="justify-center" />
+      {/* ── Right glass panel ── */}
+      <div className="login-panel relative z-10 flex flex-col justify-center w-full lg:max-w-[460px] lg:min-h-screen px-4 py-8 lg:px-12" style={panelInkReset}>
+        {/* Mobile branding (hidden on desktop) */}
+        <div className="text-center mb-6 lg:hidden">
+          <AcadFlowLogo variant="stacked" size="lg" className="justify-center mb-1" />
+          <p className="text-xs text-ink3 mt-2">Academic Management System</p>
         </div>
 
-        {/* Title */}
-        <div className="text-center mb-5">
-          <h2 className="text-xl font-bold text-ink mb-1" style={{ letterSpacing: '-.02em' }}>
+        {/* Desktop welcome text */}
+        <div className="hidden lg:block mb-7">
+          <h2 className="text-2xl font-bold text-ink mb-1" style={{ letterSpacing: '-.02em' }}>
             {mode === 'student' ? 'Welcome back' : mode === 'register' ? 'Create account' : 'Account recovery'}
           </h2>
           <p className="text-sm text-ink3">
-            {mode === 'student' ? 'Sign in to your student portal.' : mode === 'register' ? 'Register your AcadFlow account.' : 'Recover access to your account.'}
+            {mode === 'student' ? 'Sign in to your student portal.' : mode === 'register' ? 'Register your AcadFlow student account.' : 'Recover access to your account.'}
           </p>
         </div>
 
