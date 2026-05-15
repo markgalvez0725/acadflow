@@ -28,22 +28,7 @@
  * NOTE: filter: drop-shadow is applied on a WRAPPER span in the component,
  * not here, to avoid browser painting bugs with background-clip:text.
  */
-@keyframes acadflow-wordmark-flow {
-  0%   { background-position: 0%   center; }
-  50%  { background-position: 100% center; }
-  100% { background-position: 0%   center; }
-}
 
-/* Sparkle: pop in then continuously twinkle */
-@keyframes acadflow-sparkle-life {
-  0%   { opacity: 0;    transform: scale(0)    rotate(-18deg); }
-  14%  { opacity: 1;    transform: scale(1.45) rotate(7deg);   }
-  26%  { opacity: 0.92; transform: scale(1)    rotate(0deg);   }
-  58%  { opacity: 0.92; transform: scale(1)    rotate(0deg);   }
-  72%  { opacity: 0.12; transform: scale(.42)  rotate(24deg);  }
-  88%  { opacity: 1;    transform: scale(1)    rotate(-4deg);  }
-  100% { opacity: 0.45; transform: scale(.72)  rotate(12deg);  }
-}
 
 /* Logo image: continuous float + glow pulse */
 .acadflow-logo-img {
@@ -52,37 +37,9 @@
     acadflow-glow  3s  ease-in-out 0.7s infinite;
 }
 
-/*
- * Wordmark: accent → purple → accent gradient — always vivid, always
- * readable regardless of theme or weather-scene ink override.
- * Letter spans MUST be display:inline (not inline-block) so background-clip
- * paints through all descendants correctly.
- */
+/* Wordmark: solid accent-purple — always visible regardless of backdrop-filter ancestors */
 .acadflow-wordmark {
-  background: linear-gradient(
-    90deg,
-    #a78bfa  0%,
-    #818cf8 35%,
-    #c4b5fd 50%,
-    #818cf8 65%,
-    #a78bfa 100%
-  );
-  background-size: 250% 100%;
-  background-position: 0% center;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  /* slow continuous shimmer flow */
-  animation: acadflow-wordmark-flow 5s ease-in-out 0.1s infinite;
-}
-
-/* 4-pointed star sparkle shape */
-.acadflow-sparkle {
-  display: block;
-  position: absolute;
-  pointer-events: none;
-  clip-path: polygon(50% 0%, 53% 47%, 100% 50%, 53% 53%, 50% 100%, 47% 53%, 0% 50%, 47% 47%);
-  animation: acadflow-sparkle-life 2.8s ease-in-out infinite both;
+  color: #a78bfa;
 }
 
 @theme inline {
@@ -3597,17 +3554,9 @@ textarea.input { resize: vertical; }
 }
 
 /* ── Ensure AcadFlow wordmark always renders above weather overlays ──────── */
-/*
- * backdrop-filter on an ancestor (e.g. .glass-login-card) creates a new
- * compositing layer that breaks -webkit-background-clip:text — the gradient
- * stops painting and leaves the text invisible.
- * Promoting .acadflow-wordmark to its own GPU compositing layer via
- * transform:translateZ(0) / will-change:transform restores correct rendering.
- */
+/* Ensure wordmark sits in its own compositing layer (safe to keep) */
 .acadflow-wordmark {
   isolation: isolate;
-  transform: translateZ(0);
-  will-change: transform;
 }
 
 /* ══════════════════════════════════════════
