@@ -648,7 +648,6 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 @media (max-width: 767px) {
   .sidebar-wrap.open .sb-brand h2  { opacity: 1; max-width: 160px; }
   .sidebar-wrap.open .sb-brand span { opacity: 1; max-width: 160px; }
-  .sidebar-wrap.open .nav-group-label { padding: 10px 12px 3px; max-height: 30px; opacity: 1; }
   .sidebar-wrap.open .sb-nav .nav-item .nav-label { opacity: 1; max-width: 160px; }
   .sidebar-wrap.open .sb-user-info { opacity: 1; max-width: 160px; }
   .sidebar-wrap.open .sb-logout .nav-label { opacity: 1; max-width: 120px; }
@@ -721,7 +720,9 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 .sb-nav { padding: 8px 0; overflow-y: auto; flex: 1; }
 
 .nav-group-label {
-  padding: 0 12px;
+  padding: 0;
+  margin: 0;
+  line-height: 0;
   font-size: 9px;
   font-weight: 700;
   letter-spacing: .1em;
@@ -730,10 +731,12 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
   overflow: hidden;
   max-height: 0;
   opacity: 0;
-  transition: max-height 180ms ease, opacity 180ms ease, padding 180ms ease;
+  transition: max-height 200ms ease, opacity 200ms ease, padding 200ms ease, line-height 200ms ease;
 }
-.sidebar-wrap.expanded .nav-group-label {
+.sidebar-wrap.expanded .nav-group-label,
+.sidebar-wrap.open .nav-group-label {
   padding: 10px 12px 3px;
+  line-height: 1.2;
   max-height: 30px;
   opacity: 1;
 }
@@ -837,6 +840,8 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
   flex-shrink: 0;
 }
 .sb-toggle:hover { background: var(--accent-l); color: var(--accent); transform: scale(1.1); }
+.sidebar-wrap.expanded .sb-toggle svg { transform: rotate(180deg); }
+.sb-toggle svg { transition: transform 220ms ease; }
 @media (min-width: 768px) { .sb-toggle { display: flex; } }
 
 .sb-footer {
