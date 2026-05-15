@@ -125,37 +125,52 @@ export default function WeatherScene({ isDark = false, showBadge = true, onScene
         dangerouslySetInnerHTML={{ __html: svgHtml }}
       />
 
-      {/* Weather badge */}
+      {/* Film grain texture — adds cinematic depth */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 3,
+          pointerEvents: 'none',
+          backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'300\' height=\'300\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.72\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'300\' height=\'300\' filter=\'url(%23n)\' opacity=\'1\'/%3E%3C/svg%3E")',
+          backgroundRepeat: 'repeat',
+          backgroundSize: '200px 200px',
+          opacity: 0.045,
+          mixBlendMode: 'overlay',
+        }}
+      />
+
+      {/* Weather badge — frosted glass pill */}
       {showBadge && wx.loaded && (
         <div
           style={{
             position: 'fixed',
-            top: 60,
-            right: 14,
+            top: 12,
+            right: 12,
             zIndex: 490,
             display: 'flex',
             alignItems: 'center',
-            gap: 6,
-            padding: '5px 10px 5px 7px',
-            borderRadius: 20,
-            background: 'rgba(0,0,0,.30)',
-            backdropFilter: 'blur(10px) saturate(1.3)',
-            WebkitBackdropFilter: 'blur(10px) saturate(1.3)',
-            border: '1px solid rgba(255,255,255,.12)',
-            boxShadow: '0 2px 12px rgba(0,0,0,.18)',
+            gap: 7,
+            padding: '6px 12px 6px 9px',
+            borderRadius: 24,
+            background: 'rgba(10,12,28,0.55)',
+            backdropFilter: 'blur(16px) saturate(1.5)',
+            WebkitBackdropFilter: 'blur(16px) saturate(1.5)',
+            border: '1px solid rgba(255,255,255,.10)',
+            boxShadow: '0 4px 20px rgba(0,0,0,.22), 0 0 0 1px rgba(255,255,255,.04) inset',
             cursor: 'default',
             userSelect: 'none',
             whiteSpace: 'nowrap',
-            maxWidth: 180,
+            maxWidth: 200,
             animation: 'wxSlideIn .45s cubic-bezier(.22,.8,.38,1) both',
           }}
         >
-          <span style={{ fontSize: 15, lineHeight: 1, flexShrink: 0 }}>{icon}</span>
-          <span style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 0, overflow: 'hidden' }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,.90)', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <span style={{ fontSize: 16, lineHeight: 1, flexShrink: 0 }}>{icon}</span>
+          <span style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0, overflow: 'hidden' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,.92)', lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '0.01em' }}>
               {wx.label}
             </span>
-            <span style={{ fontSize: 9, color: 'rgba(255,255,255,.52)', lineHeight: 1.2, whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: 9, color: 'rgba(255,255,255,.48)', lineHeight: 1.2, whiteSpace: 'nowrap', letterSpacing: '0.02em' }}>
               {wx.tempC}°C · Manila
             </span>
           </span>

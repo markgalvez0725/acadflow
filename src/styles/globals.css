@@ -3275,67 +3275,67 @@ textarea.input { resize: vertical; }
     --scene-vignette 3s ease;
 }
 
-/* ── Midnight: deep indigo void ─────────────────────────────────────────── */
+/* ── Midnight: obsidian deep-space, electric indigo core ────────────────── */
 [data-scene="midnight"] .login-scene-overlay {
-  --scene-ambient:  rgba(8, 12, 40, 0.45);
-  --scene-glow:     rgba(60, 50, 160, 0.22);
-  --scene-vignette: rgba(0, 0, 8, 0.5);
+  --scene-ambient:  rgba(4, 8, 38, 0.52);
+  --scene-glow:     rgba(44, 26, 114, 0.32);
+  --scene-vignette: rgba(0, 0, 8, 0.60);
 }
 
-/* ── Pre-dawn rooster: crimson horizon bloom ────────────────────────────── */
+/* ── Pre-dawn rooster: deep crimson horizon bloom ───────────────────────── */
 [data-scene="rooster"] .login-scene-overlay {
-  --scene-ambient:  rgba(6, 2, 18, 0.35);
-  --scene-glow:     rgba(192, 64, 50, 0.42);
-  --scene-vignette: rgba(0, 0, 6, 0.45);
+  --scene-ambient:  rgba(6, 2, 14, 0.40);
+  --scene-glow:     rgba(198, 24, 50, 0.52);
+  --scene-vignette: rgba(0, 0, 6, 0.52);
 }
 
-/* ── Sunrise: warm orange-gold bloom ────────────────────────────────────── */
+/* ── Sunrise: vivid magenta-orange eruption ──────────────────────────────── */
 [data-scene="sunrise"] .login-scene-overlay {
-  --scene-ambient:  rgba(24, 8, 48, 0.2);
-  --scene-glow:     rgba(255, 149, 0, 0.45);
-  --scene-vignette: rgba(4, 2, 10, 0.3);
+  --scene-ambient:  rgba(14, 4, 40, 0.24);
+  --scene-glow:     rgba(240, 114, 24, 0.56);
+  --scene-vignette: rgba(4, 2, 10, 0.36);
 }
 
-/* ── Morning: fresh azure sky ───────────────────────────────────────────── */
+/* ── Morning: luminous azure skylight ───────────────────────────────────── */
 [data-scene="morning"] .login-scene-overlay {
-  --scene-ambient:  rgba(135, 206, 235, 0.1);
-  --scene-glow:     rgba(200, 240, 255, 0.15);
+  --scene-ambient:  rgba(36, 144, 202, 0.12);
+  --scene-glow:     rgba(186, 234, 255, 0.20);
   --scene-vignette: rgba(0, 30, 80, 0.08);
 }
 
-/* ── Midday: brilliant cyan zenith ─────────────────────────────────────── */
+/* ── Midday: electric cyan zenith ──────────────────────────────────────── */
 [data-scene="midday"] .login-scene-overlay {
-  --scene-ambient:  rgba(85, 184, 245, 0.08);
-  --scene-glow:     rgba(200, 240, 255, 0.12);
+  --scene-ambient:  rgba(14, 140, 194, 0.10);
+  --scene-glow:     rgba(154, 232, 255, 0.18);
   --scene-vignette: rgba(0, 20, 60, 0.06);
 }
 
-/* ── Afternoon: soft westward glow ─────────────────────────────────────── */
+/* ── Afternoon: blue-gold westward warmth ──────────────────────────────── */
 [data-scene="afternoon"] .login-scene-overlay {
-  --scene-ambient:  rgba(77, 168, 232, 0.1);
-  --scene-glow:     rgba(255, 200, 120, 0.18);
-  --scene-vignette: rgba(0, 10, 40, 0.1);
+  --scene-ambient:  rgba(50, 154, 218, 0.12);
+  --scene-glow:     rgba(255, 210, 96, 0.24);
+  --scene-vignette: rgba(0, 10, 40, 0.10);
 }
 
-/* ── Sunset: dramatic magenta-orange horizon ────────────────────────────── */
+/* ── Sunset: cinematic magenta-orange inferno ───────────────────────────── */
 [data-scene="sunset"] .login-scene-overlay {
-  --scene-ambient:  rgba(14, 4, 24, 0.18);
-  --scene-glow:     rgba(255, 120, 30, 0.5);
-  --scene-vignette: rgba(0, 0, 4, 0.4);
+  --scene-ambient:  rgba(8, 2, 26, 0.22);
+  --scene-glow:     rgba(232, 98, 18, 0.62);
+  --scene-vignette: rgba(0, 0, 4, 0.50);
 }
 
-/* ── Night: deep blue moonlit ──────────────────────────────────────────── */
+/* ── Night: moonlit deep navy ───────────────────────────────────────────── */
 [data-scene="night"] .login-scene-overlay {
-  --scene-ambient:  rgba(2, 6, 20, 0.4);
-  --scene-glow:     rgba(50, 70, 180, 0.18);
-  --scene-vignette: rgba(0, 0, 8, 0.5);
+  --scene-ambient:  rgba(1, 3, 8, 0.48);
+  --scene-glow:     rgba(26, 44, 112, 0.24);
+  --scene-vignette: rgba(0, 0, 8, 0.58);
 }
 
-/* ── Evening: deep starry ──────────────────────────────────────────────── */
+/* ── Evening: starfield void, milky-way shimmer ─────────────────────────── */
 [data-scene="evening"] .login-scene-overlay {
-  --scene-ambient:  rgba(1, 3, 8, 0.45);
-  --scene-glow:     rgba(40, 55, 160, 0.2);
-  --scene-vignette: rgba(0, 0, 4, 0.55);
+  --scene-ambient:  rgba(0, 2, 6, 0.54);
+  --scene-glow:     rgba(12, 28, 98, 0.28);
+  --scene-vignette: rgba(0, 0, 4, 0.62);
 }
 
 /* Dark theme: boost ambient depth for day scenes */
@@ -3500,40 +3500,40 @@ textarea.input { resize: vertical; }
 [data-scene="midnight"] .login-panel,
 [data-scene="night"]    .login-panel,
 [data-scene="evening"]  .login-panel {
-  --panel-tint: rgba(6, 8, 22, 0.78);
+  --panel-tint: rgba(4, 8, 22, 0.82);
   background:   color-mix(in oklch, var(--surface) 78%, transparent) !important;
-  border-color: rgba(80, 100, 220, 0.14) !important;
-  box-shadow:   0 0 0 1px rgba(80, 100, 220, 0.08) inset,
-                0 24px 60px rgba(0, 0, 10, 0.55) !important;
+  border-color: rgba(44, 60, 200, 0.16) !important;
+  box-shadow:   0 0 0 1px rgba(44, 60, 200, 0.10) inset,
+                0 24px 60px rgba(0, 0, 12, 0.60) !important;
 }
 
 /* Pre-dawn */
 [data-scene="rooster"]  .login-panel {
-  --panel-tint: rgba(8, 2, 18, 0.74);
-  background:   color-mix(in oklch, var(--surface) 75%, transparent) !important;
-  border-color: rgba(192, 64, 50, 0.12) !important;
-  box-shadow:   0 0 0 1px rgba(220, 80, 50, 0.07) inset,
-                0 24px 60px rgba(0, 0, 6, 0.5) !important;
+  --panel-tint: rgba(8, 2, 18, 0.80);
+  background:   color-mix(in oklch, var(--surface) 76%, transparent) !important;
+  border-color: rgba(198, 24, 50, 0.14) !important;
+  box-shadow:   0 0 0 1px rgba(220, 40, 60, 0.08) inset,
+                0 24px 60px rgba(0, 0, 6, 0.55) !important;
 }
 
 /* Sunrise / sunset — golden warmth */
 [data-scene="sunrise"]  .login-panel,
 [data-scene="sunset"]   .login-panel {
-  --panel-tint: rgba(12, 4, 24, 0.72);
+  --panel-tint: rgba(10, 3, 22, 0.76);
   background:   color-mix(in oklch, var(--surface) 74%, transparent) !important;
-  border-color: rgba(255, 130, 50, 0.12) !important;
-  box-shadow:   0 0 0 1px rgba(255, 160, 80, 0.08) inset,
-                0 24px 60px rgba(0, 0, 4, 0.45) !important;
+  border-color: rgba(240, 114, 40, 0.14) !important;
+  box-shadow:   0 0 0 1px rgba(255, 160, 80, 0.10) inset,
+                0 24px 60px rgba(0, 0, 4, 0.48) !important;
 }
 
 /* Day scenes — light frosted glass */
 [data-scene="morning"]   .login-panel,
 [data-scene="midday"]    .login-panel,
 [data-scene="afternoon"] .login-panel {
-  --panel-tint: rgba(248, 252, 255, 0.86);
-  background:   color-mix(in oklch, var(--surface) 84%, transparent) !important;
-  border-color: rgba(100, 180, 255, 0.18) !important;
-  box-shadow:   0 0 0 1px rgba(255, 255, 255, 0.55) inset,
+  --panel-tint: rgba(248, 252, 255, 0.88);
+  background:   color-mix(in oklch, var(--surface) 86%, transparent) !important;
+  border-color: rgba(36, 144, 202, 0.20) !important;
+  box-shadow:   0 0 0 1px rgba(255, 255, 255, 0.58) inset,
                 0 24px 60px rgba(0, 30, 80, 0.14) !important;
 }
 
