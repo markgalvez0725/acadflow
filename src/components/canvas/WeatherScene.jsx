@@ -20,9 +20,10 @@ const DEFAULT_WX = {
  * Props:
  *  - isDark       {boolean}  — current theme
  *  - showBadge    {boolean}  — show weather badge (hide on admin portal)
+ *  - onSceneChange {function} — called with { scene, weather } when scene/wx updates
  *  - style        {object}   — extra style for the SVG wrapper
  */
-export default function WeatherScene({ isDark = false, showBadge = true, style }) {
+export default function WeatherScene({ isDark = false, showBadge = true, onSceneChange, style }) {
   const [wx, setWx] = useState(DEFAULT_WX)
   const [scene, setScene] = useState(() => getScene())
   const [svgHtml, setSvgHtml] = useState('')
@@ -51,6 +52,8 @@ export default function WeatherScene({ isDark = false, showBadge = true, style }
     const vh = 520
     setSvgHtml(scene.buildSVG(vw, vh, wx))
     setBg(applySceneBackground(scene, isDark))
+    // Notify parent of current scene + weather for CSS data-attribute updates
+    onSceneChange?.({ scene: scene.id, weather: wx.condition })
   }, [scene, wx, isDark])
 
   // Update scene every minute (Philippine time)
@@ -101,7 +104,7 @@ export default function WeatherScene({ isDark = false, showBadge = true, style }
           position: 'absolute',
           inset: 0,
           background: bg,
-          transition: 'background 1.5s ease',
+          transition: 'background 2.5s cubic-bezier(0.4,0,0.2,1)',
           zIndex: 0,
         }}
       />

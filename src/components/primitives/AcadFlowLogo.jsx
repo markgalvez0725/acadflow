@@ -57,13 +57,35 @@ export default function AcadFlowLogo({ variant = 'horizontal', size = 'md', clas
   )
 
   const wordmarkEl = (
-    // Outer span carries drop-shadow filter — must be a WRAPPER, not the
-    // background-clip:text element itself, to avoid browser painting bugs.
-    // The shadow makes the text pop from any weather-scene background.
-    <span
-      style={{ filter: 'drop-shadow(0 1px 6px rgba(0,0,0,0.70)) drop-shadow(0 0 14px rgba(0,0,0,0.45))' }}
-    >
-      {/* position:relative is the containing block for absolute sparkles */}
+    // Wrapper uses relative+inline-block to contain both the glow layer and wordmark.
+    // CRITICAL: No `filter` on any ancestor of the wordmark span — filter on a parent
+    // breaks -webkit-background-clip:text in Safari/WebKit.
+    // Instead, a sibling blurred span provides the glow/shadow (filter on itself = safe).
+    <span className="relative inline-block">
+      {/* Glow shadow layer — filter:blur on THIS element, not on an ancestor.
+          This avoids the Safari bug where parent filter breaks background-clip:text. */}
+      <span
+        aria-hidden="true"
+        className={`absolute inset-0 font-display font-bold tracking-tight pointer-events-none select-none ${textCls}`}
+        style={{
+          opacity:             visible ? 0.7 : 0,
+          transition:          'opacity 0.8s ease 0.6s',
+          background:          'linear-gradient(90deg,#a78bfa 0%,#818cf8 35%,#c4b5fd 50%,#818cf8 65%,#a78bfa 100%)',
+          backgroundSize:      '250% 100%',
+          backgroundPosition:  '0% center',
+          WebkitBackgroundClip:'text',
+          backgroundClip:      'text',
+          WebkitTextFillColor: 'transparent',
+          filter:              'blur(14px)',
+          animation:           'acadflow-wordmark-flow 5s ease-in-out 0.1s infinite',
+          whiteSpace:          'nowrap',
+          lineHeight:          'inherit',
+        }}
+      >
+        AcadFlow
+      </span>
+
+      {/* Actual wordmark — no ancestor has filter, so background-clip:text works correctly */}
       <span
         className={`relative inline-block acadflow-wordmark font-display font-bold tracking-tight ${textCls}`}
         aria-label="AcadFlow"
