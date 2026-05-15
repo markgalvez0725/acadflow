@@ -3592,3 +3592,127 @@ textarea.input { resize: vertical; }
 .acadflow-wordmark {
   isolation: isolate;
 }
+
+/* ══════════════════════════════════════════
+   MACBOOK GLASS LOGIN CARD
+   Floating frosted-glass panel — macOS Sequoia-style
+══════════════════════════════════════════ */
+.glass-login-card {
+  background: rgba(255, 255, 255, 0.68);
+  backdrop-filter: blur(48px) saturate(1.9) brightness(1.04);
+  -webkit-backdrop-filter: blur(48px) saturate(1.9) brightness(1.04);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.40) inset,
+    0 4px 12px rgba(0, 0, 0, 0.06),
+    0 24px 64px rgba(0, 20, 60, 0.18),
+    0 2px 4px rgba(0, 0, 0, 0.04);
+  /* Smooth transitions between scenes */
+  transition:
+    background     2s ease,
+    border-color   2s ease,
+    box-shadow     2s ease;
+}
+
+/* Dark theme */
+[data-theme="dark"] .glass-login-card {
+  background: rgba(12, 18, 40, 0.72);
+  border-color: rgba(255, 255, 255, 0.09);
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.06) inset,
+    0 4px 12px rgba(0, 0, 0, 0.40),
+    0 24px 64px rgba(0, 0, 0, 0.62);
+}
+
+/* Night / dark sky scenes */
+[data-scene="midnight"] .glass-login-card,
+[data-scene="night"]    .glass-login-card,
+[data-scene="evening"]  .glass-login-card {
+  background: rgba(4, 8, 26, 0.74);
+  border-color: rgba(60, 90, 230, 0.20);
+  box-shadow:
+    0 0 0 0.5px rgba(80, 120, 255, 0.10) inset,
+    0 24px 64px rgba(0, 0, 20, 0.68);
+}
+
+/* Pre-dawn */
+[data-scene="rooster"] .glass-login-card {
+  background: rgba(8, 2, 20, 0.76);
+  border-color: rgba(198, 24, 50, 0.18);
+  box-shadow:
+    0 0 0 0.5px rgba(220, 50, 70, 0.10) inset,
+    0 24px 64px rgba(0, 0, 8, 0.60);
+}
+
+/* Sunrise / sunset — warm tinted glass */
+[data-scene="sunrise"] .glass-login-card,
+[data-scene="sunset"]  .glass-login-card {
+  background: rgba(10, 4, 28, 0.72);
+  border-color: rgba(240, 120, 40, 0.18);
+  box-shadow:
+    0 0 0 0.5px rgba(255, 160, 80, 0.12) inset,
+    0 24px 64px rgba(0, 0, 6, 0.54);
+}
+
+/* Day scenes — bright frosted glass */
+[data-scene="morning"]   .glass-login-card,
+[data-scene="midday"]    .glass-login-card,
+[data-scene="afternoon"] .glass-login-card {
+  background: rgba(238, 246, 255, 0.74);
+  border-color: rgba(36, 144, 202, 0.22);
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.65) inset,
+    0 4px 12px rgba(0, 0, 0, 0.05),
+    0 24px 64px rgba(0, 30, 80, 0.16);
+}
+
+/* Glass card tab switcher — active pill */
+.glass-tab-bar {
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  padding: 3px;
+}
+[data-theme="dark"] .glass-tab-bar,
+[data-scene="midnight"] .glass-tab-bar,
+[data-scene="night"]    .glass-tab-bar,
+[data-scene="evening"]  .glass-tab-bar,
+[data-scene="rooster"]  .glass-tab-bar,
+[data-scene="sunrise"]  .glass-tab-bar,
+[data-scene="sunset"]   .glass-tab-bar {
+  background: rgba(255, 255, 255, 0.07);
+}
+.glass-tab-active {
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14);
+}
+[data-theme="dark"] .glass-tab-active,
+[data-scene="midnight"] .glass-tab-active,
+[data-scene="night"]    .glass-tab-active,
+[data-scene="evening"]  .glass-tab-active,
+[data-scene="rooster"]  .glass-tab-active,
+[data-scene="sunrise"]  .glass-tab-active,
+[data-scene="sunset"]   .glass-tab-active {
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+/* Rain shimmer on glass card (same as login-panel) */
+[data-weather="rain"]         .glass-login-card::before,
+[data-weather="heavy_rain"]   .glass-login-card::before,
+[data-weather="thunderstorm"] .glass-login-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: repeating-linear-gradient(
+    180deg,
+    transparent            0px,
+    transparent            18px,
+    rgba(160,200,240,0.04) 18px,
+    rgba(160,200,240,0.04) 19px
+  );
+  background-size: 100% 38px;
+  animation: td-panel-rain-drip 2.5s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
