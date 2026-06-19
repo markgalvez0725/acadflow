@@ -1,0 +1,9 @@
+node_modules
+dist
+.next
+.DS_Store
+*.bak
+.env
+.env.local
+.env*.local
+.vercel

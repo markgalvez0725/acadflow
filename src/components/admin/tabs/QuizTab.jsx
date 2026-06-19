@@ -1,0 +1,863 @@
+import React, { useState, useMemo } from 'react'
+import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore'
+import { useData } from '@/context/DataContext'
+import { useUI } from '@/context/UIContext'
+import Modal from '@/components/primitives/Modal'
+import Badge from '@/components/primitives/Badge'
+import Pagination from '@/components/primitives/Pagination'
+import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList, Pencil, Save, Rocket, FileText, X, Lock, Circle, Archive, ArchiveRestore } from 'lucide-react'
+import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
+
+
+function quizId() {
+  return 'quiz_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7)
+}
+
+const TYPE_LABELS = {
+  multiple_choice: 'Multiple Choice',
+  true_false: 'True/False',
+  short_answer: 'Short Answer',
+  fill_in_the_blank: 'Fill in the Blank',
+  identification: 'Identification',
+}
+
+function buildTemplate(topic, count, types, generalPrompt) {
+  const extraContext = generalPrompt?.trim()
+    ? `\nAdditional instructions from the teacher: ${generalPrompt.trim()}\n`
+    : ''
+
+  const allRules = {
+    multiple_choice: '- multiple_choice: provide exactly 4 options, mark the correct answer',
+    true_false: '- true_false: answer is either "True" or "False"',
+    short_answer: '- short_answer: provide a model answer (1-3 sentences)',
+    fill_in_the_blank: '- fill_in_the_blank: use "___" for the blank, provide the correct answer',
+    identification: '- identification: ask to identify a term/concept, provide the correct answer',
+  }
+  const allExamples = {
+    multiple_choice: '  {"type":"multiple_choice","question":"...","options":["A","B","C","D"],"answer":"A"}',
+    true_false: '  {"type":"true_false","question":"...","answer":"True"}',
+    short_answer: '  {"type":"short_answer","question":"...","answer":"..."}',
+    fill_in_the_blank: '  {"type":"fill_in_the_blank","question":"The ___ is ...","answer":"word"}',
+    identification: '  {"type":"identification","question":"What term refers to...?","answer":"Term"}',
+  }
+  const typeLabel = types.length === 1 ? `ONLY ${types[0]}` : `these types only (${types.join(', ')})`
+  const rules = types.map(t => allRules[t]).join('\n')
+  const examples = types.map(t => allExamples[t]).join(',\n')
+
+  const instructions = `INSTRUCTIONS FOR AI:
+Generate exactly ${count} quiz questions about the topic below.
+Use ${typeLabel}. Do NOT generate any other question type.
+${extraContext}
+Rules:
+${rules}
+
+IMPORTANT: Respond ONLY with a valid JSON array. No markdown, no explanation.
+Use this exact format:
+[
+${examples}
+]`
+
+  return {
+    _instructions: instructions,
+    topic,
+    question_count: count,
+    question_types: types,
+    ...(generalPrompt?.trim() && { general_prompt: generalPrompt.trim() }),
+    expected_output_format: 'JSON array',
+  }
+}
+
+const AI_PROMPT_TEXT = `I have a quiz template JSON file. Please read the _instructions field inside it carefully and generate the quiz questions exactly as described.
+
+Respond ONLY with a valid JSON array — no markdown, no explanation, no code block. Just the raw JSON array starting with [ and ending with ].`
+
+// ── Export Template Modal ─────────────────────────────────────────────────────
+function ExportTemplateModal({ onClose, onSwitchToImport }) {
+  const { toast } = useUI()
+  const [topic, setTopic] = useState('')
+  const [qCount, setQCount] = useState(10)
+  const [qTypes, setQTypes] = useState(['multiple_choice'])
+  const [generalPrompt, setGeneralPrompt] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  function handleCopyPrompt() {
+    navigator.clipboard.writeText(AI_PROMPT_TEXT).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  function toggleType(t) {
+    setQTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])
+  }
+
+  function handleExport() {
+    if (!topic.trim() || !qTypes.length) return
+    const template = buildTemplate(topic.trim(), qCount, qTypes, generalPrompt)
+    const json = JSON.stringify(template, null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `quiz-template-${topic.trim().slice(0, 30).replace(/\s+/g, '-')}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast('Template exported! Send it to your AI platform.', 'green')
+  }
+
+  return (
+    <Modal onClose={onClose} size="md">
+      <h3 className="text-lg font-bold text-ink mb-1"><Upload size={18} className="inline-block mr-1 align-text-bottom" />Export Quiz Template</h3>
+      <p className="modal-sub">
+        Configure your quiz settings, export the template JSON, send it to any AI platform (ChatGPT, Gemini, etc.), then import the AI's response back here.
+      </p>
+
+      <div className="field mb-3">
+        <label className="text-xs font-semibold text-ink2 mb-1 block">Topic / Discussion <span className="text-red-500">*</span></label>
+        <textarea
+          className="input w-full"
+          rows={4}
+          value={topic}
+          onChange={e => setTopic(e.target.value)}
+          placeholder="e.g. The human digestive system breaks down food through mechanical and chemical digestion…"
+          autoFocus
+        />
+      </div>
+
+      <div className="field mb-3">
+        <label className="text-xs font-semibold text-ink2 mb-1 block">Number of Questions</label>
+        <input
+          className="input w-full" type="number" min={1} max={50} value={qCount}
+          onChange={e => setQCount(Math.min(50, Math.max(1, parseInt(e.target.value) || 1)))}
+        />
+      </div>
+
+      <div className="field mb-4">
+        <label className="text-xs font-semibold text-ink2 mb-2 block">Question Types</label>
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(TYPE_LABELS).map(([t, label]) => (
+            <button key={t} type="button" onClick={() => toggleType(t)}
+              className={`btn btn-sm ${qTypes.includes(t) ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ fontSize: 12 }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="field mb-4">
+        <label className="text-xs font-semibold text-ink2 mb-1 block">
+          Additional Prompt for AI <span className="font-normal text-ink3">(optional)</span>
+        </label>
+        <textarea
+          className="input w-full"
+          rows={3}
+          value={generalPrompt}
+          onChange={e => setGeneralPrompt(e.target.value)}
+          placeholder="e.g. Focus on higher-order thinking questions. Avoid trivial facts. Use simple language suitable for Grade 8."
+        />
+      </div>
+
+      <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 12, color: 'var(--ink2)' }}>
+        <strong style={{ color: 'var(--ink)' }}>How it works:</strong>
+        <ol style={{ margin: '6px 0 0 16px', lineHeight: 1.8 }}>
+          <li>Click <strong>Export Template</strong> to download a <code>.json</code> file</li>
+          <li>Go to ChatGPT, Gemini, Claude, or any AI platform</li>
+          <li>Copy the prompt below, paste it, then attach or paste the <code>.json</code> file contents</li>
+          <li>Copy the AI's JSON output, then click <strong>Import AI Response</strong></li>
+        </ol>
+      </div>
+
+      <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 16, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px', borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink2)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Prompt to paste into AI</span>
+          <button
+            type="button"
+            onClick={handleCopyPrompt}
+            style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, border: '1px solid var(--border)', background: copied ? 'var(--accent)' : 'var(--surface)', color: copied ? '#fff' : 'var(--ink)', cursor: 'pointer', fontWeight: 600, transition: 'all 0.15s' }}
+          >
+            {copied ? <><Check size={11} className="inline-block mr-1" />Copied!</> : <><ClipboardList size={11} className="inline-block mr-1" />Copy</>}
+          </button>
+        </div>
+        <pre style={{ margin: 0, padding: '10px 14px', fontSize: 12, color: 'var(--ink)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.6, userSelect: 'all' }}>
+          {AI_PROMPT_TEXT}
+        </pre>
+      </div>
+
+      <div className="modal-footer">
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-ghost" onClick={onSwitchToImport}>
+          <Download size={13} className="inline-block mr-1" />Import AI Response
+        </button>
+        <button className="btn btn-primary" onClick={handleExport} disabled={!topic.trim() || !qTypes.length}>
+          <Upload size={13} className="inline-block mr-1" />Export Template
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Import AI Response Modal ──────────────────────────────────────────────────
+function ImportResponseModal({ onClose, onImported }) {
+  const [jsonInput, setJsonInput] = useState('')
+  const [jsonErr, setJsonErr] = useState('')
+
+  function handleImport() {
+    setJsonErr('')
+    let parsed
+    try {
+      parsed = JSON.parse(jsonInput.trim())
+    } catch (e) {
+      setJsonErr('Invalid JSON: ' + e.message)
+      return
+    }
+    if (!Array.isArray(parsed)) { setJsonErr('Expected a JSON array of questions, e.g. [{ "type": "multiple_choice", ... }]'); return }
+    if (!parsed.length) { setJsonErr('The array is empty — paste at least one question.'); return }
+    const qs = parsed.map((q, i) => ({ ...q, id: 'q' + i + '_' + Date.now() }))
+    onImported(qs)
+  }
+
+  return (
+    <Modal onClose={onClose} size="md">
+      <h3 className="text-lg font-bold text-ink mb-1"><Download size={18} className="inline-block mr-1 align-text-bottom" />Import AI Response</h3>
+      <p className="modal-sub">
+        Paste the JSON array returned by your AI platform. The quiz will be auto-configured and ready to save.
+      </p>
+
+      <div className="field mb-3">
+        <label className="text-xs font-semibold text-ink2 mb-1 block">Paste AI JSON Output <span className="text-red-500">*</span></label>
+        <textarea
+          className="input w-full"
+          rows={12}
+          value={jsonInput}
+          onChange={e => setJsonInput(e.target.value)}
+          placeholder={'[\n  {"type":"multiple_choice","question":"...","options":[...],"answer":"..."},\n  ...\n]'}
+          style={{ fontFamily: 'monospace', fontSize: 12 }}
+          autoFocus
+        />
+      </div>
+
+      {jsonErr && <div className="err-msg mb-2">{jsonErr}</div>}
+
+      <div className="modal-footer">
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={handleImport} disabled={!jsonInput.trim()}>
+          Import & Configure Quiz →
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Create/Edit Quiz Modal ────────────────────────────────────────────────────
+function QuizFormModal({ quiz, initialQuestions, onClose }) {
+  const { classes, db, fbReady } = useData()
+  const { toast } = useUI()
+  const isEdit = !!quiz
+
+  const [title, setTitle] = useState(quiz?.title || '')
+  const [classIds, setClassIds] = useState(quiz?.classIds || [])
+  const [subject, setSubject] = useState(quiz?.subject || '')
+  const [timeLimit, setTimeLimit] = useState(quiz?.timeLimit || 30)
+  const [openAt, setOpenAt] = useState(() => {
+    if (quiz?.openAt) {
+      const d = new Date(quiz.openAt)
+      const pad = n => String(n).padStart(2, '0')
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    }
+    const now = new Date()
+    const pad = n => String(n).padStart(2, '0')
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`
+  })
+  const [closeAt, setCloseAt] = useState(() => {
+    if (quiz?.closeAt) {
+      const d = new Date(quiz.closeAt)
+      const pad = n => String(n).padStart(2, '0')
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    }
+    const dl = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    const pad = n => String(n).padStart(2, '0')
+    return `${dl.getFullYear()}-${pad(dl.getMonth() + 1)}-${pad(dl.getDate())}T${pad(dl.getHours())}:${pad(dl.getMinutes())}`
+  })
+  const [questions, setQuestions] = useState(quiz?.questions || initialQuestions || [])
+  const [editingQ, setEditingQ] = useState(null)
+  const [err, setErr] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const availableSubjects = useMemo(() => {
+    const subs = new Set()
+    classIds.forEach(cid => {
+      const cls = classes.find(c => c.id === cid)
+      if (cls?.subjects) cls.subjects.forEach(s => subs.add(s))
+    })
+    return [...subs]
+  }, [classIds, classes])
+
+  function toggleClass(id) {
+    setClassIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+    setSubject('')
+  }
+
+  function updateQuestion(id, field, val) {
+    setQuestions(prev => prev.map(q => q.id === id ? { ...q, [field]: val } : q))
+  }
+
+  function updateOption(qId, idx, val) {
+    setQuestions(prev => prev.map(q => {
+      if (q.id !== qId) return q
+      const opts = [...(q.options || [])]
+      opts[idx] = val
+      return { ...q, options: opts }
+    }))
+  }
+
+  function removeQuestion(id) {
+    setQuestions(prev => prev.filter(q => q.id !== id))
+  }
+
+  function addQuestion() {
+    setQuestions(prev => [...prev, { id: 'q_' + Date.now(), type: 'multiple_choice', question: '', options: ['', '', '', ''], answer: '' }])
+  }
+
+  async function handleSave() {
+    setErr('')
+    if (!title.trim()) { setErr('Quiz title is required.'); return }
+    if (!classIds.length) { setErr('Select at least one class.'); return }
+    if (!subject) { setErr('Select a subject.'); return }
+    if (!questions.length) { setErr('Quiz must have at least one question.'); return }
+    if (timeLimit < 1) { setErr('Time limit must be at least 1 minute.'); return }
+    const openTs = new Date(openAt).getTime()
+    const closeTs = new Date(closeAt).getTime()
+    if (isNaN(openTs) || isNaN(closeTs)) { setErr('Invalid date range.'); return }
+    if (closeTs <= openTs) { setErr('Close time must be after open time.'); return }
+    if (!fbReady || !db.current) { setErr('Firebase is required.'); return }
+
+    const payload = {
+      title: title.trim(), classIds, subject,
+      timeLimit: parseInt(timeLimit), openAt: openTs, closeAt: closeTs,
+      questions, totalPoints: questions.length,
+      submissions: quiz?.submissions || {},
+      createdAt: quiz?.createdAt || Date.now(), createdBy: 'admin',
+    }
+
+    setSaving(true)
+    try {
+      if (isEdit) {
+        await updateDoc(doc(db.current, 'quizzes', quiz.id), { ...payload })
+      } else {
+        const id = quizId()
+        await setDoc(doc(db.current, 'quizzes', id), { id, ...payload })
+      }
+      toast(isEdit ? 'Quiz updated!' : 'Quiz created and shared!', 'green')
+      onClose()
+    } catch (e) {
+      setErr('Save failed: ' + e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal onClose={onClose} size="lg">
+      <h3 className="text-lg font-bold text-ink mb-1">
+        {isEdit ? <><Pencil size={16} className="inline-block mr-1 align-text-bottom" />Edit Quiz</> : <><FileText size={16} className="inline-block mr-1 align-text-bottom" />Configure &amp; Share Quiz</>}
+      </h3>
+      <p className="modal-sub">{isEdit ? `${questions.length} questions` : `${questions.length} questions imported`}. Review, edit, then share with classes.</p>
+
+      {err && <div ref={el => el?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="err-msg mb-3">{err}</div>}
+
+      <div className="field mb-3">
+        <label className="text-xs font-semibold text-ink2 mb-1 block">Quiz Title <span className="text-red-500">*</span></label>
+        <input className="input w-full" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Chapter 3 Quiz" />
+      </div>
+
+      <div className="field mb-3">
+        <label className="text-xs font-semibold text-ink2 mb-2 block">Share with Classes <span className="text-red-500">*</span></label>
+        {classes.length === 0 ? (
+          <p className="text-xs text-ink3">No classes available.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {classes.filter(c => !c.archived).map(c => (
+              <button key={c.id} type="button" onClick={() => toggleClass(c.id)}
+                className={`btn btn-sm ${classIds.includes(c.id) ? 'btn-primary' : 'btn-ghost'}`}
+                style={{ fontSize: 12 }}>
+                {c.name} {c.section}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="field mb-3">
+        <label className="text-xs font-semibold text-ink2 mb-1 block">Subject <span className="text-red-500">*</span></label>
+        <select className="input w-full" value={subject} onChange={e => setSubject(e.target.value)}>
+          <option value="">— Select Subject —</option>
+          {availableSubjects.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </div>
+
+      <div className="input-row mb-3">
+        <div className="field flex-1">
+          <label className="text-xs font-semibold text-ink2 mb-1 block">Time Limit (minutes) <span className="text-red-500">*</span></label>
+          <input className="input w-full" type="number" min={1} max={300} value={timeLimit}
+            onChange={e => setTimeLimit(Math.max(1, parseInt(e.target.value) || 1))} />
+        </div>
+        <div className="field flex-1">
+          <label className="text-xs font-semibold text-ink2 mb-1 block">Opens At <span className="text-red-500">*</span></label>
+          <input className="input w-full" type="datetime-local" value={openAt} onChange={e => setOpenAt(e.target.value)} />
+        </div>
+        <div className="field flex-1">
+          <label className="text-xs font-semibold text-ink2 mb-1 block">Closes At <span className="text-red-500">*</span></label>
+          <input className="input w-full" type="datetime-local" value={closeAt} onChange={e => setCloseAt(e.target.value)} />
+        </div>
+      </div>
+
+      {/* Questions Editor */}
+      <div className="field mb-3">
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-xs font-semibold text-ink2">{questions.length} Questions</label>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={addQuestion}>+ Add Question</button>
+        </div>
+        <div className="flex flex-col gap-3" style={{ maxHeight: 320, overflowY: 'auto', paddingRight: 4 }}>
+          {questions.map((q, i) => (
+            <div key={q.id} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '10px 12px', border: '1px solid var(--border)' }}>
+              <div className="flex items-center justify-between mb-2">
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink2)' }}>
+                  Q{i + 1} · {TYPE_LABELS[q.type] || q.type}
+                </span>
+                <div className="flex gap-1">
+                  <button type="button" className="btn btn-ghost btn-sm" style={{ fontSize: 10 }}
+                    onClick={() => setEditingQ(editingQ === q.id ? null : q.id)}>
+                    {editingQ === q.id ? 'Done' : 'Edit'}
+                  </button>
+                  <button type="button" className="btn btn-ghost btn-sm text-red-500" style={{ fontSize: 10 }}
+                    onClick={() => removeQuestion(q.id)}><X size={11} /></button>
+                </div>
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--ink)', marginBottom: 4 }}>{q.question || <em style={{ color: 'var(--ink3)' }}>No question text</em>}</p>
+              {q.type === 'multiple_choice' && q.options && (
+                <div className="flex flex-wrap gap-1">
+                  {q.options.map((opt, oi) => (
+                    <span key={oi} style={{
+                      fontSize: 11, padding: '2px 8px', borderRadius: 4,
+                      background: opt === q.answer ? 'var(--green-l)' : 'var(--surface)',
+                      color: opt === q.answer ? 'var(--green)' : 'var(--ink2)',
+                      border: '1px solid var(--border)',
+                    }}>
+                      {String.fromCharCode(65 + oi)}. {opt}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {q.type !== 'multiple_choice' && (
+                <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 600 }}>
+                  Answer: {q.answer}
+                </span>
+              )}
+              {editingQ === q.id && (
+                <div style={{ marginTop: 10, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                  <div className="field mb-2">
+                    <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 4 }}>Type</label>
+                    <select className="input w-full" style={{ fontSize: 12 }} value={q.type}
+                      onChange={e => updateQuestion(q.id, 'type', e.target.value)}>
+                      {Object.entries(TYPE_LABELS).map(([t, l]) => <option key={t} value={t}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div className="field mb-2">
+                    <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 4 }}>Question</label>
+                    <textarea className="input w-full" rows={2} style={{ fontSize: 12 }} value={q.question}
+                      onChange={e => updateQuestion(q.id, 'question', e.target.value)} />
+                  </div>
+                  {q.type === 'multiple_choice' && (
+                    <div className="field mb-2">
+                      <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 4 }}>Options (click correct answer)</label>
+                      {(q.options || ['', '', '', '']).map((opt, oi) => (
+                        <div key={oi} className="flex gap-1 mb-1 items-center">
+                          <span style={{ fontSize: 11, width: 16, color: 'var(--ink2)', flexShrink: 0 }}>{String.fromCharCode(65 + oi)}.</span>
+                          <input className="input flex-1" style={{ fontSize: 12 }} value={opt}
+                            onChange={e => updateOption(q.id, oi, e.target.value)} />
+                          <button type="button" onClick={() => updateQuestion(q.id, 'answer', opt)}
+                            style={{ fontSize: 10, padding: '3px 7px', borderRadius: 4, border: '1px solid var(--border)',
+                              background: q.answer === opt ? 'var(--green-l)' : 'var(--surface)',
+                              color: q.answer === opt ? 'var(--green)' : 'var(--ink2)', cursor: 'pointer', flexShrink: 0 }}>
+                            {q.answer === opt ? <><Check size={10} className="inline-block mr-0.5" />Correct</> : 'Set Correct'}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {q.type === 'true_false' && (
+                    <div className="field mb-2">
+                      <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 4 }}>Correct Answer</label>
+                      <select className="input w-full" style={{ fontSize: 12 }} value={q.answer}
+                        onChange={e => updateQuestion(q.id, 'answer', e.target.value)}>
+                        <option value="True">True</option>
+                        <option value="False">False</option>
+                      </select>
+                    </div>
+                  )}
+                  {['short_answer', 'fill_in_the_blank', 'identification'].includes(q.type) && (
+                    <div className="field mb-2">
+                      <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 4 }}>Model Answer / Key Answer</label>
+                      <input className="input w-full" style={{ fontSize: 12 }} value={q.answer}
+                        onChange={e => updateQuestion(q.id, 'answer', e.target.value)} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="modal-footer">
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+          {saving ? 'Saving…' : isEdit ? <><Save size={13} className="inline-block mr-1" />Save Changes</> : <><Rocket size={13} className="inline-block mr-1" />Share Quiz</>}
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+// ── View Results Modal ────────────────────────────────────────────────────────
+function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
+  const { students } = useData()
+  const { toast, openDialog } = useUI()
+  const { db } = useData()
+
+  const now = Date.now()
+  const isOpen = now >= quiz.openAt && now <= quiz.closeAt
+  const isClosed = now > quiz.closeAt
+  const isUpcoming = now < quiz.openAt
+
+  const enrolledStudents = useMemo(() => {
+    return students.filter(s => {
+      const sClassIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
+      return quiz.classIds?.some(id => sClassIds.includes(id)) && s.account?.registered
+    })
+  }, [students, quiz.classIds])
+
+  const submissions = quiz.submissions || {}
+  const attempted = Object.keys(submissions).length
+  const graded = Object.values(submissions).filter(s => s.score != null).length
+
+  const openLabel   = new Date(quiz.openAt).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
+  const closeLabel  = new Date(quiz.closeAt).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
+
+  async function handleDelete() {
+    const ok = await openDialog({
+      title: `Delete "${quiz.title}"?`,
+      msg: 'This quiz and all submissions will be permanently removed.',
+      type: 'danger', confirmLabel: 'Delete Quiz', showCancel: true,
+    })
+    if (!ok) return
+    try {
+      await deleteDoc(doc(db.current, 'quizzes', quiz.id))
+      onDelete()
+    } catch (e) {
+      toast('Delete failed: ' + e.message, 'red')
+    }
+  }
+
+  return (
+    <Modal onClose={onClose} size="lg">
+      <div className="flex items-start justify-between gap-3 mb-2">
+        <div>
+          <h3 className="text-lg font-bold text-ink"><FileText size={18} className="inline-block mr-1 align-text-bottom" />{quiz.title}</h3>
+          <p className="text-xs text-ink2 mt-0.5">
+            {quiz.subject} · {quiz.questions?.length || 0} questions · {quiz.timeLimit} min time limit
+          </p>
+          <p className="text-xs text-ink2">
+            Opens: {openLabel} · Closes: {closeLabel}
+          </p>
+        </div>
+        <button className="text-ink3 hover:text-ink" onClick={onClose}><X size={18} /></button>
+      </div>
+
+      {isUpcoming && (
+        <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12, color: 'var(--ink2)' }}>
+          <Clock size={13} className="inline-block mr-1 align-text-bottom" />Upcoming — opens {openLabel}
+        </div>
+      )}
+      {isOpen && (
+        <div style={{ background: 'var(--green-l)', color: 'var(--green)', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12 }}>
+          <Circle size={13} className="inline-block mr-1 align-text-bottom" style={{ fill: 'var(--green)', color: 'var(--green)' }} />Open — closes {closeLabel}
+        </div>
+      )}
+      {isClosed && (
+        <div style={{ background: 'var(--red-l)', color: 'var(--red)', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12 }}>
+          <Lock size={13} className="inline-block mr-1 align-text-bottom" />Closed — {attempted}/{enrolledStudents.length} attempted · {graded} auto-graded
+        </div>
+      )}
+
+      <div className="tbl-wrap mb-3">
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Status</th>
+              <th>Score</th>
+              <th>Percentage</th>
+              <th>Time Taken</th>
+            </tr>
+          </thead>
+          <tbody>
+            {enrolledStudents.map(s => {
+              const sub = submissions[s.id]
+              const hasAttempt = !!sub
+              const score = sub?.score
+              const total = quiz.questions?.length || 1
+              const pct = score != null ? ((score / total) * 100).toFixed(1) : null
+              const timeTaken = sub?.timeTaken ? Math.round(sub.timeTaken / 60) + ' min' : '—'
+              return (
+                <tr key={s.id}>
+                  <td>
+                    <strong>{s.name}</strong>
+                    <br /><span style={{ fontSize: 11, color: 'var(--ink2)' }}>{s.snum || s.id}</span>
+                  </td>
+                  <td>
+                    {hasAttempt
+                      ? <Badge variant="green"><CheckCircle size={11} className="inline-block mr-1 align-text-bottom" />Submitted</Badge>
+                      : <Badge variant="gray" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>{isClosed ? <><AlertCircle size={11} />Missed</> : <><Clock size={11} />Not yet</>}</Badge>}
+                  </td>
+                  <td>{score != null ? `${score}/${total}` : '—'}</td>
+                  <td>
+                    {pct != null ? (
+                      <span style={{ fontWeight: 700, color: pct >= 75 ? 'var(--green)' : pct >= 50 ? '#f59e0b' : 'var(--red)' }}>
+                        {pct}%
+                      </span>
+                    ) : '—'}
+                  </td>
+                  <td style={{ fontSize: 12, color: 'var(--ink2)' }}>{timeTaken}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="flex gap-2 flex-wrap">
+        <button className="btn btn-ghost btn-sm" onClick={onEdit}><Pencil size={13} className="inline-block mr-1" />Edit</button>
+        <button className="btn btn-danger btn-sm" onClick={handleDelete}>Delete</button>
+        <button className="btn btn-ghost btn-sm ml-auto" onClick={onClose}>Close</button>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Main Tab ──────────────────────────────────────────────────────────────────
+const PER_PAGE = 10
+
+export default function QuizTab() {
+  const { quizzes, classes, fbReady } = useData()
+  const [page, setPage] = useState(1)
+  const [archivedPage, setArchivedPage] = useState(1)
+  const [showArchivedQuizzes, setShowArchivedQuizzes] = useState(false)
+  const [showExport, setShowExport] = useState(false)
+  const [showImport, setShowImport] = useState(false)
+  const [showForm, setShowForm] = useState(false)
+  const [importedQuestions, setImportedQuestions] = useState([])
+  const [viewQuiz, setViewQuiz] = useState(null)
+  const [editQuiz, setEditQuiz] = useState(null)
+
+  const sorted = useMemo(
+    () => [...quizzes].sort((a, b) => b.createdAt - a.createdAt),
+    [quizzes]
+  )
+
+  const activeQuizzes = useMemo(
+    () => sorted.filter(q => (q.classIds || []).some(id => !classes.find(c => c.id === id)?.archived)),
+    [sorted, classes]
+  )
+  const archivedQuizzes = useMemo(
+    () => sorted.filter(q => (q.classIds || []).length > 0 && (q.classIds || []).every(id => classes.find(c => c.id === id)?.archived)),
+    [sorted, classes]
+  )
+
+  const slice = useMemo(
+    () => activeQuizzes.slice((page - 1) * PER_PAGE, page * PER_PAGE),
+    [activeQuizzes, page]
+  )
+
+  const archivedSlice = useMemo(
+    () => archivedQuizzes.slice((archivedPage - 1) * PER_PAGE, archivedPage * PER_PAGE),
+    [archivedQuizzes, archivedPage]
+  )
+
+  const now = Date.now()
+
+  function statusInfo(q) {
+    if (now < q.openAt) return { label: 'Upcoming', variant: 'blue' }
+    if (now > q.closeAt) return { label: 'Closed', variant: 'red' }
+    return { label: 'Open', variant: 'green' }
+  }
+
+  function handleImported(qs) {
+    setImportedQuestions(qs)
+    setShowImport(false)
+    setShowForm(true)
+  }
+
+  if (!fbReady) return <SkeletonTable />
+
+  return (
+    <div>
+      <div className="sec-hdr mb-3">
+        <div className="sec-title">Quizzes</div>
+        <div className="flex gap-2">
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowImport(true)}><Download size={13} className="inline-block mr-1" />Import AI Response</button>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowExport(true)}><Upload size={13} className="inline-block mr-1" />Export Template</button>
+        </div>
+      </div>
+
+      {!activeQuizzes.length && !archivedQuizzes.length ? (
+        <div className="empty">
+          <div className="empty-icon"><FileText size={32} /></div>
+          No quizzes yet. Export a template, generate with AI, then import the response.
+        </div>
+      ) : activeQuizzes.length === 0 ? (
+        <div className="empty">
+          <div className="empty-icon"><FileText size={32} /></div>
+          No active quizzes. All quizzes belong to archived classes.
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-col gap-3 mb-3">
+            {slice.map(q => {
+              const { label, variant } = statusInfo(q)
+              const clsNames = (q.classIds || []).map(id => {
+                const c = classes.find(x => x.id === id)
+                return c ? `${c.name} ${c.section}` : id
+              }).join(', ')
+              const attempted = Object.keys(q.submissions || {}).length
+              const openLabel = new Date(q.openAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+              const closeLabel = new Date(q.closeAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+
+              return (
+                <div key={q.id} className="card card-pad">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <strong style={{ fontSize: 14 }}>{q.title}</strong>
+                        <Badge variant={variant}>{label}</Badge>
+                        <Badge variant="blue">{q.subject}</Badge>
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
+                        {clsNames} · {q.questions?.length || 0} questions · {q.timeLimit} min
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 3 }}>
+                        Open: {openLabel} → Close: {closeLabel} · {attempted} submitted
+                      </div>
+                    </div>
+                    <div className="flex gap-1.5 flex-shrink-0">
+                      <button className="btn btn-ghost btn-sm" onClick={() => setViewQuiz(q)}>View</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => setEditQuiz(q)}>Edit</button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <Pagination total={activeQuizzes.length} perPage={PER_PAGE} page={page} onChange={setPage} />
+        </>
+      )}
+
+      {/* Archived Quizzes Section */}
+      {archivedQuizzes.length > 0 && (
+        <div className="mt-5">
+          <button
+            className="flex items-center gap-2 text-sm font-semibold mb-3"
+            style={{ color: 'var(--amber, #d97706)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            onClick={() => setShowArchivedQuizzes(v => !v)}
+          >
+            {showArchivedQuizzes ? <ArchiveRestore size={15} /> : <Archive size={15} />}
+            {showArchivedQuizzes ? 'Hide' : 'Show'} Archived Class Quizzes ({archivedQuizzes.length})
+          </button>
+          {showArchivedQuizzes && (
+            <>
+              <div className="rounded-lg px-3 py-2 mb-3 text-sm font-medium"
+                style={{ background: '#fef9c3', color: '#92400e', border: '1px solid #fde68a' }}>
+                <Archive size={13} className="inline-block mr-1 align-text-bottom" />
+                These quizzes belong to archived classes and are read-only.
+              </div>
+              <div className="flex flex-col gap-3 mb-3">
+                {archivedSlice.map(q => {
+                  const { label, variant } = statusInfo(q)
+                  const clsNames = (q.classIds || []).map(id => {
+                    const c = classes.find(x => x.id === id)
+                    return c ? `${c.name} ${c.section}` : id
+                  }).join(', ')
+                  const attempted = Object.keys(q.submissions || {}).length
+                  const openLabel = new Date(q.openAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+                  const closeLabel = new Date(q.closeAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+                  return (
+                    <div key={q.id} className="card card-pad" style={{ opacity: 0.85 }}>
+                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <strong style={{ fontSize: 14 }}>{q.title}</strong>
+                            <Badge variant={variant}>{label}</Badge>
+                            <Badge variant="blue">{q.subject}</Badge>
+                            <Badge variant="yellow">Archived</Badge>
+                          </div>
+                          <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
+                            {clsNames} · {q.questions?.length || 0} questions · {q.timeLimit} min
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 3 }}>
+                            Open: {openLabel} → Close: {closeLabel} · {attempted} submitted
+                          </div>
+                        </div>
+                        <div className="flex gap-1.5 flex-shrink-0">
+                          <button className="btn btn-ghost btn-sm" onClick={() => setViewQuiz(q)}>View</button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <Pagination total={archivedQuizzes.length} perPage={PER_PAGE} page={archivedPage} onChange={setArchivedPage} />
+            </>
+          )}
+        </div>
+      )}
+
+      {showExport && (
+        <ExportTemplateModal
+          onClose={() => setShowExport(false)}
+          onSwitchToImport={() => { setShowExport(false); setShowImport(true) }}
+        />
+      )}
+
+      {showImport && (
+        <ImportResponseModal
+          onClose={() => setShowImport(false)}
+          onImported={handleImported}
+        />
+      )}
+
+      {showForm && (
+        <QuizFormModal
+          initialQuestions={importedQuestions}
+          onClose={() => { setShowForm(false); setImportedQuestions([]) }}
+        />
+      )}
+
+      {editQuiz && (
+        <QuizFormModal
+          quiz={quizzes.find(q => q.id === editQuiz.id) || editQuiz}
+          onClose={() => setEditQuiz(null)}
+        />
+      )}
+
+      {viewQuiz && (
+        <ViewQuizModal
+          quiz={quizzes.find(q => q.id === viewQuiz.id) || viewQuiz}
+          onClose={() => setViewQuiz(null)}
+          onEdit={() => { setEditQuiz(viewQuiz); setViewQuiz(null) }}
+          onDelete={() => setViewQuiz(null)}
+        />
+      )}
+    </div>
+  )
+}
