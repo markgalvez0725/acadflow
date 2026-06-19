@@ -5,23 +5,33 @@ import { deserializeStudents } from '@/utils/attendance'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
-import { Plus, Pencil, School, Archive, ArchiveRestore, CalendarDays, Users, LockOpen, Lock, CheckCircle2 } from 'lucide-react'
+import { Plus, Pencil, School, Archive, ArchiveRestore, CalendarDays, Users, LockOpen, Lock, CheckCircle2, Copy } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const PER_PAGE = 10
 
+// Suggest the next section label when duplicating (2-A → 2-B, Sec1 → Sec2).
+function suggestNextSection(section = '') {
+  const letter = section.match(/^(.*?)([A-Za-z])$/)
+  if (letter) return letter[1] + String.fromCharCode(letter[2].charCodeAt(0) + 1)
+  const num = section.match(/^(.*?)(\d+)$/)
+  if (num) return num[1] + (parseInt(num[2], 10) + 1)
+  return ''
+}
+
 // ── Add Class Modal ───────────────────────────────────────────────────
-function AddClassModal({ onClose }) {
+function AddClassModal({ onClose, prefill = null }) {
   const { classes, students, saveClasses, saveStudents, semester } = useData()
   const { toast } = useUI()
-  const [name, setName]                 = useState('')
-  const [section, setSection]           = useState('')
-  const [room, setRoom]                 = useState('')
-  const [schedule, setSchedule]         = useState('')
-  const [subjects, setSubjects]         = useState('')
-  const [courseReq, setCourseReq]       = useState('')
+  const isDuplicate = !!prefill
+  const [name, setName]                 = useState(prefill?.name || '')
+  const [section, setSection]           = useState(prefill?.section || '')
+  const [room, setRoom]                 = useState(prefill?.room || '')
+  const [schedule, setSchedule]         = useState(prefill?.schedule || '')
+  const [subjects, setSubjects]         = useState(prefill?.subjects || '')
+  const [courseReq, setCourseReq]       = useState(prefill?.courseReq || '')
   const [enrollmentOpen, setEnrollmentOpen] = useState(
-    semester?.status === 'active'
+    prefill ? !!prefill.enrollmentOpen : semester?.status === 'active'
   )
   const autoSemLabel = semester ? (semester.label || `${semester.term} AY ${semester.year}`) : null
   const [err, setErr]           = useState('')
@@ -67,8 +77,16 @@ function AddClassModal({ onClose }) {
 
   return (
     <Modal onClose={onClose}>
-      <h3><Plus size={18} className="inline-block mr-1 align-text-bottom" />Add New Class</h3>
-      <p className="modal-sub">Fill in the class details below.</p>
+      <h3>
+        {isDuplicate
+          ? <><Copy size={18} className="inline-block mr-1 align-text-bottom" />Duplicate to New Section</>
+          : <><Plus size={18} className="inline-block mr-1 align-text-bottom" />Add New Class</>}
+      </h3>
+      <p className="modal-sub">
+        {isDuplicate
+          ? 'Same course and subjects, new section. Set a unique section, then save.'
+          : 'Fill in the class details below.'}
+      </p>
       <div className="input-row">
         <div className="field">
           <label>Course Name <span className="text-red-500">*</span></label>
@@ -330,13 +348,39 @@ export default function ClassesTab() {
   const [page, setPage]           = useState(1)
   const [showAdd, setShowAdd]     = useState(false)
   const [editClass, setEditClass] = useState(null)
+  const [duplicateFrom, setDuplicateFrom] = useState(null)
   const [showArchived, setShowArchived] = useState(false)
+  const [subjectFilter, setSubjectFilter] = useState('')
   const [togglingId, setTogglingId] = useState(null)
 
+  // Unique subjects across the visible (active/archived) classes — for the filter.
+  const allSubjects = useMemo(() => {
+    const set = new Set()
+    classes.forEach(c => {
+      if (showArchived ? c.archived : !c.archived) (c.subjects || []).forEach(s => set.add(s))
+    })
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [classes, showArchived])
+
   const filtered = useMemo(
-    () => classes.filter(c => showArchived ? c.archived : !c.archived),
-    [classes, showArchived]
+    () => classes.filter(c =>
+      (showArchived ? c.archived : !c.archived) &&
+      (!subjectFilter || c.subjects?.includes(subjectFilter))
+    ),
+    [classes, showArchived, subjectFilter]
   )
+
+  function duplicateClass(cls) {
+    setDuplicateFrom({
+      name: cls.name,
+      section: suggestNextSection(cls.section),
+      room: cls.room && cls.room !== 'TBA' ? cls.room : '',
+      schedule: cls.schedule && cls.schedule !== 'TBA' ? cls.schedule : '',
+      subjects: (cls.subjects || []).join(', '),
+      courseReq: cls.courseReq || cls.name,
+      enrollmentOpen: cls.enrollmentOpen,
+    })
+  }
 
   const slice = useMemo(
     () => filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE),
@@ -469,16 +513,44 @@ export default function ClassesTab() {
       {/* Header */}
       <div className="sec-hdr mb-3">
         <div className="sec-title">Classes</div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {allSubjects.length > 0 && (
+            <select
+              value={subjectFilter}
+              onChange={e => { setSubjectFilter(e.target.value); setPage(1) }}
+              title="Show all sections of a subject"
+              style={{
+                height: 32, padding: '0 10px', borderRadius: 8, fontSize: 13,
+                background: 'var(--surface2)', border: `1px solid ${subjectFilter ? 'var(--accent)' : 'var(--border)'}`,
+                color: subjectFilter ? 'var(--accent)' : 'var(--ink2)', cursor: 'pointer', maxWidth: 180,
+              }}
+            >
+              <option value="">All subjects</option>
+              {allSubjects.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          )}
           <button
             className={`btn btn-sm ${showArchived ? 'btn-ghost' : 'btn-ghost'}`}
-            onClick={() => { setShowArchived(v => !v); setPage(1) }}
+            onClick={() => { setShowArchived(v => !v); setSubjectFilter(''); setPage(1) }}
           >
             {showArchived ? <><ArchiveRestore size={14} className="inline-block mr-1" />Active</> : <><Archive size={14} className="inline-block mr-1" />Archived</>}
           </button>
           {!showArchived && <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>+ Add Class</button>}
         </div>
       </div>
+
+      {/* Subject grouping summary */}
+      {subjectFilter && (
+        <div className="mb-3 px-3 py-2 rounded-lg text-xs flex items-center gap-2 flex-wrap" style={{ background: 'var(--accent-l)', color: 'var(--accent)' }}>
+          <School size={13} className="shrink-0" />
+          <span>
+            <strong>{filtered.length}</strong> section{filtered.length !== 1 ? 's' : ''} of <strong>{subjectFilter}</strong>
+            {' · '}
+            <strong>{filtered.reduce((sum, c) => sum + students.filter(s => s.classId === c.id || s.classIds?.includes(c.id)).length, 0)}</strong> students total
+          </span>
+          <button className="link-btn ml-auto" style={{ color: 'var(--accent)' }} onClick={() => { setSubjectFilter(''); setPage(1) }}>Clear</button>
+        </div>
+      )}
 
       {/* Table */}
       {!filtered.length ? (
@@ -564,6 +636,7 @@ export default function ClassesTab() {
                       <td>
                         <div className="flex gap-1.5 flex-wrap">
                           {!cls.archived && <button className="btn btn-ghost btn-sm" onClick={() => setEditClass(cls)}><Pencil size={13} className="inline-block mr-1" />Edit</button>}
+                          {!cls.archived && <button className="btn btn-ghost btn-sm" onClick={() => duplicateClass(cls)} title="Create another section with the same subjects"><Copy size={13} className="inline-block mr-1" />Duplicate</button>}
                           <button className="btn btn-ghost btn-sm" onClick={() => handleArchive(cls)}>
                             {cls.archived ? <><ArchiveRestore size={13} className="inline-block mr-1" />Unarchive</> : <><Archive size={13} className="inline-block mr-1" />Archive</>}
                           </button>
@@ -581,7 +654,12 @@ export default function ClassesTab() {
       )}
 
       {/* Modals */}
-      {showAdd  && <AddClassModal onClose={() => setShowAdd(false)} />}
+      {(showAdd || duplicateFrom) && (
+        <AddClassModal
+          prefill={duplicateFrom}
+          onClose={() => { setShowAdd(false); setDuplicateFrom(null) }}
+        />
+      )}
       {editClass && <EditClassModal cls={editClass} onClose={() => setEditClass(null)} />}
     </div>
   )
