@@ -43,7 +43,7 @@ export default function Modal({ isOpen = true, onClose, size = 'md', children, z
       onClick={e => { if (e.target === e.currentTarget) onClose?.() }}
     >
       <div
-        className={`bg-surface border border-border rounded-lg w-full ${maxW} max-h-[90vh] overflow-y-auto shadow-lg`}
+        className={`glass-panel bg-surface border border-border rounded-lg w-full ${maxW} max-h-[90vh] overflow-y-auto shadow-lg`}
         style={{ padding: 28 }}
       >
         {children}

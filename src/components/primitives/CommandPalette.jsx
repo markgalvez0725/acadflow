@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext'
 import {
   Search, LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell,
   FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Users, GraduationCap,
-  Sun, Moon, Download, CornerDownLeft, ArrowUp, ArrowDown, User, Building2,
+  Sun, Moon, Download, CornerDownLeft, ArrowUp, ArrowDown, User, Building2, Sparkles,
 } from 'lucide-react'
 
 // Tab catalogs mirror AdminLayout / StudentLayout nav (kept in sync manually).
@@ -118,6 +118,7 @@ export default function CommandPalette() {
       run: () => go(t.id),
     }))
 
+    const glassOff = typeof document !== 'undefined' && document.documentElement.dataset.glass === 'off'
     const actions = [
       {
         id: 'theme',
@@ -126,6 +127,20 @@ export default function CommandPalette() {
         keywords: 'theme dark light mode appearance',
         Icon: theme === 'dark' ? Sun : Moon,
         run: () => { toggleTheme(); setOpen(false) },
+      },
+      {
+        id: 'glass',
+        label: glassOff ? 'Turn on frosted glass' : 'Turn off frosted glass',
+        section: 'Actions',
+        keywords: 'glass frosted blur transparency translucent appearance performance',
+        Icon: Sparkles,
+        run: () => {
+          const next = glassOff ? '' : 'off'
+          if (next) document.documentElement.dataset.glass = 'off'
+          else delete document.documentElement.dataset.glass
+          try { localStorage.setItem('acadflow_glass', next === 'off' ? 'off' : 'on') } catch (e) {}
+          setOpen(false)
+        },
       },
     ]
     if (deferredInstall) {
@@ -219,9 +234,12 @@ export default function CommandPalette() {
         onClick={(e) => e.stopPropagation()}
         onKeyDown={onListKey}
         style={{
-          width: '100%', maxWidth: 560, background: 'var(--surface)',
-          border: '1px solid var(--border2)', borderRadius: 16,
-          boxShadow: '0 24px 70px rgba(8,12,22,.45)', overflow: 'hidden',
+          width: '100%', maxWidth: 560,
+          background: 'var(--glass-bg, var(--surface))',
+          backdropFilter: 'blur(22px) saturate(170%)',
+          WebkitBackdropFilter: 'blur(22px) saturate(170%)',
+          border: '1px solid var(--glass-border, var(--border2))', borderRadius: 18,
+          boxShadow: '0 1px 0 rgba(255,255,255,.4) inset, 0 24px 70px rgba(8,12,22,.45)', overflow: 'hidden',
           animation: 'cp-pop .16s cubic-bezier(.34,1.56,.64,1)',
         }}
       >
