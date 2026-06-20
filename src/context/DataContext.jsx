@@ -426,10 +426,19 @@ export function DataProvider({ children }) {
     await fbDeleteAnnouncement(dbRef.current, id)
   }, [])
 
-  const saveMeetLink = useCallback(async (classId, meetLink) => {
-    setClasses(prev => prev.map(c => c.id === classId ? { ...c, meetLink } : c))
-    await fbSaveMeetLink(dbRef.current, classId, meetLink)
-  }, [])
+  // Save a Meet link for a class. When `subject` is given, the link is stored
+  // per-subject in meetLinks[subject]; otherwise it sets the class-wide link.
+  const saveMeetLink = useCallback(async (classId, meetLink, subject) => {
+    const updated = classes.map(c => {
+      if (c.id !== classId) return c
+      return subject
+        ? { ...c, meetLinks: { ...(c.meetLinks || {}), [subject]: meetLink } }
+        : { ...c, meetLink }
+    })
+    setClasses(updated)
+    if (subject) await persistClassesSync(dbRef.current, updated)
+    else await fbSaveMeetLink(dbRef.current, classId, meetLink)
+  }, [classes])
 
   const scheduleMeeting = useCallback(async (meetingData) => {
     const meeting = await fbScheduleMeeting(dbRef.current, meetingData)
