@@ -705,7 +705,9 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
           } else if (r.status === 501) {
             toast('AI is not set up yet (no free key). Using on-device drafts instead.', 'info', 6000)
           } else {
-            toast('AI request failed. Using on-device drafts instead.', 'warn', 5000)
+            let msg = 'AI request failed'
+            try { const d = await r.json(); if (d?.error) msg = 'AI: ' + d.error } catch {}
+            toast(msg + '. Using on-device drafts instead.', 'warn', 8000)
           }
         } catch {
           toast('Could not reach the AI service. Using on-device drafts instead.', 'warn', 5000)
