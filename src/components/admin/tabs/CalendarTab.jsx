@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { ChevronLeft, ChevronRight, CalendarDays, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CalendarDays, X, ClipboardList, FileQuestion, Megaphone, Clock3 } from 'lucide-react'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -9,9 +9,9 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December']
 
 const EVENT_COLORS = {
-  activity:     { dot: '#3b82f6', bg: 'rgba(59,130,246,0.12)', text: '#2563eb', label: 'Activity' },
-  quiz:         { dot: '#a855f7', bg: 'rgba(168,85,247,0.12)', text: '#9333ea', label: 'Quiz' },
-  announcement: { dot: '#22c55e', bg: 'rgba(34,197,94,0.12)',  text: '#16a34a', label: 'Announcement' },
+  activity:     { dot: '#3b82f6', bg: 'rgba(59,130,246,0.12)', text: '#2563eb', label: 'Activity',     Icon: ClipboardList },
+  quiz:         { dot: '#a855f7', bg: 'rgba(168,85,247,0.12)', text: '#9333ea', label: 'Quiz',         Icon: FileQuestion },
+  announcement: { dot: '#22c55e', bg: 'rgba(34,197,94,0.12)',  text: '#16a34a', label: 'Announcement', Icon: Megaphone },
 }
 
 const TAB_MAP = { activity: 'activities', quiz: 'quizzes', announcement: 'stream' }
@@ -137,51 +137,77 @@ export default function CalendarTab() {
       .slice(0, 5)
   }, [eventMap])
 
+  // total grid cells, padded to complete final week row
+  const totalCells = startOffset + days
+  const trailingCells = (7 - (totalCells % 7)) % 7
+
   if (!fbReady) return <SkeletonRows />
 
   return (
     <div className="space-y-4">
+      {/* Hero header */}
       <div
         className="card"
         style={{
-          padding: 16,
-          background: 'linear-gradient(135deg, var(--accent-l), rgba(255,255,255,0))',
-          borderColor: 'var(--border2)',
+          padding: 18,
+          background: 'linear-gradient(135deg, var(--accent-l), transparent 70%)',
+          border: '1px solid var(--border)',
         }}
       >
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-wide text-ink3">Academic Planner</div>
-            <h3 className="text-base font-bold text-ink mt-1">Calendar Overview</h3>
-            <p className="text-xs text-ink2 mt-1">Track deadlines, quiz windows, and stream activity by class and date.</p>
+          <div className="flex items-center gap-3">
+            <div
+              className="flex items-center justify-center"
+              style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--accent)', color: '#fff', flexShrink: 0 }}
+            >
+              <CalendarDays size={20} />
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink3">Academic Planner</div>
+              <h3 className="text-base font-bold text-ink mt-0.5">Calendar Overview</h3>
+              <p className="text-xs text-ink2 mt-0.5">Track deadlines, quiz windows, and stream activity by class and date.</p>
+            </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-surface text-ink2 border border-line">
-              {monthEventCount} total this month
+            <span className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ background: 'var(--surface)', color: 'var(--ink2)', border: '1px solid var(--border)' }}>
+              {monthEventCount} this month
             </span>
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-surface text-ink2 border border-line">
+            <span className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ background: 'var(--surface)', color: 'var(--ink2)', border: '1px solid var(--border)' }}>
               {upcomingEvents.length} upcoming
             </span>
           </div>
         </div>
       </div>
 
+      {/* Summary stat cards */}
       <div className="grid gap-3 sm:grid-cols-3">
-        {Object.entries(EVENT_COLORS).map(([type, color]) => (
-          <div key={type} className="card" style={{ padding: 12 }}>
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-ink2">{color.label}</span>
-              <span style={{ width: 10, height: 10, borderRadius: '50%', background: color.dot }} />
+        {Object.entries(EVENT_COLORS).map(([type, color]) => {
+          const Icon = color.Icon
+          return (
+            <div
+              key={type}
+              className="card flex items-center gap-3"
+              style={{ padding: 14, borderLeft: `3px solid ${color.dot}` }}
+            >
+              <div
+                className="flex items-center justify-center"
+                style={{ width: 38, height: 38, borderRadius: 10, background: color.bg, color: color.text, flexShrink: 0 }}
+              >
+                <Icon size={18} />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-ink3">{color.label}</div>
+                <div className="text-xl font-bold text-ink leading-tight">{monthTypeCounts[type] || 0}</div>
+              </div>
             </div>
-            <div className="mt-2 text-lg font-bold text-ink">{monthTypeCounts[type] || 0}</div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
-      {/* Header */}
-      <div className="card py-3 px-4" style={{ borderColor: 'var(--border2)' }}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          {/* Month nav */}
+      {/* Calendar card: header + grid in one surface */}
+      <div className="card overflow-hidden p-0" style={{ border: '1px solid var(--border)' }}>
+        {/* Header bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
           <div className="flex items-center gap-1">
             <button className="icon-btn" onClick={prevMonth} aria-label="Previous month">
               <ChevronLeft size={16} />
@@ -200,27 +226,17 @@ export default function CalendarTab() {
             </button>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* Event count badge */}
-            {monthEventCount > 0 && (
-              <span className="text-xs text-ink2 bg-surface2 px-2 py-0.5 rounded-full">
-                {monthEventCount} event{monthEventCount !== 1 ? 's' : ''} this month
-              </span>
-            )}
-
-            {/* Legend */}
+          <div className="flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-3">
               {Object.entries(EVENT_COLORS).map(([type, { dot, label }]) => (
-                <span key={type} className="flex items-center gap-1 text-xs text-ink2">
+                <span key={type} className="flex items-center gap-1.5 text-xs text-ink2">
                   <span style={{ width: 8, height: 8, borderRadius: '50%', background: dot, display: 'inline-block', flexShrink: 0 }} />
                   {label}
                 </span>
               ))}
             </div>
-
-            {/* Class filter */}
             <select
-              className="form-input text-xs py-1 pr-7"
+              className="form-input text-xs py-1.5 pr-7"
               value={filterClass}
               onChange={e => { setFilterClass(e.target.value); setSelectedKey(null) }}
             >
@@ -231,69 +247,108 @@ export default function CalendarTab() {
             </select>
           </div>
         </div>
-      </div>
 
-      {/* Calendar grid */}
-      <div className="card overflow-hidden p-0">
-        {/* Day headers */}
-        <div className="grid grid-cols-7 bg-surface2 border-b border-line">
-          {DAYS.map(d => (
-            <div key={d} className="text-center text-xs font-semibold text-ink2 py-2.5 uppercase tracking-wide">
+        {/* Day-of-week header */}
+        <div className="grid grid-cols-7" style={{ background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}>
+          {DAYS.map((d, i) => (
+            <div
+              key={d}
+              className="text-center text-[11px] font-semibold py-2.5 uppercase tracking-[0.06em]"
+              style={{ color: i === 0 || i === 6 ? 'var(--ink3)' : 'var(--ink2)' }}
+            >
               {d}
             </div>
           ))}
         </div>
 
+        {/* Calendar grid */}
         <div className="grid grid-cols-7">
           {Array.from({ length: startOffset }).map((_, i) => (
-            <div key={'e' + i} className="min-h-[80px] border-b border-r border-line bg-surface2/30" />
+            <div
+              key={'e' + i}
+              className="min-h-[88px]"
+              style={{ background: 'var(--surface2)', borderRight: (startOffset + i + 1) % 7 === 0 ? 'none' : '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}
+            />
           ))}
 
           {Array.from({ length: days }).map((_, i) => {
             const dayNum = i + 1
+            const cellIndex = startOffset + i
+            const col = cellIndex % 7
+            const isWeekend = col === 0 || col === 6
             const key = `${year}-${month}-${dayNum}`
             const events = eventMap[key] || []
             const isToday = key === todayKey
             const isSelected = key === selectedKey
-            const hasEvents = events.length > 0
 
             return (
               <div
                 key={key}
-                className={`min-h-[80px] border-b border-r border-line p-1.5 cursor-pointer transition-all
-                  ${isSelected ? 'bg-accent/10 ring-1 ring-inset ring-accent/30' : hasEvents ? 'hover:bg-surface2' : 'hover:bg-surface2/60'}
-                `}
+                className="min-h-[88px] p-1.5 cursor-pointer transition-colors"
+                style={{
+                  borderRight: col === 6 ? 'none' : '1px solid var(--border)',
+                  borderBottom: '1px solid var(--border)',
+                  background: isSelected
+                    ? 'var(--accent-l)'
+                    : isWeekend ? 'color-mix(in srgb, var(--surface2) 55%, transparent)' : 'transparent',
+                  boxShadow: isSelected ? 'inset 0 0 0 1.5px var(--accent)' : 'none',
+                }}
+                onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'var(--surface2)' }}
+                onMouseLeave={e => {
+                  if (!isSelected) e.currentTarget.style.background = isWeekend
+                    ? 'color-mix(in srgb, var(--surface2) 55%, transparent)'
+                    : 'transparent'
+                }}
                 onClick={() => setSelectedKey(isSelected ? null : key)}
               >
-                <div className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full mb-1 transition-colors
-                  ${isToday ? 'bg-accent text-white shadow-sm' : isSelected ? 'text-accent' : 'text-ink'}
-                `}>
+                <div
+                  className="text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full mb-1"
+                  style={
+                    isToday
+                      ? { background: 'var(--accent)', color: '#fff' }
+                      : isSelected
+                        ? { color: 'var(--accent)' }
+                        : { color: 'var(--ink)' }
+                  }
+                >
                   {dayNum}
                 </div>
-                <div className="space-y-0.5">
-                  {events.slice(0, 3).map((ev, idx) => (
-                    <div
-                      key={ev.id + idx}
-                      className="truncate text-[10px] rounded-sm px-1 leading-[15px] font-medium"
-                      style={{ background: EVENT_COLORS[ev.type]?.dot, color: '#fff' }}
-                      title={ev.title}
-                    >
-                      {ev.title}
-                    </div>
-                  ))}
+                <div className="space-y-1">
+                  {events.slice(0, 3).map((ev, idx) => {
+                    const c = EVENT_COLORS[ev.type]
+                    return (
+                      <div
+                        key={ev.id + idx}
+                        className="truncate text-[10px] rounded px-1.5 py-0.5 leading-tight font-medium flex items-center gap-1"
+                        style={{ background: c?.bg, color: c?.text }}
+                        title={ev.title}
+                      >
+                        <span style={{ width: 5, height: 5, borderRadius: '50%', background: c?.dot, flexShrink: 0 }} />
+                        <span className="truncate">{ev.title}</span>
+                      </div>
+                    )
+                  })}
                   {events.length > 3 && (
-                    <div className="text-[10px] text-ink3 pl-0.5 font-medium">+{events.length - 3} more</div>
+                    <div className="text-[10px] text-ink3 pl-1 font-medium">+{events.length - 3} more</div>
                   )}
                 </div>
               </div>
             )
           })}
+
+          {Array.from({ length: trailingCells }).map((_, i) => (
+            <div
+              key={'t' + i}
+              className="min-h-[88px]"
+              style={{ background: 'var(--surface2)', borderRight: (startOffset + days + i + 1) % 7 === 0 ? 'none' : '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}
+            />
+          ))}
         </div>
       </div>
 
       {/* Selected day detail */}
       {selectedKey && (
-        <div className="card p-4">
+        <div className="card p-4" style={{ border: '1px solid var(--border)' }}>
           <div className="flex items-center justify-between mb-4">
             <h4 className="font-semibold text-ink text-sm flex items-center gap-2">
               <CalendarDays size={15} className="text-accent" />
@@ -317,8 +372,8 @@ export default function CalendarTab() {
                 return (
                   <div
                     key={ev.id + idx}
-                    className="flex items-center gap-3 p-3 rounded-lg border border-line"
-                    style={{ borderLeftWidth: 3, borderLeftColor: color.dot }}
+                    className="flex items-center gap-3 p-3 rounded-lg"
+                    style={{ border: '1px solid var(--border)', borderLeftWidth: 3, borderLeftColor: color.dot }}
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -349,9 +404,12 @@ export default function CalendarTab() {
         </div>
       )}
 
-      <div className="card p-4">
+      {/* Upcoming agenda */}
+      <div className="card p-4" style={{ border: '1px solid var(--border)' }}>
         <div className="flex items-center justify-between mb-3">
-          <h4 className="font-semibold text-ink text-sm">Upcoming Agenda</h4>
+          <h4 className="font-semibold text-ink text-sm flex items-center gap-2">
+            <Clock3 size={15} className="text-accent" /> Upcoming Agenda
+          </h4>
           <span className="text-xs text-ink3">Next 5 events</span>
         </div>
         {upcomingEvents.length === 0 ? (
@@ -360,12 +418,19 @@ export default function CalendarTab() {
           <div className="space-y-2">
             {upcomingEvents.map((ev, idx) => {
               const color = EVENT_COLORS[ev.type]
+              const Icon = color.Icon
               return (
                 <div
                   key={ev.id + idx}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-line"
-                  style={{ borderLeftWidth: 3, borderLeftColor: color.dot }}
+                  className="flex items-center gap-3 p-3 rounded-lg"
+                  style={{ border: '1px solid var(--border)', borderLeftWidth: 3, borderLeftColor: color.dot }}
                 >
+                  <div
+                    className="flex items-center justify-center"
+                    style={{ width: 32, height: 32, borderRadius: 9, background: color.bg, color: color.text, flexShrink: 0 }}
+                  >
+                    <Icon size={15} />
+                  </div>
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-semibold text-ink truncate">{ev.title}</div>
                     <div className="text-xs text-ink2 truncate">{ev.subtitle || color.label}</div>
