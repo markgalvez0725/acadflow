@@ -167,12 +167,14 @@ export default function StudentLayout() {
       (m.type === 'announcement' && m.classId && enrolledClassIds.includes(m.classId))
     )
     if (!isVisible) return false
-    // Skip messages sent by the student — they don't need to be "read"
-    if (m.from === id) return false
-    const studentRead = Array.isArray(m.read) && m.read.includes(id)
-    if (!studentRead) return true
-    // Check if there's a new admin reply after the student last read
     const lastReadAt = m.readAt?.[id] || 0
+    // For teacher-initiated messages, the base message itself can be unread.
+    if (m.from !== id) {
+      const studentRead = Array.isArray(m.read) && m.read.includes(id)
+      if (!studentRead) return true
+    }
+    // For any thread (including ones the student started), a teacher reply that
+    // arrived after the student last opened it counts as unread.
     const lastAdminReply = (m.replies || []).filter(r => r.from === 'admin').reduce((max, r) => Math.max(max, r.ts || 0), 0)
     return lastAdminReply > lastReadAt
   }).length

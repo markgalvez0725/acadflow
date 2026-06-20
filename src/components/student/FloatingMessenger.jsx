@@ -3,6 +3,8 @@ import { doc, updateDoc, setDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { relativeTime } from '@/utils/format'
+import { notifyAdminMessage } from '@/firebase/messageNotify'
+import { fbAddMessageReply, fbMarkMessageRead } from '@/firebase/persistence'
 import { MessageSquare, GraduationCap, CheckCheck, X } from 'lucide-react'
 
 function getStudentMessages(messages, s) {
@@ -97,13 +99,8 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
     for (const id of msgIds) {
       const m = messages.find(x => x.id === id)
       if (!m) continue
-      const alreadyRead = Array.isArray(m.read) && m.read.includes(s.id)
-      const newRead = alreadyRead ? m.read : [...(m.read || []), s.id]
       const lastReplyTs = (m.replies || []).filter(r => r.from === 'admin').reduce((max, r) => Math.max(max, r.ts || 0), 0)
-      updateDoc(doc(db.current, 'messages', id), {
-        read: newRead,
-        readAt: { ...(m.readAt || {}), [s.id]: Math.max(now, lastReplyTs) },
-      }).catch(() => {})
+      fbMarkMessageRead(db.current, id, s.id, Math.max(now, lastReplyTs)).catch(() => {})
     }
   }
 
@@ -153,16 +150,12 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
     setSending(true)
     try {
       if (replyMsgId) {
-        const m = messages.find(x => x.id === replyMsgId)
-        if (m) {
-          const newReply = { from: s.id, body: text, ts: Date.now() }
-          const replies = [...(m.replies || []), newReply]
-          const newRead = [...new Set([...(m.read || []), s.id])]
-          setThreadEntries(prev => [...prev, { ...newReply, isMain: false }])
-          setReplyText('')
-          await updateDoc(doc(db.current, 'messages', replyMsgId), { replies, adminRead: false, read: newRead })
-          await pushAdminNotif(db.current, s, text, 'msg_in')
-        }
+        const newReply = { from: s.id, body: text, ts: Date.now() }
+        setThreadEntries(prev => [...prev, { ...newReply, isMain: false }])
+        setReplyText('')
+        // Atomic append — won't clobber a teacher reply sent at the same time.
+        await fbAddMessageReply(db.current, replyMsgId, newReply, { readerId: s.id, adminRead: false })
+        notifyAdminMessage(db.current, s.name || s.id, text, 'reply')
       } else {
         const newId = 'm' + Date.now() + Math.random().toString(36).slice(2, 6)
         setReplyText('')
@@ -172,6 +165,7 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
           body: text, ts: Date.now(),
           read: [s.id], adminRead: false, replies: [], type: 'direct',
         })
+        notifyAdminMessage(db.current, s.name || s.id, text, 'message')
         openConversation()
       }
     } catch (e) {
