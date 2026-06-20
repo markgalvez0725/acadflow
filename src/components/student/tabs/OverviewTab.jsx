@@ -369,7 +369,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
   let statusColor = 'var(--ink2)'
   let statusSub = gwa === null ? 'No grades yet' : 'Grade entry in progress'
   if (gwa !== null && hasCompleteGrades) {
-    if (gwa >= 90) { statusText = 'Excellent'; statusColor = 'var(--green)'; statusSub = "Dean's Lister candidate" }
+    if (gwa >= 90) { statusText = 'Excellent'; statusColor = 'var(--green)'; statusSub = 'Outstanding standing' }
     else if (gwa >= 85) { statusText = 'Good Standing'; statusColor = 'var(--green)'; statusSub = 'Passing' }
     else if (gwa >= 75) { statusText = 'Passing'; statusColor = 'var(--yellow)'; statusSub = 'Needs improvement' }
     else { statusText = 'At Risk'; statusColor = 'var(--red)'; statusSub = 'Below passing threshold' }
@@ -480,20 +480,26 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
         </div>
       )}
 
-      {/* Stat cards */}
-      <div className="s-stat-row">
-        <div className="s-stat-card">
-          <div className="s-stat-label">GWA</div>
-          <div className={`s-val ${gwaClass}`}>{gwa !== null ? gwa.toFixed(2) : '—'}</div>
+      {/* Standing hero + stat tiles */}
+      <div className="s-home-hero">
+        <div>
+          <div className="s-home-hero-label">General weighted average</div>
+          <div className="s-home-hero-gwa">{gwa !== null ? gwa.toFixed(2) : '—'}</div>
+          <div className="s-home-hero-sem">{semester?.label || 'Current semester'}</div>
         </div>
+        <div className="s-home-hero-status">
+          <span className="sh-status">{statusText}</span>
+          <span className="sh-sub">{statusSub}</span>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
         <div className="s-stat-card">
           <div className="s-stat-label">Attendance</div>
           <div className={`s-val ${attClass}`}>{rate !== null ? rate.toFixed(1) + '%' : '—'}</div>
         </div>
         <div className="s-stat-card">
-          <div className="s-stat-label">Status</div>
-          <div className="s-val" style={{ color: statusColor, fontSize: 16 }}>{statusText}</div>
-          <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 2 }}>{statusSub}</div>
+          <div className="s-stat-label">Subjects</div>
+          <div className="s-val">{subs.length || allEnrolledSubs.length || '—'}</div>
         </div>
       </div>
 
