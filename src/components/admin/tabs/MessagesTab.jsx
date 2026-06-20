@@ -4,6 +4,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { sortByLastName } from '@/utils/format'
 import { notifyStudentMessage, notifyStudentsBroadcast } from '@/firebase/messageNotify'
+import { fbAddMessageReply } from '@/firebase/persistence'
 import Modal from '@/components/primitives/Modal'
 import { X } from 'lucide-react'
 
@@ -508,14 +509,12 @@ export default function MessagesTab() {
         const studentMsgs = messages.filter(m => m.from === thread.studentId).sort((a, b) => b.ts - a.ts)
         const targetMsg = studentMsgs[0]
         if (!targetMsg) return
-        const updatedReplies = [...(targetMsg.replies || []), reply]
-        await updateDoc(doc(db.current, 'messages', targetMsg.id), { replies: updatedReplies, adminRead: true })
+        await fbAddMessageReply(db.current, targetMsg.id, reply, { adminRead: true })
         notifyStudentMessage(db.current, thread.studentId, text)
       } else {
         const m = messages.find(x => x.id === thread.msgId)
         if (!m) return
-        const updatedReplies = [...(m.replies || []), reply]
-        await updateDoc(doc(db.current, 'messages', m.id), { replies: updatedReplies, adminRead: true })
+        await fbAddMessageReply(db.current, m.id, reply, { adminRead: true })
         // Notify the recipient(s) of this thread.
         if (m.to === 'all') {
           notifyStudentsBroadcast(db.current, students.map(s => s.id), text)
