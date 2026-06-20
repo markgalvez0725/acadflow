@@ -13,9 +13,61 @@ import { saveSettingsToFirebase } from '@/firebase/settings'
 const TABS = [
   { id: 'semester', label: '🗓 Semester' },
   { id: 'cred',     label: 'Credentials' },
+  { id: 'notifs',   label: '🔔 Notifications' },
   { id: 'eq',       label: 'Equiv Scale' },
   { id: 'firebase', label: 'Firebase' },
 ]
+
+// ── Notifications Tab ──────────────────────────────────────────────────────────
+function NotificationsTab({ push }) {
+  const supported  = push?.supported
+  const permission = push?.permission
+  const busy       = push?.busy
+  const enabled    = permission === 'granted'
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.6 }}>
+        Get a browser push alert on this device when a student sends you a message —
+        even when AcadFlow isn't the active tab. You'll always see the in-app
+        Notifications badge regardless of this setting.
+      </div>
+
+      <div
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: 12, flexWrap: 'wrap',
+          background: 'var(--surface2)', borderRadius: 10, padding: '12px 14px',
+        }}
+      >
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 13 }}>Push notifications</div>
+          <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 2 }}>
+            {!supported
+              ? 'Not available on this browser / not configured yet.'
+              : enabled
+                ? 'Enabled on this device.'
+                : permission === 'denied'
+                  ? 'Blocked — enable notifications for this site in your browser settings.'
+                  : 'Not enabled on this device yet.'}
+          </div>
+        </div>
+        <button
+          className="btn btn-primary btn-sm"
+          onClick={() => push?.enable?.()}
+          disabled={!supported || busy || enabled}
+        >
+          {busy ? 'Enabling…' : enabled ? 'Enabled' : 'Enable on this device'}
+        </button>
+      </div>
+
+      <div style={{ fontSize: 11, color: 'var(--ink3)', lineHeight: 1.6 }}>
+        Note: delivery of pushes (not the in-app badge) also requires the server
+        push key to be configured. Enable this on each device where you want alerts.
+      </div>
+    </div>
+  )
+}
 
 // ── Semester Tab ──────────────────────────────────────────────────────────────
 const STATUS_OPTS = [
@@ -533,7 +585,7 @@ function FirebaseTab() {
 }
 
 // ── Main Modal ────────────────────────────────────────────────────────────────
-export default function AdminSettingsModal({ onClose }) {
+export default function AdminSettingsModal({ onClose, push }) {
   const [activeTab, setActiveTab] = useState('semester')
 
   return (
@@ -567,6 +619,7 @@ export default function AdminSettingsModal({ onClose }) {
 
       {activeTab === 'semester'  && <SemesterTab />}
       {activeTab === 'cred'     && <CredentialsTab />}
+      {activeTab === 'notifs'   && <NotificationsTab push={push} />}
       {activeTab === 'eq'       && <EquivScaleTab />}
       {activeTab === 'firebase' && <FirebaseTab />}
     </Modal>
