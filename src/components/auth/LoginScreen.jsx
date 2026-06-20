@@ -10,8 +10,6 @@ import { validateSnum, sanitizeSnum } from '@/utils/validate'
 import { SECURITY_QUESTIONS } from '@/utils/securityQuestions'
 import LoadingButton from '@/components/primitives/LoadingButton'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
-import WeatherScene from '@/components/canvas/WeatherScene'
-import { getScene } from '@/components/canvas/scenes'
 
 const STUDENT_FEATURES = [
   { Icon: BarChart2,     label: 'Grades' },
@@ -37,14 +35,6 @@ export default function LoginScreen() {
   const [err, setErr]         = useState('')
   const [okMsg, setOkMsg]     = useState('')
 
-  // Track scene for background-aware text contrast
-  const [scene, setScene]         = useState(() => getScene())
-  const [sceneId, setSceneId]     = useState(() => getScene()?.id || 'midday')
-  const [weatherCond, setWeatherCond] = useState('clear')
-  useEffect(() => {
-    const id = setInterval(() => setScene(getScene()), 60_000)
-    return () => clearInterval(id)
-  }, [])
 
   // Login form
   const [snum, setSnum] = useState('')
@@ -302,11 +292,6 @@ export default function LoginScreen() {
   const typedLine1 = typed[0] ?? ''
   const typedLine2 = (typed[1] ?? '').replace(/^\n/, '')
 
-  const sceneForcesLight = !scene?.isLightScene && theme !== 'dark'
-  const sceneTextOverride = sceneForcesLight
-    ? { '--ink': '#e8edf8', '--ink2': '#8d9ab8', '--ink3': '#5a6880' }
-    : undefined
-
   // The right panel has its own glass surface, so always restore ink tokens
   // to theme-native values regardless of the scene.
   const panelInkReset = theme === 'dark'
@@ -314,14 +299,7 @@ export default function LoginScreen() {
     : { '--ink': '#0d1526', '--ink2': '#52637a', '--ink3': '#8b9ab0' }
 
   return (
-    <div className="min-h-screen flex relative overflow-hidden bg-bg" id="login-screen" data-scene={sceneId} data-weather={weatherCond} style={sceneTextOverride}>
-      <WeatherScene isDark={theme === 'dark'} showBadge onSceneChange={({ scene: s, weather: w }) => { setSceneId(s); setWeatherCond(w) }} style={{ position: 'absolute', inset: 0, zIndex: 0 }} />
-      {/* Atmospheric ambient overlay — responds to data-scene via CSS @property */}
-      <div className="login-scene-overlay" aria-hidden="true" />
-      {/* CSS aurora effect for night scenes */}
-      <div className="login-aurora" aria-hidden="true" />
-      {/* CSS star particles for night scenes */}
-      <div className="login-stars-css" aria-hidden="true" />
+    <div className="min-h-screen flex relative overflow-hidden" id="login-screen">
       <ThemeToggle />
 
       {/* ── Left branding panel (desktop only) ── */}
@@ -363,7 +341,7 @@ export default function LoginScreen() {
       </div>
 
       {/* ── Right glass panel ── */}
-      <div className="login-panel relative z-10 flex flex-col justify-center w-full lg:max-w-[460px] lg:min-h-screen px-4 py-8 lg:px-12" style={panelInkReset}>
+      <div className="login-panel relative z-10 flex flex-col justify-center w-full lg:max-w-[460px] lg:min-h-screen px-4 py-8 lg:px-12">
         {/* Mobile branding (hidden on desktop) */}
         <div className="text-center mb-6 lg:hidden">
           <AcadFlowLogo variant="stacked" size="lg" className="justify-center mb-1" />

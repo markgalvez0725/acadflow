@@ -7,8 +7,6 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import LoadingButton from '@/components/primitives/LoadingButton'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
-import WeatherScene from '@/components/canvas/WeatherScene'
-import { getScene } from '@/components/canvas/scenes'
 
 const ADMIN_FEATURES = [
   { Icon: Users,         label: 'Students' },
@@ -35,14 +33,6 @@ export default function AdminLoginScreen() {
   const [err, setErr]           = useState('')
   const [okMsg, setOkMsg]       = useState('')
 
-  // Track scene for background-aware text contrast
-  const [scene, setScene]         = useState(() => getScene())
-  const [sceneId, setSceneId]     = useState(() => getScene()?.id || 'midday')
-  const [weatherCond, setWeatherCond] = useState('clear')
-  useEffect(() => {
-    const id = setInterval(() => setScene(getScene()), 60_000)
-    return () => clearInterval(id)
-  }, [])
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -76,24 +66,12 @@ export default function AdminLoginScreen() {
   const modeTitle = 'Admin portal'
   const modeSub   = 'Sign in to manage your classes.'
 
-  const sceneForcesLight = !scene?.isLightScene && theme !== 'dark'
-  const sceneTextOverride = sceneForcesLight
-    ? { '--ink': '#e8edf8', '--ink2': '#8d9ab8', '--ink3': '#5a6880' }
-    : undefined
-
   const panelInkReset = theme === 'dark'
     ? { '--ink': '#e8edf8', '--ink2': '#8d9ab8', '--ink3': '#5a6880' }
     : { '--ink': '#0d1526', '--ink2': '#52637a', '--ink3': '#8b9ab0' }
 
   return (
-    <div className="min-h-screen flex relative overflow-hidden bg-bg" id="admin-login-screen" data-scene={sceneId} data-weather={weatherCond} style={sceneTextOverride}>
-      <WeatherScene isDark={theme === 'dark'} showBadge onSceneChange={({ scene: s, weather: w }) => { setSceneId(s); setWeatherCond(w) }} style={{ position: 'absolute', inset: 0, zIndex: 0 }} />
-      {/* Atmospheric ambient overlay — responds to data-scene via CSS @property */}
-      <div className="login-scene-overlay" aria-hidden="true" />
-      {/* CSS aurora effect for night scenes */}
-      <div className="login-aurora" aria-hidden="true" />
-      {/* CSS star particles for night scenes */}
-      <div className="login-stars-css" aria-hidden="true" />
+    <div className="min-h-screen flex relative overflow-hidden" id="admin-login-screen">
       <ThemeToggle />
 
       {/* ── Left branding panel (desktop only) ── */}
@@ -141,7 +119,7 @@ export default function AdminLoginScreen() {
       </div>
 
       {/* ── Right glass panel ── */}
-      <div className="login-panel relative z-10 flex flex-col justify-center w-full lg:max-w-[460px] lg:min-h-screen px-4 py-8 lg:px-12" style={panelInkReset}>
+      <div className="login-panel relative z-10 flex flex-col justify-center w-full lg:max-w-[460px] lg:min-h-screen px-4 py-8 lg:px-12">
         {/* Mobile branding */}
         <div className="text-center mb-6 lg:hidden">
           <AcadFlowLogo variant="stacked" size="lg" className="justify-center mb-1" />
