@@ -187,7 +187,7 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
       <button
         onClick={() => setOpen(o => !o)}
         style={{
-          position: 'fixed', bottom: 66, right: 24,
+          position: 'fixed', bottom: 'calc(86px + env(safe-area-inset-bottom, 0px))', right: 18,
           width: 48, height: 48, borderRadius: '50%',
           background: 'var(--accent)', color: '#fff',
           border: 'none', cursor: 'pointer',
@@ -212,8 +212,8 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
       {/* Panel */}
       {open && (
         <div style={{
-          position: 'fixed', bottom: 122, right: 24,
-          width: 'min(340px, calc(100vw - 40px))', height: 'min(500px, calc(100vh - 160px))',
+          position: 'fixed', bottom: 'calc(146px + env(safe-area-inset-bottom, 0px))', right: 18,
+          width: 'min(340px, calc(100vw - 40px))', height: 'min(500px, calc(100vh - 220px))',
           background: 'var(--surface)', border: '1px solid var(--border)',
           borderRadius: 16, boxShadow: '0 8px 32px rgba(0,0,0,.2)',
           zIndex: 200, display: 'flex', flexDirection: 'column', overflow: 'hidden',
