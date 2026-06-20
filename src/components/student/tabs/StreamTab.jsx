@@ -110,6 +110,7 @@ function AnnouncementCard({ item, classObj }) {
       <div className="stream-card-title">{ann.title}</div>
       {hasMessage && (
         <div
+          className="ann-message"
           style={{ fontSize: 13, color: 'var(--ink2)', marginTop: 6, lineHeight: 1.6 }}
           dangerouslySetInnerHTML={{ __html: ann.message }}
         />
