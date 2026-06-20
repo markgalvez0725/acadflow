@@ -10,6 +10,10 @@ import {
 } from '@/firebase/persistence'
 import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase, saveSemesterToFirebase } from '@/firebase/settings'
 import { sendPushToOwners } from '@/firebase/pushTokens'
+import {
+  fbOpenAttendanceSession, fbCloseAttendanceSession, fbMarkCheckedIn,
+  fbSubmitExcuseRequest, fbDecideExcuseRequest, fbNotifyAdmin, fbNotifyStudent,
+} from '@/firebase/attendanceExtras'
 import { loadFbConfigFromStorage, readStoredEJS } from '@/utils/crypto'
 import { DEFAULT_EQ_SCALE } from '@/utils/grades'
 
@@ -24,6 +28,8 @@ export function DataProvider({ children }) {
   const [quizzes, setQuizzes]           = useState([])
   const [announcements, setAnnouncements] = useState([])
   const [meetings, setMeetings]           = useState([])
+  const [attendanceSessions, setAttendanceSessions] = useState([])
+  const [excuseRequests, setExcuseRequests]         = useState([])
   const [fbReady, setFbReady]           = useState(false)
   const [fbConfig, setFbConfig]         = useState(null) // decrypted config object
   const [semester, setSemester]         = useState(null)
@@ -91,6 +97,8 @@ export function DataProvider({ children }) {
       onQuizzesUpdate:    setQuizzes,
       onAnnouncementsUpdate: setAnnouncements,
       onMeetingsUpdate: setMeetings,
+      onAttendanceSessionsUpdate: setAttendanceSessions,
+      onExcuseRequestsUpdate: setExcuseRequests,
       onConfigUpdate: ({ ejsConfig }) => {
         if (ejsConfig) {
           setEjs({ ...ejsConfig, configured: true })
@@ -127,6 +135,8 @@ export function DataProvider({ children }) {
       onQuizzesUpdate:    setQuizzes,
       onAnnouncementsUpdate: setAnnouncements,
       onMeetingsUpdate: setMeetings,
+      onAttendanceSessionsUpdate: setAttendanceSessions,
+      onExcuseRequestsUpdate: setExcuseRequests,
       onConfigUpdate: ({ ejsConfig }) => {
         if (ejsConfig) {
           setEjs({ ...ejsConfig, configured: true })
@@ -569,6 +579,89 @@ export function DataProvider({ children }) {
       .catch(e => console.warn('[DataContext] saveEjs Firebase sync failed:', e.message))
   }, [])
 
+  // ── Attendance check-in + excuse requests ──────────────────────────────
+  const openCheckIn = useCallback(async ({ classId, subject }) => {
+    const session = await fbOpenAttendanceSession(dbRef.current, { classId, subject })
+    setAttendanceSessions(prev => [session, ...prev.filter(s => s.id !== session.id)])
+    return session
+  }, [])
+
+  const closeCheckIn = useCallback(async (session) => {
+    await fbCloseAttendanceSession(dbRef.current, session.id)
+    setAttendanceSessions(prev => prev.map(s => s.id === session.id ? { ...s, status: 'closed', closedAt: Date.now() } : s))
+  }, [])
+
+  // Student self check-in: validate the code against an open session for one of
+  // the student's classes, then mark them present in their own student doc.
+  const studentCheckIn = useCallback(async (code, student) => {
+    const c = (code || '').trim().toUpperCase()
+    if (!c) throw new Error('Enter the code your teacher shows.')
+    const ids = student.classIds?.length ? student.classIds : (student.classId ? [student.classId] : [])
+    const session = attendanceSessions.find(s => s.status === 'open' && s.code === c && ids.includes(s.classId))
+    if (!session) throw new Error('That code is not valid or the session has closed.')
+    if (session.checkedIn?.[student.id]) return session
+    const updated = students.map(s => {
+      if (s.id !== student.id) return s
+      const ns = { ...s, attendance: { ...(s.attendance || {}) }, excuse: { ...(s.excuse || {}) } }
+      const att = new Set(ns.attendance[session.subject] || [])
+      const exc = new Set(ns.excuse[session.subject] || [])
+      att.add(session.date)
+      exc.delete(session.date)
+      ns.attendance[session.subject] = att
+      ns.excuse[session.subject] = exc
+      return ns
+    })
+    setStudents(updated)
+    await persistStudentsSync(dbRef.current, updated, [student.id])
+    await fbMarkCheckedIn(dbRef.current, session.id, student.id)
+    return session
+  }, [attendanceSessions, students])
+
+  const submitExcuseRequest = useCallback(async ({ student, classId, subject, date, reason }) => {
+    const res = await fbSubmitExcuseRequest(dbRef.current, {
+      studentId: student.id, studentName: student.name || student.id,
+      classId, subject, date, reason: (reason || '').trim(),
+    })
+    // Notify the teacher (in-app admin notification).
+    fbNotifyAdmin(dbRef.current, {
+      title: 'New excuse request',
+      body: `${student.name || student.id} — ${subject} (${date})`,
+    })
+    return res
+  }, [])
+
+  // Approving an excuse marks the date excused (and clears any present mark) on
+  // the student doc; denying just records the decision.
+  const decideExcuseRequest = useCallback(async (req, approve) => {
+    await fbDecideExcuseRequest(dbRef.current, req.id, approve ? 'approved' : 'denied')
+    setExcuseRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: approve ? 'approved' : 'denied', decidedAt: Date.now() } : r))
+    if (approve) {
+      const updated = students.map(s => {
+        if (s.id !== req.studentId) return s
+        const ns = { ...s, attendance: { ...(s.attendance || {}) }, excuse: { ...(s.excuse || {}) } }
+        const exc = new Set(ns.excuse[req.subject] || [])
+        const att = new Set(ns.attendance[req.subject] || [])
+        exc.add(req.date)
+        att.delete(req.date)
+        ns.excuse[req.subject] = exc
+        ns.attendance[req.subject] = att
+        return ns
+      })
+      setStudents(updated)
+      await persistStudentsSync(dbRef.current, updated, [req.studentId])
+    }
+    // Notify the student (in-app notification + best-effort web push).
+    const verdict = approve ? 'approved' : 'not approved'
+    fbNotifyStudent(dbRef.current, req.studentId, {
+      title: approve ? 'Excuse approved' : 'Excuse request update',
+      body: `Your excuse for ${req.subject} on ${req.date} was ${verdict}.`,
+    })
+    sendPushToOwners(dbRef.current, [req.studentId], {
+      title: approve ? 'Excuse approved' : 'Excuse update',
+      body: `${req.subject} on ${req.date}: ${verdict}.`,
+    }, { url: '/', tag: 'excuse' })
+  }, [students])
+
   return (
     <DataContext.Provider value={{
       students, setStudents, saveStudents, deleteStudent,
@@ -582,6 +675,8 @@ export function DataProvider({ children }) {
       meetings, setMeetings,
       liveMeetings: meetings.filter(m => m.status === 'live'),
       saveMeetLink, scheduleMeeting, startMeeting, endMeeting, cancelMeeting,
+      attendanceSessions, openCheckIn, closeCheckIn, studentCheckIn,
+      excuseRequests, submitExcuseRequest, decideExcuseRequest,
       fbReady, fbConfig, reinitFirebase,
       db: dbRef,
       ejs, setEjs, saveEjs,
