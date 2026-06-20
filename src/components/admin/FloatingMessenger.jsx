@@ -319,7 +319,7 @@ export default function FloatingAdminMessenger({ unreadCount }) {
       <button
         onClick={() => setOpen(o => !o)}
         style={{
-          position: 'fixed', bottom: 24, right: 24,
+          position: 'fixed', bottom: 'calc(86px + env(safe-area-inset-bottom, 0px))', right: 18,
           width: 48, height: 48, borderRadius: '50%',
           background: 'var(--accent)', color: '#fff',
           border: 'none', cursor: 'pointer',
@@ -344,8 +344,8 @@ export default function FloatingAdminMessenger({ unreadCount }) {
       {/* Panel */}
       {open && (
         <div style={{
-          position: 'fixed', bottom: 84, right: 24,
-          width: 'min(360px, calc(100vw - 48px))', height: 'min(540px, calc(100vh - 100px))',
+          position: 'fixed', bottom: 'calc(146px + env(safe-area-inset-bottom, 0px))', right: 18,
+          width: 'min(360px, calc(100vw - 48px))', height: 'min(540px, calc(100vh - 230px))',
           background: 'var(--surface)', border: '1px solid var(--border)',
           borderRadius: 16, boxShadow: '0 8px 32px rgba(0,0,0,.2)',
           zIndex: 200, display: 'flex', flexDirection: 'column', overflow: 'hidden',
