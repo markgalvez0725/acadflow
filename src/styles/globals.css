@@ -3833,3 +3833,96 @@ html[data-glass="off"] .student-bottom-nav {
   backdrop-filter: none !important;
 }
 html[data-glass="off"] body::before { display: none; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CLEAN ACADEMIC REVAMP
+   Flat, crisp, institutional. Navy accent, cool neutrals, sharp clean cards,
+   no frosted glass or aurora. Token + presentation overrides only, appended
+   last so they win. Fully revertible by removing this block.
+══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --bg:        #f5f7fa;
+  --bg2:       #e9eef5;
+  --surface:   #ffffff;
+  --surface2:  #f6f8fb;
+  --surface3:  #eef2f8;
+  --ink:       #0f1729;
+  --ink2:      #475266;
+  --ink3:      #8893a6;
+  --accent:    #1a4a9e;
+  --accent-l:  rgba(26,74,158,.08);
+  --accent-m:  #0d2f6e;
+  --accent-2:  #3b7dd8;
+  --border:    #e3e8f0;
+  --border2:   #ccd5e2;
+  --focus-ring: 0 0 0 3px rgba(26,74,158,.26);
+
+  --radius:    8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+
+  --shadow:    0 1px 2px rgba(15,23,42,.05);
+  --shadow-lg: 0 4px 14px rgba(15,23,42,.08);
+  --shadow-xl: 0 12px 34px rgba(15,23,42,.10);
+  --shadow-colored: 0 4px 12px rgba(26,74,158,.18);
+  --glow-accent: 0 0 0 3px rgba(26,74,158,.14);
+
+  --grad-brand:   linear-gradient(135deg, #1a4a9e 0%, #0d2f6e 100%);
+  --grad-brand-r: linear-gradient(135deg, #0d2f6e 0%, #1a4a9e 100%);
+
+  --glass-bg:        #ffffff;
+  --glass-bg-strong: #ffffff;
+  --glass-border:    var(--border);
+  --glass-blur:      saturate(100%);
+  --glass-shadow:    var(--shadow);
+}
+[data-theme="dark"] {
+  --bg:        #0e1422;
+  --bg2:       #131b2c;
+  --surface:   #172033;
+  --surface2:  #1d2840;
+  --surface3:  #243152;
+  --ink:       #e9eef7;
+  --ink2:      #9aa6bd;
+  --ink3:      #61708a;
+  --accent:    #5b8ee8;
+  --accent-l:  rgba(91,142,232,.16);
+  --accent-m:  #3b7dd8;
+  --accent-2:  #80aef0;
+  --border:    rgba(255,255,255,.08);
+  --border2:   rgba(255,255,255,.15);
+  --focus-ring: 0 0 0 3px rgba(91,142,232,.40);
+
+  --shadow:    0 1px 2px rgba(0,0,0,.4);
+  --shadow-lg: 0 6px 20px rgba(0,0,0,.5);
+  --shadow-xl: 0 14px 40px rgba(0,0,0,.6);
+
+  --grad-brand:   linear-gradient(135deg, #3b7dd8 0%, #1a4a9e 100%);
+  --grad-brand-r: linear-gradient(135deg, #1a4a9e 0%, #3b7dd8 100%);
+
+  --glass-bg:        var(--surface);
+  --glass-bg-strong: var(--surface);
+  --glass-border:    var(--border);
+  --glass-blur:      saturate(100%);
+  --glass-shadow:    var(--shadow);
+}
+
+/* Flat surfaces: remove ambient aurora and any frosted blur */
+body::before { display: none !important; }
+.glass-panel, .card, .sidebar,
+.admin-topbar, .student-topbar, .student-bottom-nav {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+.admin-topbar, .student-topbar, .student-bottom-nav { background: var(--surface) !important; }
+.card { box-shadow: var(--shadow); }
+.card:hover { transform: none; box-shadow: var(--shadow-lg); }
+
+/* Crisp sans headings (drop the editorial serif) + navy brand wordmark */
+h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
+.acadflow-wordmark { color: var(--accent); }
+
+/* Flat, solid navy primary buttons */
+.btn-primary { background: var(--accent); box-shadow: none; }
+.btn-primary:hover:not(:disabled) { background: var(--accent-m); box-shadow: none; transform: none; }
