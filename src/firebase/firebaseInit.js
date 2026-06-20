@@ -1,6 +1,6 @@
 // ── Firebase initialization — modular SDK v10 ─────────────────────────────
 import { initializeApp, getApps, deleteApp } from 'firebase/app'
-import { initializeFirestore } from 'firebase/firestore'
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
 
 /** Hardcoded Firebase config — always available on any device. */
 const HARDCODED_FB_CONFIG = {
@@ -82,11 +82,20 @@ export async function fbInit(fbConfig) {
       }, 'cp');
     }
 
-    _db = initializeFirestore(_app, {
-      experimentalAutoDetectLongPolling: true,
-    });
-
-    console.log('[Firebase] ✅ Firestore ready (long-poll enabled).');
+    // Offline-first: IndexedDB-backed cache + automatic write queueing across
+    // tabs. Falls back to the in-memory default if the browser blocks it
+    // (private mode, storage disabled), so the app always still works.
+    try {
+      _db = initializeFirestore(_app, {
+        experimentalAutoDetectLongPolling: true,
+        localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+      });
+      console.log('[Firebase] ✅ Firestore ready (long-poll + offline cache).');
+    } catch (e) {
+      console.warn('[Firebase] Offline cache unavailable, using memory cache:', e.message);
+      _db = initializeFirestore(_app, { experimentalAutoDetectLongPolling: true });
+      console.log('[Firebase] ✅ Firestore ready (long-poll enabled).');
+    }
     return _db;
   } catch (e) {
     console.error('[Firebase] ❌ Init failed:', e.code || '', e.message);

@@ -49,6 +49,8 @@ export function fbStartListening(db, callbacks) {
     onQuizzesUpdate,
     onAnnouncementsUpdate,
     onMeetingsUpdate,
+    onAttendanceSessionsUpdate,
+    onExcuseRequestsUpdate,
   } = callbacks;
 
   // Stop any previous listeners
@@ -190,6 +192,40 @@ export function fbStartListening(db, callbacks) {
       e => console.error('[Firebase] onlineMeetings listener error:', e.message)
     );
     _unsub.push(u9);
+  }
+
+  // ── attendanceSessions collection (live check-in) ─────────────────────
+  if (onAttendanceSessionsUpdate) {
+    const uA = onSnapshot(
+      collection(db, 'attendanceSessions'),
+      snap => {
+        const sessions = [];
+        snap.forEach(d => sessions.push(d.data()));
+        onAttendanceSessionsUpdate(sessions);
+      },
+      e => console.error('[Firebase] attendanceSessions listener error:', e.message)
+    );
+    _unsub.push(uA);
+    getDocs(collection(db, 'attendanceSessions'))
+      .then(s => { const a = []; s.forEach(d => a.push(d.data())); onAttendanceSessionsUpdate(a); })
+      .catch(() => {});
+  }
+
+  // ── excuseRequests collection ─────────────────────────────────────────
+  if (onExcuseRequestsUpdate) {
+    const uE = onSnapshot(
+      collection(db, 'excuseRequests'),
+      snap => {
+        const reqs = [];
+        snap.forEach(d => reqs.push(d.data()));
+        onExcuseRequestsUpdate(reqs);
+      },
+      e => console.error('[Firebase] excuseRequests listener error:', e.message)
+    );
+    _unsub.push(uE);
+    getDocs(collection(db, 'excuseRequests'))
+      .then(s => { const a = []; s.forEach(d => a.push(d.data())); onExcuseRequestsUpdate(a); })
+      .catch(() => {});
   }
 
   // ── portal/settings (equiv scale, grade weights) ──────────────────────
