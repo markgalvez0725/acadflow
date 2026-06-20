@@ -66,7 +66,7 @@ export default function DashboardTab() {
   const classInsights = useMemo(() => generateClassInsights(students, classes), [students, classes])
 
   // Chart data
-  const barData = useMemo(() => classes.map(cls => {
+  const barData = useMemo(() => classes.filter(c => !c.archived).map(cls => {
     const enrolled = students.filter(s => s.classId === cls.id || s.classIds?.includes(cls.id))
     const gwas = enrolled.map(s => getGWA(s, classes)).filter(g => g !== null)
     return { label: cls.name + ' ' + cls.section, value: gwas.length ? gwas.reduce((a, b) => a + b, 0) / gwas.length : 0 }
