@@ -11,6 +11,7 @@ import Dialog from '@/components/primitives/Dialog'
 import FloatingMessenger from './FloatingMessenger'
 import SemesterCalendarChip from '@/components/primitives/SemesterCalendarChip'
 import CommandPaletteButton from '@/components/primitives/CommandPaletteButton'
+import ConnectionStatus from '@/components/primitives/ConnectionStatus'
 
 // Lazy-load tabs
 const DashboardTab    = lazy(() => import('./tabs/DashboardTab'))
@@ -106,6 +107,7 @@ export default function AdminLayout() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <ConnectionStatus />
             <CommandPaletteButton />
             <SemesterCalendarChip semester={semester} />
             <span className="adm-clock hidden sm:inline">{clock}</span>
