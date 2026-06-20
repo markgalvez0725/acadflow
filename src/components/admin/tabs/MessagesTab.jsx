@@ -3,6 +3,7 @@ import { collection, doc, setDoc, updateDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { sortByLastName } from '@/utils/format'
+import { notifyStudentMessage, notifyStudentsBroadcast } from '@/firebase/messageNotify'
 import Modal from '@/components/primitives/Modal'
 import { X } from 'lucide-react'
 
@@ -79,6 +80,17 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
 
     try {
       await setDoc(doc(db.current, 'messages', id), msg)
+      // Notify the recipient(s): in-app badge + best-effort web push.
+      if (to === 'all') {
+        notifyStudentsBroadcast(db.current, students.map(s => s.id), subject.trim())
+      } else if (isClassBroadcast) {
+        const ids = students
+          .filter(s => s.classId === classId || s.classIds?.includes(classId))
+          .map(s => s.id)
+        notifyStudentsBroadcast(db.current, ids, subject.trim())
+      } else {
+        notifyStudentMessage(db.current, to, body.trim())
+      }
       toast('Message sent!', 'green')
       onClose()
     } catch (e) {
@@ -498,11 +510,22 @@ export default function MessagesTab() {
         if (!targetMsg) return
         const updatedReplies = [...(targetMsg.replies || []), reply]
         await updateDoc(doc(db.current, 'messages', targetMsg.id), { replies: updatedReplies, adminRead: true })
+        notifyStudentMessage(db.current, thread.studentId, text)
       } else {
         const m = messages.find(x => x.id === thread.msgId)
         if (!m) return
         const updatedReplies = [...(m.replies || []), reply]
         await updateDoc(doc(db.current, 'messages', m.id), { replies: updatedReplies, adminRead: true })
+        // Notify the recipient(s) of this thread.
+        if (m.to === 'all') {
+          notifyStudentsBroadcast(db.current, students.map(s => s.id), text)
+        } else if (typeof m.to === 'string' && m.to.startsWith('class:')) {
+          const cid = m.to.slice(6)
+          const ids = students.filter(s => s.classId === cid || s.classIds?.includes(cid)).map(s => s.id)
+          notifyStudentsBroadcast(db.current, ids, text)
+        } else if (m.to && m.to !== 'admin') {
+          notifyStudentMessage(db.current, m.to, text)
+        }
       }
     } catch (e) {
       toast('Failed to send reply: ' + e.message, 'red')
