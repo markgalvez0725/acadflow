@@ -7,8 +7,14 @@ import { getHeldDays, computeFinalGradeFromTerms } from '@/utils/grades'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
-import { Clock, AlertCircle, X, Archive, ArchiveRestore } from 'lucide-react'
+import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2 } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
+import { deviceRubric, deviceInstructions, aiInstructions, aiRubric, aiGrade, isNotConfigured } from '@/utils/activityAI'
+
+function fmtLocalInput(d) {
+  const pad = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────
 function actId() {
@@ -120,8 +126,45 @@ function ActivityFormModal({ act, onClose }) {
   const [rubric, setRubric] = useState(() => act?.rubric?.length ? act.rubric : [])
   const [err,     setErr]     = useState('')
   const [saving,  setSaving]  = useState(false)
+  const [aiBusyInstr, setAiBusyInstr] = useState(false)
+  const [aiBusyRubric, setAiBusyRubric] = useState(false)
 
   const selectedClass = classes.find(c => c.id === classId)
+
+  // Deadline quick-presets
+  function presetDeadline(kind) {
+    const d = new Date()
+    if (kind === 'eod') { d.setHours(23, 59, 0, 0) }
+    else if (kind === '3d') { d.setDate(d.getDate() + 3) }
+    else if (kind === '1w') { d.setDate(d.getDate() + 7) }
+    setDeadline(fmtLocalInput(d))
+  }
+
+  // AI-assist: instructions (Gemini if set up, else on-device template)
+  async function suggestInstructions() {
+    if (!title.trim()) { toast('Add a title first.', 'warn'); return }
+    setAiBusyInstr(true)
+    try {
+      const text = await aiInstructions(title, subject)
+      if (text) setInstructions(text)
+    } catch (e) {
+      setInstructions(deviceInstructions(title, subject))
+      if (!isNotConfigured(e)) toast('Used a quick template (AI unavailable).', 'info')
+    } finally { setAiBusyInstr(false) }
+  }
+
+  // Auto-suggest rubric criteria
+  async function suggestRubric() {
+    if (!title.trim()) { toast('Add a title first.', 'warn'); return }
+    setAiBusyRubric(true)
+    try {
+      const r = await aiRubric(title, subject, instructions)
+      setRubric(r.length ? r : deviceRubric(title, subject))
+    } catch (e) {
+      setRubric(deviceRubric(title, subject))
+      if (!isNotConfigured(e)) toast('Used a template rubric (AI unavailable).', 'info')
+    } finally { setAiBusyRubric(false) }
+  }
 
   // maxScore is derived from rubric total if rubric exists, else 100
   const maxScore = rubric.length
@@ -224,10 +267,20 @@ function ActivityFormModal({ act, onClose }) {
       <div className="field mb-3">
         <label className="text-xs font-semibold text-ink2 mb-1 block">Deadline <span className="text-red-500">*</span></label>
         <input className="input w-full" type="datetime-local" value={deadline} onChange={e => setDeadline(e.target.value)} />
+        <div className="flex gap-1.5 mt-2 flex-wrap">
+          <button type="button" className="btn btn-ghost btn-xs" onClick={() => presetDeadline('eod')}>End of day</button>
+          <button type="button" className="btn btn-ghost btn-xs" onClick={() => presetDeadline('3d')}>In 3 days</button>
+          <button type="button" className="btn btn-ghost btn-xs" onClick={() => presetDeadline('1w')}>In 1 week</button>
+        </div>
       </div>
 
       <div className="field mb-3">
-        <label className="text-xs font-semibold text-ink2 mb-1 block">Instructions <span className="font-normal text-ink3">(optional)</span></label>
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-xs font-semibold text-ink2">Instructions <span className="font-normal text-ink3">(optional)</span></label>
+          <button type="button" className="btn btn-ghost btn-xs" onClick={suggestInstructions} disabled={aiBusyInstr}>
+            <Sparkles size={12} className="inline-block mr-1" />{aiBusyInstr ? 'Writing…' : 'Suggest'}
+          </button>
+        </div>
         <textarea className="input w-full" rows={3} value={instructions} onChange={e => setInstructions(e.target.value)} placeholder="Brief instructions for students…" />
       </div>
 
@@ -237,7 +290,12 @@ function ActivityFormModal({ act, onClose }) {
           <label className="text-xs font-semibold text-ink2">
             Grading Rubric <span className="font-normal text-ink3">(optional)</span>
           </label>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={addCriterion}>+ Add Criterion</button>
+          <div className="flex gap-1.5">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={suggestRubric} disabled={aiBusyRubric}>
+              <Wand2 size={13} className="inline-block mr-1" />{aiBusyRubric ? 'Suggesting…' : 'Suggest rubric'}
+            </button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={addCriterion}>+ Add Criterion</button>
+          </div>
         </div>
 
         {rubric.length === 0 ? (
@@ -293,6 +351,10 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
   const { toast, openDialog } = useUI()
   const [scores,        setScores]       = useState({})
   const [rubricChecks,  setRubricChecks] = useState({}) // { [studentId]: { [criterionId]: bool } }
+  const [aiFor,    setAiFor]    = useState(null)  // studentId for grading assist
+  const [aiText,   setAiText]   = useState('')
+  const [aiBusy,   setAiBusy]   = useState(false)
+  const [aiResult, setAiResult] = useState(null)  // { score, feedback, criteria }
   const [saving,        setSaving]       = useState({})
   const [savingAll,     setSavingAll]    = useState(false)
 
@@ -460,6 +522,36 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
     }
   }
 
+  async function runAiGrade(studentId) {
+    if (!aiText.trim()) { toast('Paste the student\'s submission text first.', 'warn'); return }
+    setAiBusy(true); setAiResult(null)
+    try {
+      const res = await aiGrade({
+        title: act.title, subject: act.subject, instructions: act.instructions,
+        rubric: act.rubric, maxScore: act.maxScore, submissionText: aiText,
+      })
+      setAiResult(res)
+    } catch (e) {
+      if (isNotConfigured(e)) toast('AI grading needs a free Gemini key (set GEMINI_API_KEY in Vercel).', 'warn', 7000)
+      else toast('AI error: ' + e.message, 'error', 7000)
+    } finally { setAiBusy(false) }
+  }
+
+  function applyAiGrade(studentId) {
+    if (!aiResult) return
+    setScores(prev => ({ ...prev, [studentId]: String(aiResult.score) }))
+    if (hasRubric && Array.isArray(aiResult.criteria)) {
+      const checks = {}
+      act.rubric.forEach(c => {
+        const m = aiResult.criteria.find(x => (x.name || '').toLowerCase().trim() === c.name.toLowerCase().trim())
+        if (m && m.met) checks[c.id] = true
+      })
+      setRubricChecks(prev => ({ ...prev, [studentId]: checks }))
+    }
+    setAiFor(null); setAiText(''); setAiResult(null)
+    toast('AI suggestion applied. Review and Save.', 'green')
+  }
+
   async function handleDelete() {
     const ok = await openDialog({
       title: `Delete "${act.title}"?`,
@@ -609,13 +701,24 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                       />
                     </td>
                     <td>
-                      <button
-                        className="btn btn-primary btn-sm"
-                        disabled={saving[s.id] || inputVal === ''}
-                        onClick={() => handleSaveScore(s)}
-                      >
-                        {saving[s.id] ? '…' : 'Save'}
-                      </button>
+                      <div className="flex gap-1.5 items-center">
+                        {hasLink && (
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            title="AI grading assistant"
+                            onClick={() => { setAiFor(s.id); setAiText(''); setAiResult(null) }}
+                          >
+                            <Sparkles size={13} />
+                          </button>
+                        )}
+                        <button
+                          className="btn btn-primary btn-sm"
+                          disabled={saving[s.id] || inputVal === ''}
+                          onClick={() => handleSaveScore(s)}
+                        >
+                          {saving[s.id] ? '…' : 'Save'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -640,6 +743,59 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
           {savingAll ? 'Saving…' : '💾 Save All Grades'}
         </button>
       </div>
+
+      {aiFor && (() => {
+        const stud = enrolledStudents.find(x => x.id === aiFor)
+        const sub = (act.submissions || {})[aiFor] || {}
+        return (
+          <Modal onClose={() => setAiFor(null)} size="md">
+            <h3 className="text-lg font-bold mb-1"><Sparkles size={16} className="inline-block mr-1 align-text-bottom" />AI Grading Assist</h3>
+            <p className="modal-sub">{stud?.name} · {act.title}</p>
+            <div style={{ fontSize: 12, color: 'var(--ink2)', background: 'var(--accent-l)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', margin: '8px 0 12px' }}>
+              The AI can't open the student's link, so paste their work below (open the submission, copy the text). It suggests a score and feedback against your rubric, and you review and Save.
+            </div>
+            {sub.link && (
+              <a href={sub.link} target="_blank" rel="noopener noreferrer" className="link-btn" style={{ fontSize: 12, marginBottom: 8, display: 'inline-block' }}>Open submission ↗</a>
+            )}
+            <textarea
+              className="input w-full"
+              rows={6}
+              placeholder="Paste the student's submission text here…"
+              value={aiText}
+              onChange={e => setAiText(e.target.value)}
+            />
+            <div className="flex gap-2 mt-2">
+              <button className="btn btn-primary btn-sm" onClick={() => runAiGrade(aiFor)} disabled={aiBusy || !aiText.trim()}>
+                <Sparkles size={13} className="inline-block mr-1" />{aiBusy ? 'Assessing…' : 'Suggest grade'}
+              </button>
+            </div>
+            {aiResult && (
+              <div style={{ marginTop: 14, padding: 12, borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface2)' }}>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>
+                  Suggested score: <span style={{ color: 'var(--accent)' }}>{aiResult.score} / {act.maxScore}</span>
+                </div>
+                {aiResult.feedback && <div style={{ fontSize: 12, color: 'var(--ink2)', marginTop: 6, lineHeight: 1.6 }}>{aiResult.feedback}</div>}
+                {hasRubric && aiResult.criteria?.length > 0 && (
+                  <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    {aiResult.criteria.map((c, i) => (
+                      <div key={i} style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ color: c.met ? 'var(--green)' : 'var(--ink3)', fontWeight: 700 }}>{c.met ? '✓' : '✗'}</span>{c.name}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2 mt-3">
+                  <button className="btn btn-primary btn-sm" onClick={() => applyAiGrade(aiFor)}>Apply to score</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setAiFor(null)}>Cancel</button>
+                </div>
+              </div>
+            )}
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setAiFor(null)}>Close</button>
+            </div>
+          </Modal>
+        )
+      })()}
     </Modal>
   )
 }
