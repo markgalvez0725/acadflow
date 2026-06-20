@@ -1,15 +1,26 @@
 import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
 import { useAuth } from '@/context/AuthContext'
-import { CalendarCheck, Calendar, CheckCircle2, FileCheck, XCircle, Award, UserCheck } from 'lucide-react'
+import { useUI } from '@/context/UIContext'
+import { CalendarCheck, Calendar, CheckCircle2, FileCheck, XCircle, Award, UserCheck, Radio, ClipboardList, Send } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import TakeAttendanceModal from '@/components/student/modals/TakeAttendanceModal'
 
 const DAY_LETTERS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
 export default function AttendanceTab({ student: s, viewClassId, classes }) {
-  const { students, fbReady } = useData()
+  const { students, fbReady, attendanceSessions, studentCheckIn, submitExcuseRequest } = useData()
   const { currentStudent }    = useAuth()
+  const { toast }             = useUI()
+
+  // Check-in + excuse request local state
+  const [code, setCode]         = useState('')
+  const [checkingIn, setCheckingIn] = useState(false)
+  const [showExcuse, setShowExcuse] = useState(false)
+  const [exSubject, setExSubject]   = useState('')
+  const [exDate, setExDate]         = useState(() => new Date().toISOString().slice(0, 10))
+  const [exReason, setExReason]     = useState('')
+  const [exBusy, setExBusy]         = useState(false)
 
   const cls = classes?.find(c => c.id === viewClassId) || null
 
@@ -60,6 +71,41 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
   const globalRate = totalExpected > 0 ? totalPresent / totalExpected * 100 : 0
   const rateColor = globalRate >= 90 ? 'var(--green)' : globalRate >= 80 ? 'var(--yellow)' : 'var(--red)'
 
+  const openSessionForMe = attendanceSessions?.find(se =>
+    se.status === 'open' && enrolledIds.includes(se.classId) && !se.checkedIn?.[s.id]
+  ) || null
+
+  async function handleCheckIn() {
+    if (!code.trim()) { toast('Enter the code your teacher shows.', 'warn'); return }
+    setCheckingIn(true)
+    try {
+      const session = await studentCheckIn(code, s)
+      toast(`Checked in for ${session.subject}. You're marked present.`, 'green')
+      setCode('')
+    } catch (e) {
+      toast(e.message || 'Check-in failed.', 'error', 5000)
+    } finally { setCheckingIn(false) }
+  }
+
+  function classIdForSubject(sub) {
+    return enrolledIds.find(id => classes.find(c => c.id === id)?.subjects?.includes(sub)) || enrolledIds[0] || s.classId
+  }
+
+  async function handleExcuse() {
+    const subject = exSubject || subs[0]
+    if (!subject) { toast('Pick a subject.', 'warn'); return }
+    if (!exDate) { toast('Pick the date you missed.', 'warn'); return }
+    if (!exReason.trim()) { toast('Add a short reason.', 'warn'); return }
+    setExBusy(true)
+    try {
+      await submitExcuseRequest({ student: s, classId: classIdForSubject(subject), subject, date: exDate, reason: exReason })
+      toast('Excuse request sent to your teacher.', 'success')
+      setExReason(''); setShowExcuse(false)
+    } catch (e) {
+      toast('Could not send request: ' + e.message, 'error')
+    } finally { setExBusy(false) }
+  }
+
   if (!subs.length) {
     return (
       <div className="empty"><div className="empty-icon"><CalendarCheck size={40} /></div>No attendance records yet.</div>
@@ -86,6 +132,62 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
           <div className="sa-stat-val" style={{ color: rateColor }}>{globalRate.toFixed(1)}%</div>
           <div className="sa-stat-lbl">Rate</div>
         </div>
+      </div>
+
+      {/* Self check-in */}
+      <div className="card" style={{ padding: 14, marginBottom: 12, borderLeft: `3px solid ${openSessionForMe ? 'var(--green)' : 'var(--border2)'}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <Radio size={15} style={{ color: openSessionForMe ? 'var(--green)' : 'var(--ink3)' }} />
+          <span style={{ fontWeight: 700, fontSize: 13 }}>Attendance check-in</span>
+          {openSessionForMe && <span className="badge badge-green" style={{ fontSize: 10 }}>Session open</span>}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--ink2)', marginBottom: 8 }}>
+          {openSessionForMe
+            ? 'Your teacher opened check-in. Enter the code to mark yourself present for today.'
+            : 'When your teacher opens check-in, enter the code here to mark yourself present.'}
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input
+            className="input"
+            style={{ maxWidth: 180, textTransform: 'uppercase', letterSpacing: '.12em', fontFamily: 'var(--font-mono)', fontWeight: 600 }}
+            placeholder="ENTER CODE"
+            value={code}
+            maxLength={6}
+            onChange={e => setCode(e.target.value.toUpperCase())}
+            onKeyDown={e => { if (e.key === 'Enter') handleCheckIn() }}
+          />
+          <button className="btn btn-success btn-sm" onClick={handleCheckIn} disabled={checkingIn || !code.trim()}>
+            {checkingIn ? 'Checking in…' : 'Check in'}
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowExcuse(v => !v)}>
+            <ClipboardList size={13} className="inline-block mr-1" />Request excuse
+          </button>
+        </div>
+
+        {showExcuse && (
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink2)' }}>Request an excuse for a missed session</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <select className="input" style={{ maxWidth: 200 }} value={exSubject || subs[0]} onChange={e => setExSubject(e.target.value)}>
+                {subs.map(sub => <option key={sub} value={sub}>{sub}</option>)}
+              </select>
+              <input className="input" style={{ maxWidth: 170 }} type="date" value={exDate} onChange={e => setExDate(e.target.value)} />
+            </div>
+            <textarea
+              className="input"
+              style={{ minHeight: 60, resize: 'vertical' }}
+              placeholder="Reason (e.g. medical, family emergency)…"
+              value={exReason}
+              onChange={e => setExReason(e.target.value)}
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-primary btn-sm" onClick={handleExcuse} disabled={exBusy || !exReason.trim()}>
+                <Send size={13} className="inline-block mr-1" />{exBusy ? 'Sending…' : 'Send request'}
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowExcuse(false)}>Cancel</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Subject pills */}

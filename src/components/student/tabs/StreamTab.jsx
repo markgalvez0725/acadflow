@@ -336,9 +336,12 @@ export default function StreamTab({ student, viewClassId, classes }) {
 
     // Announcements
     if (filterType === 'all' || filterType === 'announcement') {
+      const nowTs = Date.now()
       announcements.forEach(ann => {
         const matchesClass = ann.classId === 'all' || effectiveClassIds.includes(ann.classId)
         if (!matchesClass) return
+        // Hide scheduled announcements until their publish time.
+        if (ann.publishAt && ann.publishAt > nowTs) return
         items.push({ id: `ann-${ann.id}`, type: 'announcement', ts: ann.createdAt || 0, data: ann, classId: ann.classId })
       })
     }

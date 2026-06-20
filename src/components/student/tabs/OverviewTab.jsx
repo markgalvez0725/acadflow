@@ -9,6 +9,8 @@ import { SkeletonDashboard } from '@/components/primitives/SkeletonLoader'
 import BarChart from '@/components/charts/BarChart'
 import SmartInsights from '@/components/primitives/SmartInsights'
 import { generateStudentInsights } from '@/utils/insights'
+import { buildStudentReportCard } from '@/export/reportCard'
+import { FileDown } from 'lucide-react'
 
 function formatAnnDate(ms) {
   if (!ms) return null
@@ -313,7 +315,7 @@ function AnnIcon({ type, size = 18 }) {
 }
 
 export default function OverviewTab({ student: s, viewClassId, classes }) {
-  const { activities, students, eqScale, announcements, quizzes, fbReady } = useData()
+  const { activities, students, eqScale, announcements, quizzes, semester, fbReady } = useData()
 
   const [viewAnn, setViewAnn] = useState(null)
 
@@ -333,6 +335,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
     return (announcements || []).filter(ann =>
       ann.active &&
       (ann.classId === 'all' || enrolledIds.includes(ann.classId)) &&
+      (!ann.publishAt || ann.publishAt <= now) &&
       (!ann.expiresAt || ann.expiresAt > now)
     ).sort((a, b) => b.createdAt - a.createdAt)
   }, [announcements, enrolledIds])
@@ -541,7 +544,18 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
       {/* Grade table */}
       <div className="sec-hdr mt-4 mb-2">
         <div className="sec-title">Subjects</div>
-        <span style={{ fontSize: 11, color: 'var(--ink3)' }}>Click midterm/finals to toggle equiv ↔ %</span>
+        <div className="flex items-center gap-3 flex-wrap">
+          <span style={{ fontSize: 11, color: 'var(--ink3)' }}>Click midterm/finals to toggle equiv ↔ %</span>
+          <button
+            className="btn btn-secondary btn-sm"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 11px' }}
+            onClick={() => buildStudentReportCard(s, { classes, students, eqScale, semester })}
+            title="Download your report card as a PDF"
+          >
+            <FileDown size={14} />
+            Report Card
+          </button>
+        </div>
       </div>
 
       {!subs.length ? (
