@@ -77,36 +77,36 @@
   --font-body:    'Outfit', 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
   --font-mono:    'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
 
-  --radius:    10px;
-  --radius-lg: 16px;
-  --radius-xl: 22px;
-  --radius-2xl: 28px;
+  --radius:    13px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --radius-2xl: 32px;
 
   --spacing-sidebar: var(--sidebar-w);
 
-  --shadow:    0 1px 3px rgba(15,23,42,.04), 0 4px 16px rgba(15,23,42,.08);
-  --shadow-lg: 0 8px 32px rgba(15,23,42,.14);
+  --shadow:    0 1px 2px rgba(24,27,48,.04), 0 8px 26px rgba(24,27,48,.06);
+  --shadow-lg: 0 14px 44px rgba(24,27,48,.12);
 }
 
 /* ══════════════════════════════════════════
    DESIGN TOKENS — Light & Dark
 ══════════════════════════════════════════ */
 :root {
-  /* Refined light palette — creamy whites, slate-cool neutrals, vivid indigo-violet accent */
-  --bg:        #f5f6fa;
-  --bg2:       #ebedf5;
+  /* Refined light palette — soft warm-neutral canvas, layered surfaces, vivid indigo-violet accent */
+  --bg:        #f4f4f9;
+  --bg2:       #eceaf4;
   --surface:   #ffffff;
-  --surface2:  #f8f9fc;
-  --surface3:  #f0f2f8;
-  --ink:       #0d1526;
-  --ink2:      #52637a;
-  --ink3:      #8b9ab0;
+  --surface2:  #f8f8fc;
+  --surface3:  #f1f0f8;
+  --ink:       #14152a;
+  --ink2:      #565a72;
+  --ink3:      #8b8fa8;
   --accent:    #5046e4;
-  --accent-l:  rgba(80,70,228,.10);
+  --accent-l:  rgba(80,70,228,.09);
   --accent-m:  #4338ca;
   --accent-2:  #7c3aed;
-  --border:    #e3e7ef;
-  --border2:   #cdd4e0;
+  --border:    #e7e6f0;
+  --border2:   #d3d2e2;
   --red:       #ef4444;
   --red-l:     #fef2f2;
   --green:     #22c55e;
@@ -131,21 +131,22 @@
   --grad-ocean:    linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
   --grad-surface:  linear-gradient(180deg, var(--surface) 0%, var(--surface2) 100%);
 
-  --glow-accent:   0 0 24px rgba(80,70,228,.24);
-  --glow-sm:       0 0 14px rgba(80,70,228,.16);
-  --glow-green:    0 0 16px rgba(34,197,94,.22);
-  --glow-purple:   0 0 16px rgba(139,92,246,.22);
+  --glow-accent:   0 0 24px rgba(80,70,228,.22);
+  --glow-sm:       0 0 14px rgba(80,70,228,.15);
+  --glow-green:    0 0 16px rgba(34,197,94,.20);
+  --glow-purple:   0 0 16px rgba(139,92,246,.20);
+  --focus-ring:    0 0 0 3px rgba(80,70,228,.30);
 
   --sidebar-w: 224px;
   --sidebar-collapsed-w: 64px;
-  --radius:    10px;
-  --radius-lg: 16px;
-  --radius-xl: 22px;
-  --radius-2xl: 28px;
-  --shadow:    0 1px 3px rgba(15,23,42,.04), 0 4px 16px rgba(15,23,42,.08);
-  --shadow-lg: 0 8px 32px rgba(15,23,42,.14), 0 2px 8px rgba(15,23,42,.06);
-  --shadow-xl: 0 20px 60px rgba(15,23,42,.18), 0 4px 16px rgba(15,23,42,.1);
-  --shadow-colored: 0 8px 24px rgba(80,70,228,.22);
+  --radius:    13px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --radius-2xl: 32px;
+  --shadow:    0 1px 2px rgba(24,27,48,.04), 0 8px 26px rgba(24,27,48,.06);
+  --shadow-lg: 0 14px 44px rgba(24,27,48,.12), 0 3px 10px rgba(24,27,48,.05);
+  --shadow-xl: 0 28px 70px rgba(24,27,48,.16), 0 6px 18px rgba(24,27,48,.08);
+  --shadow-colored: 0 10px 30px rgba(80,70,228,.20);
   --font-display: 'DM Serif Display', Georgia, serif;
   --font-body:    'Outfit', 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
   --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
@@ -191,9 +192,10 @@
   --glow-green:  0 0 18px rgba(74,222,128,.28);
   --shadow-colored: 0 8px 24px rgba(99,102,241,.3);
 
-  --shadow:    0 1px 4px rgba(0,0,0,.45), 0 6px 20px rgba(0,0,0,.55);
-  --shadow-lg: 0 8px 32px rgba(0,0,0,.65), 0 2px 8px rgba(0,0,0,.4);
-  --shadow-xl: 0 20px 60px rgba(0,0,0,.75);
+  --shadow:    0 1px 4px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.5);
+  --shadow-lg: 0 16px 46px rgba(0,0,0,.6), 0 3px 10px rgba(0,0,0,.4);
+  --shadow-xl: 0 28px 72px rgba(0,0,0,.72);
+  --focus-ring: 0 0 0 3px rgba(124,114,248,.40);
   --theme-icon: '🌙';
   --surface-rgb: 25,33,58;
 }
@@ -1232,7 +1234,7 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
   background: var(--grad-brand);
   color: #fff;
   border-color: transparent;
-  box-shadow: 0 2px 10px rgba(80,70,228,.28), inset 0 1px 0 rgba(255,255,255,.15);
+  box-shadow: 0 2px 8px rgba(80,70,228,.20), inset 0 1px 0 rgba(255,255,255,.12);
 }
 .btn-primary:hover:not(:disabled) {
   box-shadow: var(--glow-accent), 0 4px 16px rgba(80,70,228,.3);
@@ -1350,7 +1352,7 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 [data-theme="dark"] .field input:focus,
 [data-theme="dark"] .field select:focus,
 [data-theme="dark"] .field textarea:focus {
-  box-shadow: 0 0 0 3px rgba(59,125,216,.15);
+  box-shadow: 0 0 0 3px rgba(124,114,248,.20);
 }
 .field textarea { resize: vertical; min-height: 80px; }
 
@@ -3687,3 +3689,138 @@ textarea.input { resize: vertical; }
   pointer-events: none;
   z-index: 0;
 }
+
+/* ══════════════════════════════════════════
+   DESIGN REFRESH — base polish, a11y, motion
+   Additive only. No selectors removed, no
+   structure changed — pure presentation.
+══════════════════════════════════════════ */
+@layer base {
+  /* Cohesive serif heading rhythm for the editorial display font */
+  h1, h2, h3, .serif { letter-spacing: -.015em; line-height: 1.18; }
+
+  /* Brand-tinted text selection */
+  ::selection { background: rgba(80,70,228,.18); color: var(--ink); }
+
+  /* Accessible keyboard focus ring on every interactive control.
+     Uses box-shadow so it follows each element's own border-radius. */
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [tabindex]:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  /* Slim, themed scrollbars */
+  * { scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border2);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--ink3);
+    background-clip: content-box;
+  }
+}
+
+/* Respect reduced-motion preferences. Unlayered so it reliably wins,
+   calming the app's many ambient animations for sensitive users. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Sign-in cohesion: cozier corners on the glass auth card to match the
+   refreshed radius scale. Glass background/scene rules are left untouched. */
+.glass-login-card { border-radius: var(--radius-2xl); }
+
+/* ══════════════════════════════════════════
+   FROSTED GLASS — Apple-style panels
+   Translucent fills + backdrop blur + bright
+   rim, refracting a faint ambient aurora.
+   Additive: presentation only, no structure.
+══════════════════════════════════════════ */
+:root {
+  --glass-bg:      rgba(255, 255, 255, .66);
+  --glass-border:  rgba(255, 255, 255, .55);
+  --glass-blur:    blur(18px) saturate(160%);
+  --glass-shadow:  0 1px 0 rgba(255,255,255,.55) inset, 0 10px 30px rgba(24,27,48,.10);
+}
+[data-theme="dark"] {
+  --glass-bg:      rgba(28, 36, 64, .55);
+  --glass-border:  rgba(255, 255, 255, .09);
+  --glass-shadow:  0 1px 0 rgba(255,255,255,.05) inset, 0 16px 44px rgba(0,0,0,.5);
+}
+
+/* Ambient aurora — fixed, very low contrast, sits behind all content so the
+   frosted panels have something to refract. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 50% at 12% -5%,  rgba(80,70,228,.10),  transparent 70%),
+    radial-gradient(48% 44% at 102% 8%,  rgba(124,58,237,.08), transparent 70%),
+    radial-gradient(55% 50% at 50% 108%, rgba(20,184,166,.05), transparent 70%);
+}
+[data-theme="dark"] body::before {
+  background:
+    radial-gradient(60% 50% at 12% -5%,  rgba(124,114,248,.18), transparent 70%),
+    radial-gradient(48% 44% at 102% 8%,  rgba(167,139,250,.13), transparent 70%),
+    radial-gradient(55% 50% at 50% 108%, rgba(45,212,191,.08),  transparent 70%);
+}
+
+/* Frost the major panels. Unlayered, so it overrides the solid base rules
+   and Tailwind bg-surface without !important. */
+.glass-panel,
+.card,
+.sidebar {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+.card:hover {
+  box-shadow: var(--glass-shadow), var(--shadow-lg);
+}
+
+/* Graceful fallback when backdrop-filter isn't supported — stay solid. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-panel, .card, .sidebar { background: var(--surface); }
+}
+
+/* Accessibility + manual opt-out: drop transparency and the aurora entirely. */
+@media (prefers-reduced-transparency: reduce) {
+  .glass-panel, .card, .sidebar,
+  .admin-topbar, .student-topbar, .student-bottom-nav {
+    background: var(--surface) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  body::before { display: none; }
+}
+html[data-glass="off"] .glass-panel,
+html[data-glass="off"] .card,
+html[data-glass="off"] .sidebar,
+html[data-glass="off"] .admin-topbar,
+html[data-glass="off"] .student-topbar,
+html[data-glass="off"] .student-bottom-nav {
+  background: var(--surface) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+html[data-glass="off"] body::before { display: none; }
