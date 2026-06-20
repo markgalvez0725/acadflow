@@ -7,6 +7,8 @@ import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import { BookOpen, Clock, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, BarChart3 } from 'lucide-react'
 import { SkeletonDashboard } from '@/components/primitives/SkeletonLoader'
 import BarChart from '@/components/charts/BarChart'
+import SmartInsights from '@/components/primitives/SmartInsights'
+import { generateStudentInsights } from '@/utils/insights'
 
 function formatAnnDate(ms) {
   if (!ms) return null
@@ -311,7 +313,7 @@ function AnnIcon({ type, size = 18 }) {
 }
 
 export default function OverviewTab({ student: s, viewClassId, classes }) {
-  const { activities, students, eqScale, announcements, fbReady } = useData()
+  const { activities, students, eqScale, announcements, quizzes, fbReady } = useData()
 
   const [viewAnn, setViewAnn] = useState(null)
 
@@ -396,6 +398,8 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
       Math.max(mx, ((x.attendance?.[sub]?.size) || 0) + ((x.excuse?.[sub]?.size) || 0)), 0)
     return held ? { label: sub, value: Math.round((present / held) * 100) } : null
   }).filter(Boolean)
+
+  const studentInsights = generateStudentInsights(s, { classes, students, activities, quizzes })
 
   if (!fbReady) return <SkeletonDashboard />
 
@@ -489,6 +493,9 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
           <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 2 }}>{statusSub}</div>
         </div>
       </div>
+
+      {/* Study Coach — on-device insights, no external AI */}
+      <SmartInsights title="Study Coach" insights={studentInsights} />
 
       {/* Grade color legend */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8, marginBottom: 4, flexWrap: 'wrap' }}>
