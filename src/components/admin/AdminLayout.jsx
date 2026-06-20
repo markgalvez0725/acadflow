@@ -12,6 +12,7 @@ import FloatingMessenger from './FloatingMessenger'
 import SemesterCalendarChip from '@/components/primitives/SemesterCalendarChip'
 import CommandPaletteButton from '@/components/primitives/CommandPaletteButton'
 import ConnectionStatus from '@/components/primitives/ConnectionStatus'
+import { usePushNotifications } from '@/hooks/usePushNotifications'
 
 // Lazy-load tabs
 const DashboardTab    = lazy(() => import('./tabs/DashboardTab'))
@@ -44,9 +45,12 @@ const TAB_TITLES = {
 }
 
 export default function AdminLayout() {
-  const { adminTab, toastQueue, dismissToast, dialog, resolveDialog } = useUI()
-  const { fbReady, messages, semester } = useData()
+  const { adminTab, toastQueue, dismissToast, dialog, resolveDialog, toast } = useUI()
+  const { fbReady, messages, semester, db } = useData()
   const { loginTime, lastLogin } = useAuth()
+
+  // Web push (FCM) for the teacher — opt-in per device, no-op when unconfigured.
+  const push = usePushNotifications({ db, fbReady, ownerId: 'admin', role: 'admin', toast })
   const unreadMsgCount = messages.filter(m => m.from !== 'admin' && !m.adminRead).length
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarExpanded, setSidebarExpanded] = useState(false)
@@ -139,7 +143,7 @@ export default function AdminLayout() {
       {/* Modals */}
       {settingsOpen && (
         <Suspense fallback={null}>
-          <AdminSettingsModal onClose={() => setSettingsOpen(false)} />
+          <AdminSettingsModal onClose={() => setSettingsOpen(false)} push={push} />
         </Suspense>
       )}
 
