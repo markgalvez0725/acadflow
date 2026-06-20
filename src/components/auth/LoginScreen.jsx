@@ -303,7 +303,7 @@ export default function LoginScreen() {
       <ThemeToggle />
 
       {/* ── Left branding panel (desktop only) ── */}
-      <div className="hidden lg:flex flex-col justify-between flex-1 relative z-10 p-10 pointer-events-none select-none">
+      <div className="auth-brand hidden lg:flex flex-col justify-between flex-1 relative z-10 p-10 pointer-events-none select-none">
         <AcadFlowLogo size="sm" />
         <div>
           <p className="text-4xl font-display font-bold text-ink leading-tight mb-4" style={{ letterSpacing: '-.03em' }}>
@@ -343,7 +343,7 @@ export default function LoginScreen() {
       {/* ── Right glass panel ── */}
       <div className="login-panel relative z-10 flex flex-col justify-center w-full lg:max-w-[460px] lg:min-h-screen px-4 py-8 lg:px-12">
         {/* Mobile branding (hidden on desktop) */}
-        <div className="text-center mb-6 lg:hidden">
+        <div className="auth-brand-mobile text-center mb-6 lg:hidden">
           <AcadFlowLogo variant="stacked" size="lg" className="justify-center mb-1" />
           <p className="text-xs text-ink3 mt-2">Academic Management System</p>
         </div>

@@ -75,7 +75,7 @@ export default function AdminLoginScreen() {
       <ThemeToggle />
 
       {/* ── Left branding panel (desktop only) ── */}
-      <div className="hidden lg:flex flex-col justify-between flex-1 relative z-10 p-10 pointer-events-none select-none">
+      <div className="auth-brand hidden lg:flex flex-col justify-between flex-1 relative z-10 p-10 pointer-events-none select-none">
         <AcadFlowLogo size="sm" />
         <div>
           <div className="flex items-center gap-2 mb-4">
@@ -121,7 +121,7 @@ export default function AdminLoginScreen() {
       {/* ── Right glass panel ── */}
       <div className="login-panel relative z-10 flex flex-col justify-center w-full lg:max-w-[460px] lg:min-h-screen px-4 py-8 lg:px-12">
         {/* Mobile branding */}
-        <div className="text-center mb-6 lg:hidden">
+        <div className="auth-brand-mobile text-center mb-6 lg:hidden">
           <AcadFlowLogo variant="stacked" size="lg" className="justify-center mb-1" />
           <p className="text-xs text-ink3 mt-2">Teacher / Admin Portal</p>
         </div>
