@@ -4097,6 +4097,24 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
   }
 }
 
+/* — Admin mobile: keep every tab/panel within the screen (no sideways
+   overflow), and let toolbars wrap instead of running off the edge. — */
+@media (max-width: 1023px) {
+  #admin-portal .admin-body {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+  /* Panels never exceed the viewport */
+  #admin-portal .card,
+  #admin-portal .glass-panel { max-width: 100%; }
+  #admin-portal .tbl-wrap { max-width: 100%; }
+  /* Section headers + their button groups wrap to new lines */
+  #admin-portal .sec-hdr,
+  #admin-portal .sec-hdr > div { flex-wrap: wrap; min-width: 0; }
+  /* Safety net: flex rows shrink rather than force horizontal scroll */
+  #admin-portal .admin-body .flex { min-width: 0; }
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    BALANCED LOGIN — white-dominant with a contained navy branding accent.
    Static (no weather scene, no animation, no lag). Scoped to the two login
