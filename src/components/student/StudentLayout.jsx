@@ -4,7 +4,6 @@ import { useUI } from '@/context/UIContext'
 import { useData } from '@/context/DataContext'
 import { useAuth } from '@/context/AuthContext'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
-import SessionChip from '@/components/primitives/SessionChip'
 import ToastManager from '@/components/primitives/ToastManager'
 import Dialog from '@/components/primitives/Dialog'
 import FloatingMessenger from './FloatingMessenger'
@@ -227,7 +226,6 @@ export default function StudentLayout() {
           <ConnectionStatus compact />
           <CommandPaletteButton compact />
           <SemesterCalendarChip semester={semester} />
-          <SessionChip name={student.name || 'Student'} loginTime={loginTime} lastLogin={lastLogin} />
           <ThemeToggle style={{ position: 'static', width: 32, height: 32, fontSize: 14 }} />
         </div>
       </div>
