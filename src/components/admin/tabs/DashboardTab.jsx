@@ -6,6 +6,8 @@ import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import BarChart from '@/components/charts/BarChart'
 import DonutChart from '@/components/charts/DonutChart'
+import SmartInsights from '@/components/primitives/SmartInsights'
+import { generateClassInsights } from '@/utils/insights'
 import { Users, School, BookOpen, CalendarCheck, ShieldCheck } from 'lucide-react'
 import { SkeletonDashboard } from '@/components/primitives/SkeletonLoader'
 
@@ -61,6 +63,8 @@ export default function DashboardTab() {
 
   const allStudents = useMemo(() => sortByLastName(students), [students])
 
+  const classInsights = useMemo(() => generateClassInsights(students, classes), [students, classes])
+
   // Chart data
   const barData = useMemo(() => classes.map(cls => {
     const enrolled = students.filter(s => s.classId === cls.id || s.classIds?.includes(cls.id))
@@ -92,6 +96,9 @@ export default function DashboardTab() {
 
   return (
     <div>
+      {/* Smart Insights (on-device, no external AI) */}
+      <SmartInsights title="Class Insights" insights={classInsights} />
+
       {/* Stat cards */}
       <div className="stat-grid mb-4">
         <div className="stat-card"><div className="sc-icon"><Users size={22} /></div><div className="sc-val">{stats.total}</div><div className="sc-label">Total Students</div><div className="sc-sub">{stats.regCount} with accounts</div></div>
