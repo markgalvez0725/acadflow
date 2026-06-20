@@ -5,8 +5,10 @@ import { useUI } from '@/context/UIContext'
 import Modal from '@/components/primitives/Modal'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
-import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList, Pencil, Save, Rocket, FileText, X, Lock, Circle, Archive, ArchiveRestore } from 'lucide-react'
+import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList, Pencil, Save, Rocket, FileText, X, Lock, Circle, Archive, ArchiveRestore, Sparkles, Wand2, FileUp } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
+import { extractTextFromFile } from '@/utils/lessonExtract'
+import { generateDraftQuestions } from '@/utils/quizGen'
 
 
 function quizId() {
@@ -649,6 +651,156 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
 // ── Main Tab ──────────────────────────────────────────────────────────────────
 const PER_PAGE = 10
 
+// ── Generate from Lesson File Modal ───────────────────────────────────────
+function GenerateFromLessonModal({ onClose, onGenerated }) {
+  const { toast } = useUI()
+  const [fileName, setFileName] = useState('')
+  const [text, setText] = useState('')
+  const [extracting, setExtracting] = useState(false)
+  const [count, setCount] = useState(10)
+  const [qTypes, setQTypes] = useState(['multiple_choice', 'true_false', 'fill_in_the_blank', 'identification'])
+  const [method, setMethod] = useState('device') // 'device' | 'ai'
+  const [busy, setBusy] = useState(false)
+
+  function toggleType(t) {
+    setQTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])
+  }
+
+  async function handleFile(file) {
+    if (!file) return
+    setFileName(file.name)
+    setExtracting(true)
+    setText('')
+    try {
+      const t = await extractTextFromFile(file)
+      if (!t || t.trim().length < 80) {
+        toast('Could not read enough text from that file. Try a text-based PDF/Word/PowerPoint.', 'warn', 6000)
+      }
+      setText(t || '')
+    } catch (e) {
+      toast(e.message || 'Could not read that file.', 'error', 6000)
+      setFileName('')
+    } finally {
+      setExtracting(false)
+    }
+  }
+
+  async function handleGenerate() {
+    if (!text.trim()) { toast('Upload a lesson file first.', 'warn'); return }
+    if (!qTypes.length) { toast('Pick at least one question type.', 'warn'); return }
+    setBusy(true)
+    try {
+      if (method === 'ai') {
+        try {
+          const r = await fetch('/api/generate-quiz-gemini', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, count, types: qTypes }),
+          })
+          if (r.ok) {
+            const data = await r.json()
+            const qs = (data.questions || []).map(q => ({ id: 'q_' + Date.now() + Math.random().toString(36).slice(2, 6), ...q }))
+            if (qs.length) { onGenerated(qs); return }
+            toast('AI returned no questions. Using on-device drafts instead.', 'warn', 5000)
+          } else if (r.status === 501) {
+            toast('AI is not set up yet (no free key). Using on-device drafts instead.', 'info', 6000)
+          } else {
+            toast('AI request failed. Using on-device drafts instead.', 'warn', 5000)
+          }
+        } catch {
+          toast('Could not reach the AI service. Using on-device drafts instead.', 'warn', 5000)
+        }
+      }
+      // On-device (default, or AI fallback)
+      const qs = generateDraftQuestions(text, { count, types: qTypes })
+      if (!qs.length) { toast('Could not draft questions from this lesson. Try a longer, text-heavy file.', 'error', 6000); return }
+      onGenerated(qs)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const words = text.trim() ? text.trim().split(/\s+/).length : 0
+
+  return (
+    <Modal onClose={onClose} size="md">
+      <h3 className="text-lg font-bold text-ink mb-1">
+        <Wand2 size={18} className="inline-block mr-1 align-text-bottom" />Generate Quiz from a Lesson
+      </h3>
+      <p className="modal-sub">
+        Upload your lesson file and AcadFlow drafts quiz questions from it. You review and edit everything before saving.
+      </p>
+
+      {/* Guide */}
+      <div style={{ background: 'var(--accent-l)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: 'var(--ink2)' }}>
+        <strong style={{ color: 'var(--ink)' }}>How it works:</strong>
+        <ol style={{ margin: '6px 0 0 16px', lineHeight: 1.8 }}>
+          <li>Upload a <strong>PDF, Word (.docx), or PowerPoint (.pptx)</strong> lesson file. It is read on your device only, never uploaded.</li>
+          <li>Pick how many questions and which types you want.</li>
+          <li>Click <strong>Generate</strong>. The draft opens for you to review, edit, and then save.</li>
+        </ol>
+      </div>
+
+      {/* File upload */}
+      <div className="field mb-3">
+        <label className="text-xs font-semibold text-ink2 mb-1 block">Lesson file <span className="text-red-500">*</span></label>
+        <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer' }}>
+          <FileUp size={14} className="inline-block mr-1" />{fileName ? 'Change file' : 'Choose file (PDF / Word / PowerPoint)'}
+          <input type="file" hidden accept=".pdf,.docx,.pptx,.txt,.md"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
+        </label>
+        {extracting && <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 6 }}>Reading {fileName}…</div>}
+        {!extracting && fileName && text && (
+          <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 6 }}>
+            <Check size={12} className="inline-block mr-1" />{fileName} · {words.toLocaleString()} words read
+          </div>
+        )}
+      </div>
+
+      {/* Settings */}
+      <div className="field mb-3">
+        <label className="text-xs font-semibold text-ink2 mb-1 block">Number of Questions</label>
+        <input className="input w-full" type="number" min={1} max={50} value={count}
+          onChange={e => setCount(Math.min(50, Math.max(1, parseInt(e.target.value) || 1)))} />
+      </div>
+
+      <div className="field mb-3">
+        <label className="text-xs font-semibold text-ink2 mb-2 block">Question Types</label>
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(TYPE_LABELS).map(([t, label]) => (
+            <button key={t} type="button" onClick={() => toggleType(t)}
+              className={`btn btn-sm ${qTypes.includes(t) ? 'btn-primary' : 'btn-ghost'}`} style={{ fontSize: 12 }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Method */}
+      <div className="field mb-4">
+        <label className="text-xs font-semibold text-ink2 mb-2 block">Generation method</label>
+        <div className="flex flex-col gap-2">
+          <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer' }}>
+            <input type="radio" name="genmethod" checked={method === 'device'} onChange={() => setMethod('device')} style={{ marginTop: 3 }} />
+            <span style={{ fontSize: 13 }}><strong>On-device</strong> <span style={{ color: 'var(--ink3)' }}>— instant, free, no setup. Drafts from your lesson text.</span></span>
+          </label>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer' }}>
+            <input type="radio" name="genmethod" checked={method === 'ai'} onChange={() => setMethod('ai')} style={{ marginTop: 3 }} />
+            <span style={{ fontSize: 13 }}><strong>AI (Gemini free tier)</strong> <span style={{ color: 'var(--ink3)' }}>— higher quality. Needs a free Google API key (no credit card). Falls back to on-device if not set up.</span></span>
+          </label>
+        </div>
+      </div>
+
+      <div className="modal-footer">
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={handleGenerate} disabled={busy || extracting || !text.trim()}>
+          <Sparkles size={13} className="inline-block mr-1" />{busy ? 'Generating…' : 'Generate'}
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
 export default function QuizTab() {
   const { quizzes, classes, fbReady } = useData()
   const [page, setPage] = useState(1)
@@ -656,6 +808,7 @@ export default function QuizTab() {
   const [showArchivedQuizzes, setShowArchivedQuizzes] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const [showImport, setShowImport] = useState(false)
+  const [showLesson, setShowLesson] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [importedQuestions, setImportedQuestions] = useState([])
   const [viewQuiz, setViewQuiz] = useState(null)
@@ -705,9 +858,10 @@ export default function QuizTab() {
     <div>
       <div className="sec-hdr mb-3">
         <div className="sec-title">Quizzes</div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button className="btn btn-ghost btn-sm" onClick={() => setShowImport(true)}><Download size={13} className="inline-block mr-1" />Import AI Response</button>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowExport(true)}><Upload size={13} className="inline-block mr-1" />Export Template</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowExport(true)}><Upload size={13} className="inline-block mr-1" />Export Template</button>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowLesson(true)}><Wand2 size={13} className="inline-block mr-1" />Generate from Lesson</button>
         </div>
       </div>
 
@@ -833,6 +987,13 @@ export default function QuizTab() {
         <ImportResponseModal
           onClose={() => setShowImport(false)}
           onImported={handleImported}
+        />
+      )}
+
+      {showLesson && (
+        <GenerateFromLessonModal
+          onClose={() => setShowLesson(false)}
+          onGenerated={(qs) => { setShowLesson(false); handleImported(qs) }}
         />
       )}
 
