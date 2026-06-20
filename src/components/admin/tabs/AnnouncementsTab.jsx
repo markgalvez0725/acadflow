@@ -660,7 +660,10 @@ function AnnouncementDetailModal({ ann, classes, onClose, onEdit }) {
         {ann.message && (
           <div
             className="ann-message"
-          dangerouslySetInnerHTML={{ __html: sanitizeHtml(ann.message) }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(ann.message) }}
+          />
+        )}
+
         {/* Topics */}
         {ann.type === 'meeting_topics' && ann.topics?.length > 0 && (
           <div>
