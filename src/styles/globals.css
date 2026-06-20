@@ -3988,51 +3988,55 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 }
 #student-portal .s-val { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
 
-/* — Bottom nav: contained floating pill (mobile/tablet only).
-   Adapts to any screen width and respects the iOS/Android safe area, so the
-   bar never overlaps the screen edges and the active tab never balloons.
-   At >=1024px the nav is a vertical sidebar (handled separately below). — */
+/* — Bottom nav: dark floating capsule, icon-only (mobile/tablet only).
+   Maya-style — a contained near-black pill that floats clear of the screen
+   edges and the iOS/Android safe area, with white icons and a bright-blue
+   active tab. At >=1024px the nav is a vertical sidebar (handled below). — */
 @media (max-width: 1023px) {
   #student-portal .student-bottom-nav {
-    left: 10px;
-    right: 10px;
+    left: 12px;
+    right: 12px;
     width: auto;
-    max-width: 560px;
+    max-width: 440px;
     margin: 0 auto;
-    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
     height: auto;
-    border-radius: 22px;
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow-lg);
-    background: var(--surface) !important;
-    padding: 6px;
-    gap: 2px;
+    border-radius: 28px;
+    border: none;
+    box-shadow: 0 12px 34px rgba(0,0,0,.30);
+    background: #12161f !important;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    padding: 8px 10px;
+    gap: 4px;
   }
+  /* Icon-only: drop the labels for the clean capsule look */
+  #student-portal .student-bottom-nav .nav-label { display: none; }
   #student-portal .student-bottom-nav .nav-item {
-    border-radius: 14px;
-    padding: 7px 4px;
-    min-width: 46px;
-    gap: 3px;
+    flex: 0 0 auto;
+    min-width: 0;
+    width: 46px;
+    height: 46px;
+    padding: 0;
+    border-radius: 15px;
+    color: rgba(255,255,255,.6);
+    background: transparent;
     transition: background .16s ease, color .16s ease;
   }
+  #student-portal .student-bottom-nav .nav-item .nav-icon { font-size: 22px; }
   #student-portal .student-bottom-nav .nav-item:hover:not(.active) {
-    background: var(--accent-l); color: var(--accent);
+    background: rgba(255,255,255,.08); color: #ffffff;
   }
   #student-portal .student-bottom-nav .nav-item.active {
-    background: var(--accent); color: #fff; border-radius: 14px;
+    background: #3b7dd8; color: #ffffff;
   }
-  /* Neutralise the base active-icon chip (padding + bg) so the filled tab
-     stays a neat rounded square instead of inflating into a big circle. */
+  /* Neutralise the base active-icon chip so the filled tab stays a clean square. */
   #student-portal .student-bottom-nav .nav-item.active .nav-icon {
-    background: transparent; padding: 0; border-radius: 0;
-  }
-  #student-portal .student-bottom-nav .nav-item.active .nav-icon,
-  #student-portal .student-bottom-nav .nav-item.active .nav-label {
-    color: #fff; box-shadow: none;
+    background: transparent; padding: 0; border-radius: 0; color: #ffffff;
   }
   /* Keep tab content clear of the floating bar (+ safe area). */
   #student-portal .student-body {
-    padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(86px + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -4045,6 +4049,51 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
   #student-portal .student-bottom-nav .nav-item { border-radius: var(--radius); }
   #student-portal .student-bottom-nav .nav-item.active {
     background: var(--accent-l); color: var(--accent);
+  }
+}
+
+/* — Admin mobile bottom nav: dark floating capsule (matches the student nav).
+   Hidden on desktop, where the sidebar handles navigation. — */
+.admin-bottom-nav { display: none; }
+@media (max-width: 1023px) {
+  .admin-bottom-nav {
+    display: flex;
+    align-items: center;
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: 440px;
+    margin: 0 auto;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    border-radius: 28px;
+    background: #12161f;
+    box-shadow: 0 12px 34px rgba(0,0,0,.30);
+    padding: 8px 10px;
+    gap: 4px;
+    z-index: 20;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .admin-bottom-nav::-webkit-scrollbar { display: none; }
+  .admin-bottom-nav .abn-item {
+    flex: 0 0 auto;
+    width: 46px;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 15px;
+    color: rgba(255,255,255,.6);
+    transition: background .16s ease, color .16s ease;
+  }
+  .admin-bottom-nav .abn-item:hover { background: rgba(255,255,255,.08); color: #ffffff; }
+  .admin-bottom-nav .abn-item.active { background: #3b7dd8; color: #ffffff; }
+  #admin-portal .admin-body {
+    padding-bottom: calc(86px + env(safe-area-inset-bottom, 0px));
   }
 }
 
