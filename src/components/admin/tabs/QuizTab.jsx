@@ -734,7 +734,7 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
       {/* Guide */}
       <div style={{ background: 'var(--accent-l)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: 'var(--ink2)' }}>
         <strong style={{ color: 'var(--ink)' }}>How it works:</strong>
-        <ol style={{ margin: '6px 0 0 16px', lineHeight: 1.8 }}>
+        <ol style={{ margin: '6px 0 0', paddingLeft: 20, listStyleType: 'decimal', lineHeight: 1.7 }}>
           <li>Upload a <strong>PDF, Word (.docx), or PowerPoint (.pptx)</strong> lesson file. It is read on your device only, never uploaded.</li>
           <li>Pick how many questions and which types you want.</li>
           <li>Click <strong>Generate</strong>. The draft opens for you to review, edit, and then save.</li>
@@ -780,14 +780,38 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
       <div className="field mb-4">
         <label className="text-xs font-semibold text-ink2 mb-2 block">Generation method</label>
         <div className="flex flex-col gap-2">
-          <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer' }}>
-            <input type="radio" name="genmethod" checked={method === 'device'} onChange={() => setMethod('device')} style={{ marginTop: 3 }} />
-            <span style={{ fontSize: 13 }}><strong>On-device</strong> <span style={{ color: 'var(--ink3)' }}>— instant, free, no setup. Drafts from your lesson text.</span></span>
-          </label>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer' }}>
-            <input type="radio" name="genmethod" checked={method === 'ai'} onChange={() => setMethod('ai')} style={{ marginTop: 3 }} />
-            <span style={{ fontSize: 13 }}><strong>AI (Gemini free tier)</strong> <span style={{ color: 'var(--ink3)' }}>— higher quality. Needs a free Google API key (no credit card). Falls back to on-device if not set up.</span></span>
-          </label>
+          {[
+            { id: 'device', title: 'On-device', desc: 'Instant, free, no setup. Drafts from your lesson text.' },
+            { id: 'ai', title: 'AI (Gemini free tier)', desc: 'Higher quality. Needs a free Google API key (no credit card). Falls back to on-device if not set up.' },
+          ].map(opt => {
+            const active = method === opt.id
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setMethod(opt.id)}
+                style={{
+                  display: 'flex', gap: 10, alignItems: 'flex-start', textAlign: 'left', width: '100%',
+                  padding: '11px 13px', borderRadius: 12, cursor: 'pointer',
+                  background: active ? 'var(--accent-l)' : 'var(--surface)',
+                  border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                  transition: 'border-color .15s, background .15s',
+                }}
+              >
+                <span style={{
+                  width: 18, height: 18, borderRadius: '50%', flexShrink: 0, marginTop: 1,
+                  border: `2px solid ${active ? 'var(--accent)' : 'var(--border2)'}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {active && <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'var(--accent)' }} />}
+                </span>
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>{opt.title}</span>
+                  <span style={{ display: 'block', fontSize: 12, color: 'var(--ink3)', marginTop: 2, lineHeight: 1.5 }}>{opt.desc}</span>
+                </span>
+              </button>
+            )
+          })}
         </div>
       </div>
 
