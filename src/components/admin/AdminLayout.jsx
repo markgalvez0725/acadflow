@@ -13,6 +13,22 @@ import SemesterCalendarChip from '@/components/primitives/SemesterCalendarChip'
 import CommandPaletteButton from '@/components/primitives/CommandPaletteButton'
 import ConnectionStatus from '@/components/primitives/ConnectionStatus'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
+import { Rss, LayoutDashboard, School, Users, BookOpen, CalendarCheck, FileQuestion, CalendarDays, Bell, ClipboardList, Video } from 'lucide-react'
+
+// Mobile bottom-nav tabs (dark capsule). Desktop keeps the sidebar.
+const ADMIN_NAV_TABS = [
+  { id: 'stream',        Icon: Rss },
+  { id: 'dashboard',     Icon: LayoutDashboard },
+  { id: 'classes',       Icon: School },
+  { id: 'students',      Icon: Users },
+  { id: 'grades',        Icon: BookOpen },
+  { id: 'attendance',    Icon: CalendarCheck },
+  { id: 'activities',    Icon: ClipboardList },
+  { id: 'quizzes',       Icon: FileQuestion },
+  { id: 'notifications', Icon: Bell },
+  { id: 'calendar',      Icon: CalendarDays },
+  { id: 'onlineClasses', Icon: Video },
+]
 
 // Lazy-load tabs
 const DashboardTab    = lazy(() => import('./tabs/DashboardTab'))
@@ -45,7 +61,7 @@ const TAB_TITLES = {
 }
 
 export default function AdminLayout() {
-  const { adminTab, toastQueue, dismissToast, dialog, resolveDialog, toast } = useUI()
+  const { adminTab, setAdminTab, toastQueue, dismissToast, dialog, resolveDialog, toast } = useUI()
   const { fbReady, messages, semester, db } = useData()
   const { loginTime, lastLogin } = useAuth()
 
@@ -149,6 +165,21 @@ export default function AdminLayout() {
 
       {/* Floating Messenger */}
       <FloatingMessenger unreadCount={unreadMsgCount} />
+
+      {/* Mobile bottom nav — dark capsule (desktop uses the sidebar) */}
+      <nav className="admin-bottom-nav" aria-label="Sections">
+        {ADMIN_NAV_TABS.map(t => (
+          <button
+            key={t.id}
+            className={`abn-item${adminTab === t.id ? ' active' : ''}`}
+            onClick={() => setAdminTab(t.id)}
+            aria-label={t.id}
+            title={t.id}
+          >
+            <t.Icon size={22} />
+          </button>
+        ))}
+      </nav>
 
       {/* Toast + Dialog */}
       <ToastManager toasts={toastQueue} onDismiss={dismissToast} />
