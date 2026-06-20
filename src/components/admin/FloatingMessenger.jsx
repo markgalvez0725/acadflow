@@ -3,6 +3,8 @@ import { doc, setDoc, updateDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { sortByLastName } from '@/utils/format'
+import { notifyStudentMessage, notifyStudentsBroadcast } from '@/firebase/messageNotify'
+import { fbAddMessageReply } from '@/firebase/persistence'
 import Modal from '@/components/primitives/Modal'
 import { MessageSquare, X } from 'lucide-react'
 
@@ -67,6 +69,17 @@ function ComposeModal({ onClose }) {
         ts: Date.now(), read: [], adminRead: true, replies: [],
         type: msgType, classId: classId || null,
       })
+      // Notify the recipient(s) so they get an in-app badge + push.
+      if (to === 'all') {
+        notifyStudentsBroadcast(db.current, students.map(s => s.id), subject.trim())
+      } else if (isClassBroadcast) {
+        const ids = students
+          .filter(s => s.classId === classId || s.classIds?.includes(classId))
+          .map(s => s.id)
+        notifyStudentsBroadcast(db.current, ids, subject.trim())
+      } else {
+        notifyStudentMessage(db.current, to, body.trim())
+      }
       toast('Message sent!', 'green')
       onClose()
     } catch (e) {
@@ -286,15 +299,24 @@ export default function FloatingAdminMessenger({ unreadCount }) {
         const studentMsgs = messages.filter(m => m.from === thread.studentId).sort((a, b) => b.ts - a.ts)
         const targetMsg = studentMsgs[0]
         if (!targetMsg) return
-        await updateDoc(doc(db.current, 'messages', targetMsg.id), {
-          replies: [...(targetMsg.replies || []), reply], adminRead: true,
-        })
+        await fbAddMessageReply(db.current, targetMsg.id, reply, { adminRead: true })
+        notifyStudentMessage(db.current, thread.studentId, text)
       } else {
         const m = messages.find(x => x.id === thread.msgId)
         if (!m) return
-        await updateDoc(doc(db.current, 'messages', m.id), {
-          replies: [...(m.replies || []), reply], adminRead: true,
-        })
+        await fbAddMessageReply(db.current, m.id, reply, { adminRead: true })
+        // Notify the recipient(s) of this thread.
+        if (m.to === 'all') {
+          notifyStudentsBroadcast(db.current, students.map(s => s.id), text)
+        } else if (typeof m.to === 'string' && m.to.startsWith('class:')) {
+          const cid = m.to.slice(6)
+          const ids = students.filter(s => s.classId === cid || s.classIds?.includes(cid)).map(s => s.id)
+          notifyStudentsBroadcast(db.current, ids, text)
+        } else if (m.to && m.to !== 'admin') {
+          notifyStudentMessage(db.current, m.to, text)
+        } else if (m.from && m.from !== 'admin') {
+          notifyStudentMessage(db.current, m.from, text)
+        }
       }
       setReplyText('')
     } catch (e) {
