@@ -2871,6 +2871,18 @@ textarea.input { resize: vertical; }
   pointer-events: none;
 }
 
+/* Show list markers + formatting live while typing (the global reset
+   otherwise strips bullets/numbers inside the contenteditable area).
+   Mirrors the rendered .ann-message styles so the editor is WYSIWYG. */
+.rich-editor ul { margin: 4px 0; padding-left: 22px; list-style: disc; }
+.rich-editor ol { margin: 4px 0; padding-left: 22px; list-style: decimal; }
+.rich-editor li { margin: 2px 0; }
+.rich-editor h3 { font-size: 15px; font-weight: 700; color: var(--ink); margin: 4px 0 2px; }
+.rich-editor h4 { font-size: 14px; font-weight: 600; color: var(--ink); margin: 4px 0 2px; }
+.rich-editor strong, .rich-editor b { font-weight: 700; }
+.rich-editor em, .rich-editor i { font-style: italic; }
+.rich-editor u { text-decoration: underline; }
+
 .ann-message {
   font-size: 14px;
   color: var(--ink2);
