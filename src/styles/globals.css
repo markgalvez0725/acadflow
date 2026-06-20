@@ -4261,3 +4261,52 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
   background: rgba(255,255,255,.18); padding: 5px 12px; border-radius: 999px;
 }
 #student-portal .s-home-hero-status .sh-sub { font-size: 12px; color: rgba(255,255,255,.78); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MOBILE APP-SHELL SCROLL LOCK
+   On phones/tablets the document itself must NOT scroll — otherwise the
+   floating bottom nav (position: fixed) drifts up and down as the mobile
+   browser's dynamic toolbar / momentum scroll changes the visual viewport.
+   Instead we pin each portal to the viewport height and scroll an inner
+   container (.student-body / .admin-body). The topbar and the fixed bottom
+   nav then stay rock-solid. Desktop (>=1024px) is untouched.
+══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 1023px) {
+  /* Don't let the page body scroll behind the app shell. */
+  html, body {
+    overscroll-behavior-y: none;
+  }
+
+  /* Student portal — the root is the flex column. */
+  #student-portal.student-layout {
+    height: 100vh;          /* fallback */
+    height: 100dvh;         /* tracks the dynamic viewport on iOS/Android */
+    overflow: hidden;
+  }
+  #student-portal .student-body {
+    flex: 1 1 auto;
+    min-height: 0;          /* required so the flex child can actually scroll */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* Admin portal — the flex column is .admin-main inside the root. */
+  #admin-portal.admin-layout {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+  #admin-portal .admin-main {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+  }
+  #admin-portal .admin-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+}
