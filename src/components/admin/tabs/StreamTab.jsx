@@ -108,8 +108,8 @@ function TypeBadge({ type }) {
 
 // ── HTML Sanitization Config ──────────────────────────────────────────
 const SANITIZE_CONFIG = {
-  ALLOWED_TAGS: ['b', 'i', 'u', 'em', 'strong', 'mark', 'p', 'br', 'ul', 'ol', 'li', 'h3', 'h4'],
-  ALLOWED_ATTR: [],
+  ALLOWED_TAGS: ['b', 'i', 'u', 'em', 'strong', 'mark', 'p', 'br', 'ul', 'ol', 'li', 'h3', 'h4', 'a', 'pre', 'code', 'font', 'table', 'thead', 'tbody', 'tr', 'td', 'th'],
+  ALLOWED_ATTR: ['href', 'target', 'rel', 'size', 'colspan', 'rowspan'],
   FORCE_BODY: false,
 }
 
@@ -541,7 +541,7 @@ function AnnouncementDetailModal({ ann, classes, onClose, onEdit }) {
   )
 }
 
-function AnnouncementCard({ item, classObj }) {
+function AnnouncementCard({ item, classObj, onEdit, onToggleActive, onDelete }) {
   const ann = item.data
   const [expanded, setExpanded] = useState(false)
   const hasMessage = ann.message && ann.message !== '<p></p>' && ann.message !== ''
@@ -578,6 +578,35 @@ function AnnouncementCard({ item, classObj }) {
         <ul style={{ marginTop: 8, paddingLeft: 20, fontSize: 13, color: 'var(--ink2)', listStyle: 'disc' }}>
           {ann.topics.map((t, i) => <li key={i}>{t}</li>)}
         </ul>
+      )}
+      {(onEdit || onToggleActive || onDelete) && (
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}
+        >
+          {onToggleActive && (
+            <button
+              className="btn btn-ghost btn-sm"
+              title={ann.active ? 'Deactivate' : 'Activate'}
+              onClick={onToggleActive}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginRight: 'auto' }}
+            >
+              {ann.active
+                ? <><ToggleRight size={16} style={{ color: 'var(--green)' }} /> Active</>
+                : <><ToggleLeft size={16} style={{ color: 'var(--ink3)' }} /> Inactive</>}
+            </button>
+          )}
+          {onEdit && <button className="btn btn-secondary btn-sm" onClick={onEdit}>Edit</button>}
+          {onDelete && (
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={onDelete}
+              style={{ color: 'var(--red)', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+            >
+              <Trash2 size={14} /> Delete
+            </button>
+          )}
+        </div>
       )}
       <div className="stream-card-footer">
         <span style={{ fontSize: 11, color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1074,7 +1103,15 @@ export default function StreamTab() {
                   {label}
                 </div>
               )}
-              {item.type === 'announcement' && <AnnouncementCard item={item} classObj={classObj} />}
+              {item.type === 'announcement' && (
+                <AnnouncementCard
+                  item={item}
+                  classObj={classObj}
+                  onEdit={() => { setEditAnn(item.data); setFormOpen(true) }}
+                  onToggleActive={() => handleToggleActive(item.data)}
+                  onDelete={() => { if (window.confirm('Delete this announcement?')) handleDelete(item.data.id) }}
+                />
+              )}
               {item.type === 'activity' && <ActivityCard item={item} classObj={classObj} students={students} />}
               {item.type === 'quiz' && <QuizCard item={item} classObj={classObj} students={students} />}
               {item.type === 'grade' && <GradeCard item={item} classObj={classObj} />}

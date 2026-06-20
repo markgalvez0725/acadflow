@@ -9,8 +9,8 @@ import { Megaphone, Plus, Trash2, CalendarOff, Video, BookOpen, ToggleLeft, Togg
 
 // ── HTML Sanitization Config ──────────────────────────────────────────
 const SANITIZE_CONFIG = {
-  ALLOWED_TAGS: ['b', 'i', 'u', 'em', 'strong', 'mark', 'p', 'br', 'ul', 'ol', 'li', 'h3', 'h4'],
-  ALLOWED_ATTR: [],
+  ALLOWED_TAGS: ['b', 'i', 'u', 'em', 'strong', 'mark', 'p', 'br', 'ul', 'ol', 'li', 'h3', 'h4', 'a', 'pre', 'code', 'font', 'table', 'thead', 'tbody', 'tr', 'td', 'th'],
+  ALLOWED_ATTR: ['href', 'target', 'rel', 'size', 'colspan', 'rowspan'],
   FORCE_BODY: false,
 }
 
@@ -38,6 +38,25 @@ function RichTextEditor({ value, onChange, placeholder, rows = 3 }) {
 
   function handleInput() {
     onChange(sanitizeHtml(editorRef.current.innerHTML))
+  }
+
+  function insertLink() {
+    const url = window.prompt('Link URL', 'https://')
+    if (!url) return
+    exec('createLink', url)
+  }
+
+  function insertTable() {
+    const raw = window.prompt('Table size (rows x columns)', '2x2') || '2x2'
+    const [r, c] = raw.toLowerCase().split('x').map(n => Math.max(1, Math.min(10, parseInt(n.trim(), 10) || 2)))
+    let html = '<table><tbody>'
+    for (let i = 0; i < (r || 2); i++) {
+      html += '<tr>'
+      for (let j = 0; j < (c || 2); j++) html += '<td>&nbsp;</td>'
+      html += '</tr>'
+    }
+    html += '</tbody></table><p><br></p>'
+    exec('insertHTML', html)
   }
 
   const btnStyle = {
@@ -69,6 +88,27 @@ function RichTextEditor({ value, onChange, placeholder, rows = 3 }) {
           <option value="h4">Heading 2</option>
           <option value="p">Normal</option>
         </select>
+        <select
+          style={{ fontSize: 11, border: '1px solid var(--border)', borderRadius: 5, padding: '2px 4px', background: 'var(--surface)', color: 'var(--ink)', cursor: 'pointer' }}
+          defaultValue=""
+          onMouseDown={e => e.stopPropagation()}
+          onChange={e => { exec('fontSize', e.target.value); e.target.value = '' }}
+          title="Font size"
+        >
+          <option value="" disabled>Size</option>
+          <option value="2">Small</option>
+          <option value="3">Normal</option>
+          <option value="5">Large</option>
+          <option value="6">Huge</option>
+        </select>
+        <div style={{ width: 1, background: 'var(--border)', margin: '0 2px' }} />
+        <button type="button" style={btnStyle} onMouseDown={e => { e.preventDefault(); exec('formatBlock', 'pre') }} title="Code block">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        </button>
+        <button type="button" style={btnStyle} onMouseDown={e => { e.preventDefault(); insertLink() }} title="Insert link"><Link size={13} /></button>
+        <button type="button" style={btnStyle} onMouseDown={e => { e.preventDefault(); insertTable() }} title="Insert table">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="1"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+        </button>
       </div>
       {/* Editable area */}
       <div
@@ -832,41 +872,36 @@ export default function AnnouncementsTab() {
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-                    {/* Active toggle */}
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      title={ann.active ? 'Deactivate' : 'Activate'}
-                      onClick={() => handleToggleActive(ann)}
-                      style={{ padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 4 }}
-                    >
-                      {ann.active
-                        ? <ToggleRight size={18} style={{ color: 'var(--green)' }} />
-                        : <ToggleLeft  size={18} style={{ color: 'var(--ink3)' }} />
-                      }
-                    </button>
+                </div>
 
-                    {/* Edit */}
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      title="Edit"
-                      onClick={() => { setEditAnn(ann); setFormOpen(true) }}
-                      style={{ padding: '4px 8px', fontSize: 12 }}
-                    >
-                      Edit
-                    </button>
-
-                    {/* Delete */}
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      title="Delete"
-                      onClick={() => setDeleteId(ann.id)}
-                      style={{ padding: '4px 6px', display: 'flex', alignItems: 'center', color: 'var(--red)' }}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
+                {/* Footer action row */}
+                <div
+                  onClick={e => e.stopPropagation()}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)' }}
+                >
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    title={ann.active ? 'Deactivate' : 'Activate'}
+                    onClick={() => handleToggleActive(ann)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginRight: 'auto' }}
+                  >
+                    {ann.active
+                      ? <><ToggleRight size={16} style={{ color: 'var(--green)' }} /> Active</>
+                      : <><ToggleLeft size={16} style={{ color: 'var(--ink3)' }} /> Inactive</>}
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => { setEditAnn(ann); setFormOpen(true) }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => setDeleteId(ann.id)}
+                    style={{ color: 'var(--red)', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                  >
+                    <Trash2 size={14} /> Delete
+                  </button>
                 </div>
               </div>
             )
