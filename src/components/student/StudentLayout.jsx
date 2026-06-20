@@ -11,6 +11,7 @@ import FloatingMessenger from './FloatingMessenger'
 import { SkeletonRows, SkeletonDashboard, TabErrorBoundary } from '@/components/primitives/SkeletonLoader'
 import SemesterCalendarChip from '@/components/primitives/SemesterCalendarChip'
 import CommandPaletteButton from '@/components/primitives/CommandPaletteButton'
+import ConnectionStatus from '@/components/primitives/ConnectionStatus'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature } from 'lucide-react'
 
@@ -223,6 +224,7 @@ export default function StudentLayout() {
               ))}
             </select>
           )}
+          <ConnectionStatus compact />
           <CommandPaletteButton compact />
           <SemesterCalendarChip semester={semester} />
           <SessionChip name={student.name || 'Student'} loginTime={loginTime} lastLogin={lastLogin} />
