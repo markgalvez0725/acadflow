@@ -3,6 +3,7 @@ import { doc, updateDoc, setDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { relativeTime } from '@/utils/format'
+import { notifyAdminMessage } from '@/firebase/messageNotify'
 import Pagination from '@/components/primitives/Pagination'
 import { MessageSquare, GraduationCap, CheckCheck } from 'lucide-react'
 
@@ -157,8 +158,8 @@ export default function MessagesTab({ student: s, messages }) {
           setThreadEntries(prev => [...prev, { ...newReply, isMain: false }])
           setReplyText('')
           await updateDoc(doc(db.current, 'messages', replyMsgId), { replies, adminRead: false, read: newRead })
-          // Push admin notif
-          await pushAdminNotif(db.current, s, text, 'msg_in')
+          // Notify teacher: in-app badge + best-effort web push.
+          notifyAdminMessage(db.current, s.name || s.id, text, 'reply')
         }
       } else {
         // New message to admin
@@ -171,6 +172,8 @@ export default function MessagesTab({ student: s, messages }) {
         }
         setReplyText('')
         await setDoc(doc(db.current, 'messages', newId), msg)
+        // Notify teacher of a brand-new conversation (was previously missing).
+        notifyAdminMessage(db.current, s.name || s.id, text, 'message')
       }
     } catch (e) {
       toast('Failed to send: ' + e.message, 'error')
@@ -326,21 +329,4 @@ export default function MessagesTab({ student: s, messages }) {
       )}
     </div>
   )
-}
-
-async function pushAdminNotif(db, s, text, type) {
-  try {
-    const ref = doc(db, 'notifications', 'admin')
-    const { getDoc, setDoc } = await import('firebase/firestore')
-    const snap = await getDoc(ref)
-    const existing = snap.exists() ? (snap.data().items || []) : []
-    const notif = {
-      id: 'n' + Date.now() + Math.random().toString(36).slice(2, 5),
-      type, read: false, ts: Date.now(),
-      title: 'Reply from ' + (s.name || s.id),
-      body: text.slice(0, 80),
-      link: 'messages',
-    }
-    await setDoc(ref, { items: [notif, ...existing].slice(0, 200) }, { merge: false })
-  } catch (e) {}
 }
