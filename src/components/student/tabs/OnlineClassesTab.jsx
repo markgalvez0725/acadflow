@@ -190,5 +190,6 @@ export default function OnlineClassesTab({ student }) {
 }
 
 function meetingClassLabel(meeting, classNameById) {
-  return meeting.className || classNameById[meeting.classId] || 'Class'
+  const base = meeting.className || classNameById[meeting.classId] || 'Class'
+  return meeting.subject ? `${base} · ${meeting.subject}` : base
 }
