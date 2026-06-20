@@ -3988,12 +3988,20 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 }
 #student-portal .s-val { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
 
-/* — Bottom nav as a floating pill (mobile/tablet only).
-   At >=1024px the nav is a vertical sidebar, so the pill radius/shadow must
-   NOT apply there or the sidebar renders as a giant oval. — */
+/* — Bottom nav: contained floating pill (mobile/tablet only).
+   Adapts to any screen width and respects the iOS/Android safe area, so the
+   bar never overlaps the screen edges and the active tab never balloons.
+   At >=1024px the nav is a vertical sidebar (handled separately below). — */
 @media (max-width: 1023px) {
   #student-portal .student-bottom-nav {
-    border-radius: 999px;
+    left: 10px;
+    right: 10px;
+    width: auto;
+    max-width: 560px;
+    margin: 0 auto;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    height: auto;
+    border-radius: 22px;
     border: 1px solid var(--border);
     box-shadow: var(--shadow-lg);
     background: var(--surface) !important;
@@ -4001,8 +4009,9 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
     gap: 2px;
   }
   #student-portal .student-bottom-nav .nav-item {
-    border-radius: 999px;
-    padding: 8px 13px;
+    border-radius: 14px;
+    padding: 7px 4px;
+    min-width: 46px;
     gap: 3px;
     transition: background .16s ease, color .16s ease;
   }
@@ -4010,11 +4019,20 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
     background: var(--accent-l); color: var(--accent);
   }
   #student-portal .student-bottom-nav .nav-item.active {
-    background: var(--accent); color: #fff;
+    background: var(--accent); color: #fff; border-radius: 14px;
+  }
+  /* Neutralise the base active-icon chip (padding + bg) so the filled tab
+     stays a neat rounded square instead of inflating into a big circle. */
+  #student-portal .student-bottom-nav .nav-item.active .nav-icon {
+    background: transparent; padding: 0; border-radius: 0;
   }
   #student-portal .student-bottom-nav .nav-item.active .nav-icon,
   #student-portal .student-bottom-nav .nav-item.active .nav-label {
-    color: #fff; background: transparent; box-shadow: none;
+    color: #fff; box-shadow: none;
+  }
+  /* Keep tab content clear of the floating bar (+ safe area). */
+  #student-portal .student-body {
+    padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
   }
 }
 
