@@ -12,7 +12,7 @@ import SemesterCalendarChip from '@/components/primitives/SemesterCalendarChip'
 import CommandPaletteButton from '@/components/primitives/CommandPaletteButton'
 import ConnectionStatus from '@/components/primitives/ConnectionStatus'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
-import { Rss, LayoutDashboard, School, Users, BookOpen, CalendarCheck, FileQuestion, CalendarDays, Bell, ClipboardList, Video } from 'lucide-react'
+import { Rss, LayoutDashboard, School, Users, BookOpen, CalendarCheck, FileQuestion, CalendarDays, Bell, ClipboardList, Video, Settings, LogOut } from 'lucide-react'
 
 // Mobile bottom-nav tabs (dark capsule). Desktop keeps the sidebar.
 const ADMIN_NAV_TABS = [
@@ -61,8 +61,11 @@ const TAB_TITLES = {
 
 export default function AdminLayout() {
   const { adminTab, setAdminTab, toastQueue, dismissToast, dialog, resolveDialog, toast } = useUI()
-  const { fbReady, messages, semester, db } = useData()
-  const { loginTime, lastLogin } = useAuth()
+  const { fbReady, messages, semester, db, admin } = useData()
+  const { loginTime, lastLogin, logout } = useAuth()
+
+  const adminName = admin?.name || admin?.displayName || 'Teacher'
+  const adminInitial = adminName.charAt(0).toUpperCase()
 
   // Web push (FCM) for the teacher — opt-in per device, no-op when unconfigured.
   const push = usePushNotifications({ db, fbReady, ownerId: 'admin', role: 'admin', toast })
@@ -70,6 +73,7 @@ export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarExpanded, setSidebarExpanded] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const [clock, setClock] = useState('')
 
   // Clock
@@ -111,15 +115,49 @@ export default function AdminLayout() {
         {/* Top bar */}
         <div className="admin-topbar">
           <div className="flex items-center gap-3">
-            <button
-              className="hamburger md:hidden"
-              onClick={() => setSidebarOpen(o => !o)}
-              aria-label="Toggle sidebar"
-            >
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M3 6h14M3 10h14M3 14h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-              </svg>
-            </button>
+            {/* Profile avatar — opens Settings / Logout */}
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <button
+                onClick={() => setProfileOpen(o => !o)}
+                title="Account"
+                aria-label="Account options"
+                style={{
+                  width: 40, height: 40, borderRadius: '50%',
+                  background: 'var(--accent)', color: '#fff', border: 'none',
+                  cursor: 'pointer', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', fontWeight: 700, fontSize: 16,
+                }}
+              >
+                {adminInitial}
+              </button>
+              {profileOpen && (
+                <>
+                  <div onClick={() => setProfileOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 60 }} />
+                  <div style={{
+                    position: 'absolute', top: 'calc(100% + 8px)', left: 0, zIndex: 61,
+                    minWidth: 210, background: 'var(--surface)', border: '1px solid var(--border)',
+                    borderRadius: 12, boxShadow: 'var(--shadow-lg)', padding: 6,
+                  }}>
+                    <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border)', marginBottom: 4 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--ink)' }}>{adminName}</div>
+                      <div style={{ fontSize: 11, color: 'var(--ink3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{admin?.email || '—'}</div>
+                    </div>
+                    <button
+                      onClick={() => { setProfileOpen(false); setSettingsOpen(true) }}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink)', fontSize: 13, borderRadius: 8, textAlign: 'left' }}
+                    >
+                      <Settings size={16} /> Settings
+                    </button>
+                    <button
+                      onClick={() => { setProfileOpen(false); logout() }}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red)', fontSize: 13, borderRadius: 8, textAlign: 'left' }}
+                    >
+                      <LogOut size={16} /> Logout
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
             <div>
               <h3>{title}</h3>
               <span>{subtitle}</span>
