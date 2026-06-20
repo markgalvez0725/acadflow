@@ -4030,6 +4030,90 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
   }
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   GLASS LOGIN — static navy gradient + frosted "Apple glass" panels.
+   Replaces the animated weather scene (the source of mobile lag). Scoped to
+   the two login screens. Tokens are re-pointed to light so existing branding
+   markup reads correctly over the gradient. No JS, no animation. Revertible.
+══════════════════════════════════════════════════════════════════════════ */
+#login-screen, #admin-login-screen {
+  --ink:  #ffffff;
+  --ink2: rgba(255,255,255,.84);
+  --ink3: rgba(255,255,255,.66);
+  --accent:    #ffffff;
+  --accent-m:  #cfe0f7;
+  --accent-l:  rgba(255,255,255,.16);
+  --border2:   rgba(255,255,255,.30);
+  --grad-brand: linear-gradient(90deg, #dce9fb, #ffffff);
+  background: linear-gradient(140deg, #0d2f6e 0%, #1a4a9e 52%, #3b7dd8 100%) !important;
+}
+
+/* Frosted glass form panel */
+#login-screen .login-panel,
+#admin-login-screen .login-panel {
+  background: rgba(255,255,255,.10);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+  border-left: 1px solid rgba(255,255,255,.20);
+  box-shadow: -1px 0 40px rgba(7,24,60,.30);
+}
+@media (max-width: 1023px) {
+  #login-screen .login-panel,
+  #admin-login-screen .login-panel {
+    border-left: none;
+    margin: 14px;
+    border: 1px solid rgba(255,255,255,.22);
+    border-radius: 22px;
+    min-height: 0;
+    align-self: center;
+    box-shadow: 0 18px 44px rgba(7,24,60,.34), inset 0 1px 0 rgba(255,255,255,.4);
+  }
+}
+
+/* Glass inputs */
+#login-screen .field-float input,  #login-screen .field-float select,
+#admin-login-screen .field-float input, #admin-login-screen .field-float select {
+  background: rgba(255,255,255,.13);
+  color: #ffffff;
+  border-color: rgba(255,255,255,.30);
+}
+#login-screen .field-float input::placeholder,
+#admin-login-screen .field-float input::placeholder { color: rgba(255,255,255,.5); }
+#login-screen .field-float input:focus, #login-screen .field-float select:focus,
+#admin-login-screen .field-float input:focus, #admin-login-screen .field-float select:focus {
+  border-color: rgba(255,255,255,.9);
+  box-shadow: 0 0 0 3px rgba(255,255,255,.18);
+}
+
+/* Primary button reads as white on glass */
+#login-screen .login-panel .btn-primary,
+#admin-login-screen .login-panel .btn-primary {
+  background: #ffffff !important;
+  color: #0d2f6e !important;
+  box-shadow: 0 6px 18px rgba(0,0,0,.18);
+}
+#login-screen .login-panel .btn-primary:hover:not(:disabled),
+#admin-login-screen .login-panel .btn-primary:hover:not(:disabled) {
+  background: #e9f1fc !important;
+  color: #0d2f6e !important;
+}
+
+/* Mode tabs (student / register) on glass */
+#login-screen .glass-tab-bar { background: rgba(255,255,255,.12); }
+#login-screen .glass-tab-active { background: #ffffff; box-shadow: 0 1px 5px rgba(0,0,0,.22); }
+#login-screen .glass-tab-active.text-ink { color: #0d2f6e !important; }
+
+/* Graceful fallback: solid frosted navy when blur / transparency unsupported */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  #login-screen .login-panel, #admin-login-screen .login-panel { background: rgba(13,47,110,.88); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  #login-screen .login-panel, #admin-login-screen .login-panel {
+    background: #123466;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+}
+
 /* — Pill badges — */
 #student-portal .badge {
   border-radius: 999px; padding: 3px 10px; font-weight: 600; font-size: 11px;
