@@ -11,24 +11,27 @@ export default function OnlineClassesTab() {
   // ── Section 1: Meet Links ─────────────────────────────────────────────
   const [linkDrafts, setLinkDrafts] = useState({})
 
-  function getLinkDraft(classId, fallback) {
-    return linkDrafts[classId] !== undefined ? linkDrafts[classId] : (fallback || '')
+  function linkKey(classId, subject) { return subject ? `${classId}::${subject}` : classId }
+  function getLinkDraft(classId, subject, fallback) {
+    const k = linkKey(classId, subject)
+    return linkDrafts[k] !== undefined ? linkDrafts[k] : (fallback || '')
   }
 
-  async function handleSaveLink(cls) {
-    const url = getLinkDraft(cls.id, cls.meetLink)
+  async function handleSaveLink(cls, subject, fallback) {
+    const url = getLinkDraft(cls.id, subject, fallback)
     if (!url.trim()) return
     try {
-      await saveMeetLink(cls.id, url.trim())
-      toast('Meet link saved.', 'success')
+      await saveMeetLink(cls.id, url.trim(), subject || undefined)
+      toast(subject ? `Meet link saved for ${subject}.` : 'Meet link saved.', 'success')
     } catch (e) {
       toast('Failed to save Meet link.', 'error')
     }
   }
 
   // ── Section 2: Schedule Form ──────────────────────────────────────────
-  const [form, setForm] = useState({ classId: '', title: '', scheduledAt: '', description: '' })
+  const [form, setForm] = useState({ classId: '', subject: '', title: '', scheduledAt: '', description: '' })
   const [scheduling, setScheduling] = useState(false)
+  const scheduleClass = classes.find(c => c.id === form.classId)
 
   async function handleSchedule(e) {
     e.preventDefault()
@@ -37,16 +40,18 @@ export default function OnlineClassesTab() {
     if (!cls) return
     setScheduling(true)
     try {
+      const meetLink = (form.subject && cls.meetLinks?.[form.subject]) || cls.meetLink || ''
       await scheduleMeeting({
         classId: cls.id,
         className: classLabel(cls),
+        subject: form.subject || null,
         title: form.title.trim(),
         description: form.description.trim(),
-        meetLink: cls.meetLink || '',
+        meetLink,
         scheduledAt: new Date(form.scheduledAt).getTime(),
       })
       toast('Meeting scheduled. Students have been notified.', 'success')
-      setForm({ classId: '', title: '', scheduledAt: '', description: '' })
+      setForm({ classId: '', subject: '', title: '', scheduledAt: '', description: '' })
     } catch (e) {
       toast('Failed to schedule meeting.', 'error')
     } finally {
@@ -137,35 +142,61 @@ export default function OnlineClassesTab() {
         {activeClasses.length === 0 && (
           <div className="empty"><div className="empty-icon"><Video size={36} /></div>No classes found. Add classes first.</div>
         )}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-          {activeClasses.map(cls => (
-            <div key={cls.id} className="card" style={{ padding: '14px 16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>{cls.name}</div>
-                {cls.section && (
-                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-l)', borderRadius: 999, padding: '2px 8px' }}>
-                    {cls.section}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))', gap: 14 }}>
+          {activeClasses.map(cls => {
+            const subjects = cls.subjects?.length ? cls.subjects : null
+            return (
+              <div key={cls.id} className="card" style={{ padding: 16 }}>
+                {/* Card header */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                  <span style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--accent-l)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Video size={17} />
                   </span>
-                )}
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cls.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--ink3)' }}>{subjects ? `${subjects.length} subject${subjects.length !== 1 ? 's' : ''}` : 'No subjects yet'}</div>
+                  </div>
+                  {cls.section && (
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-l)', borderRadius: 999, padding: '3px 9px', flexShrink: 0 }}>{cls.section}</span>
+                  )}
+                </div>
+
+                {/* Per-subject Meet links */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {(subjects || [null]).map(sub => {
+                    const saved = sub ? (cls.meetLinks?.[sub] || '') : (cls.meetLink || '')
+                    const val = getLinkDraft(cls.id, sub, saved)
+                    return (
+                      <div key={sub || '_general'}>
+                        {sub && (
+                          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink2)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {sub}{saved && <CheckCircle size={12} style={{ color: 'var(--green)' }} />}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <input
+                            className="input"
+                            style={{ flex: 1, fontSize: 12 }}
+                            placeholder="Paste Google Meet URL…"
+                            value={val}
+                            onChange={e => setLinkDrafts(prev => ({ ...prev, [linkKey(cls.id, sub)]: e.target.value }))}
+                          />
+                          {saved && (
+                            <a href={saved} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm" title="Open link">
+                              <ExternalLink size={14} />
+                            </a>
+                          )}
+                          <button className="btn btn-primary btn-sm" onClick={() => handleSaveLink(cls, sub, saved)} title="Save Meet link">
+                            <Save size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  className="input"
-                  style={{ flex: 1, fontSize: 12 }}
-                  placeholder="Paste Google Meet URL..."
-                  value={getLinkDraft(cls.id, cls.meetLink)}
-                  onChange={e => setLinkDrafts(prev => ({ ...prev, [cls.id]: e.target.value }))}
-                />
-                <button
-                  className="btn btn-primary btn-sm"
-                  onClick={() => handleSaveLink(cls)}
-                  title="Save Meet link"
-                >
-                  <Save size={14} />
-                </button>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </section>}
 
@@ -183,7 +214,7 @@ export default function OnlineClassesTab() {
               <select
                 className="input"
                 value={form.classId}
-                onChange={e => setForm(f => ({ ...f, classId: e.target.value }))}
+                onChange={e => setForm(f => ({ ...f, classId: e.target.value, subject: '' }))}
                 required
               >
                 <option value="">Select class...</option>
@@ -203,6 +234,21 @@ export default function OnlineClassesTab() {
               />
             </div>
           </div>
+          {scheduleClass?.subjects?.length > 0 && (
+            <div>
+              <label className="label">Subject <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(picks that subject's saved Meet link)</span></label>
+              <select
+                className="input"
+                value={form.subject}
+                onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}
+              >
+                <option value="">Use class default link</option>
+                {scheduleClass.subjects.map(s => (
+                  <option key={s} value={s}>{s}{scheduleClass.meetLinks?.[s] ? '' : ' (no link set)'}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <label className="label">Meeting Title</label>
             <input
@@ -282,7 +328,7 @@ function MeetingRow({ m, onStart, onEnd, onCancel }) {
     <div className="card" style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>{m.title}</div>
-        <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 4 }}>{m.className}</div>
+        <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 4 }}>{m.className}{m.subject ? ` · ${m.subject}` : ''}</div>
         <div style={{ fontSize: 12, color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: 4 }}>
           <Clock size={12} /> {dateStr} at {timeStr}
         </div>
