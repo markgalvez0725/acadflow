@@ -3752,15 +3752,17 @@ textarea.input { resize: vertical; }
    Additive: presentation only, no structure.
 ══════════════════════════════════════════ */
 :root {
-  --glass-bg:      rgba(255, 255, 255, .66);
-  --glass-border:  rgba(255, 255, 255, .55);
-  --glass-blur:    blur(18px) saturate(160%);
-  --glass-shadow:  0 1px 0 rgba(255,255,255,.55) inset, 0 10px 30px rgba(24,27,48,.10);
+  --glass-bg:        rgba(255, 255, 255, .80);
+  --glass-bg-strong: rgba(255, 255, 255, .93);
+  --glass-border:    rgba(255, 255, 255, .55);
+  --glass-blur:      blur(18px) saturate(160%);
+  --glass-shadow:    0 1px 0 rgba(255,255,255,.55) inset, 0 10px 30px rgba(24,27,48,.10);
 }
 [data-theme="dark"] {
-  --glass-bg:      rgba(28, 36, 64, .55);
-  --glass-border:  rgba(255, 255, 255, .09);
-  --glass-shadow:  0 1px 0 rgba(255,255,255,.05) inset, 0 16px 44px rgba(0,0,0,.5);
+  --glass-bg:        rgba(28, 36, 64, .72);
+  --glass-bg-strong: rgba(22, 29, 53, .92);
+  --glass-border:    rgba(255, 255, 255, .09);
+  --glass-shadow:    0 1px 0 rgba(255,255,255,.05) inset, 0 16px 44px rgba(0,0,0,.5);
 }
 
 /* Ambient aurora — fixed, very low contrast, sits behind all content so the
@@ -3796,6 +3798,13 @@ body::before {
 }
 .card:hover {
   box-shadow: var(--glass-shadow), var(--shadow-lg);
+}
+
+/* Form-heavy panels (modals) read better as a near-opaque frosted card so
+   white input fields don't clash with a see-through background. The blurred
+   bright edge stays for the glass look. */
+.glass-panel {
+  background: var(--glass-bg-strong);
 }
 
 /* Graceful fallback when backdrop-filter isn't supported — stay solid. */
