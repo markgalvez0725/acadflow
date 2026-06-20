@@ -5,7 +5,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import Badge from '@/components/primitives/Badge'
-import { Megaphone, Plus, Trash2, CalendarOff, Video, BookOpen, ToggleLeft, ToggleRight, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered } from 'lucide-react'
+import { Megaphone, Plus, Trash2, CalendarOff, Video, BookOpen, ToggleLeft, ToggleRight, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered, Clock } from 'lucide-react'
 
 // ── HTML Sanitization Config ──────────────────────────────────────────
 const SANITIZE_CONFIG = {
@@ -315,6 +315,14 @@ function AnnouncementFormModal({ ann, onClose }) {
     }
     return ''
   })
+  const [publishAt,  setPublishAt]  = useState(() => {
+    if (ann?.publishAt) {
+      const d = new Date(ann.publishAt)
+      const pad = n => String(n).padStart(2, '0')
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    }
+    return ''
+  })
   const [err,    setErr]    = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -372,14 +380,16 @@ function AnnouncementFormModal({ ann, onClose }) {
         topics:      type === 'meeting_topics' ? filledTopics : null,
         createdAt:   ann?.createdAt || Date.now(),
         active:      ann?.active ?? true,
+        publishAt:   publishAt ? new Date(publishAt).getTime() : null,
         expiresAt:   expiresAt ? new Date(expiresAt).getTime() : null,
         comments:    ann?.comments || [],
       }
       await saveAnnouncement(announcement)
-      if (!isEdit) {
+      const scheduled = announcement.publishAt && announcement.publishAt > Date.now()
+      if (!isEdit && !scheduled) {
         await pushAnnouncementNotifs(announcement)
       }
-      toast('Announcement ' + (isEdit ? 'updated' : 'posted') + '.', 'success')
+      toast(scheduled ? 'Announcement scheduled.' : 'Announcement ' + (isEdit ? 'updated' : 'posted') + '.', 'success')
       onClose()
     } catch (e) {
       setErr('Save failed: ' + e.message)
@@ -536,6 +546,22 @@ function AnnouncementFormModal({ ann, onClose }) {
             placeholder="https://drive.google.com/... or any module URL"
             onChange={e => setModuleLink(e.target.value)}
           />
+        </div>
+
+        {/* Schedule */}
+        <div>
+          <label className="form-label">Publish at <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(optional — schedule it to post automatically later)</span></label>
+          <input
+            type="datetime-local"
+            className="form-input"
+            value={publishAt}
+            onChange={e => setPublishAt(e.target.value)}
+          />
+          {publishAt && new Date(publishAt).getTime() > Date.now() && (
+            <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 4 }}>
+              Scheduled. Students will see this automatically on {new Date(publishAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.
+            </div>
+          )}
         </div>
 
         {/* Expiry */}
@@ -798,8 +824,10 @@ export default function AnnouncementsTab() {
                         <Link size={12} /> View Module →
                       </a>
                     )}
-                    <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 6, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                      <span>Posted: {formatDate(ann.createdAt)}</span>
+                    <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 6, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                      {ann.publishAt && ann.publishAt > Date.now()
+                        ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--accent)', fontWeight: 600 }}><Clock size={12} />Scheduled: {formatDate(ann.publishAt)}</span>
+                        : <span>Posted: {formatDate(ann.createdAt)}</span>}
                       {ann.expiresAt && <span>Expires: {formatDate(ann.expiresAt)}</span>}
                     </div>
                   </div>

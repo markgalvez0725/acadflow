@@ -6,8 +6,9 @@ import { validateSnum } from '@/utils/validate'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
-import { Download, Upload, FileDown, KeyRound } from 'lucide-react'
+import { Download, Upload, FileDown, KeyRound, GraduationCap } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
+import { buildStudentReportCard } from '@/export/reportCard'
 
 const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
 
@@ -648,7 +649,7 @@ function ImportStudentsModal({ onClose }) {
 
 // ── Students Tab ──────────────────────────────────────────────────────
 export default function StudentsTab() {
-  const { classes, students, saveStudents, deleteStudent, fbReady } = useData()
+  const { classes, students, saveStudents, deleteStudent, eqScale, semester, fbReady } = useData()
   const { toast, openDialog } = useUI()
 
   const [search, setSearch]       = useState('')
@@ -847,6 +848,9 @@ export default function StudentsTab() {
                           )}
                           <button className="btn btn-ghost btn-sm" onClick={() => setExportStudent(s)} title="Export student report">
                             <FileDown size={13} />
+                          </button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => buildStudentReportCard(s, { classes, students, eqScale, semester })} title="Download report card (PDF)">
+                            <GraduationCap size={13} />
                           </button>
                           <button className="btn btn-danger btn-sm" onClick={() => handleDelete(s)} title="Delete">
                             <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1.5 3h10M4.5 3V2h4v1M2.5 3l.6 7.5h5.8l.6-7.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>

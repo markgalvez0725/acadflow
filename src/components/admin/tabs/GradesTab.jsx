@@ -10,7 +10,7 @@ import { exportGradingSheet, parseGradingSheetImport, exportCurrentGrades, expor
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
-import { Clock, Pencil, BarChart2, Upload, Download, Trash2, BarChart, RefreshCw, Archive, ArchiveRestore, FileSpreadsheet } from 'lucide-react'
+import { Clock, Pencil, BarChart2, Upload, Download, Trash2, BarChart, RefreshCw, Archive, ArchiveRestore, FileSpreadsheet, Plus, ChevronDown, Sparkles } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const GRADE_PER_PAGE = 10
@@ -175,6 +175,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
 
   const [rows, setRows] = useState(initRows)
   const [saving, setSaving] = useState(false)
+  const [showFormula, setShowFormula] = useState(false)
 
   // Re-sync rows when panel activities or quizzes load/change after initial render
   const prevActKeyRef = React.useRef('')
@@ -301,6 +302,11 @@ function GradeEntryModal({ classId, subject, onClose }) {
   // Add an extra activity column (manual mode only — when no panel activities)
   function addActColumn() {
     setRows(prev => prev.map(r => recomputeRow({ ...r, actInputs: [...r.actInputs, ''] })))
+  }
+
+  // Add an extra quiz column (manual mode only — when no panel quizzes)
+  function addQzColumn() {
+    setRows(prev => prev.map(r => recomputeRow({ ...r, qzInputs: [...r.qzInputs, ''] })))
   }
 
   async function handleSave() {
@@ -462,12 +468,26 @@ function GradeEntryModal({ classId, subject, onClose }) {
         </div>
       </div>
 
-      {panelActs.length === 0 && (
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-xs text-ink3">No activities linked — entering scores manually.</span>
-          <button className="btn btn-ghost btn-sm" onClick={addActColumn}>+ Add Activity Column</button>
+      {/* Auto-first guide */}
+      <div className="mb-3 px-3 py-2.5 rounded-lg" style={{ background: 'var(--accent-l)', border: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <Sparkles size={15} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+          <span style={{ fontSize: 13, color: 'var(--ink)' }}>
+            <strong>You only fill in Attitude, Midterm Exam, and Finals Exam.</strong> Activities, Quizzes, and Attendance are calculated automatically from their tabs. The Final Grade fills in for you, and you can type over it to override.
+          </span>
         </div>
-      )}
+        {(panelActs.length === 0 || panelQuizzes.length === 0) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+            {panelActs.length === 0 && (
+              <button className="btn btn-ghost btn-sm" onClick={addActColumn}><Plus size={13} className="inline-block mr-1" />Add Activity Column</button>
+            )}
+            {panelQuizzes.length === 0 && (
+              <button className="btn btn-ghost btn-sm" onClick={addQzColumn}><Plus size={13} className="inline-block mr-1" />Add Quiz Column</button>
+            )}
+            <span style={{ fontSize: 11, color: 'var(--ink3)' }}>Manual columns — only needed if you are not using the Activities / Quiz tabs.</span>
+          </div>
+        )}
+      </div>
 
       <div className="overflow-x-auto">
         <table className="tbl" style={{ minWidth: 900 }}>
@@ -476,28 +496,28 @@ function GradeEntryModal({ classId, subject, onClose }) {
             <tr>
               <th rowSpan={2} style={{ verticalAlign: 'bottom', position: 'sticky', left: 0, zIndex: 3, background: 'var(--surface)', boxShadow: '2px 0 4px -1px var(--border)' }}>Student</th>
               <th colSpan={actInputCount} className="text-center" style={{ borderBottom: '1px solid var(--border)' }}>
-                Activities
+                Activities<br /><small className="font-normal text-ink3">{panelActs.length > 0 ? 'auto · Activities tab' : 'manual'}</small>
               </th>
               <th rowSpan={2} title="Activities average — computed from individual scores">
                 Act Avg<br /><small className="font-normal text-ink3">auto</small>
               </th>
               <th colSpan={quizInputCount} className="text-center" style={{ borderBottom: '1px solid var(--border)' }}>
-                Quizzes
+                Quizzes<br /><small className="font-normal text-ink3">{panelQuizzes.length > 0 ? 'auto · Quiz tab' : 'manual'}</small>
               </th>
               <th rowSpan={2} title="Quizzes average — computed from individual scores">
                 Quiz Avg<br /><small className="font-normal text-ink3">auto</small>
               </th>
-              <th rowSpan={2} title="Attitude/Character grade — entered manually by teacher">
-                Attitude<br /><small className="font-normal text-ink3">character · CS</small>
+              <th rowSpan={2} title="Attitude/Character grade — entered manually by teacher" style={{ background: 'var(--yellow-l)' }}>
+                Attitude<br /><small className="font-normal" style={{ color: 'var(--gold-var)' }}>you enter</small>
               </th>
               <th rowSpan={2} title="Attendance % — auto from records">
-                Attendance<br /><small className="font-normal text-ink3">auto · CS</small>
+                Attendance<br /><small className="font-normal text-ink3">auto · Attendance tab</small>
               </th>
-              <th rowSpan={2} title="Midterm Exam score — combined with CS Midterm to get Midterm Term grade">
-                Midterm Exam<br /><small className="font-normal text-ink3">exam score</small>
+              <th rowSpan={2} title="Midterm Exam score — combined with CS Midterm to get Midterm Term grade" style={{ background: 'var(--yellow-l)' }}>
+                Midterm Exam<br /><small className="font-normal" style={{ color: 'var(--gold-var)' }}>you enter</small>
               </th>
-              <th rowSpan={2} title="Finals Exam score — combined with CS Finals to get Finals Term grade">
-                Finals Exam<br /><small className="font-normal text-ink3">exam score</small>
+              <th rowSpan={2} title="Finals Exam score — combined with CS Finals to get Finals Term grade" style={{ background: 'var(--yellow-l)' }}>
+                Finals Exam<br /><small className="font-normal" style={{ color: 'var(--gold-var)' }}>you enter</small>
               </th>
               <th rowSpan={2} style={{ background: 'var(--accent-l)' }}>
                 Final Grade<br /><small className="font-normal" style={{ color: 'var(--accent)' }}>auto/manual</small>
@@ -594,12 +614,14 @@ function GradeEntryModal({ classId, subject, onClose }) {
                     <input className="grade-input" type="number" min="0" max="100"
                       value={r.midtermExam} placeholder="0–100"
                       title="Midterm Exam score"
+                      style={{ background: 'var(--yellow-l)' }}
                       onChange={e => updateRow(i, 'midtermExam', e.target.value)} />
                   </td>
                   <td>
                     <input className="grade-input" type="number" min="0" max="100"
                       value={r.finalsExam} placeholder="0–100"
                       title="Finals Exam score"
+                      style={{ background: 'var(--yellow-l)' }}
                       onChange={e => updateRow(i, 'finalsExam', e.target.value)} />
                   </td>
                   <td>
@@ -619,13 +641,25 @@ function GradeEntryModal({ classId, subject, onClose }) {
         </table>
       </div>
 
-      <div className="mt-3 px-3 py-2 rounded-lg text-xs text-ink2" style={{ background: 'var(--bg)', lineHeight: 2 }}>
-        <strong>CS Midterm</strong> = Average(Activities, Quizzes, Attendance, Attitude)<br />
-        <strong>CS Finals</strong> = Average(Activities, Quizzes, Attendance, Attitude)<br />
-        <strong>Midterm Term</strong> = Average(CS Midterm, Midterm Exam)<br />
-        <strong>Finals Term</strong> = Average(CS Finals, Finals Exam)<br />
-        <strong>Final Grade %</strong> = Average(Midterm Term, Finals Term) → converted to 1.00–5.00 via school lookup table<br />
-        <span className="text-ink3">{getGradeScaleLabel(eqScale)}</span>
+      <div className="mt-3">
+        <button
+          className="link-btn"
+          onClick={() => setShowFormula(v => !v)}
+          style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+        >
+          <ChevronDown size={14} style={{ transform: showFormula ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
+          How is the grade computed?
+        </button>
+        {showFormula && (
+          <div className="px-3 py-2 mt-1 rounded-lg text-xs text-ink2" style={{ background: 'var(--bg)', lineHeight: 2 }}>
+            <strong>CS Midterm</strong> = Average(Activities, Quizzes, Attendance, Attitude)<br />
+            <strong>CS Finals</strong> = Average(Activities, Quizzes, Attendance, Attitude)<br />
+            <strong>Midterm Term</strong> = Average(CS Midterm, Midterm Exam)<br />
+            <strong>Finals Term</strong> = Average(CS Finals, Finals Exam)<br />
+            <strong>Final Grade %</strong> = Average(Midterm Term, Finals Term) → converted to 1.00–5.00 via school lookup table<br />
+            <span className="text-ink3">{getGradeScaleLabel(eqScale)}</span>
+          </div>
+        )}
       </div>
 
       <div className="modal-footer">

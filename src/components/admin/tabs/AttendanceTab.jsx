@@ -5,7 +5,7 @@ import { sortByLastName, fmtDateShort } from '@/utils/format'
 import { getHeldDays } from '@/utils/grades'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
-import { Download, Upload, AlertTriangle, Shuffle, RefreshCw, CalendarDays, Check, ClipboardList, X, Trash2, ClipboardCheck, Archive, ArchiveRestore, UserCheck, UserX } from 'lucide-react'
+import { Download, Upload, AlertTriangle, Shuffle, RefreshCw, CalendarDays, Check, ClipboardList, X, Trash2, ClipboardCheck, Archive, ArchiveRestore, UserCheck, UserX, Radio, Copy } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
@@ -735,10 +735,28 @@ function SetRepModal({ classId, subject, studs, onClose }) {
 
 // ── SubjectAttCard ─────────────────────────────────────────────────────────────
 function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, onImport }) {
-  const { classes } = useData()
+  const { classes, attendanceSessions, openCheckIn, closeCheckIn } = useData()
+  const { toast } = useUI()
   const [sort, setSort] = useState({ col: 'name', dir: 'asc' })
   const [page, setPage] = useState(1)
   const [repModal, setRepModal] = useState(false)
+  const [busyCI, setBusyCI] = useState(false)
+
+  const liveSession = attendanceSessions?.find(s => s.classId === classId && s.subject === sub && s.status === 'open') || null
+  const checkedInIds = liveSession ? Object.keys(liveSession.checkedIn || {}) : []
+
+  async function startCheckIn() {
+    setBusyCI(true)
+    try { await openCheckIn({ classId, subject: sub }); toast('Check-in opened. Share the code with your class.', 'green') }
+    catch (e) { toast('Could not open check-in: ' + e.message, 'red') }
+    finally { setBusyCI(false) }
+  }
+  async function endCheckIn() {
+    setBusyCI(true)
+    try { await closeCheckIn(liveSession); toast('Check-in closed. Students who did not check in are marked absent for today.', 'blue') }
+    catch (e) { toast('Could not close check-in: ' + e.message, 'red') }
+    finally { setBusyCI(false) }
+  }
 
   const repId   = classes.find(c => c.id === classId)?.reps?.[sub] || null
   const repName = studs.find(s => s.id === repId)?.name || null
@@ -801,12 +819,58 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
           )}
         </div>
         <div className="flex gap-1.5">
+          {!readOnly && !liveSession && (
+            <button className="btn btn-success btn-sm" onClick={startCheckIn} disabled={busyCI} title="Open a live self check-in code for today">
+              <Radio size={13} className="inline-block mr-1" />Check-in
+            </button>
+          )}
           <button className="btn btn-primary btn-sm" onClick={() => onCalendar(sub)}><CalendarDays size={13} className="inline-block mr-1" />Calendar</button>
           {!readOnly && <button className="btn btn-ghost btn-sm" onClick={() => setRepModal(true)} title="Assign attendance representative"><UserCheck size={13} className="inline-block mr-1" />Set Rep</button>}
           {!readOnly && <button className="btn btn-ghost btn-sm" onClick={() => onImport(sub)} title="Import attendance from Excel"><Download size={13} className="inline-block mr-1" />Import</button>}
           <button className="btn btn-ghost btn-sm" onClick={() => onExport(sub)} title="Export attendance"><Upload size={13} className="inline-block mr-1" />Export</button>
         </div>
       </div>
+
+      {/* Live check-in panel */}
+      {liveSession && (
+        <div style={{ background: 'var(--green-l)', border: '1px solid var(--green)', borderRadius: 12, padding: 14, marginBottom: 12 }}>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, letterSpacing: '.06em', color: 'var(--green)', textTransform: 'uppercase' }}>
+                <Radio size={13} /> Live check-in
+              </span>
+              <button
+                onClick={() => { try { navigator.clipboard?.writeText(liveSession.code); toast('Code copied.', 'green') } catch (e) {} }}
+                title="Click to copy"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-mono)', fontSize: 30, fontWeight: 700, letterSpacing: '.18em', color: 'var(--ink)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+              >
+                {liveSession.code}<Copy size={16} style={{ color: 'var(--ink3)' }} />
+              </button>
+              <span style={{ fontSize: 13, color: 'var(--ink2)', fontWeight: 600 }}>
+                {checkedInIds.length} / {studs.length} checked in
+              </span>
+            </div>
+            <button className="btn btn-danger btn-sm" onClick={endCheckIn} disabled={busyCI}>
+              <X size={13} className="inline-block mr-1" />Close session
+            </button>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--ink2)', marginTop: 8 }}>
+            Students enter this code on their Attendance tab to mark themselves present for today. Closing the session marks everyone who did not check in as absent.
+          </div>
+          {checkedInIds.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+              {checkedInIds.map(id => {
+                const st = studs.find(x => x.id === id)
+                return (
+                  <span key={id} className="badge badge-green" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <Check size={11} />{st?.name || id}
+                  </span>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {repModal && (
         <SetRepModal
@@ -894,8 +958,10 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
 
 // ── AttendanceTab ──────────────────────────────────────────────────────────────
 export default function AttendanceTab() {
-  const { classes, students, fbReady } = useData()
+  const { classes, students, fbReady, excuseRequests, decideExcuseRequest } = useData()
+  const { toast } = useUI()
   const [showArchived,  setShowArchived]  = useState(false)
+  const [excuseBusy, setExcuseBusy] = useState('')
   const activeClasses   = useMemo(() => classes.filter(c => !c.archived), [classes])
   const archivedClasses = useMemo(() => classes.filter(c =>  c.archived), [classes])
   const visibleClasses  = showArchived ? archivedClasses : activeClasses
@@ -915,6 +981,23 @@ export default function AttendanceTab() {
     const q = search.toLowerCase()
     return base.filter(s => s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q))
   }, [students, effectiveId, search])
+
+  const pendingExcuses = useMemo(
+    () => (excuseRequests || []).filter(r => r.status === 'pending' && r.classId === effectiveId),
+    [excuseRequests, effectiveId]
+  )
+
+  async function decideExcuse(req, approve) {
+    setExcuseBusy(req.id)
+    try {
+      await decideExcuseRequest(req, approve)
+      toast(approve ? `Excuse approved for ${req.studentName}.` : `Excuse denied.`, approve ? 'green' : 'blue')
+    } catch (e) {
+      toast('Could not update request: ' + e.message, 'red')
+    } finally {
+      setExcuseBusy('')
+    }
+  }
 
   if (!fbReady) return <SkeletonTable />
 
@@ -954,6 +1037,39 @@ export default function AttendanceTab() {
           value={search}
           onChange={e => setSearch(e.target.value)} />
       </div>
+
+      {/* Excuse requests (pending) for this class */}
+      {effectiveId && pendingExcuses.length > 0 && (
+        <div className="card card-pad mb-3" style={{ borderLeft: '3px solid var(--yellow)' }}>
+          <div className="sec-hdr mb-2">
+            <div className="sec-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <ClipboardList size={15} /> Excuse Requests
+              <span className="badge badge-yellow">{pendingExcuses.length}</span>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2">
+            {pendingExcuses.map(r => (
+              <div key={r.id} className="flex items-center justify-between gap-3 flex-wrap"
+                style={{ padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 10 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>
+                    {r.studentName} <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>· {r.subject} · {r.date}</span>
+                  </div>
+                  {r.reason && <div style={{ fontSize: 12, color: 'var(--ink2)', marginTop: 2 }}>{r.reason}</div>}
+                </div>
+                <div className="flex gap-1.5">
+                  <button className="btn btn-success btn-sm" disabled={excuseBusy === r.id} onClick={() => decideExcuse(r, true)}>
+                    <Check size={13} className="inline-block mr-1" />Approve
+                  </button>
+                  <button className="btn btn-ghost btn-sm" disabled={excuseBusy === r.id} onClick={() => decideExcuse(r, false)}>
+                    <X size={13} className="inline-block mr-1" />Deny
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {!effectiveId ? (
         <div className="empty"><div className="empty-icon"><ClipboardCheck size={32} /></div>{showArchived ? 'No archived classes.' : 'No classes yet.'}</div>
