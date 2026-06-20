@@ -574,8 +574,8 @@ function AnnouncementCard({ item, classObj }) {
           <BookOpen size={12} /> Module Link
         </a>
       )}
-      {ann.topics?.length > 0 && (
-        <ul style={{ marginTop: 8, paddingLeft: 18, fontSize: 13, color: 'var(--ink2)' }}>
+      {!hasMessage && ann.topics?.length > 0 && (
+        <ul style={{ marginTop: 8, paddingLeft: 20, fontSize: 13, color: 'var(--ink2)', listStyle: 'disc' }}>
           {ann.topics.map((t, i) => <li key={i}>{t}</li>)}
         </ul>
       )}
