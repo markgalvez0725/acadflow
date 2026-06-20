@@ -42,13 +42,44 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
   const [search, setSearch]         = useState('')
   const [view, setView]             = useState('list')
   const [threadTitle, setThreadTitle] = useState('')
-  const [threadEntries, setThreadEntries] = useState([])
+  const [threadMode, setThreadMode] = useState('direct') // 'direct' | 'single'
   const [replyMsgId, setReplyMsgId] = useState(null)
   const [replyText, setReplyText]   = useState('')
   const [sending, setSending]       = useState(false)
   const threadRef = useRef(null)
 
   const allMsgs = useMemo(() => getStudentMessages(messages, s), [messages, s])
+
+  // Thread entries are derived live from messages so new teacher messages and
+  // replies appear in real time while the thread is open (no stale snapshot).
+  const threadEntries = useMemo(() => {
+    if (view !== 'thread') return []
+    const directMsgs = allMsgs.filter(m => m.type !== 'announcement').sort((a, b) => a.ts - b.ts)
+    const baseMsgs = threadMode === 'single'
+      ? allMsgs.filter(m => m.id === replyMsgId)
+      : directMsgs
+    const entries = []
+    baseMsgs.forEach(m => {
+      entries.push({ from: m.from, body: m.body, ts: m.ts, subject: m.subject, isMain: true })
+      ;(m.replies || []).forEach(r => entries.push({ from: r.from, body: r.body, ts: r.ts, isMain: false }))
+    })
+    return entries.sort((a, b) => a.ts - b.ts)
+  }, [allMsgs, view, threadMode, replyMsgId])
+
+  // Keep the open thread marked read as new teacher messages arrive (clears the
+  // unread badge). Only writes when something actually needs marking — no loop.
+  useEffect(() => {
+    if (view !== 'thread' || !fbReady || !db.current) return
+    const directMsgs = allMsgs.filter(m => m.type !== 'announcement')
+    const targets = threadMode === 'single' ? allMsgs.filter(m => m.id === replyMsgId) : directMsgs
+    const need = targets.filter(m => {
+      const lastReadAt = m.readAt?.[s.id] || 0
+      const lastAdminReply = (m.replies || []).filter(r => r.from === 'admin').reduce((mx, r) => Math.max(mx, r.ts || 0), 0)
+      const baseUnread = m.from !== s.id && !(Array.isArray(m.read) && m.read.includes(s.id))
+      return baseUnread || lastAdminReply > lastReadAt
+    })
+    if (need.length) markRead(need.map(m => m.id))
+  }, [allMsgs, view, threadMode, replyMsgId])
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -69,10 +100,11 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
       const allReplies = directMsgs.flatMap(m => m.replies || [])
       const lastActivity = allReplies.length ? Math.max(latest.ts, ...allReplies.map(r => r.ts)) : latest.ts
       const hasUnread = directMsgs.some(m => {
-        if (m.from === s.id) return false
-        const studentRead = Array.isArray(m.read) && m.read.includes(s.id)
-        if (!studentRead) return true
         const lastReadAt = m.readAt?.[s.id] || 0
+        if (m.from !== s.id) {
+          const studentRead = Array.isArray(m.read) && m.read.includes(s.id)
+          if (!studentRead) return true
+        }
         const lastAdminReply = (m.replies || []).filter(r => r.from === 'admin').reduce((max, r) => Math.max(max, r.ts || 0), 0)
         return lastAdminReply > lastReadAt
       })
@@ -106,39 +138,26 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
 
   function openConversation() {
     const directMsgs = allMsgs.filter(m => m.type !== 'announcement').sort((a, b) => a.ts - b.ts)
-    if (!directMsgs.length) {
-      setThreadTitle('Teacher')
-      setThreadEntries([])
-      setReplyMsgId(null)
-      setView('thread')
-      return
-    }
-    const teacherMsgIds = directMsgs.filter(m => m.from !== s.id).map(m => m.id)
-    markRead(teacherMsgIds)
-    const lastMsg = directMsgs[directMsgs.length - 1]
-    setReplyMsgId(lastMsg.id)
-    const allEntries = []
-    directMsgs.forEach(m => {
-      allEntries.push({ from: m.from, body: m.body, ts: m.ts, subject: m.subject, isMain: true })
-      ;(m.replies || []).forEach(r => allEntries.push({ ...r, isMain: false }))
-    })
-    allEntries.sort((a, b) => a.ts - b.ts)
+    setThreadMode('direct')
     setThreadTitle('Teacher')
-    setThreadEntries(allEntries)
+    if (directMsgs.length) {
+      // Mark the whole conversation read — including teacher replies on threads
+      // the student started (those base messages are from the student).
+      markRead(directMsgs.map(m => m.id))
+      setReplyMsgId(directMsgs[directMsgs.length - 1].id)
+    } else {
+      setReplyMsgId(null)
+    }
     setView('thread')
   }
 
   function openMessage(msgId) {
     const m = messages.find(x => x.id === msgId)
     if (!m) return
+    setThreadMode('single')
     markRead([msgId])
     setReplyMsgId(msgId)
-    const allEntries = [
-      { from: m.from, body: m.body, ts: m.ts, subject: m.subject, isMain: true },
-      ...(m.replies || []).map(r => ({ ...r, isMain: false })),
-    ].sort((a, b) => a.ts - b.ts)
     setThreadTitle(m.subject || 'Announcement')
-    setThreadEntries(allEntries)
     setView('thread')
   }
 
@@ -151,9 +170,9 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
     try {
       if (replyMsgId) {
         const newReply = { from: s.id, body: text, ts: Date.now() }
-        setThreadEntries(prev => [...prev, { ...newReply, isMain: false }])
         setReplyText('')
         // Atomic append — won't clobber a teacher reply sent at the same time.
+        // The live thread memo picks it up from the messages listener.
         await fbAddMessageReply(db.current, replyMsgId, newReply, { readerId: s.id, adminRead: false })
         notifyAdminMessage(db.current, s.name || s.id, text, 'reply')
       } else {
@@ -166,7 +185,9 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
           read: [s.id], adminRead: false, replies: [], type: 'direct',
         })
         notifyAdminMessage(db.current, s.name || s.id, text, 'message')
-        openConversation()
+        // Future replies append to this new message; thread stays in direct mode.
+        setThreadMode('direct')
+        setReplyMsgId(newId)
       }
     } catch (e) {
       toast('Failed to send: ' + e.message, 'error')
