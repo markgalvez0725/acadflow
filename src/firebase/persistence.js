@@ -180,6 +180,44 @@ export async function fbAddCommentReply(db, announcementId, commentId, reply) {
   }))
 }
 
+// Atomically append a reply to a message thread. Reading the current replies
+// inside a transaction prevents the lost-update race where teacher and student
+// reply near-simultaneously and one reply silently overwrites the other.
+export async function fbAddMessageReply(db, msgId, reply, opts = {}) {
+  if (!db || !msgId || !reply) return
+  const ref = doc(db, 'messages', msgId)
+  return fbWithTimeout(runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref)
+    if (!snap.exists()) throw new Error('Message not found')
+    const m = snap.data()
+    const replies = Array.isArray(m.replies) ? m.replies : []
+    const patch = { replies: [...replies, reply] }
+    if (opts.adminRead !== undefined) patch.adminRead = opts.adminRead
+    if (opts.readerId) {
+      const read = Array.isArray(m.read) ? m.read : []
+      if (!read.includes(opts.readerId)) patch.read = [...read, opts.readerId]
+    }
+    transaction.update(ref, patch)
+  }))
+}
+
+// Atomically mark a message read for one reader without clobbering other
+// readers' entries (important for broadcast messages shared by many students).
+export async function fbMarkMessageRead(db, msgId, readerId, readAtTs) {
+  if (!db || !msgId || !readerId) return
+  const ref = doc(db, 'messages', msgId)
+  return fbWithTimeout(runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref)
+    if (!snap.exists()) return
+    const m = snap.data()
+    const read = Array.isArray(m.read) ? m.read : []
+    const readAt = (m.readAt && typeof m.readAt === 'object') ? m.readAt : {}
+    const patch = { readAt: { ...readAt, [readerId]: readAtTs || Date.now() } }
+    if (!read.includes(readerId)) patch.read = [...read, readerId]
+    transaction.update(ref, patch)
+  }))
+}
+
 export async function fbPushAnnouncementNotifs(db, announcement, students) {
   if (!db || !announcement || !students?.length) return
   const enrolled = announcement.classId === 'all'

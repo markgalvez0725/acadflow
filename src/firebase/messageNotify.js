@@ -4,7 +4,7 @@
 // then fires a best-effort web push. Push silently no-ops when FCM is not
 // configured or the recipient has no registered token — the in-app badge is
 // the guaranteed, free behavior and never depends on push.
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { doc, runTransaction } from 'firebase/firestore'
 import { fbWithTimeout } from './firebaseInit'
 import { sendPushToOwners } from './pushTokens'
 
@@ -13,17 +13,21 @@ function newId() {
 }
 
 /**
- * Append an in-app notification to notifications/{ownerId} (read-modify-write).
- * Mirrors the pattern used for activity/grade notifications.
+ * Append an in-app notification to notifications/{ownerId}.
+ * Runs inside a transaction so two notifications arriving close together (e.g.
+ * a teacher sending several messages, or many students messaging the teacher)
+ * can't overwrite each other — which previously dropped badges silently.
  */
 export async function appendNotif(db, ownerId, notif) {
   if (!db || !ownerId) return
+  const ref = doc(db, 'notifications', ownerId)
+  const item = { id: newId(), read: false, ts: Date.now(), ...notif }
   try {
-    const ref = doc(db, 'notifications', ownerId)
-    const snap = await getDoc(ref)
-    const existing = snap.exists() ? (snap.data().items || []) : []
-    const item = { id: newId(), read: false, ts: Date.now(), ...notif }
-    await fbWithTimeout(setDoc(ref, { items: [item, ...existing].slice(0, 200) }, { merge: false }))
+    await fbWithTimeout(runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(ref)
+      const existing = snap.exists() ? (snap.data().items || []) : []
+      transaction.set(ref, { items: [item, ...existing].slice(0, 200) })
+    }))
   } catch (e) {
     console.warn('[notify] appendNotif failed:', e.message)
   }
