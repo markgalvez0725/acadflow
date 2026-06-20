@@ -3988,30 +3988,46 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 }
 #student-portal .s-val { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
 
-/* — Bottom nav as a floating pill — */
-#student-portal .student-bottom-nav {
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-lg);
-  background: var(--surface) !important;
-  padding: 6px;
-  gap: 2px;
+/* — Bottom nav as a floating pill (mobile/tablet only).
+   At >=1024px the nav is a vertical sidebar, so the pill radius/shadow must
+   NOT apply there or the sidebar renders as a giant oval. — */
+@media (max-width: 1023px) {
+  #student-portal .student-bottom-nav {
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-lg);
+    background: var(--surface) !important;
+    padding: 6px;
+    gap: 2px;
+  }
+  #student-portal .student-bottom-nav .nav-item {
+    border-radius: 999px;
+    padding: 8px 13px;
+    gap: 3px;
+    transition: background .16s ease, color .16s ease;
+  }
+  #student-portal .student-bottom-nav .nav-item:hover:not(.active) {
+    background: var(--accent-l); color: var(--accent);
+  }
+  #student-portal .student-bottom-nav .nav-item.active {
+    background: var(--accent); color: #fff;
+  }
+  #student-portal .student-bottom-nav .nav-item.active .nav-icon,
+  #student-portal .student-bottom-nav .nav-item.active .nav-label {
+    color: #fff; background: transparent; box-shadow: none;
+  }
 }
-#student-portal .student-bottom-nav .nav-item {
-  border-radius: 999px;
-  padding: 8px 13px;
-  gap: 3px;
-  transition: background .16s ease, color .16s ease;
-}
-#student-portal .student-bottom-nav .nav-item:hover:not(.active) {
-  background: var(--accent-l); color: var(--accent);
-}
-#student-portal .student-bottom-nav .nav-item.active {
-  background: var(--accent); color: #fff;
-}
-#student-portal .student-bottom-nav .nav-item.active .nav-icon,
-#student-portal .student-bottom-nav .nav-item.active .nav-label {
-  color: #fff; background: transparent; box-shadow: none;
+
+/* — Desktop sidebar (>=1024px): navy active item, no pill oval — */
+@media (min-width: 1024px) {
+  #student-portal .student-bottom-nav {
+    border-radius: 0;
+    box-shadow: none;
+  }
+  #student-portal .student-bottom-nav .nav-item { border-radius: var(--radius); }
+  #student-portal .student-bottom-nav .nav-item.active {
+    background: var(--accent-l); color: var(--accent);
+  }
 }
 
 /* — Pill badges — */
