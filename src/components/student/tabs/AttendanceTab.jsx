@@ -5,11 +5,12 @@ import { useUI } from '@/context/UIContext'
 import { CalendarCheck, Calendar, CheckCircle2, FileCheck, XCircle, Award, UserCheck, Radio, ClipboardList, Send } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import TakeAttendanceModal from '@/components/student/modals/TakeAttendanceModal'
+import { activeClassIds, activeSubjects } from '@/utils/active'
 
 const DAY_LETTERS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
 export default function AttendanceTab({ student: s, viewClassId, classes }) {
-  const { students, fbReady, attendanceSessions, studentCheckIn, submitExcuseRequest } = useData()
+  const { students, fbReady, attendanceSessions, studentCheckIn, submitExcuseRequest, semester } = useData()
   const { currentStudent }    = useAuth()
   const { toast }             = useUI()
 
@@ -24,13 +25,9 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
 
   const cls = classes?.find(c => c.id === viewClassId) || null
 
-  // Get all enrolled class IDs for multi-subject support
-  const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
-  const allEnrolledSubs = enrolledIds.length
-    ? [...new Set(enrolledIds.flatMap(id => classes.find(c => c.id === id)?.subjects || []))]
-    : Object.keys(s.attendance || {})
-
-  const subs = allEnrolledSubs.length ? allEnrolledSubs : Object.keys(s.attendance || {})
+  // Current, non-archived classes only — archived/ended/removed subjects drop off.
+  const enrolledIds = useMemo(() => activeClassIds(s, classes, semester), [s, classes, semester])
+  const subs = useMemo(() => activeSubjects(s, classes, semester), [s, classes, semester])
 
   const [activeSub, setActiveSub] = useState(() => subs[0] || null)
   const [takeAttModal, setTakeAttModal] = useState(null) // subject string
@@ -315,7 +312,7 @@ function SubjectDetail({ sub, student: s, cls, students }) {
           <div style={{ fontWeight: 700, fontSize: 15 }}>{sub}</div>
           {cls && <div style={{ fontSize: 11, color: 'var(--ink2)', marginTop: 2 }}>{cls.name} · {cls.section} · {cls.schedule}</div>}
         </div>
-        <div style={{ fontSize: '1.6rem', fontWeight: 700, fontFamily: "'Cormorant Garamond', Georgia, serif", color: rateColor }}>{rate.toFixed(0)}%</div>
+        <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-.01em', color: rateColor }}>{rate.toFixed(0)}%</div>
       </div>
 
       {/* Per-subject stats */}

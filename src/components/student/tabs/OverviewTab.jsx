@@ -4,13 +4,14 @@ import {
 } from '@/utils/grades'
 import { useData } from '@/context/DataContext'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
-import { BookOpen, Clock, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, BarChart3 } from 'lucide-react'
+import { BookOpen, Clock, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, BarChart3, ChevronDown, ChevronRight } from 'lucide-react'
 import { SkeletonDashboard } from '@/components/primitives/SkeletonLoader'
 import BarChart from '@/components/charts/BarChart'
 import SmartInsights from '@/components/primitives/SmartInsights'
 import { generateStudentInsights } from '@/utils/insights'
 import { buildStudentReportCard } from '@/export/reportCard'
 import { FileDown } from 'lucide-react'
+import { activeClassIds, activeSubjects } from '@/utils/active'
 
 function formatAnnDate(ms) {
   if (!ms) return null
@@ -318,6 +319,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
   const { activities, students, eqScale, announcements, quizzes, semester, fbReady } = useData()
 
   const [viewAnn, setViewAnn] = useState(null)
+  const [chartsOpen, setChartsOpen] = useState(false)
 
   // Toggle state per subject: 'equiv' | 'pct'
   const [toggleMap, setToggleMap] = useState({})
@@ -325,10 +327,8 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
     setToggleMap(m => ({ ...m, [`${sub}-${field}`]: m[`${sub}-${field}`] === 'pct' ? 'equiv' : 'pct' }))
   }
 
-  const enrolledIds = useMemo(() =>
-    s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : []),
-    [s]
-  )
+  // Only current, non-archived classes count — archived/ended/past subjects drop off.
+  const enrolledIds = useMemo(() => activeClassIds(s, classes, semester), [s, classes, semester])
 
   const activeAnnouncements = useMemo(() => {
     const now = Date.now()
@@ -340,12 +340,10 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
     ).sort((a, b) => b.createdAt - a.createdAt)
   }, [announcements, enrolledIds])
 
-  const allEnrolledSubs = useMemo(() => {
-    if (enrolledIds.length) {
-      return [...new Set(enrolledIds.flatMap(id => classes.find(c => c.id === id)?.subjects || []))]
-    }
-    return Object.keys(s.grades || {})
-  }, [enrolledIds, classes, s])
+  const allEnrolledSubs = useMemo(
+    () => activeSubjects(s, classes, semester),
+    [s, classes, semester]
+  )
 
   const gwa = useMemo(() => getGWA(s, classes), [s, classes])
   const rate = useMemo(() => getAttRate(s, students, classes), [s, students, classes])
@@ -375,16 +373,9 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
     else { statusText = 'At Risk'; statusColor = 'var(--red)'; statusSub = 'Below passing threshold' }
   }
 
-  // Subjects to display
+  // Subjects to display — current active classes only (no archived/ended/removed).
   const viewCls = classes.find(c => c.id === viewClassId)
-  let subs = viewCls ? viewCls.subjects : allEnrolledSubs
-  if (!subs.length) {
-    subs = [...new Set([
-      ...Object.keys(s.grades || {}),
-      ...Object.keys(s.gradeComponents || {}),
-      ...Object.keys(s.attendance || {}),
-    ])]
-  }
+  const subs = viewCls ? (viewCls.subjects || []) : allEnrolledSubs
 
   // ── Performance analytics (derived from real grade/attendance data) ──────
   const gradeBars = subs.map(sub => {
@@ -506,96 +497,65 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
       {/* Study Coach — on-device insights, no external AI */}
       <SmartInsights title="Study Coach" insights={studentInsights} />
 
-      {/* Grade color legend */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Legend:</span>
-        {[
-          { color: 'var(--green)',  label: 'Good (≥85% / ≥90% att)' },
-          { color: 'var(--yellow)', label: 'Fair (75–84% / 80–89% att)' },
-          { color: 'var(--red)',    label: 'At Risk (<75% / <80% att)' },
-        ].map(({ color, label }) => (
-          <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--ink2)' }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
-            {label}
-          </span>
-        ))}
-      </div>
-
-      {/* Performance analytics */}
-      {(gradeBars.length > 0 || attBars.length > 0) && (
-        <>
-          <div className="sec-hdr mt-4 mb-2">
-            <div className="sec-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <BarChart3 size={15} /> Performance by Subject
-            </div>
-            <span style={{ fontSize: 11, color: 'var(--ink3)' }}>Visual snapshot of your standing</span>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {gradeBars.length > 0 && (
-              <div className="card" style={{ padding: 14 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink2)', marginBottom: 8 }}>Final Grade (%)</div>
-                <BarChart data={gradeBars} maxVal={100} />
-              </div>
-            )}
-            {attBars.length > 0 && (
-              <div className="card" style={{ padding: 14 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink2)', marginBottom: 8 }}>Attendance (%)</div>
-                <BarChart data={attBars} maxVal={100} />
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* Grade table */}
-      <div className="sec-hdr mt-4 mb-2">
+      {/* Subjects — one expandable card each (tap to reveal the breakdown) */}
+      <div className="sec-hdr" style={{ marginTop: 22, marginBottom: 12 }}>
         <div className="sec-title">Subjects</div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <span style={{ fontSize: 11, color: 'var(--ink3)' }}>Click midterm/finals to toggle equiv ↔ %</span>
-          <button
-            className="btn btn-secondary btn-sm"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 11px' }}
-            onClick={() => buildStudentReportCard(s, { classes, students, eqScale, semester })}
-            title="Download your report card as a PDF"
-          >
-            <FileDown size={14} />
-            Report Card
-          </button>
-        </div>
+        <button
+          className="btn btn-secondary btn-sm"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px' }}
+          onClick={() => buildStudentReportCard(s, { classes, students, eqScale, semester })}
+          title="Download your report card as a PDF"
+        >
+          <FileDown size={15} />
+          Report card
+        </button>
       </div>
 
       {!subs.length ? (
-        <div className="empty"><div className="empty-icon"><BookOpen size={40} /></div>No subjects enrolled yet.</div>
+        <div className="empty"><div className="empty-icon"><BookOpen size={40} /></div>No active subjects this semester.</div>
       ) : (
-        <div className="rounded-xl border border-border bg-surface overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                <th className="text-left p-3 font-semibold text-ink2">Subject</th>
-                <th className="text-center p-3 font-semibold text-ink2">Activities</th>
-                <th className="text-center p-3 font-semibold text-ink2">Quizzes</th>
-                <th className="text-center p-3 font-semibold text-ink2">Midterm</th>
-                <th className="text-center p-3 font-semibold text-ink2">Finals</th>
-                <th className="text-center p-3 font-semibold text-ink2">Final %</th>
-                <th className="text-center p-3 font-semibold text-ink2">Equiv</th>
-                <th className="text-center p-3 font-semibold text-ink2">Remark</th>
-              </tr>
-            </thead>
-            <tbody>
-              {subs.map(sub => (
-                <SubjectRow
-                  key={sub}
-                  sub={sub}
-                  student={s}
-                  classes={classes}
-                  activities={activities}
-                  eqScale={eqScale}
-                  toggleMap={toggleMap}
-                  onToggle={toggleCell}
-                />
-              ))}
-            </tbody>
-          </table>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+          {subs.map(sub => (
+            <SubjectCard
+              key={sub}
+              sub={sub}
+              student={s}
+              classes={classes}
+              activities={activities}
+              eqScale={eqScale}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Performance charts — collapsed by default */}
+      {(gradeBars.length > 0 || attBars.length > 0) && (
+        <div className="rounded-xl border border-border bg-surface" style={{ marginTop: 18, overflow: 'hidden' }}>
+          <button
+            onClick={() => setChartsOpen(o => !o)}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '15px 16px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink)', textAlign: 'left' }}
+          >
+            <BarChart3 size={18} style={{ color: 'var(--ink2)', flexShrink: 0 }} />
+            <span style={{ flex: 1, fontSize: 15, fontWeight: 600 }}>Performance charts</span>
+            <span style={{ fontSize: 12, color: 'var(--ink3)' }}>{chartsOpen ? 'Hide' : 'Tap to expand'}</span>
+            {chartsOpen ? <ChevronDown size={18} style={{ color: 'var(--ink3)' }} /> : <ChevronRight size={18} style={{ color: 'var(--ink3)' }} />}
+          </button>
+          {chartsOpen && (
+            <div className="grid gap-3 sm:grid-cols-2" style={{ padding: '0 14px 14px' }}>
+              {gradeBars.length > 0 && (
+                <div className="card" style={{ padding: 14 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink2)', marginBottom: 8 }}>Final grade (%)</div>
+                  <BarChart data={gradeBars} maxVal={100} />
+                </div>
+              )}
+              {attBars.length > 0 && (
+                <div className="card" style={{ padding: 14 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink2)', marginBottom: 8 }}>Attendance (%)</div>
+                  <BarChart data={attBars} maxVal={100} />
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
       {viewAnn && (
@@ -609,7 +569,8 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
   )
 }
 
-function SubjectRow({ sub, student: s, classes, activities, eqScale, toggleMap, onToggle }) {
+function SubjectCard({ sub, student: s, classes, activities, eqScale }) {
+  const [open, setOpen] = useState(false)
   const comp = s.gradeComponents?.[sub] || {}
   const midG = comp.midterm ?? null
   const finG = comp.finals  ?? null
@@ -694,25 +655,8 @@ function SubjectRow({ sub, student: s, classes, activities, eqScale, toggleMap, 
     qzContent = '—'
   }
 
-  // Toggle cells
-  const midToggle = toggleMap[`${sub}-mid`] || 'equiv'
-  const finToggle = toggleMap[`${sub}-fin`] || 'equiv'
   const { eq: midEq } = gradeInfo(midG, eqScale)
   const { eq: finEq } = gradeInfo(finG, eqScale)
-  const midColor = midG != null ? (midG >= 75 ? 'var(--green)' : midG >= 60 ? 'var(--yellow)' : 'var(--red)') : 'var(--ink3)'
-  const finColor = finG != null ? (finG >= 75 ? 'var(--green)' : finG >= 60 ? 'var(--yellow)' : 'var(--red)') : 'var(--ink3)'
-
-  const midCell = midG != null
-    ? <span className="s-grade-toggle" onClick={() => onToggle(sub, 'mid')} style={{ fontWeight: 700, color: midColor, cursor: 'pointer' }} title="Click to toggle equiv / %">
-        {midToggle === 'equiv' ? midEq : `${midG.toFixed(1)}%`}
-      </span>
-    : '—'
-
-  const finCell = finG != null
-    ? <span className="s-grade-toggle" onClick={() => onToggle(sub, 'fin')} style={{ fontWeight: 700, color: finColor, cursor: 'pointer' }} title="Click to toggle equiv / %">
-        {finToggle === 'equiv' ? finEq : `${finG.toFixed(1)}%`}
-      </span>
-    : <span style={{ color: 'var(--ink3)', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={11} />Pending</span>
 
   // Final equiv + remark
   let eq, remarkBadge
@@ -732,16 +676,59 @@ function SubjectRow({ sub, student: s, classes, activities, eqScale, toggleMap, 
     remarkBadge = <span className="badge badge-gray" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={11} />Pending</span>
   }
 
+  const dotColor = g == null ? 'var(--ink3)' : g >= 85 ? 'var(--green)' : g >= 75 ? 'var(--yellow)' : 'var(--red)'
+  const lbl = { fontSize: 12, color: 'var(--ink2)' }
+  const val = { fontSize: 17, fontWeight: 700, marginTop: 2 }
+  const eqTag = { fontSize: 12, fontWeight: 600, color: 'var(--ink3)' }
+
   return (
-    <tr style={{ borderBottom: '1px solid var(--border)' }}>
-      <td className="p-3"><strong>{sub}</strong></td>
-      <td className="p-3 text-center">{actContent}</td>
-      <td className="p-3 text-center">{qzContent}</td>
-      <td className="p-3 text-center" style={{ whiteSpace: 'nowrap' }}>{midCell}</td>
-      <td className="p-3 text-center" style={{ whiteSpace: 'nowrap' }}>{finCell}</td>
-      <td className="p-3 text-center">{g != null ? parseFloat(g.toFixed(2)) + '%' : '—'}</td>
-      <td className="p-3 text-center" style={{ fontWeight: 700 }}>{eq}</td>
-      <td className="p-3 text-center">{remarkBadge}</td>
-    </tr>
+    <div className="rounded-xl border border-border bg-surface" style={{ overflow: 'hidden' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '15px 16px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink)', textAlign: 'left' }}
+      >
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
+        <span style={{ flex: 1, fontSize: 16, fontWeight: 600, minWidth: 0 }}>{sub}</span>
+        <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-.01em' }}>{g != null ? Math.round(g) : '—'}</span>
+        {remarkBadge}
+        {open ? <ChevronDown size={18} style={{ color: 'var(--ink3)', flexShrink: 0 }} /> : <ChevronRight size={18} style={{ color: 'var(--ink3)', flexShrink: 0 }} />}
+      </button>
+      {open && (
+        <div style={{ borderTop: '1px solid var(--border)', padding: '14px 16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
+            <div>
+              <div style={lbl}>Activities</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>{actContent}</div>
+            </div>
+            <div>
+              <div style={lbl}>Quizzes</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>{qzContent}</div>
+            </div>
+            <div>
+              <div style={lbl}>Midterm</div>
+              <div style={val}>{midG != null ? `${midG.toFixed(1)}%` : '—'}{midG != null && <span style={eqTag}> · {midEq}</span>}</div>
+            </div>
+            <div>
+              <div style={lbl}>Finals</div>
+              <div style={val}>
+                {finG != null
+                  ? <>{finG.toFixed(1)}%<span style={eqTag}> · {finEq}</span></>
+                  : <span style={{ color: 'var(--ink3)', fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Clock size={13} />Pending</span>}
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 22, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+            <div>
+              <div style={lbl}>Final grade</div>
+              <div style={val}>{g != null ? parseFloat(g.toFixed(2)) + '%' : '—'}</div>
+            </div>
+            <div>
+              <div style={lbl}>Equivalent</div>
+              <div style={val}>{eq}</div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }

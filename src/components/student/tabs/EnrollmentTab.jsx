@@ -37,6 +37,29 @@ function yearLevelMatches(studentYear, clsSection) {
   return stuYear === clsYear
 }
 
+// The student's section: explicit field, else inherited from their primary class.
+function getStudentSection(student, classes) {
+  if (student.section) return student.section
+  const primary = classes.find(c => c.id === (student.classId || student.classIds?.[0]))
+  return primary?.section || ''
+}
+
+// Exact section match (ignores spacing/dashes/case: "2 - A" === "2A").
+function sectionMatches(student, cls, classes) {
+  if (!cls.section) return true // class has no section requirement
+  const stuSec = getStudentSection(student, classes)
+  if (!stuSec) return false     // student's section unknown → cannot verify
+  const normalize = v => String(v).trim().toLowerCase().replace(/[\s\-_]/g, '')
+  return normalize(stuSec) === normalize(cls.section)
+}
+
+// Full eligibility: course + year level + exact section must all match.
+function eligibleForClass(student, cls, classes) {
+  return courseMatches(student.course, cls.courseReq) &&
+         yearLevelMatches(student.year, cls.section) &&
+         sectionMatches(student, cls, classes)
+}
+
 function fmtDate(iso) {
   if (!iso) return null
   try {
@@ -133,7 +156,7 @@ function SemesterBanner({ semester }) {
 // ── Enrollment status badge ───────────────────────────────────────────
 function StatusBadge({ enrolled, open, matches }) {
   if (enrolled)  return <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-600 bg-green-50 dark:bg-green-900/20 dark:text-green-400 px-2 py-0.5 rounded-full"><CheckCircle2 size={11} />Enrolled</span>
-  if (!matches)  return <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-500 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded-full"><XCircle size={11} />Course Mismatch</span>
+  if (!matches)  return <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-500 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded-full"><XCircle size={11} />Not your section</span>
   if (!open)     return <span className="inline-flex items-center gap-1 text-xs font-semibold text-ink3 bg-[var(--surface2)] px-2 py-0.5 rounded-full"><Lock size={11} />Closed</span>
   return <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-400 px-2 py-0.5 rounded-full"><LockOpen size={11} />Open</span>
 }
@@ -214,12 +237,13 @@ function ArchivedClassCard({ entry }) {
 
 // ── Class Card ────────────────────────────────────────────────────────
 function ClassCard({ cls, student, onEnroll, busy, isCurrentSem, semesterStatus }) {
+  const { classes } = useData()
   const enrolled = (student.classIds?.length
     ? student.classIds
     : student.classId ? [student.classId] : []
   ).includes(cls.id)
 
-  const matches  = courseMatches(student.course, cls.courseReq)
+  const matches  = eligibleForClass(student, cls, classes)
   const canEnroll  = !enrolled && cls.enrollmentOpen && matches
 
   return (
@@ -335,15 +359,16 @@ export default function EnrollmentTab({ student }) {
 
   const semLabel = semester ? (semester.label || `${semester.term} AY ${semester.year}`) : null
 
-  // Only show non-archived classes that match the student's year level AND course.
-  // Already-enrolled classes are always included so existing enrollments remain visible.
+  // Only show non-archived classes that match the student's course, year level
+  // AND exact section. Already-enrolled classes are always included so existing
+  // enrollments remain visible.
   const activeClasses = useMemo(
     () => classes.filter(c => {
       if (c.archived) return false
       if (studentClassIds.includes(c.id)) return true // always show enrolled
-      return yearLevelMatches(student.year, c.section) && courseMatches(student.course, c.courseReq)
+      return eligibleForClass(student, c, classes)
     }),
-    [classes, studentClassIds, student.year, student.course]
+    [classes, studentClassIds, student]
   )
 
   // Classes belonging to the current semester

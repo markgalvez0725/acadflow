@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
+import { activeClassIds } from '@/utils/active'
 
 const PAGE_SIZE = 10
 
@@ -318,14 +319,15 @@ function AttendanceCard({ item, classObj }) {
 }
 
 export default function StreamTab({ student, viewClassId, classes }) {
-  const { activities, quizzes, announcements, fbReady } = useData()
+  const { activities, quizzes, announcements, fbReady, semester } = useData()
   const [filterType, setFilterType] = useState('all')
   const [streamPage, setStreamPage] = useState(0)
 
-  const studentClassIds = useMemo(() => {
-    if (!student) return []
-    return student.classIds?.length ? student.classIds : (student.classId ? [student.classId] : [])
-  }, [student])
+  // Only current-semester, non-archived classes feed the stream.
+  const studentClassIds = useMemo(
+    () => activeClassIds(student, classes, semester),
+    [student, classes, semester]
+  )
 
   const effectiveClassIds = useMemo(() => {
     if (viewClassId) return [viewClassId]
