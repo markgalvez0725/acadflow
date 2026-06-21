@@ -86,7 +86,6 @@ export default function EditProfileModal({ student: s, onClose }) {
     const trimSnum   = snum.trim()
 
     if (!trimName)   { setError('Full name is required.');           return }
-    if (!trimCourse) { setError('Course/Program is required.');      return }
 
     if (!snumLocked) {
       if (!trimSnum) { setError('Student number cannot be empty.'); return }
@@ -106,8 +105,10 @@ export default function EditProfileModal({ student: s, onClose }) {
         ...s,
         id: finalSnum,
         name: trimName,
-        course: trimCourse,
-        year,
+        // Course and year are locked to the teacher's record (enrolled subjects
+        // depend on them). Students can't change them here.
+        course: s.course || '',
+        year: s.year || year,
         photo: photo || null,
         account: { ...(s.account || {}), email: finalEmail },
       }
@@ -203,15 +204,31 @@ export default function EditProfileModal({ student: s, onClose }) {
         </div>
 
         <div className="form-group">
-          <label className="form-label">Course / Program *</label>
-          <input className="input" value={course} onChange={e => setCourse(e.target.value)} placeholder="e.g. BS Computer Science" />
+          <label className="form-label">Course / Program</label>
+          <input
+            className="input"
+            value={course || '—'}
+            readOnly
+            disabled
+            style={{ background: 'var(--border)', color: 'var(--ink2)', cursor: 'not-allowed' }}
+          />
+          <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>
+            Set by your teacher to match your enrolled subjects. Contact your teacher to change it.
+          </div>
         </div>
 
         <div className="form-group">
           <label className="form-label">Year Level</label>
-          <select className="input" value={year} onChange={e => setYear(e.target.value)}>
-            {YEAR_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
+          <input
+            className="input"
+            value={year || '—'}
+            readOnly
+            disabled
+            style={{ background: 'var(--border)', color: 'var(--ink2)', cursor: 'not-allowed' }}
+          />
+          <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>
+            Set by your teacher. Contact your teacher to change it.
+          </div>
         </div>
 
         {/* Email */}
