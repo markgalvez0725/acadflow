@@ -5,23 +5,14 @@ import {
 import { useData } from '@/context/DataContext'
 import { BookOpen, Clock, ChevronDown, ChevronUp, Award } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
+import { activeClassIds, activeSubjects } from '@/utils/active'
 
 export default function GradesTab({ student: s, viewClassId, classes }) {
-  const { activities, students, eqScale } = useData()
+  const { activities, students, eqScale, semester } = useData()
 
-  const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
-  const allEnrolledSubs = enrolledIds.length
-    ? [...new Set(enrolledIds.flatMap(id => classes.find(c => c.id === id)?.subjects || []))]
-    : Object.keys(s.grades || {})
-
-  // Always show all enrolled subjects, regardless of viewClassId selector
-  let subs = allEnrolledSubs
-  if (!subs.length) {
-    subs = [...new Set([
-      ...Object.keys(s.grades || {}),
-      ...Object.keys(s.gradeComponents || {}),
-    ])]
-  }
+  // Current, non-archived classes only — archived/ended/removed subjects drop off.
+  const enrolledIds = activeClassIds(s, classes, semester)
+  const subs = activeSubjects(s, classes, semester)
 
   // GWA equivalency banner: average of uploaded subject equivalencies (true 1.00–5.00 scale)
   const gwaData = useMemo(() => {

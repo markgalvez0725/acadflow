@@ -4,6 +4,7 @@ import { useUI } from '@/context/UIContext'
 import { ChevronLeft, ChevronRight, CalendarDays, X, CalendarPlus, ClipboardList, FileQuestion, Megaphone, Clock3 } from 'lucide-react'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 import { buildICS, downloadICS } from '@/utils/ics'
+import { activeClassIds } from '@/utils/active'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -34,7 +35,7 @@ function fmtDate(key) {
 const TAB_MAP = { activity: 'activities', quiz: 'quizzes', announcement: 'stream' }
 
 export default function CalendarTab({ student, viewClassId, classes }) {
-  const { activities, quizzes, announcements, fbReady } = useData()
+  const { activities, quizzes, announcements, fbReady, semester } = useData()
   const { setStudentTab, toast } = useUI()
 
   const today = new Date()
@@ -49,9 +50,9 @@ export default function CalendarTab({ student, viewClassId, classes }) {
     if (month === 11) { setYear(y => y + 1); setMonth(0) } else setMonth(m => m + 1)
   }
 
-  const studentClassIds = useMemo(() =>
-    student?.classIds?.length ? student.classIds : (student?.classId ? [student.classId] : []),
-    [student]
+  const studentClassIds = useMemo(
+    () => activeClassIds(student, classes, semester),
+    [student, classes, semester]
   )
 
   const eventMap = useMemo(() => {

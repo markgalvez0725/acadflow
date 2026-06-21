@@ -5,6 +5,7 @@ import { useUI } from '@/context/UIContext'
 import Badge from '@/components/primitives/Badge'
 import Modal from '@/components/primitives/Modal'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
+import { activeClassIds } from '@/utils/active'
 
 // ── Score computation ─────────────────────────────────────────────────────────
 function computeScore(questions, answers) {
@@ -373,16 +374,17 @@ function QuizReviewModal({ quiz, submission, onClose }) {
 
 // ── Main Student Quiz Tab ─────────────────────────────────────────────────────
 export default function StudentQuizTab({ student, viewClassId }) {
-  const { quizzes, fbReady } = useData()
+  const { quizzes, fbReady, classes, semester } = useData()
   const [takingQuiz, setTakingQuiz] = useState(null)
   const [reviewQuiz, setReviewQuiz] = useState(null)
 
   const now = Date.now()
 
-  // Classes the student belongs to
-  const studentClassIds = useMemo(() => {
-    return student.classIds?.length ? student.classIds : (student.classId ? [student.classId] : [])
-  }, [student])
+  // Classes the student belongs to (current, non-archived only)
+  const studentClassIds = useMemo(
+    () => activeClassIds(student, classes, semester),
+    [student, classes, semester]
+  )
 
   // Filter quizzes assigned to this student's classes
   const myQuizzes = useMemo(() => {

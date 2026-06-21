@@ -1,15 +1,14 @@
 import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
 import { Video, Radio, ExternalLink, Clock, ChevronDown, ChevronUp } from 'lucide-react'
+import { activeClassIds } from '@/utils/active'
 
 export default function OnlineClassesTab({ student }) {
-  const { meetings, classes } = useData()
+  const { meetings, classes, semester } = useData()
 
-  const studentClassIds = useMemo(() =>
-    student
-      ? (student.classIds?.length ? student.classIds : (student.classId ? [student.classId] : []))
-      : [],
-    [student]
+  const studentClassIds = useMemo(
+    () => activeClassIds(student, classes, semester),
+    [student, classes, semester]
   )
 
   const myMeetings = useMemo(() =>
