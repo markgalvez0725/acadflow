@@ -27,7 +27,7 @@ const STUDENT_PHRASES = [
 // Modes: 'student' | 'register' | 'reg-sq' | 'forgot' | 'fp-set-sq' | 'fp-sq'
 export default function LoginScreen() {
   const { loginStudent } = useAuth()
-  const { students, saveStudents, fbReady } = useData()
+  const { students, saveStudents, fbReady, classes } = useData()
   const { theme } = useUI()
 
   const [mode, setMode]       = useState('student')
@@ -41,11 +41,14 @@ export default function LoginScreen() {
   const [pass, setPass] = useState('')
 
   // Register form
-  const [regSnum,  setRegSnum]  = useState('')
-  const [regName,  setRegName]  = useState('')
-  const [regEmail, setRegEmail] = useState('')
-  const [regPass,  setRegPass]  = useState('')
-  const [regPass2, setRegPass2] = useState('')
+  const [regSnum,    setRegSnum]    = useState('')
+  const [regName,    setRegName]    = useState('')
+  const [regCourse,  setRegCourse]  = useState('')
+  const [regYear,    setRegYear]    = useState('1st Year')
+  const [regSection, setRegSection] = useState('')
+  const [regEmail,   setRegEmail]   = useState('')
+  const [regPass,    setRegPass]    = useState('')
+  const [regPass2,   setRegPass2]   = useState('')
 
   // Register secret question step
   const [regPending,  setRegPending]  = useState(null) // { snum, name, email, pass }
@@ -106,22 +109,46 @@ export default function LoginScreen() {
     const snErr = validateSnum(regSnum)
     if (snErr) return setErr(snErr)
     if (!regName.trim()) return setErr('Please enter your full name.')
+    if (!regCourse.trim()) return setErr('Please enter your course/program.')
+    if (!regSection.trim()) return setErr('Please enter your section.')
     if (!regEmail.includes('@')) return setErr('Please enter a valid email address.')
     if (regPass.length < 8) return setErr('Password must be at least 8 characters.')
     if (!/[A-Z]/.test(regPass) || !/[0-9]/.test(regPass))
       return setErr('Password must include at least one uppercase letter and one number.')
     if (regPass !== regPass2) return setErr('Passwords do not match.')
 
-    const existing = students.find(s => s.id === regSnum)
-    if (existing?.account?.registered)
-      return setErr('⛔ An account already exists for this student number. Use "Forgot Password" if needed.')
+    if (!fbReady || students.length === 0) {
+      return setErr('Student records are still loading. Please wait a moment and try again.')
+    }
 
-    const nameDup = students.find(s =>
-      s.name?.trim().toLowerCase() === regName.trim().toLowerCase() &&
-      s.account?.registered && s.id !== regSnum
-    )
-    if (nameDup)
-      return setErr('⛔ An account with this name already exists. Please check your student number.')
+    // ── Roster gate: the student number must already exist in the teacher's records ──
+    const roster = students.find(s => s.id.toLowerCase() === regSnum.trim().toLowerCase())
+    if (!roster) {
+      return setErr('⛔ We could not find your student number in the class records. Please ask your teacher to add you first, then register.')
+    }
+    if (roster.account?.registered) {
+      return setErr('⛔ An account already exists for this student number. Use "Forgot Password" if you need to reset it.')
+    }
+
+    // ── Identity verification against the roster (course + year + section + name) ──
+    const norm        = v => (v == null ? '' : String(v)).trim().toLowerCase()
+    const normSection = v => norm(v).replace(/[\s\-_]/g, '')
+    const yearDigit   = v => { const m = String(v ?? '').match(/(\d)/); return m ? m[1] : null }
+    const rosterSection = roster.section ||
+      classes?.find(c => c.id === (roster.classId || roster.classIds?.[0]))?.section || ''
+
+    if (roster.name && norm(roster.name) !== norm(regName)) {
+      return setErr('⛔ The name does not match our records for this student number. Please check your details or contact your teacher.')
+    }
+    if (roster.course && norm(roster.course) !== norm(regCourse)) {
+      return setErr('⛔ The course you entered does not match our records for this student number.')
+    }
+    if (roster.year && yearDigit(roster.year) && yearDigit(roster.year) !== yearDigit(regYear)) {
+      return setErr('⛔ The year level you entered does not match our records for this student number.')
+    }
+    if (rosterSection && normSection(rosterSection) !== normSection(regSection)) {
+      return setErr('⛔ The section you entered does not match our records for this student number.')
+    }
 
     const emailDup = students.find(s =>
       s.account?.registered && s.account?.email?.toLowerCase() === regEmail.toLowerCase()
@@ -129,7 +156,10 @@ export default function LoginScreen() {
     if (emailDup)
       return setErr('⛔ This email is already linked to another account.')
 
-    setRegPending({ snum: regSnum, name: regName, email: regEmail, pass: regPass })
+    setRegPending({
+      snum: roster.id, name: regName, email: regEmail, pass: regPass,
+      course: regCourse.trim(), year: regYear, section: regSection.trim(),
+    })
     setRegSqKey('')
     setRegSqAnswer('')
     setMode('reg-sq')
@@ -150,34 +180,28 @@ export default function LoginScreen() {
 
       const updatedStudents = [...students]
       const idx = updatedStudents.findIndex(s => s.id === regPending.snum)
-      if (idx >= 0) {
-        updatedStudents[idx] = {
-          ...updatedStudents[idx],
-          account: {
-            registered: true,
-            activated: true,
-            pass: hashedPass,
-            email: regPending.email,
-            securityQuestion: regSqKey,
-            securityAnswer: hashedAnswer,
-          },
-          name: updatedStudents[idx].name || regPending.name,
-        }
-      } else {
-        updatedStudents.push({
-          id: regPending.snum,
-          name: regPending.name,
-          course: '', year: '', mobile: '', dob: '',
-          classId: null, grades: {}, attendance: {}, excuse: {}, gradeComponents: {},
-          account: {
-            registered: true,
-            activated: true,
-            pass: hashedPass,
-            email: regPending.email,
-            securityQuestion: regSqKey,
-            securityAnswer: hashedAnswer,
-          },
-        })
+      // Roster gate already guarantees the student exists; never create one here.
+      if (idx < 0) {
+        setLoading(false)
+        return setErr('⛔ Your student record could not be found. Please contact your teacher.')
+      }
+      const existing = updatedStudents[idx]
+      updatedStudents[idx] = {
+        ...existing,
+        // Keep the teacher's roster values; only fill blanks from the verified input.
+        name:    existing.name    || regPending.name,
+        course:  existing.course  || regPending.course,
+        year:    existing.year    || regPending.year,
+        section: existing.section || regPending.section,
+        account: {
+          ...existing.account,
+          registered: true,
+          activated: true,
+          pass: hashedPass,
+          email: regPending.email,
+          securityQuestion: regSqKey,
+          securityAnswer: hashedAnswer,
+        },
       }
 
       await saveStudents(updatedStudents, [regPending.snum])
@@ -204,7 +228,7 @@ export default function LoginScreen() {
         return setErr('No account found for that student number. Please contact your teacher.')
       }
       if (!s.account?.registered) {
-        return setErr('This account has not been registered yet. Please register first.')
+        return setErr('This student number has no account yet. Switch to "Register" to create one — you\'ll verify your identity with your course, year, and section.')
       }
       setFpPending({ snum: s.id })
       if (!s.account?.securityQuestion) {
@@ -423,6 +447,25 @@ export default function LoginScreen() {
                 <input type="text" placeholder=" " value={regName} onChange={e => setRegName(e.target.value)} />
                 <label>Full Name</label>
               </div>
+              <div className="field-float">
+                <input type="text" placeholder=" " value={regCourse} onChange={e => setRegCourse(e.target.value)} />
+                <label>Course / Program</label>
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: 12, color: 'var(--ink3)', display: 'block', marginBottom: 4 }}>Year Level</label>
+                  <select value={regYear} onChange={e => setRegYear(e.target.value)} style={{ width: '100%' }}>
+                    <option>1st Year</option><option>2nd Year</option><option>3rd Year</option><option>4th Year</option>
+                  </select>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: 12, color: 'var(--ink3)', display: 'block', marginBottom: 4 }}>Section</label>
+                  <input type="text" value={regSection} onChange={e => setRegSection(e.target.value)} placeholder="e.g. 2A" style={{ width: '100%' }} />
+                </div>
+              </div>
+              <p style={{ fontSize: 11, color: 'var(--ink3)', margin: '2px 2px 8px' }}>
+                Your details must match your teacher's records to verify you're a real student.
+              </p>
               <div className="field-float">
                 <input type="email" placeholder=" " value={regEmail} onChange={e => setRegEmail(e.target.value)} />
                 <label>Email Address</label>
