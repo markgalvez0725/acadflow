@@ -516,10 +516,35 @@ export function DataProvider({ children }) {
       throw new Error('The enrollment period for this semester has ended. Contact your teacher for assistance.')
     }
 
-    const courseReq = (cls.courseReq || cls.name).trim().toLowerCase()
-    const studentCourse = (student.course || '').trim().toLowerCase()
-    if (studentCourse !== courseReq) {
-      throw new Error(`Course mismatch. This class requires "${cls.courseReq || cls.name}" but your enrolled course is "${student.course || 'not set'}".`)
+    // ── Identity verification: course + year level + section must all match ──
+    const norm        = v => (v == null ? '' : String(v)).trim().toLowerCase()
+    const normSection = v => norm(v).replace(/[\s\-_]/g, '')           // "2 - A" → "2a"
+    const yearDigit   = v => { const m = String(v ?? '').match(/(\d)/); return m ? m[1] : null }
+
+    // Course
+    const courseReq     = norm(cls.courseReq || cls.name)
+    const studentCourse = norm(student.course)
+    if (courseReq && studentCourse !== courseReq) {
+      throw new Error(`Course mismatch. This subject is for "${cls.courseReq || cls.name}", but your course is "${student.course || 'not set'}". You can only enroll in subjects offered to your own course.`)
+    }
+
+    // Year level (digit from class.year or section vs student's year)
+    const clsYear = yearDigit(cls.year) || yearDigit(cls.section)
+    const stuYear = yearDigit(student.year)
+    if (clsYear && stuYear && clsYear !== stuYear) {
+      throw new Error(`Year level mismatch. This subject is for year ${clsYear}, but you are in year ${stuYear}. You can only enroll in subjects for your own year level.`)
+    }
+
+    // Section (exact match). Student section = explicit field, else their primary class's section.
+    const primaryCls = classes.find(c => c.id === (student.classId || student.classIds?.[0]))
+    const studentSection = student.section || primaryCls?.section || ''
+    if (cls.section) {
+      if (!studentSection) {
+        throw new Error('Your section is not set yet. Please ask your teacher to set your section before enrolling.')
+      }
+      if (normSection(studentSection) !== normSection(cls.section)) {
+        throw new Error(`Section mismatch. This subject is for section "${cls.section}", but you belong to section "${studentSection}". You can only enroll in subjects for your own section.`)
+      }
     }
 
     const currentIds = student.classIds?.length ? student.classIds : (student.classId ? [student.classId] : [])
