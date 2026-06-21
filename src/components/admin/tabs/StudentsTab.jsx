@@ -24,6 +24,7 @@ function AddStudentModal({ onClose }) {
   const [snum, setSnum]         = useState('')
   const [course, setCourse]     = useState('')
   const [year, setYear]         = useState('1st Year')
+  const [section, setSection]   = useState('')
   const [classId, setClassId]   = useState('')
   const [extraIds, setExtraIds] = useState([])
   const [setPass, setSetPass]   = useState(false)
@@ -75,9 +76,13 @@ function AddStudentModal({ onClose }) {
       })
     })
 
+    // Section: explicit value, else inherit from the chosen primary class.
+    const primaryCls = classes.find(c => c.id === classId)
+    const finalSection = section.trim() || primaryCls?.section || ''
+
     setSaving(true)
     try {
-      const newStudent = { id, name: name.trim(), course: course.trim(), year, classId: classId || null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account }
+      const newStudent = { id, name: name.trim(), course: course.trim(), year, section: finalSection, classId: classId || null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account }
       await saveStudents([...students, newStudent], [id])
       toast('Student added!', 'green')
       onClose()
@@ -114,6 +119,10 @@ function AddStudentModal({ onClose }) {
             <option>1st Year</option><option>2nd Year</option><option>3rd Year</option><option>4th Year</option>
           </select>
         </div>
+      </div>
+      <div className="field">
+        <label>Section <span className="font-normal text-ink3">(used to verify enrollment — leave blank to inherit from primary class)</span></label>
+        <input value={section} onChange={e => setSection(e.target.value)} placeholder="e.g. 2A" maxLength={10} />
       </div>
       <div className="field">
         <label>Primary Class <span className="font-normal text-ink3">(home class for grades &amp; attendance)</span></label>
@@ -191,6 +200,7 @@ function EditStudentModal({ student, onClose }) {
 
   const [course, setCourse]   = useState(student.course || '')
   const [year, setYear]       = useState(student.year || '1st Year')
+  const [section, setSection] = useState(student.section || '')
   const [classId, setClassId] = useState(student.classId || '')
   const [extraIds, setExtraIds] = useState(
     (student.classIds || []).filter(id => id !== student.classId)
@@ -222,7 +232,9 @@ function EditStudentModal({ student, onClose }) {
 
     const updatedStudents = students.map(s => {
       if (s.id !== student.id) return s
-      const ns = { ...s, course: course.trim(), year, classId: newClassId, classIds: allClassIds, grades: { ...s.grades }, attendance: { ...s.attendance }, excuse: { ...s.excuse } }
+      const primaryCls = classes.find(c => c.id === newClassId)
+      const finalSection = section.trim() || primaryCls?.section || ''
+      const ns = { ...s, course: course.trim(), year, section: finalSection, classId: newClassId, classIds: allClassIds, grades: { ...s.grades }, attendance: { ...s.attendance }, excuse: { ...s.excuse } }
       if (s.gradeComponents) ns.gradeComponents = { ...s.gradeComponents }
       allClassIds.forEach(cid => {
         const cls = classes.find(c => c.id === cid)
@@ -274,6 +286,11 @@ function EditStudentModal({ student, onClose }) {
             <option>1st Year</option><option>2nd Year</option><option>3rd Year</option><option>4th Year</option>
           </select>
         </div>
+      </div>
+
+      <div className="field">
+        <label>Section <span className="font-normal text-ink3">(used to verify enrollment — leave blank to inherit from primary class)</span></label>
+        <input value={section} onChange={e => setSection(e.target.value)} placeholder="e.g. 2A" maxLength={10} />
       </div>
 
       <div className="field">
@@ -555,7 +572,7 @@ function ImportStudentsModal({ onClose }) {
         const id = r.id.toUpperCase()
         const allClassIds = []
         const grades = {}, attendance = {}, excuse = {}, gradeComponents = {}
-        return { id, name: r.name, course: r.course, year: r.year || '1st Year', mobile: r.mobile || '', dob: r.dob || '', classId: null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account: { registered: true, pass: await hashPassword(DEFAULT_PASS), email: '', _tempPass: true } }
+        return { id, name: r.name, course: r.course, year: r.year || '1st Year', section: r.section || '', mobile: r.mobile || '', dob: r.dob || '', classId: null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account: { registered: true, pass: await hashPassword(DEFAULT_PASS), email: '', _tempPass: true } }
       }))
       await saveStudents([...students, ...newStudents], newStudents.map(s => s.id))
       toast(`Imported ${newStudents.length} student${newStudents.length !== 1 ? 's' : ''}!`, 'green')
