@@ -12,6 +12,7 @@ import SemesterCalendarChip from '@/components/primitives/SemesterCalendarChip'
 import CommandPaletteButton from '@/components/primitives/CommandPaletteButton'
 import ConnectionStatus from '@/components/primitives/ConnectionStatus'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
+import { activeClasses, activeClassIds } from '@/utils/active'
 import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature } from 'lucide-react'
 
 // Lazy-load tabs
@@ -65,14 +66,9 @@ export default function StudentLayout() {
     }
   }, [currentStudent, students])
 
-  // Multi-class: track which class is being viewed
-  const enrolledClasses = student
-    ? classes.filter(c => {
-        if (c.archived) return false
-        const ids = student.classIds?.length ? student.classIds : (student.classId ? [student.classId] : [])
-        return ids.includes(c.id)
-      })
-    : []
+  // Multi-class: track which class is being viewed. Only current-semester,
+  // non-archived classes appear — previous/ended semesters are hidden.
+  const enrolledClasses = student ? activeClasses(student, classes, semester) : []
 
   const [viewClassId, setViewClassId] = useState(null)
   const effectiveClassId = viewClassId || enrolledClasses[0]?.id || null
@@ -134,7 +130,7 @@ export default function StudentLayout() {
   // Activities the student hasn't submitted yet and aren't past due
   const openActivityCount = (() => {
     if (!student) return 0
-    const studentClassIds = student.classIds?.length ? student.classIds : (student.classId ? [student.classId] : [])
+    const studentClassIds = activeClassIds(student, classes, semester)
     const now = Date.now()
     return activities.filter(a => {
       if (!studentClassIds.includes(a.classId)) return false
@@ -149,7 +145,7 @@ export default function StudentLayout() {
   const openQuizCount = (() => {
     if (!student) return 0
     const now = Date.now()
-    const studentClassIds = student.classIds?.length ? student.classIds : (student.classId ? [student.classId] : [])
+    const studentClassIds = activeClassIds(student, classes, semester)
     return quizzes.filter(q =>
       q.classIds?.some(id => studentClassIds.includes(id)) &&
       now >= q.openAt && now <= q.closeAt &&
@@ -159,7 +155,7 @@ export default function StudentLayout() {
   const unreadMsgCount = messages.filter(m => {
     if (!student) return false
     const id = student.id
-    const enrolledClassIds = student.classIds?.length ? student.classIds : (student.classId ? [student.classId] : [])
+    const enrolledClassIds = activeClassIds(student, classes, semester)
     const isVisible = (
       m.to === 'all' ||
       m.to === id ||
