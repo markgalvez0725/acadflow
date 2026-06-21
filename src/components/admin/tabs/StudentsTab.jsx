@@ -9,6 +9,7 @@ import Modal from '@/components/primitives/Modal'
 import { Download, Upload, FileDown, KeyRound, GraduationCap } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { buildStudentReportCard } from '@/export/reportCard'
+import { courseOptions } from '@/constants/courses'
 
 const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
 
@@ -111,7 +112,10 @@ function AddStudentModal({ onClose }) {
       <div className="input-row">
         <div className="field">
           <label>Course / Program <span className="text-red-500">*</span></label>
-          <input value={course} onChange={e => setCourse(e.target.value)} placeholder="BS Computer Science" />
+          <select value={course} onChange={e => setCourse(e.target.value)}>
+            <option value="">— Select course —</option>
+            {courseOptions(course).map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
         </div>
         <div className="field">
           <label>Year Level</label>
@@ -278,7 +282,10 @@ function EditStudentModal({ student, onClose }) {
       <div className="input-row">
         <div className="field">
           <label>Course / Program <span className="text-red-500">*</span></label>
-          <input value={course} onChange={e => setCourse(e.target.value)} placeholder="BS Computer Science" />
+          <select value={course} onChange={e => setCourse(e.target.value)}>
+            <option value="">— Select course —</option>
+            {courseOptions(course).map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
         </div>
         <div className="field">
           <label>Year Level</label>

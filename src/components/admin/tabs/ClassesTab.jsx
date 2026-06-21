@@ -7,6 +7,7 @@ import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
 import { Plus, Pencil, School, Archive, ArchiveRestore, CalendarDays, Users, LockOpen, Lock, CheckCircle2, Copy } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
+import { courseOptions } from '@/constants/courses'
 
 const PER_PAGE = 10
 
@@ -90,7 +91,10 @@ function AddClassModal({ onClose, prefill = null }) {
       <div className="input-row">
         <div className="field">
           <label>Course Name <span className="text-red-500">*</span></label>
-          <input value={name} onChange={e => { setName(e.target.value); if (!courseReq) setCourseReq(e.target.value) }} placeholder="BS Computer Science" />
+          <select value={name} onChange={e => { setName(e.target.value); if (!courseReq) setCourseReq(e.target.value) }}>
+            <option value="">— Select course —</option>
+            {courseOptions(name).map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
         </div>
         <div className="field">
           <label>Year &amp; Section <span className="text-red-500">*</span></label>
@@ -120,7 +124,10 @@ function AddClassModal({ onClose, prefill = null }) {
             Course Requirement{' '}
             <span className="font-normal text-xs text-ink2">(students must match this course to enroll)</span>
           </label>
-          <input value={courseReq} onChange={e => setCourseReq(e.target.value)} placeholder="BS Computer Science" />
+          <select value={courseReq} onChange={e => setCourseReq(e.target.value)}>
+            <option value="">— Same as course name —</option>
+            {courseOptions(courseReq).map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
         </div>
         <div className="field">
           <label>Semester</label>
@@ -267,7 +274,10 @@ function EditClassModal({ cls, onClose }) {
       <div className="input-row">
         <div className="field">
           <label>Course Name <span className="text-red-500">*</span></label>
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="BS Computer Science" />
+          <select value={name} onChange={e => setName(e.target.value)}>
+            <option value="">— Select course —</option>
+            {courseOptions(name).map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
         </div>
         <div className="field">
           <label>Year &amp; Section <span className="text-red-500">*</span></label>
@@ -297,7 +307,10 @@ function EditClassModal({ cls, onClose }) {
             Course Requirement{' '}
             <span className="font-normal text-xs text-ink2">(students must match this course to enroll)</span>
           </label>
-          <input value={courseReq} onChange={e => setCourseReq(e.target.value)} placeholder="BS Computer Science" />
+          <select value={courseReq} onChange={e => setCourseReq(e.target.value)}>
+            <option value="">— Same as course name —</option>
+            {courseOptions(courseReq).map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
         </div>
         <div className="field">
           <label>Semester</label>
