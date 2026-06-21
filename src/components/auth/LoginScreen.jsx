@@ -8,6 +8,7 @@ import { useUI } from '@/context/UIContext'
 import { hashPassword, verifyPassword } from '@/utils/crypto'
 import { validateSnum, sanitizeSnum } from '@/utils/validate'
 import { SECURITY_QUESTIONS } from '@/utils/securityQuestions'
+import { courseOptions } from '@/constants/courses'
 import LoadingButton from '@/components/primitives/LoadingButton'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 
@@ -447,9 +448,12 @@ export default function LoginScreen() {
                 <input type="text" placeholder=" " value={regName} onChange={e => setRegName(e.target.value)} />
                 <label>Full Name</label>
               </div>
-              <div className="field-float">
-                <input type="text" placeholder=" " value={regCourse} onChange={e => setRegCourse(e.target.value)} />
-                <label>Course / Program</label>
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 12, color: 'var(--ink3)', display: 'block', marginBottom: 4 }}>Course / Program</label>
+                <select value={regCourse} onChange={e => setRegCourse(e.target.value)} style={{ width: '100%' }}>
+                  <option value="">— Select course —</option>
+                  {courseOptions(regCourse).map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <div style={{ flex: 1 }}>
