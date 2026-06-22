@@ -60,6 +60,14 @@
 .sc-trend.flat { background: var(--surface3); color: var(--ink2); }
 .sc-trend svg  { width: 12px; height: 12px; }
 
+/* ── Messages: single-pane on phones (list ↔ thread, no overflow) ─────── */
+@media (max-width: 767px) {
+  .msg-list-pane { width: 100% !important; min-width: 0 !important; border-right: none !important; }
+  .msg-thread-pane { display: none !important; }
+  .msg-shell.has-active .msg-list-pane { display: none !important; }
+  .msg-shell.has-active .msg-thread-pane { display: flex !important; }
+}
+
 /* ── Compact topbar on narrow widths: just the search icon + bell ──────── */
 @media (max-width: 1023px) {
   .tb-desktop-only { display: none !important; }
