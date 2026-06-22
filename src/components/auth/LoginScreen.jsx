@@ -5,6 +5,10 @@ import { useTypingEffect } from '@/hooks/useTypingEffect'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
+import { createUserWithEmailAndPassword, deleteUser, signOut } from 'firebase/auth'
+import { doc, getDoc, updateDoc } from 'firebase/firestore'
+import { getFbAuth, getDb } from '@/firebase/firebaseInit'
+import { studentEmail, studentDocId } from '@/constants/auth'
 import { hashPassword, verifyPassword } from '@/utils/crypto'
 import { validateSnum, sanitizeSnum } from '@/utils/validate'
 import { SECURITY_QUESTIONS } from '@/utils/securityQuestions'
@@ -84,25 +88,20 @@ export default function LoginScreen() {
     clearMessages()
     setLoading(true)
     try {
-      const result = await loginStudent(snum.trim(), pass, students)
+      const result = await loginStudent(snum.trim(), pass)
       if (!result.ok) {
         setErr(result.msg)
         setPass('')
-      } else {
-        const original = students.find(s => s.id === result.student?.id)
-        if (result.student?.account?.firstLoginAt && !original?.account?.firstLoginAt) {
-          saveStudents(
-            students.map(s => s.id === result.student.id ? result.student : s),
-            [result.student.id]
-          )
-        }
       }
     } finally {
       setLoading(false)
     }
   }
 
-  // ── Register Step 1 — validate fields, advance to secret question ────────
+  // ── Register — verified, roster-gated account creation (Firebase Auth) ─────
+  // Flow: create the auth account (signs in), then read the roster record while
+  // authenticated and verify the details. If anything fails, the just-created
+  // account is deleted so nothing is left behind.
   async function handleRegStep1(e) {
     e.preventDefault()
     clearMessages()
@@ -118,52 +117,83 @@ export default function LoginScreen() {
       return setErr('Password must include at least one uppercase letter and one number.')
     if (regPass !== regPass2) return setErr('Passwords do not match.')
 
-    if (!fbReady || students.length === 0) {
-      return setErr('Student records are still loading. Please wait a moment and try again.')
+    const auth = getFbAuth()
+    const db = getDb()
+    if (!fbReady || !auth || !db) {
+      return setErr('Still connecting. Please wait a moment and try again.')
     }
 
-    // ── Roster gate: the student number must already exist in the teacher's records ──
-    const roster = students.find(s => s.id.toLowerCase() === regSnum.trim().toLowerCase())
-    if (!roster) {
-      return setErr('⛔ We could not find your student number in the class records. Please ask your teacher to add you first, then register.')
-    }
-    if (roster.account?.registered) {
-      return setErr('⛔ An account already exists for this student number. Use "Forgot Password" if you need to reset it.')
-    }
+    setLoading(true)
+    let createdUser = null
+    try {
+      // 1) Create the Firebase Auth account (this also signs us in).
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, studentEmail(regSnum), regPass)
+        createdUser = cred.user
+      } catch (err) {
+        const c = err?.code || ''
+        if (c.includes('email-already-in-use'))
+          return setErr('⛔ An account already exists for this student number. Switch to "Sign In", or ask your teacher to reset it.')
+        if (c.includes('operation-not-allowed'))
+          return setErr('Registration is not enabled yet. Please ask the admin to turn on Email/Password sign-in.')
+        if (c.includes('weak-password'))
+          return setErr('Password is too weak. Use at least 8 characters with an uppercase letter and a number.')
+        return setErr('Could not create your account: ' + (err?.message || 'unknown error'))
+      }
 
-    // ── Identity verification against the roster (course + year + section + name) ──
-    const norm        = v => (v == null ? '' : String(v)).trim().toLowerCase()
-    const normSection = v => norm(v).replace(/[\s\-_]/g, '')
-    const yearDigit   = v => { const m = String(v ?? '').match(/(\d)/); return m ? m[1] : null }
-    const rosterSection = roster.section ||
-      classes?.find(c => c.id === (roster.classId || roster.classIds?.[0]))?.section || ''
+      // 2) Read the roster record directly (now authenticated).
+      const ref  = doc(db, 'students', studentDocId(regSnum))
+      const snap = await getDoc(ref)
+      if (!snap.exists()) {
+        await deleteUser(createdUser).catch(() => {})
+        await signOut(auth).catch(() => {})
+        return setErr('⛔ We could not find your student number in the class records. Please ask your teacher to add you first, then register.')
+      }
+      const roster = snap.data()
+      if (roster.account?.registered) {
+        await signOut(auth).catch(() => {})
+        return setErr('⛔ An account already exists for this student number. Switch to "Sign In".')
+      }
 
-    if (roster.name && norm(roster.name) !== norm(regName)) {
-      return setErr('⛔ The name does not match our records for this student number. Please check your details or contact your teacher.')
-    }
-    if (roster.course && norm(roster.course) !== norm(regCourse)) {
-      return setErr('⛔ The course you entered does not match our records for this student number.')
-    }
-    if (roster.year && yearDigit(roster.year) && yearDigit(roster.year) !== yearDigit(regYear)) {
-      return setErr('⛔ The year level you entered does not match our records for this student number.')
-    }
-    if (rosterSection && normSection(rosterSection) !== normSection(regSection)) {
-      return setErr('⛔ The section you entered does not match our records for this student number.')
-    }
+      // 3) Verify identity against the roster (name + course + year + section).
+      const norm        = v => (v == null ? '' : String(v)).trim().toLowerCase()
+      const normSection = v => norm(v).replace(/[\s\-_]/g, '')
+      const yearDigit   = v => { const m = String(v ?? '').match(/(\d)/); return m ? m[1] : null }
+      const rosterSection = roster.section || ''
+      const mismatch =
+        (roster.name   && norm(roster.name)   !== norm(regName))   ? 'name' :
+        (roster.course && norm(roster.course) !== norm(regCourse)) ? 'course' :
+        (roster.year && yearDigit(roster.year) && yearDigit(roster.year) !== yearDigit(regYear)) ? 'year level' :
+        (rosterSection && normSection(rosterSection) !== normSection(regSection)) ? 'section' : null
+      if (mismatch) {
+        await deleteUser(createdUser).catch(() => {})
+        await signOut(auth).catch(() => {})
+        return setErr(`⛔ The ${mismatch} you entered does not match our records for this student number. Please check your details or contact your teacher.`)
+      }
 
-    const emailDup = students.find(s =>
-      s.account?.registered && s.account?.email?.toLowerCase() === regEmail.toLowerCase()
-    )
-    if (emailDup)
-      return setErr('⛔ This email is already linked to another account.')
+      // 4) Mark the roster record registered + fill any blanks (authenticated write).
+      const patch = {
+        'account.registered': true,
+        'account.activated': true,
+        'account.email': regEmail.trim(),
+      }
+      if (!roster.name)    patch.name    = regName.trim()
+      if (!roster.course)  patch.course  = regCourse.trim()
+      if (!roster.year)    patch.year    = regYear
+      if (!roster.section) patch.section = regSection.trim()
+      await updateDoc(ref, patch)
 
-    setRegPending({
-      snum: roster.id, name: regName, email: regEmail, pass: regPass,
-      course: regCourse.trim(), year: regYear, section: regSection.trim(),
-    })
-    setRegSqKey('')
-    setRegSqAnswer('')
-    setMode('reg-sq')
+      // 5) Sign out so they sign in cleanly with their new password.
+      await signOut(auth).catch(() => {})
+      setOkMsg('✅ Account created! You can now sign in with your student number.')
+      setTimeout(() => { setMode('student'); clearMessages() }, 1800)
+    } catch (err) {
+      if (createdUser) { try { await deleteUser(createdUser) } catch (_) {} }
+      try { await signOut(auth) } catch (_) {}
+      setErr('Registration failed: ' + (err?.message || 'unknown error'))
+    } finally {
+      setLoading(false)
+    }
   }
 
   // ── Register Step 2 — save account with secret question ─────────────────
@@ -543,27 +573,19 @@ export default function LoginScreen() {
             </form>
           )}
 
-          {/* ── Forgot Password Step 1 ───────────────────────────────── */}
+          {/* ── Forgot Password — teacher-managed reset ──────────────── */}
           {mode === 'forgot' && (
-            <form onSubmit={handleFpStep1}>
+            <div>
               <h3 className="font-display text-lg font-bold text-ink mb-1">Forgot Password</h3>
-              <p className="text-xs text-ink2 mb-4">Enter your student number to retrieve your security question.</p>
-              <div className="field-float">
-                <input
-                  type="text"
-                  placeholder=" "
-                  value={fpSnum}
-                  onChange={e => setFpSnum(sanitizeSnum(e.target.value))}
-                />
-                <label>Student Number</label>
-              </div>
-              <LoadingButton loading={loading} loadingText="Looking up…" className="btn btn-primary btn-full mt-2">
-                Continue →
-              </LoadingButton>
-              <button type="button" className="link-btn w-full text-center mt-2" onClick={() => { setMode('student'); clearMessages() }}>
+              <p className="text-sm text-ink2 mb-4" style={{ lineHeight: 1.6 }}>
+                Password resets are handled by your teacher. Please contact them with your
+                student number, and they'll set a new password for you. You can then sign in
+                and change it from your profile.
+              </p>
+              <button type="button" className="btn btn-primary btn-full mt-2" onClick={() => { setMode('student'); clearMessages() }}>
                 ← Back to Sign In
               </button>
-            </form>
+            </div>
           )}
 
           {/* ── Forgot Password Step 1b — Set Security Question ─────── */}

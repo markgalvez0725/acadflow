@@ -5,6 +5,7 @@ import { useTypingEffect } from '@/hooks/useTypingEffect'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
+import { ADMIN_EMAIL } from '@/constants/auth'
 import LoadingButton from '@/components/primitives/LoadingButton'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 
@@ -46,7 +47,7 @@ export default function AdminLoginScreen() {
     clearMessages()
     setLoading(true)
     try {
-      const result = await loginAdmin(username.trim(), password, admin)
+      const result = await loginAdmin(ADMIN_EMAIL, password)
       if (!result.ok) {
         setErr(result.msg)
         setPassword('')
@@ -139,13 +140,13 @@ export default function AdminLoginScreen() {
             <form onSubmit={handleLogin}>
               <div className="field-float">
                 <input
-                  type="text"
-                  placeholder=" "
-                  value={username}
-                  onChange={e => setUsername(e.target.value)}
+                  type="email"
+                  value={ADMIN_EMAIL}
+                  readOnly
                   autoComplete="username"
+                  style={{ background: 'var(--surface2)', color: 'var(--ink2)' }}
                 />
-                <label>Username</label>
+                <label>Admin email</label>
               </div>
               <div className="field-float">
                 <input
