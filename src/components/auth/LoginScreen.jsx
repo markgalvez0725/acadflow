@@ -583,38 +583,43 @@ export default function LoginScreen() {
           {/* ── Register Step 1 ──────────────────────────────────────── */}
           {mode === 'register' && (
             <form onSubmit={handleRegStep1}>
+              <div className="auth-section-label">Verify your identity</div>
+
               <div className="field-float">
-                <input type="text" placeholder=" " value={regSnum} onChange={e => setRegSnum(sanitizeSnum(e.target.value))} />
+                <input type="text" placeholder=" " value={regSnum} onChange={e => setRegSnum(sanitizeSnum(e.target.value))} autoComplete="username" />
                 <label>Student Number</label>
               </div>
               <div className="field-float">
-                <input type="text" placeholder=" " value={regName} onChange={e => setRegName(e.target.value)} />
+                <input type="text" placeholder=" " value={regName} onChange={e => setRegName(e.target.value)} autoComplete="name" />
                 <label>Full Name</label>
               </div>
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: 12, color: 'var(--ink3)', display: 'block', marginBottom: 4 }}>Course / Program</label>
-                <select value={regCourse} onChange={e => setRegCourse(e.target.value)} style={{ width: '100%' }}>
+              <div className="field-float field-float--select">
+                <select value={regCourse} onChange={e => setRegCourse(e.target.value)}>
                   <option value="">— Select course —</option>
                   {courseOptions(regCourse).map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
+                <label>Course / Program</label>
               </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 12, color: 'var(--ink3)', display: 'block', marginBottom: 4 }}>Year Level</label>
-                  <select value={regYear} onChange={e => setRegYear(e.target.value)} style={{ width: '100%' }}>
+              <div className="ff-row">
+                <div className="field-float field-float--select">
+                  <select value={regYear} onChange={e => setRegYear(e.target.value)}>
                     <option>1st Year</option><option>2nd Year</option><option>3rd Year</option><option>4th Year</option>
                   </select>
+                  <label>Year Level</label>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 12, color: 'var(--ink3)', display: 'block', marginBottom: 4 }}>Section</label>
-                  <input type="text" value={regSection} onChange={e => setRegSection(e.target.value)} placeholder="e.g. 2A" style={{ width: '100%' }} />
+                <div className="field-float">
+                  <input type="text" placeholder=" " value={regSection} onChange={e => setRegSection(e.target.value)} />
+                  <label>Section</label>
                 </div>
               </div>
-              <p style={{ fontSize: 11, color: 'var(--ink3)', margin: '2px 2px 8px' }}>
-                Your details must match your teacher's records to verify you're a real student.
+              <p style={{ fontSize: 11, color: 'var(--ink3)', margin: '-4px 2px 10px', lineHeight: 1.5 }}>
+                Your details must match your teacher's records to verify you're a real student. Section example: <strong>2A</strong>.
               </p>
+
+              <div className="auth-section-label">Create your login</div>
+
               <div className="field-float">
-                <input type="email" placeholder=" " value={regEmail} onChange={e => setRegEmail(e.target.value)} />
+                <input type="email" placeholder=" " value={regEmail} onChange={e => setRegEmail(e.target.value)} autoComplete="email" />
                 <label>Email Address</label>
               </div>
               <div className="field-float">
@@ -623,6 +628,7 @@ export default function LoginScreen() {
                   placeholder=" "
                   value={regPass}
                   onChange={e => setRegPass(e.target.value)}
+                  autoComplete="new-password"
                   style={{ paddingRight: 38 }}
                 />
                 <button type="button" className="pw-toggle" onClick={() => setShowRegPass(v => !v)} tabIndex={-1} aria-label={showRegPass ? 'Hide password' : 'Show password'}>
@@ -630,12 +636,20 @@ export default function LoginScreen() {
                 </button>
                 <label>Password</label>
               </div>
+              <div className="pw-reqs" aria-hidden="true">
+                {[['8+ characters', regPass.length >= 8], ['1 uppercase', /[A-Z]/.test(regPass)], ['1 number', /[0-9]/.test(regPass)]].map(([label, met]) => (
+                  <span key={label} className={`pw-req${met ? ' met' : ''}`}>
+                    <span className="dot">{met ? <Check size={11} /> : <span className="pw-req-dot" />}</span>{label}
+                  </span>
+                ))}
+              </div>
               <div className="field-float">
                 <input
                   type={showRegPass2 ? 'text' : 'password'}
                   placeholder=" "
                   value={regPass2}
                   onChange={e => setRegPass2(e.target.value)}
+                  autoComplete="new-password"
                   style={{ paddingRight: 38 }}
                 />
                 <button type="button" className="pw-toggle" onClick={() => setShowRegPass2(v => !v)} tabIndex={-1} aria-label={showRegPass2 ? 'Hide password' : 'Show password'}>
@@ -643,6 +657,11 @@ export default function LoginScreen() {
                 </button>
                 <label>Confirm Password</label>
               </div>
+              {regPass2.length > 0 && (
+                <div className={`pw-match ${regPass === regPass2 ? 'ok' : 'no'}`} role="status">
+                  {regPass === regPass2 ? '✓ Passwords match' : '✗ Passwords don’t match yet'}
+                </div>
+              )}
               <LoadingButton loading={loading} loadingText="Next…" className="btn btn-primary btn-full mt-2">
                 Next →
               </LoadingButton>
