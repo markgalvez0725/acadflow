@@ -11,6 +11,7 @@
 //
 // Request body: { tokens: string[], notification: { title, body }, data?: {} }
 import crypto from 'crypto'
+import { guard } from './_guard.js'
 
 function b64url(input) {
   return Buffer.from(input).toString('base64')
@@ -49,6 +50,7 @@ async function getAccessToken(sa) {
 }
 
 export default async function handler(req, res) {
+  if (guard(req, res, { max: 40 })) return
   if (req.method !== 'POST') return res.status(405).end()
 
   const raw = process.env.FCM_SERVICE_ACCOUNT

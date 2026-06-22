@@ -1,4 +1,7 @@
+import { guard } from './_guard.js'
+
 export default async function handler(req, res) {
+  if (guard(req, res, { max: 20 })) return
   if (req.method !== 'POST') return res.status(405).end()
 
   const { prompt } = req.body

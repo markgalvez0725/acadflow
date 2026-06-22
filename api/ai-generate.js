@@ -6,7 +6,10 @@
 // Request body: { prompt: string, json?: boolean }
 // Response: { text: string } or, when json=true, { json: any }
 
+import { guard } from './_guard.js'
+
 export default async function handler(req, res) {
+  if (guard(req, res, { max: 20 })) return
   if (req.method !== 'POST') return res.status(405).end()
 
   const key = process.env.GEMINI_API_KEY

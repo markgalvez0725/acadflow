@@ -11,6 +11,8 @@
 // Request body: { text: string, count?: number, types?: string[] }
 // Response: { questions: [{type, question, options?, answer}] }
 
+import { guard } from './_guard.js'
+
 const SHAPES = {
   multiple_choice: '{"type":"multiple_choice","question":"...","options":["A","B","C","D"],"answer":"A"}',
   true_false: '{"type":"true_false","question":"...","answer":"True"}',
@@ -20,6 +22,7 @@ const SHAPES = {
 }
 
 export default async function handler(req, res) {
+  if (guard(req, res, { max: 20 })) return
   if (req.method !== 'POST') return res.status(405).end()
 
   const key = process.env.GEMINI_API_KEY
