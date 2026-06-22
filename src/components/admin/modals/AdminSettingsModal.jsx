@@ -596,7 +596,6 @@ function FirebaseTab() {
   )
 }
 
-// ── Main Modal ────────────────────────────────────────────────────────────────
 // ── Late Policy Tab ────────────────────────────────────────────────────────
 function LatePolicyTab() {
   const { latePolicy, saveLatePolicy } = useData()
@@ -768,6 +767,7 @@ function DataTab() {
   )
 }
 
+// ── Main Modal ────────────────────────────────────────────────────────────────
 export default function AdminSettingsModal({ onClose, push }) {
   const [activeTab, setActiveTab] = useState('semester')
 
