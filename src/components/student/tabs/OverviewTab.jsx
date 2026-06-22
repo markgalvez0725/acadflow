@@ -6,6 +6,10 @@ import { useData } from '@/context/DataContext'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import { BookOpen, Clock, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, BarChart3, ChevronDown, ChevronRight } from 'lucide-react'
 import { SkeletonDashboard } from '@/components/primitives/SkeletonLoader'
+import { useUI } from '@/context/UIContext'
+import PageHeader from '@/components/ds/PageHeader'
+import MetricCard from '@/components/ds/MetricCard'
+import { Home, CalendarCheck, Award, ClipboardList } from 'lucide-react'
 import BarChart from '@/components/charts/BarChart'
 import SmartInsights from '@/components/primitives/SmartInsights'
 import { generateStudentInsights } from '@/utils/insights'
@@ -328,6 +332,7 @@ function AnnIcon({ type, size = 18 }) {
 
 export default function OverviewTab({ student: s, viewClassId, classes }) {
   const { activities, students, eqScale, announcements, quizzes, semester, fbReady } = useData()
+  const { setStudentTab } = useUI()
 
   const [viewAnn, setViewAnn] = useState(null)
   const [chartsOpen, setChartsOpen] = useState(false)
@@ -399,6 +404,20 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
   }).filter(Boolean)
 
   const studentInsights = generateStudentInsights(s, { classes, students, activities, quizzes })
+
+  // Greeting + metric-card derivations
+  const hr = new Date().getHours()
+  const greeting = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening'
+  const nm = (s.name || 'Student').trim()
+  const greetName = nm.includes(',') ? (nm.split(',')[1].trim().split(/\s+/)[0] || nm) : nm.split(/\s+/)[0]
+  const shortStanding = statusText === 'Good Standing' ? 'Good' : statusText
+  const pendingCount = activities.filter(a => {
+    if (!enrolledIds.includes(a.classId)) return false
+    const sub = (a.submissions || {})[s.id]
+    if (sub?.link) return false
+    if (a.deadline && Date.now() > a.deadline) return false
+    return true
+  }).length
 
   if (!fbReady) return <SkeletonDashboard />
 
@@ -480,27 +499,27 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
         </div>
       )}
 
-      {/* Standing hero + stat tiles */}
-      <div className="s-home-hero">
-        <div>
-          <div className="s-home-hero-label">General weighted average</div>
-          <div className="s-home-hero-gwa">{gwa !== null ? gwa.toFixed(2) : '—'}</div>
-          <div className="s-home-hero-sem">{semester?.label || 'Current semester'}</div>
-        </div>
-        <div className="s-home-hero-status">
-          <span className="sh-status">{statusText}</span>
-          <span className="sh-sub">{statusSub}</span>
-        </div>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
-        <div className="s-stat-card">
-          <div className="s-stat-label">Attendance</div>
-          <div className={`s-val ${attClass}`}>{rate !== null ? rate.toFixed(1) + '%' : '—'}</div>
-        </div>
-        <div className="s-stat-card">
-          <div className="s-stat-label">Subjects</div>
-          <div className="s-val">{subs.length || allEnrolledSubs.length || '—'}</div>
-        </div>
+      {/* Page header */}
+      <PageHeader
+        crumb={<><Home size={13} /> Home <span>›</span> Overview</>}
+        title={`${greeting}, ${greetName}`}
+        subtitle={`${semester?.label || 'Current semester'} · ${allEnrolledSubs.length} subject${allEnrolledSubs.length === 1 ? '' : 's'}`}
+        actions={<>
+          <button className="btn" onClick={() => buildStudentReportCard(s, { classes, students, eqScale, semester })}><FileDown size={16} /> Report card</button>
+          <button className="btn btn-primary" onClick={() => setStudentTab('grades')}><BarChart3 size={16} /> View grades</button>
+        </>}
+      />
+
+      {/* Metric cards */}
+      <div className="stat-grid mb-4">
+        <MetricCard Icon={BarChart3} color="blue" value={gwa !== null ? gwa.toFixed(1) : '—'} label="Current GWA"
+          trend={gwa === null ? null : { dir: gwa >= 85 ? 'up' : gwa >= 75 ? 'flat' : 'down', text: gwa >= 85 ? 'Good' : gwa >= 75 ? 'Passing' : 'At risk' }} />
+        <MetricCard Icon={CalendarCheck} color="green" value={rate !== null ? rate.toFixed(0) + '%' : '—'} label="Attendance"
+          trend={rate === null ? null : { dir: rate >= 90 ? 'up' : rate >= 80 ? 'flat' : 'down', text: rate >= 90 ? 'On track' : rate >= 80 ? 'Okay' : 'Low' }} />
+        <MetricCard Icon={ClipboardList} color="yellow" value={pendingCount} label="Pending tasks"
+          trend={pendingCount ? { dir: 'down', text: 'Due soon' } : { dir: 'up', text: 'All done' }} />
+        <MetricCard Icon={Award} color="purple" value={shortStanding} label="Standing"
+          trend={{ dir: 'flat', text: statusSub }} />
       </div>
 
       {/* Study Coach — on-device insights, no external AI */}
@@ -508,16 +527,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
 
       {/* Subjects — one expandable card each (tap to reveal the breakdown) */}
       <div className="sec-hdr" style={{ marginTop: 22, marginBottom: 12 }}>
-        <div className="sec-title">Subjects</div>
-        <button
-          className="btn btn-secondary btn-sm"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px' }}
-          onClick={() => buildStudentReportCard(s, { classes, students, eqScale, semester })}
-          title="Download your report card as a PDF"
-        >
-          <FileDown size={15} />
-          Report card
-        </button>
+        <div className="sec-title sec-title-ic"><BookOpen /> Subjects</div>
       </div>
 
       {!subs.length ? (
