@@ -5,8 +5,9 @@ import { deserializeStudents } from '@/utils/attendance'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
-import { Plus, Pencil, School, Archive, ArchiveRestore, CalendarDays, Users, LockOpen, Lock, CheckCircle2, Copy } from 'lucide-react'
+import { Plus, Pencil, School, Archive, ArchiveRestore, CalendarDays, Users, LockOpen, Lock, CheckCircle2, Copy, FileText } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
+import { buildClassReportCards } from '@/export/reportCard'
 import { courseOptions } from '@/constants/courses'
 
 const PER_PAGE = 10
@@ -356,7 +357,7 @@ function EditClassModal({ cls, onClose }) {
 
 // ── Classes Tab ───────────────────────────────────────────────────────
 export default function ClassesTab() {
-  const { classes, students, saveClasses, saveStudents, archiveClassWithStudents, unarchiveClassWithStudents, deleteClass, semester, fbReady } = useData()
+  const { classes, students, saveClasses, saveStudents, archiveClassWithStudents, unarchiveClassWithStudents, deleteClass, semester, eqScale, fbReady } = useData()
   const { toast, openDialog } = useUI()
   const [page, setPage]           = useState(1)
   const [showAdd, setShowAdd]     = useState(false)
@@ -650,6 +651,7 @@ export default function ClassesTab() {
                         <div className="flex gap-1.5 flex-wrap">
                           {!cls.archived && <button className="btn btn-ghost btn-sm" onClick={() => setEditClass(cls)}><Pencil size={13} className="inline-block mr-1" />Edit</button>}
                           {!cls.archived && <button className="btn btn-ghost btn-sm" onClick={() => duplicateClass(cls)} title="Create another section with the same subjects"><Copy size={13} className="inline-block mr-1" />Duplicate</button>}
+                          <button className="btn btn-ghost btn-sm" onClick={() => buildClassReportCards(cls, { classes, students, eqScale, semester })} title="Download a PDF with one report card per enrolled student"><FileText size={13} className="inline-block mr-1" />Report cards</button>
                           <button className="btn btn-ghost btn-sm" onClick={() => handleArchive(cls)}>
                             {cls.archived ? <><ArchiveRestore size={13} className="inline-block mr-1" />Unarchive</> : <><Archive size={13} className="inline-block mr-1" />Archive</>}
                           </button>
