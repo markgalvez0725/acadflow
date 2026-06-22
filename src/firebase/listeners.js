@@ -2,7 +2,7 @@
 // This module owns the _fbWriting flag so it can suppress onSnapshot echoes
 // during in-flight writes. It never imports React.
 import {
-  collection, doc, onSnapshot, getDoc, getDocs, setDoc,
+  collection, doc, onSnapshot, getDoc, getDocs, setDoc, query, orderBy, limit,
 } from 'firebase/firestore'
 import { deserializeStudents } from '@/utils/attendance'
 import { decryptEJS, encryptEJS } from '@/utils/crypto'
@@ -51,6 +51,7 @@ export function fbStartListening(db, callbacks) {
     onMeetingsUpdate,
     onAttendanceSessionsUpdate,
     onExcuseRequestsUpdate,
+    onAuditLogUpdate,
   } = callbacks;
 
   // Stop any previous listeners
@@ -225,6 +226,26 @@ export function fbStartListening(db, callbacks) {
     _unsub.push(uE);
     getDocs(collection(db, 'excuseRequests'))
       .then(s => { const a = []; s.forEach(d => a.push(d.data())); onExcuseRequestsUpdate(a); })
+      .catch(() => {});
+  }
+
+  // ── auditLog collection (admin action history) ────────────────────────
+  // Capped to the most recent 500 entries so the listener never grows into an
+  // unbounded read as the log accumulates over time.
+  if (onAuditLogUpdate) {
+    const auditQ = query(collection(db, 'auditLog'), orderBy('ts', 'desc'), limit(500));
+    const uAudit = onSnapshot(
+      auditQ,
+      snap => {
+        const logs = [];
+        snap.forEach(d => logs.push(d.data()));
+        onAuditLogUpdate(logs);
+      },
+      e => console.error('[Firebase] auditLog listener error:', e.message)
+    );
+    _unsub.push(uAudit);
+    getDocs(auditQ)
+      .then(s => { const a = []; s.forEach(d => a.push(d.data())); onAuditLogUpdate(a); })
       .catch(() => {});
   }
 

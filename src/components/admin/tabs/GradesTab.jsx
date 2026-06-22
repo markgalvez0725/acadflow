@@ -42,7 +42,7 @@ async function pushStudentNotif(db, studentId, title, body, type = 'act_grade', 
 
 // ── GradeEntryModal ───────────────────────────────────────────────────────────
 function GradeEntryModal({ classId, subject, onClose }) {
-  const { students, classes, activities, quizzes, saveStudents, eqScale, db, fbReady } = useData()
+  const { students, classes, activities, quizzes, saveStudents, eqScale, db, fbReady, logAudit } = useData()
   const { toast, openDialog } = useUI()
 
   const cls   = classes.find(c => c.id === classId)
@@ -427,6 +427,12 @@ function GradeEntryModal({ classId, subject, onClose }) {
     const changedIds = studs.map(s => s.id)
     try {
       await saveStudents(updatedStudents, changedIds)
+      logAudit?.({
+        action: 'grade.edit',
+        target: `${cls?.name || subject} · ${subject}`,
+        summary: `Saved grades for ${subject} (${changedIds.length} student${changedIds.length === 1 ? '' : 's'})`,
+        meta: { subject, classId: cls?.id || null, students: changedIds.length },
+      })
       toast('Grades saved!', 'green')
       // Notify each student whose grade was saved
       if (fbReady && db.current) {

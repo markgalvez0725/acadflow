@@ -249,6 +249,30 @@ export async function fbPushAnnouncementNotifs(db, announcement, students) {
   }
 }
 
+// ── Audit log ───────────────────────────────────────────────────────────────
+// Append-only record of significant admin actions (grade edits, deletions,
+// regrade decisions). Each entry is its own document so writes never contend.
+// Fire-and-forget: an audit-write failure must never block the primary action.
+export async function fbAddAuditLog(db, entry) {
+  if (!db || !entry) return
+  const id = `audit_${Date.now()}_${uuidv4().slice(0, 8)}`
+  const record = {
+    id,
+    ts: Date.now(),
+    actor: entry.actor || 'admin',
+    action: entry.action || 'unknown',      // e.g. 'grade.edit', 'activity.delete'
+    target: entry.target || '',              // human-readable subject of the action
+    summary: entry.summary || '',            // one-line description
+    meta: entry.meta && typeof entry.meta === 'object' ? entry.meta : {},
+  }
+  try {
+    await fbWithTimeout(setDoc(doc(db, 'auditLog', id), record))
+  } catch (e) {
+    console.warn('[FB] fbAddAuditLog:', e.message)
+  }
+  return record
+}
+
 export async function persistAdmin(db, admin) {
   const payload = { user: admin.user, pass: admin.pass, email: admin.email };
   if (admin.resetPin) payload.resetPin = admin.resetPin;

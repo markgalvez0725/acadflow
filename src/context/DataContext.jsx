@@ -7,7 +7,7 @@ import {
   fbDeleteStudent, fbSaveAnnouncement, fbDeleteAnnouncement, fbPushAnnouncementNotifs,
   fbAddAnnouncementComment, fbAddCommentReply,
   fbSaveMeetLink, fbScheduleMeeting, fbStartMeeting, fbEndMeeting, fbCancelMeeting, fbPushMeetingNotifs,
-  fbSetSubjectRep, fbDeleteClassRelatedData,
+  fbSetSubjectRep, fbDeleteClassRelatedData, fbAddAuditLog,
 } from '@/firebase/persistence'
 import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase, saveSemesterToFirebase } from '@/firebase/settings'
 import { sendPushToOwners } from '@/firebase/pushTokens'
@@ -31,6 +31,7 @@ export function DataProvider({ children }) {
   const [meetings, setMeetings]           = useState([])
   const [attendanceSessions, setAttendanceSessions] = useState([])
   const [excuseRequests, setExcuseRequests]         = useState([])
+  const [auditLog, setAuditLog]                     = useState([])
   const [fbReady, setFbReady]           = useState(false)
   const [fbConfig, setFbConfig]         = useState(null) // decrypted config object
   const [semester, setSemester]         = useState(null)
@@ -102,6 +103,7 @@ export function DataProvider({ children }) {
         onMeetingsUpdate: setMeetings,
         onAttendanceSessionsUpdate: setAttendanceSessions,
         onExcuseRequestsUpdate: setExcuseRequests,
+        onAuditLogUpdate: setAuditLog,
         onConfigUpdate: ({ ejsConfig }) => {
           if (ejsConfig) {
             setEjs({ ...ejsConfig, configured: true })
@@ -154,6 +156,7 @@ export function DataProvider({ children }) {
       onMeetingsUpdate: setMeetings,
       onAttendanceSessionsUpdate: setAttendanceSessions,
       onExcuseRequestsUpdate: setExcuseRequests,
+      onAuditLogUpdate: setAuditLog,
       onConfigUpdate: ({ ejsConfig }) => {
         if (ejsConfig) {
           setEjs({ ...ejsConfig, configured: true })
@@ -175,6 +178,14 @@ export function DataProvider({ children }) {
     await persistStudentsSync(dbRef.current, updatedStudents, changedIds)
   }, [])
 
+  // Append an entry to the admin audit log. Fire-and-forget — callers should
+  // not await this in a way that blocks the primary action.
+  const logAudit = useCallback((entry) => {
+    if (!dbRef.current) return
+    const actor = entry?.actor || admin?.email || 'admin'
+    return fbAddAuditLog(dbRef.current, { ...entry, actor })
+  }, [admin])
+
   const saveClasses = useCallback(async (updatedClasses) => {
     setClasses(updatedClasses)
     await persistClassesSync(dbRef.current, updatedClasses)
@@ -195,9 +206,19 @@ export function DataProvider({ children }) {
   }, [])
 
   const deleteStudent = useCallback(async (id) => {
-    setStudents(prev => prev.filter(s => s.id !== id))
+    let removed = null
+    setStudents(prev => {
+      removed = prev.find(s => s.id === id) || null
+      return prev.filter(s => s.id !== id)
+    })
     await fbDeleteStudent(dbRef.current, id)
-  }, [])
+    logAudit({
+      action: 'student.delete',
+      target: removed?.name || id,
+      summary: `Deleted student "${removed?.name || id}"${removed?.snum ? ' (' + removed.snum + ')' : ''}`,
+      meta: { studentId: id },
+    })
+  }, [logAudit])
 
   const saveEquivScale = useCallback(async (scale) => {
     setEqScale(scale)
@@ -423,7 +444,14 @@ export function DataProvider({ children }) {
     } catch (e) {
       console.warn('[DataContext] deleteClass: related data cleanup failed (may be a Firestore rules issue):', e.message)
     }
-  }, [students, classes, saveClasses, saveStudents])
+
+    logAudit({
+      action: 'class.delete',
+      target: `${cls.name || cls.id}${cls.section ? ' · ' + cls.section : ''}`,
+      summary: `Deleted class "${cls.name || cls.id}" (${enrolled.length} student${enrolled.length === 1 ? '' : 's'} affected)`,
+      meta: { classId: cls.id, students: enrolled.length },
+    })
+  }, [students, classes, saveClasses, saveStudents, logAudit])
 
   const saveAnnouncement = useCallback(async (announcement) => {
     setAnnouncements(prev => {
@@ -728,6 +756,7 @@ export function DataProvider({ children }) {
       saveMeetLink, scheduleMeeting, startMeeting, endMeeting, cancelMeeting,
       attendanceSessions, openCheckIn, closeCheckIn, studentCheckIn,
       excuseRequests, submitExcuseRequest, decideExcuseRequest,
+      auditLog, logAudit,
       fbReady, fbConfig, reinitFirebase,
       db: dbRef,
       ejs, setEjs, saveEjs,

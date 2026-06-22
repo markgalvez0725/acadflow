@@ -46,6 +46,7 @@ const StreamTab         = lazy(() => import('./tabs/StreamTab'))
 const CalendarTab       = lazy(() => import('./tabs/CalendarTab'))
 const OnlineClassesTab  = lazy(() => import('./tabs/OnlineClassesTab'))
 const MessagesTab       = lazy(() => import('./tabs/MessagesTab'))
+const AuditLogTab       = lazy(() => import('./tabs/AuditLogTab'))
 
 // Modals (lazy)
 const AdminSettingsModal = lazy(() => import('./modals/AdminSettingsModal'))
@@ -184,6 +185,7 @@ export default function AdminLayout() {
               {adminTab === 'calendar'       && <CalendarTab />}
               {adminTab === 'onlineClasses' && <OnlineClassesTab />}
               {adminTab === 'messages'      && <MessagesTab />}
+              {adminTab === 'audit'         && <AuditLogTab />}
             </Suspense>
           </TabErrorBoundary>
         </main>
