@@ -12,13 +12,23 @@ function semesterLabel(semester) {
   return null
 }
 
+// Normalize a semester label so trivial formatting differences (extra spaces,
+// hyphen vs en-dash, casing) don't cause a false "different semester" match.
+function normLabel(v) {
+  return String(v || '')
+    .replace(/[‐-―]/g, '-')   // any dash variant → hyphen
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
 // True when the class is part of the current, ongoing semester.
 export function isClassCurrent(cls, semester) {
   if (!cls || cls.archived) return false
   if (!semester) return true
   const label = semesterLabel(semester)
   // Class tagged to a different (older) semester → not current.
-  if (cls.activeSemester && label && cls.activeSemester !== label) return false
+  if (cls.activeSemester && label && normLabel(cls.activeSemester) !== normLabel(label)) return false
   // The current semester itself is over (ended or end date passed).
   const ended = semester.status === 'ended' ||
     (semester.endDate && new Date(semester.endDate) < new Date())
