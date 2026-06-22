@@ -244,7 +244,7 @@ export default function CommandPalette() {
         }}
       >
         {/* Search input */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 16px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
           <Search size={18} style={{ color: 'var(--ink3)', flexShrink: 0 }} />
           <input
             ref={inputRef}
@@ -252,7 +252,8 @@ export default function CommandPalette() {
             onChange={(e) => setQuery(e.target.value)}
             placeholder={isAdmin ? 'Search tabs, students, classes…' : 'Search tabs and actions…'}
             style={{
-              flex: 1, border: 'none', outline: 'none', background: 'transparent',
+              flex: 1, minWidth: 0, border: 'none', outline: 'none',
+              background: 'var(--surface2)', borderRadius: 10, padding: '10px 12px',
               fontSize: 15, color: 'var(--ink)', fontFamily: 'var(--font-body)',
             }}
           />
