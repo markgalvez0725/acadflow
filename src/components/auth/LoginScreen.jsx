@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Eye, EyeOff, BarChart2, CalendarCheck, Rss, MessageSquare } from 'lucide-react'
+import { Eye, EyeOff, BarChart2, CalendarCheck, Rss, MessageSquare, KeyRound, Check } from 'lucide-react'
 import AcadFlowLogo from '@/components/primitives/AcadFlowLogo'
 import { useTypingEffect } from '@/hooks/useTypingEffect'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { createUserWithEmailAndPassword, deleteUser, signOut } from 'firebase/auth'
+import { createUserWithEmailAndPassword, deleteUser, signOut, signInWithEmailAndPassword, updatePassword } from 'firebase/auth'
 import { doc, getDoc, updateDoc } from 'firebase/firestore'
 import { getFbAuth, getDb } from '@/firebase/firebaseInit'
 import { studentEmail, studentDocId } from '@/constants/auth'
@@ -46,9 +46,10 @@ export default function LoginScreen() {
   const [pass, setPass] = useState('')
 
   // Forgot-password (live, teacher-coordinated) reset
-  const [rpNum,    setRpNum]    = useState('')
-  const [rpStatus, setRpStatus] = useState('idle') // 'idle' | 'waiting' | 'signing'
-  const [rpTemp,   setRpTemp]   = useState('')
+  const [rpNum,      setRpNum]      = useState('')
+  const [rpStatus,   setRpStatus]   = useState('idle') // 'idle' | 'waiting' | 'setpass' | 'saving'
+  const [rpNewPass,  setRpNewPass]  = useState('')
+  const [rpNewPass2, setRpNewPass2] = useState('')
   const rpTimer = useRef(null)
   const rpDeadline = useRef(0)
 
@@ -115,7 +116,7 @@ export default function LoginScreen() {
 
   // Clean up polling if the component unmounts or the user leaves forgot mode.
   useEffect(() => () => stopReset(), [])
-  useEffect(() => { if (mode !== 'forgot') { stopReset(); setRpStatus('idle'); setRpTemp('') } }, [mode])
+  useEffect(() => { if (mode !== 'forgot') { stopReset(); setRpStatus('idle'); setRpNewPass(''); setRpNewPass2('') } }, [mode])
 
   async function pollClaim(number) {
     if (Date.now() > rpDeadline.current) {
@@ -136,16 +137,20 @@ export default function LoginScreen() {
       }
       if (data.tempPassword) {
         stopReset()
-        setRpTemp(data.tempPassword)
-        setRpStatus('signing')
-        const result = await loginStudent(number, data.tempPassword)
-        if (!result.ok) {
+        // Silently sign in with the one-time temp password (no AcadFlow session
+        // yet), then make the student set their own new password before they
+        // reach the portal. updatePassword works without the old password
+        // because they just authenticated.
+        try {
+          await signInWithEmailAndPassword(getFbAuth(), studentEmail(number), data.tempPassword)
+        } catch {
           setRpStatus('idle')
-          setErr(result.msg || 'Could not sign you in. Please try again.')
+          setErr('Could not sign in with the temporary password. Ask your teacher to open the window again.')
           return
         }
-        toast('Signed in with a temporary password. Please change it in your profile.', 'success')
-        // Session starts — this screen unmounts as the student portal loads.
+        setRpNewPass('')
+        setRpNewPass2('')
+        setRpStatus('setpass')
       }
       // else: { pending: true } → keep polling
     } catch {
@@ -160,7 +165,6 @@ export default function LoginScreen() {
     const snErr = validateSnum(clean)
     if (snErr) return setErr(snErr)
 
-    setRpTemp('')
     setRpStatus('waiting')
     rpDeadline.current = Date.now() + 10 * 60_000 // match the server window
     stopReset()
@@ -168,10 +172,41 @@ export default function LoginScreen() {
     rpTimer.current = setInterval(() => pollClaim(clean), 3000)
   }
 
+  // Student sets a brand-new password right after the temp sign-in.
+  async function handleResetSetPassword(e) {
+    e.preventDefault()
+    setErr('')
+    if (rpNewPass.length < 8) return setErr('Password must be at least 8 characters.')
+    if (!/[A-Z]/.test(rpNewPass) || !/[0-9]/.test(rpNewPass)) return setErr('Password must include at least one uppercase letter and one number.')
+    if (rpNewPass !== rpNewPass2) return setErr('Passwords do not match.')
+
+    const user = getFbAuth()?.currentUser
+    if (!user) { setRpStatus('idle'); return setErr('Your session expired. Please start the reset again.') }
+
+    setRpStatus('saving')
+    try {
+      await updatePassword(user, rpNewPass)
+    } catch (e) {
+      setRpStatus('setpass')
+      return setErr('Could not set your new password: ' + (e?.message || 'unknown error'))
+    }
+
+    // Start the AcadFlow session with the new password → routes to the portal.
+    const clean = sanitizeSnum(rpNum)
+    const result = await loginStudent(clean, rpNewPass)
+    if (!result.ok) {
+      setRpStatus('setpass')
+      return setErr(result.msg || 'Password saved, but sign-in failed. Try signing in normally.')
+    }
+    toast('Password updated. Welcome back!', 'success')
+    // Session starts — this screen unmounts as the student portal loads.
+  }
+
   function handleForgotCancel() {
     stopReset()
     setRpStatus('idle')
-    setRpTemp('')
+    setRpNewPass('')
+    setRpNewPass2('')
     setMode('student')
     clearMessages()
   }
@@ -652,7 +687,7 @@ export default function LoginScreen() {
           )}
 
           {/* ── Forgot Password — teacher-managed reset ──────────────── */}
-          {mode === 'forgot' && (
+          {mode === 'forgot' && rpStatus !== 'setpass' && rpStatus !== 'saving' && (
             <form onSubmit={handleForgotStart}>
               <h3 className="font-display text-lg font-bold text-ink mb-1">Forgot Password</h3>
               <p className="text-sm text-ink2 mb-4" style={{ lineHeight: 1.6 }}>
@@ -695,20 +730,57 @@ export default function LoginScreen() {
                   </button>
                 </>
               )}
-
-              {rpStatus === 'signing' && (
-                <div className="mt-3">
-                  <label className="block text-xs font-bold uppercase tracking-widest text-ink3 mb-1">Temporary password</label>
-                  <code
-                    className="block w-full font-mono text-base bg-bg border border-border rounded-lg px-3 py-2 select-all tracking-widest"
-                    style={{ letterSpacing: '0.1em' }}
-                  >
-                    {rpTemp}
-                  </code>
-                  <p className="text-sm text-ink2 mt-2">Signing you in…</p>
-                </div>
-              )}
             </form>
+          )}
+
+          {/* ── Forgot Password — blocking "set a new password" modal ─────────
+               Persistent overlay: the student must set a new password before
+               reaching the portal. No close or cancel — it cannot be skipped. */}
+          {mode === 'forgot' && (rpStatus === 'setpass' || rpStatus === 'saving') && (
+            <div
+              style={{ position: 'fixed', inset: 0, background: 'rgba(10,20,50,.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, backdropFilter: 'blur(3px)' }}
+              onMouseDown={e => e.stopPropagation()}
+            >
+              <div role="dialog" aria-modal="true" aria-label="Set a new password" style={{ background: 'var(--surface)', borderRadius: 20, padding: '28px 24px', width: '100%', maxWidth: 420, boxShadow: '0 24px 64px rgba(0,0,0,.3)' }}>
+                <div style={{ textAlign: 'center', marginBottom: 18 }}>
+                  <div style={{ marginBottom: 8, color: 'var(--accent)' }}><KeyRound size={40} style={{ display: 'inline-block' }} /></div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: 6 }}>Set your new password</h3>
+                  <p style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.5 }}>
+                    You're verified. Choose a new password to finish — this step can't be skipped.
+                  </p>
+                </div>
+
+                {err && <div role="alert" className="err-msg" style={{ display: 'block', marginBottom: 10 }}>{err}</div>}
+
+                <form onSubmit={handleResetSetPassword}>
+                  <div className="field-float">
+                    <input
+                      type="password"
+                      placeholder=" "
+                      value={rpNewPass}
+                      onChange={e => setRpNewPass(e.target.value)}
+                      autoComplete="new-password"
+                      autoFocus
+                    />
+                    <label>New Password</label>
+                  </div>
+                  <p className="text-xs text-ink3 -mt-1 mb-2">Min. 8 characters, 1 uppercase, 1 number.</p>
+                  <div className="field-float">
+                    <input
+                      type="password"
+                      placeholder=" "
+                      value={rpNewPass2}
+                      onChange={e => setRpNewPass2(e.target.value)}
+                      autoComplete="new-password"
+                    />
+                    <label>Confirm Password</label>
+                  </div>
+                  <LoadingButton loading={rpStatus === 'saving'} loadingText="Saving…" className="btn btn-primary btn-full mt-2">
+                    <Check size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />Set Password &amp; Continue
+                  </LoadingButton>
+                </form>
+              </div>
+            </div>
           )}
 
           {/* ── Forgot Password Step 1b — Set Security Question ─────── */}
