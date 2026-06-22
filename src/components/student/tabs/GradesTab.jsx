@@ -3,12 +3,14 @@ import {
   gradeInfo, combineEquiv, computeFinalGradeFromTerms,
 } from '@/utils/grades'
 import { useData } from '@/context/DataContext'
-import { BookOpen, Clock, ChevronDown, ChevronUp, Award, Check } from 'lucide-react'
+import { BookOpen, Clock, ChevronDown, ChevronUp, Award, Check, RefreshCw } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { activeClassIds, activeSubjects } from '@/utils/active'
+import RegradeRequestModal from '@/components/student/modals/RegradeRequestModal'
 
 export default function GradesTab({ student: s, viewClassId, classes }) {
   const { activities, students, eqScale, semester } = useData()
+  const [regradeOpen, setRegradeOpen] = useState(false)
 
   // Current, non-archived classes only — archived/ended/removed subjects drop off.
   const enrolledIds = activeClassIds(s, classes, semester)
@@ -59,7 +61,13 @@ export default function GradesTab({ student: s, viewClassId, classes }) {
       )}
       <div className="sec-hdr mb-3">
         <div className="sec-title">Grade Breakdown</div>
+        <button className="btn btn-ghost btn-sm" onClick={() => setRegradeOpen(true)} title="Ask your teacher to review a grade">
+          <RefreshCw size={14} /> Request regrade
+        </button>
       </div>
+      {regradeOpen && (
+        <RegradeRequestModal student={s} subjects={subs} onClose={() => setRegradeOpen(false)} />
+      )}
       {subs.map(sub => (
         <SubjectCard
           key={sub}
