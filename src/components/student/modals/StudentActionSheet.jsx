@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Pencil, KeyRound, LogOut, Bell, BellRing } from 'lucide-react'
+import { Pencil, KeyRound, LogOut, Bell, BellRing, Moon, Sun } from 'lucide-react'
+import { useUI } from '@/context/UIContext'
 
 /**
  * Slide-up action sheet for the student portal.
@@ -24,6 +25,7 @@ export default function StudentActionSheet({
   push,
 }) {
   const sheetRef = useRef(null)
+  const { theme, toggleTheme } = useUI()
 
   // Trap back-button / Escape key
   useEffect(() => {
@@ -55,6 +57,11 @@ export default function StudentActionSheet({
       Icon: push.permission === 'granted' ? BellRing : Bell,
       onClick: () => { if (push.permission !== 'granted') push.enable?.() },
     }] : []),
+    {
+      label: theme === 'dark' ? 'Light mode' : 'Dark mode',
+      Icon: theme === 'dark' ? Sun : Moon,
+      onClick: () => toggleTheme(),
+    },
     {
       label: 'Log Out',
       Icon: LogOut,
