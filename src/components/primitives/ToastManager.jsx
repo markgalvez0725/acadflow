@@ -10,7 +10,7 @@ const TYPE_CLASS = {
   purple: 'toast-purple',
 }
 
-function ToastItem({ id, msg, type, duration, onDismiss }) {
+function ToastItem({ id, msg, type, duration, action, onDismiss }) {
   const [state, setState] = useState('') // '' | 'show' | 'dying'
 
   useEffect(() => {
@@ -27,10 +27,19 @@ function ToastItem({ id, msg, type, duration, onDismiss }) {
   return (
     <div
       className={cls}
-      style={{ '--toast-dur': duration / 1000 + 's' }}
-      onClick={() => onDismiss(id)}
+      style={{ '--toast-dur': duration / 1000 + 's', ...(action ? { display: 'flex', alignItems: 'center', gap: 12 } : null) }}
+      onClick={() => { if (!action) onDismiss(id) }}
     >
-      {msg}
+      <span>{msg}</span>
+      {action && (
+        <button
+          type="button"
+          className="toast-action-btn"
+          onClick={(e) => { e.stopPropagation(); try { action.onAction?.() } finally { onDismiss(id) } }}
+        >
+          {action.label || 'Undo'}
+        </button>
+      )}
     </div>
   )
 }

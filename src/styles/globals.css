@@ -416,6 +416,21 @@
 .toast.toast-blue   { background: var(--grad-brand); }
 .toast.toast-yellow { background: linear-gradient(135deg, #d97706, #b45309); }
 .toast.toast-purple { background: linear-gradient(135deg, #7c3aed, #6d28d9); }
+.toast-action-btn {
+  pointer-events: auto;
+  flex-shrink: 0;
+  background: rgba(255,255,255,.18);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.35);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  cursor: pointer;
+  transition: background .15s ease;
+}
+.toast-action-btn:hover { background: rgba(255,255,255,.32); }
 
 /* ══════════════════════════════════════════
    SKELETON LOADERS

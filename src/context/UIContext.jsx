@@ -51,6 +51,13 @@ export function UIProvider({ children }) {
     setToastQueue(q => [...q, { id, msg, type, duration }])
   }, [])
 
+  // Toast with an inline action button (e.g. "Undo"). The action runs on click;
+  // the toast stays up longer so there is time to react.
+  const toastAction = useCallback((msg, { label, onAction, type = 'dark', duration = 7000 } = {}) => {
+    const id = Date.now() + Math.random()
+    setToastQueue(q => [...q, { id, msg, type, duration, action: { label, onAction } }])
+  }, [])
+
   const dismissToast = useCallback(id => {
     setToastQueue(q => q.filter(t => t.id !== id))
   }, [])
@@ -76,7 +83,7 @@ export function UIProvider({ children }) {
       theme, toggleTheme,
       adminTab, setAdminTab,
       studentTab, setStudentTab,
-      toastQueue, toast, dismissToast,
+      toastQueue, toast, toastAction, dismissToast,
       dialog, openDialog, resolveDialog,
       isLoading, startLoading, stopLoading,
     }}>

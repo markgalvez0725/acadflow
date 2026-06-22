@@ -229,6 +229,28 @@ export function DataProvider({ children }) {
       summary: `Deleted student "${removed?.name || id}"${removed?.snum ? ' (' + removed.snum + ')' : ''}`,
       meta: { studentId: id },
     })
+    return removed
+  }, [logAudit])
+
+  // Undo support: re-create previously deleted student record(s). The caller
+  // keeps the full in-memory student object(s) (with attendance/excuse Sets),
+  // so restoring is just re-adding and re-persisting them by id.
+  const restoreStudents = useCallback(async (list) => {
+    const arr = (Array.isArray(list) ? list : [list]).filter(Boolean)
+    if (!arr.length) return
+    let merged = null
+    setStudents(prev => {
+      const have = new Set(prev.map(s => s.id))
+      merged = [...prev, ...arr.filter(s => !have.has(s.id))]
+      return merged
+    })
+    await persistStudentsSync(dbRef.current, merged, arr.map(s => s.id))
+    logAudit({
+      action: 'student.restore',
+      target: arr.length === 1 ? (arr[0].name || arr[0].id) : `${arr.length} students`,
+      summary: `Restored ${arr.length} deleted student${arr.length === 1 ? '' : 's'} via undo`,
+      meta: { studentIds: arr.map(s => s.id) },
+    })
   }, [logAudit])
 
   const saveEquivScale = useCallback(async (scale) => {
@@ -754,7 +776,7 @@ export function DataProvider({ children }) {
 
   return (
     <DataContext.Provider value={{
-      students, setStudents, saveStudents, deleteStudent,
+      students, setStudents, saveStudents, deleteStudent, restoreStudents,
       classes, setClasses, saveClasses, setSubjectRep, archiveClassWithStudents, unarchiveClassWithStudents, deleteClass,
       enrollInClass, unenrollFromClass,
       messages, setMessages,

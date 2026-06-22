@@ -706,8 +706,8 @@ function ImportStudentsModal({ onClose }) {
 
 // ── Students Tab ──────────────────────────────────────────────────────
 export default function StudentsTab() {
-  const { classes, students, saveStudents, deleteStudent, eqScale, semester, fbReady } = useData()
-  const { toast, openDialog } = useUI()
+  const { classes, students, saveStudents, deleteStudent, restoreStudents, eqScale, semester, fbReady } = useData()
+  const { toast, toastAction, openDialog } = useUI()
 
   const [search, setSearch]       = useState('')
   const [perPage, setPerPage]     = useState(50)
@@ -799,13 +799,23 @@ export default function StudentsTab() {
       showCancel: true,
     })
     if (!ok) return
+    // Snapshot the full records before deletion so Undo can restore them.
+    const removed = students.filter(s => selected.has(s.id))
     let done = 0
     for (const id of ids) {
       try { await deleteStudent(id); done++ } catch (e) {}
     }
     clearSelection()
     setPage(1)
-    toast(`Deleted ${done} student${done === 1 ? '' : 's'}.`, done ? 'green' : 'red')
+    if (done) {
+      toastAction(`Deleted ${done} student${done === 1 ? '' : 's'}.`, {
+        label: 'Undo',
+        type: 'green',
+        onAction: () => restoreStudents(removed),
+      })
+    } else {
+      toast('Could not delete the selected students.', 'red')
+    }
   }
 
   async function handleDelete(s) {
@@ -820,6 +830,11 @@ export default function StudentsTab() {
     try {
       await deleteStudent(s.id)
       if (safePage > 1 && slice.length === 1) setPage(p => p - 1)
+      toastAction(`Deleted ${s.name || s.id}.`, {
+        label: 'Undo',
+        type: 'green',
+        onAction: () => restoreStudents([s]),
+      })
     } catch (e) {
       toast('Could not delete student: ' + e.message, 'red')
     }
