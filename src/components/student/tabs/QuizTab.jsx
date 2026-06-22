@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import { PartyPopper, FileText, Timer, Check, X, CheckCircle2, ClipboardList, XCircle } from 'lucide-react'
 import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -110,7 +111,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
 
       setFinalScore({ score, total, pct })
       setSubmitted(true)
-      toast(isAuto ? `⏰ Time's up! Score: ${score}/${total}` : `✅ Submitted! Score: ${score}/${total}`, 'success')
+      toast(isAuto ? `Time's up! Score: ${score}/${total}` : `Submitted! Score: ${score}/${total}`, 'success')
       onSubmitted({ score, total, pct })
     } catch (e) {
       toast('Submission failed: ' + e.message, 'error')
@@ -136,7 +137,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
     return (
       <Modal onClose={onClose} size="md">
         <div className="text-center py-4">
-          <div style={{ fontSize: 56, marginBottom: 8 }}>{passed ? '🎉' : '📝'}</div>
+          <div style={{ fontSize: 56, marginBottom: 8 }}>{passed ? <PartyPopper size={48} /> : <FileText size={48} />}</div>
           <h3 className="text-xl font-bold text-ink mb-1">Quiz Submitted!</h3>
           <p className="text-ink2 text-sm mb-6">{quiz.title}</p>
           <div style={{
@@ -146,7 +147,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
           }}>
             <div style={{ fontSize: 36, fontWeight: 800 }}>{score}/{total}</div>
             <div style={{ fontSize: 20, fontWeight: 700 }}>{pct}%</div>
-            <div style={{ fontSize: 13, marginTop: 4 }}>{passed ? 'Passed ✓' : 'Below passing'}</div>
+            <div style={{ fontSize: 13, marginTop: 4 }}>{passed ? <>Passed <Check size={14} /></> : 'Below passing'}</div>
           </div>
           <p className="text-xs text-ink3 mb-6">Your score has been saved to your grades automatically.</p>
           <button className="btn btn-primary w-full" onClick={onClose}>Close</button>
@@ -168,7 +169,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
           color: remaining <= 60 ? 'var(--red)' : remaining <= 300 ? '#f59e0b' : 'var(--green)',
           background: 'var(--surface2)', borderRadius: 8, padding: '6px 14px',
         }}>
-          ⏱ {formatted}
+          <Timer size={18} /> {formatted}
         </div>
       </div>
 
@@ -260,7 +261,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
                   cursor: 'pointer', transition: 'all 0.15s',
                 }}
               >
-                {opt === 'True' ? '✓ True' : '✗ False'}
+                {opt === 'True' ? <><Check size={16} /> True</> : <><X size={16} /> False</>}
               </button>
             ))}
           </div>
@@ -314,7 +315,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
             onClick={() => handleSubmit(false)}
             disabled={submitting}
           >
-            {submitting ? 'Submitting…' : '✅ Submit Quiz'}
+            {submitting ? 'Submitting…' : <><CheckCircle2 size={16} /> Submit Quiz</>}
           </button>
         )}
       </div>
@@ -326,7 +327,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
 function QuizReviewModal({ quiz, submission, onClose }) {
   return (
     <Modal onClose={onClose} size="lg">
-      <h3 className="text-base font-bold text-ink mb-1">📋 {quiz.title} — Review</h3>
+      <h3 className="text-base font-bold text-ink mb-1"><ClipboardList size={18} /> {quiz.title} — Review</h3>
       <p className="text-xs text-ink2 mb-4">
         Score: <strong>{submission.score}/{quiz.questions.length}</strong> · {((submission.score / quiz.questions.length) * 100).toFixed(1)}%
       </p>
@@ -348,7 +349,7 @@ function QuizReviewModal({ quiz, submission, onClose }) {
               borderLeft: `4px solid ${isCorrect ? '#22c55e' : '#ef4444'}`,
             }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', marginBottom: 4 }}>
-                Q{i + 1} · {q.type.replace(/_/g, ' ')} · {isCorrect ? '✅ Correct' : '❌ Wrong'}
+                Q{i + 1} · {q.type.replace(/_/g, ' ')} · {isCorrect ? <><CheckCircle2 size={14} /> Correct</> : <><XCircle size={14} /> Wrong</>}
               </div>
               <p style={{ fontSize: 13, color: 'var(--ink)', marginBottom: 6 }}>{q.question}</p>
               <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
@@ -418,7 +419,7 @@ export default function StudentQuizTab({ student, viewClassId }) {
   if (!myQuizzes.length) {
     return (
       <div className="empty">
-        <div className="empty-icon" style={{ fontSize: '2rem' }}>📝</div>
+        <div className="empty-icon" style={{ fontSize: '2rem' }}><FileText size={32} /></div>
         <p>No quizzes assigned yet.</p>
         <p className="text-xs text-ink3 mt-1">Your teacher will share quizzes here.</p>
       </div>

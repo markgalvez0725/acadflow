@@ -3,7 +3,7 @@ import {
   gradeInfo, combineEquiv, computeFinalGradeFromTerms,
 } from '@/utils/grades'
 import { useData } from '@/context/DataContext'
-import { BookOpen, Clock, ChevronDown, ChevronUp, Award } from 'lucide-react'
+import { BookOpen, Clock, ChevronDown, ChevronUp, Award, Check } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { activeClassIds, activeSubjects } from '@/utils/active'
 
@@ -119,7 +119,7 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
 
   const tsLabel = ts
     ? <span className="sg-upload-status sg-upload-status--done">
-        ✓ Uploaded {new Date(ts).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
+        <Check size={14} /> Uploaded {new Date(ts).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
       </span>
     : <span className="sg-upload-status">Pending upload</span>
 

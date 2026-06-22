@@ -3,7 +3,7 @@ import { doc, updateDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Pagination from '@/components/primitives/Pagination'
-import { ClipboardList } from 'lucide-react'
+import { ClipboardList, Check, Circle } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const PER_PAGE = 10
@@ -169,7 +169,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                             color: met ? 'var(--green)' : 'var(--ink3)',
                           }}
                         >
-                          {met ? '✓' : '○'} {c.name} ({c.points}pt{c.points !== 1 ? 's' : ''})
+                          {met ? <Check size={14} /> : <Circle size={14} />} {c.name} ({c.points}pt{c.points !== 1 ? 's' : ''})
                         </span>
                       )
                     })}
