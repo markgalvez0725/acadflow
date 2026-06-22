@@ -4,8 +4,9 @@ import { useAuth } from '@/context/AuthContext'
 import { useUI } from '@/context/UIContext'
 import { fbDeleteStudent } from '@/firebase/persistence'
 import { validateSnum } from '@/utils/validate'
+import { validateProfilePhoto } from '@/utils/photoValidate'
 import Modal from '@/components/primitives/Modal'
-import { Camera, Lock, Timer, CheckCircle2, Save, Eye, EyeOff } from 'lucide-react'
+import { Camera, Lock, Timer, CheckCircle2, Save, Eye, EyeOff, ShieldCheck, AlertTriangle, XCircle, Loader2 } from 'lucide-react'
 
 const SNUM_CHANGE_DAYS = 30
 const YEAR_OPTIONS = ['1st Year', '2nd Year', '3rd Year', '4th Year']
@@ -24,6 +25,11 @@ export default function EditProfileModal({ student: s, onClose }) {
   const [error,  setError]  = useState('')
   const [saving, setSaving] = useState(false)
   const fileRef = useRef(null)
+
+  // Profile-photo validation (white background + business-attire headshot).
+  // null = no new photo checked; { status:'checking'|'done', result } otherwise.
+  const [photoCheck, setPhotoCheck] = useState(null)
+  const photoBlocked = photoCheck?.status === 'done' && photoCheck.result && !photoCheck.result.ok
 
   // Email password-confirm flow
   const [emailStep,     setEmailStep]     = useState('idle') // 'idle' | 'confirm' | 'verified'
@@ -83,7 +89,7 @@ export default function EditProfileModal({ student: s, onClose }) {
       // Resize to a small square-ish thumbnail so it stays well under
       // Firestore's 1 MB document limit and doesn't bloat roster reads.
       const img = new Image()
-      img.onload = () => {
+      img.onload = async () => {
         const MAX = 256
         const scale = Math.min(1, MAX / Math.max(img.width, img.height))
         const w = Math.max(1, Math.round(img.width * scale))
@@ -93,7 +99,23 @@ export default function EditProfileModal({ student: s, onClose }) {
         canvas.height = h
         const ctx = canvas.getContext('2d')
         ctx.drawImage(img, 0, 0, w, h)
-        setPhoto(canvas.toDataURL('image/jpeg', 0.82))
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.82)
+        setPhoto(dataUrl)
+
+        // Validate: on-device (white bg, face, framing) + optional AI (attire).
+        // The full-resolution `img` gives the best on-device read; the small
+        // dataUrl is what gets sent to the AI endpoint.
+        setPhotoCheck({ status: 'checking', result: null })
+        try {
+          const result = await validateProfilePhoto(img, dataUrl)
+          setPhotoCheck({ status: 'done', result })
+          if (!result.ok) toast('This photo needs changes before it can be saved.', 'warn', 5000)
+          else if (result.warnings.length) toast('Photo accepted — see the notes below.', 'info', 4000)
+          else toast('Photo looks professional!', 'success')
+        } catch (err) {
+          // Never hard-block on an unexpected validator error — just advise.
+          setPhotoCheck({ status: 'done', result: { ok: true, hardFails: [], warnings: ['Could not fully verify the photo on this device.'], passes: [], aiUsed: false } })
+        }
       }
       img.onerror = () => toast('Could not read that image.', 'warn')
       img.src = ev.target.result
@@ -108,6 +130,11 @@ export default function EditProfileModal({ student: s, onClose }) {
     const trimSnum   = snum.trim()
 
     if (!trimName)   { setError('Full name is required.');           return }
+
+    if (photoBlocked) {
+      setError('Your profile photo does not meet the requirements. Please replace it (see the photo check below).')
+      return
+    }
 
     if (!snumLocked) {
       if (!trimSnum) { setError('Student number cannot be empty.'); return }
@@ -197,12 +224,51 @@ export default function EditProfileModal({ student: s, onClose }) {
           <div>
             <button className="btn btn-ghost btn-sm" onClick={() => fileRef.current?.click()} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Camera size={14} /> Change Photo</button>
             {photo && (
-              <button className="btn btn-ghost btn-sm" style={{ marginLeft: 6, color: 'var(--red)' }} onClick={() => { setPhoto(null); if (fileRef.current) fileRef.current.value = '' }}>Remove</button>
+              <button className="btn btn-ghost btn-sm" style={{ marginLeft: 6, color: 'var(--red)' }} onClick={() => { setPhoto(null); setPhotoCheck(null); if (fileRef.current) fileRef.current.value = '' }}>Remove</button>
             )}
-            <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 4 }}>Max 2 MB · PNG/JPG</div>
+            <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 4 }}>Professional headshot · business attire · plain white background · PNG/JPG</div>
           </div>
           <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoChange} />
         </div>
+
+        {/* Profile-photo validation panel */}
+        {photoCheck && (
+          <div style={{
+            marginBottom: 18, padding: '12px 14px', borderRadius: 12,
+            border: `1px solid ${photoCheck.status === 'checking' ? 'var(--line)' : photoBlocked ? 'var(--red)' : (photoCheck.result?.warnings?.length ? 'var(--yellow)' : 'var(--green)')}`,
+            background: photoCheck.status === 'checking' ? 'var(--bg2)' : photoBlocked ? 'var(--red-l)' : (photoCheck.result?.warnings?.length ? 'var(--yellow-l)' : 'var(--green-l)'),
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 700, fontSize: 13, marginBottom: photoCheck.status === 'checking' ? 0 : 8 }}>
+              {photoCheck.status === 'checking'
+                ? <><Loader2 size={15} className="spin" /> Checking your photo…</>
+                : photoBlocked
+                  ? <><XCircle size={15} style={{ color: 'var(--red)' }} /> Photo can’t be used yet</>
+                  : (photoCheck.result?.warnings?.length
+                      ? <><AlertTriangle size={15} style={{ color: 'var(--yellow)' }} /> Photo accepted — please review</>
+                      : <><ShieldCheck size={15} style={{ color: 'var(--green)' }} /> Looks professional</>)}
+            </div>
+            {photoCheck.status === 'checking' && (
+              <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>Checking background, framing, and attire.</div>
+            )}
+            {photoCheck.status === 'done' && photoCheck.result && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                {photoCheck.result.hardFails.map((m, i) => (
+                  <div key={'h' + i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, color: 'var(--red)' }}><XCircle size={13} style={{ flexShrink: 0, marginTop: 1 }} /> {m}</div>
+                ))}
+                {photoCheck.result.warnings.map((m, i) => (
+                  <div key={'w' + i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, color: 'var(--ink2)' }}><AlertTriangle size={13} style={{ flexShrink: 0, marginTop: 1, color: 'var(--yellow)' }} /> {m}</div>
+                ))}
+                {photoCheck.result.passes.map((m, i) => (
+                  <div key={'p' + i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, color: 'var(--ink3)' }}><CheckCircle2 size={13} style={{ flexShrink: 0, marginTop: 1, color: 'var(--green)' }} /> {m}</div>
+                ))}
+                <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 4 }}>
+                  {photoCheck.result.aiUsed ? 'Verified on-device + AI vision.' : 'Verified on-device. Tip: business attire on a plain white wall works best.'}
+                  {photoBlocked && ' Replace the photo or Remove it to continue.'}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="form-group">
           <label className="form-label">Full Name *</label>
