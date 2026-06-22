@@ -260,3 +260,39 @@
   .ds-ph-actions { width: 100%; }
   .ds-ph-actions .btn { flex: 1 1 0; justify-content: center; }
 }
+
+/* ── Mobile "More" bottom sheet (replaces the heavy full-screen drawer) ── */
+.ds-sheet-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(10,20,50,.45);
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+}
+.ds-sheet {
+  width: 100%;
+  background: var(--surface);
+  border-radius: 22px 22px 0 0;
+  padding: 8px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -10px 40px rgba(0,0,0,.22);
+  animation: dsSheetUp .22s ease;
+}
+@keyframes dsSheetUp { from { transform: translateY(24px); opacity: .5; } to { transform: none; opacity: 1; } }
+.ds-sheet-grip { width: 40px; height: 4px; border-radius: 4px; background: var(--border2); margin: 4px auto 14px; }
+.ds-sheet-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--ink3); margin: 0 4px 10px; }
+.ds-sheet-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.ds-tile {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 13px 6px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink2);
+  font-size: 11px; font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+.ds-tile:hover { background: var(--surface2); }
+.ds-tile.active { background: var(--accent-l); color: var(--accent); border-color: transparent; }
+.ds-tile svg { width: 22px; height: 22px; }
+.ds-tile-danger { color: var(--red); }
