@@ -38,7 +38,7 @@ export default function EditProfileModal({ student: s, onClose }) {
     if (!confirmPass) { setEmailError('Please enter your current password.'); return }
 
     const dup = students.find(x => x.id !== s.id && x.account?.registered && x.account?.email?.toLowerCase() === trimEmail.toLowerCase())
-    if (dup) { setEmailError('⛔ This email is already linked to another account.'); return }
+    if (dup) { setEmailError('This email is already linked to another account.'); return }
 
     const { verifyPassword } = await import('@/utils/crypto')
     const match = await verifyPassword(confirmPass, s.account?.pass ?? s.pass)
@@ -47,7 +47,7 @@ export default function EditProfileModal({ student: s, onClose }) {
     setEmailStep('verified')
     setConfirmPass('')
     setShowPass(false)
-    toast('✅ Email confirmed!', 'success')
+    toast('Email confirmed!', 'success')
   }
 
   // SNUM lock logic
@@ -112,7 +112,7 @@ export default function EditProfileModal({ student: s, onClose }) {
       if (snumErr) { setError(snumErr); return }
       if (trimSnum !== s.id) {
         const dup = students.find(x => x.id === trimSnum)
-        if (dup) { setError(`⛔ Student number "${trimSnum}" is already assigned to ${dup.name}.`); return }
+        if (dup) { setError(`Student number "${trimSnum}" is already assigned to ${dup.name}.`); return }
       }
     }
 
@@ -164,10 +164,10 @@ export default function EditProfileModal({ student: s, onClose }) {
         }
       } catch (e) {}
 
-      toast('✅ Profile updated successfully!', 'success')
+      toast('Profile updated successfully!', 'success')
       onClose()
     } catch (e) {
-      setError('❌ Failed to save profile: ' + e.message)
+      setError('Failed to save profile: ' + e.message)
     } finally {
       setSaving(false)
     }
