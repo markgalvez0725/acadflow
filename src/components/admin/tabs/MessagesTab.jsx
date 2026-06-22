@@ -600,11 +600,11 @@ export default function MessagesTab() {
         <button className="btn btn-primary btn-sm" onClick={() => setShowCompose(true)}><Pencil size={16} /> New</button>
       </div>
 
-      {/* Main layout: list + thread */}
-      <div className="flex flex-1 min-h-0 rounded-lg border border-border overflow-hidden bg-surface">
+      {/* Main layout: list + thread (single-pane on mobile) */}
+      <div className={`msg-shell flex flex-1 min-h-0 rounded-lg border border-border overflow-hidden bg-surface${activeConv ? ' has-active' : ''}`}>
 
         {/* Left: conversation list */}
-        <div className="flex flex-col border-r border-border" style={{ width: 300, minWidth: 260, flexShrink: 0 }}>
+        <div className="msg-list-pane flex flex-col border-r border-border" style={{ width: 300, minWidth: 260, flexShrink: 0 }}>
           {/* Tabs */}
           <div className="flex border-b border-border px-2 pt-2 gap-1 flex-shrink-0">
             <button
@@ -663,7 +663,7 @@ export default function MessagesTab() {
         </div>
 
         {/* Right: thread panel */}
-        <div className="flex flex-1 min-w-0">
+        <div className="msg-thread-pane flex flex-1 min-w-0">
           {thread ? (
             <ThreadPanel
               thread={thread}
