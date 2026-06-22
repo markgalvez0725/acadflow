@@ -31,6 +31,7 @@ const MessagesTab      = lazy(() => import('./tabs/MessagesTab'))
 const EditProfileModal         = lazy(() => import('./modals/EditProfileModal'))
 const ForceChangePasswordModal = lazy(() => import('./modals/ForceChangePasswordModal'))
 const StudentActionSheet       = lazy(() => import('./modals/StudentActionSheet'))
+const NotifyPrompt             = lazy(() => import('./NotifyPrompt'))
 
 const TAB_TITLES = {
   overview:      ['Home',           'Your academic overview'],
@@ -132,6 +133,27 @@ export default function StudentLayout() {
 
   // Web push (FCM) — opt-in per device, no-op when unsupported/unconfigured
   const push = usePushNotifications({ db, fbReady, ownerId: student?.id, role: 'student', toast })
+
+  // Persistent "enable notifications" popup. Shows after login whenever push is
+  // supported and the student hasn't decided yet (permission === 'default').
+  // It reappears on every new login (keyed to loginTime) until they enable it,
+  // and never nags once permission is granted or blocked.
+  const [notifyPromptOpen, setNotifyPromptOpen] = useState(false)
+  const notifyShownRef = useRef(null)
+  useEffect(() => {
+    if (!student) return
+    if (!push.supported || push.permission !== 'default') return
+    if (forcePassOpen) return
+    if (notifyShownRef.current === loginTime) return
+    notifyShownRef.current = loginTime
+    const t = setTimeout(() => setNotifyPromptOpen(true), 1500)
+    return () => clearTimeout(t)
+  }, [student, push.supported, push.permission, forcePassOpen, loginTime])
+
+  // Close the popup the moment permission stops being actionable.
+  useEffect(() => {
+    if (push.permission !== 'default') setNotifyPromptOpen(false)
+  }, [push.permission])
 
   const unreadNotifCount = studentNotifs.filter(n => !n.read).length
 
@@ -374,6 +396,12 @@ export default function StudentLayout() {
           push={push}
         />
       </Suspense>
+
+      {notifyPromptOpen && (
+        <Suspense fallback={null}>
+          <NotifyPrompt push={push} onClose={() => setNotifyPromptOpen(false)} />
+        </Suspense>
+      )}
 
       {/* Toast + Dialog */}
       <ToastManager toasts={toastQueue} onDismiss={dismissToast} />
