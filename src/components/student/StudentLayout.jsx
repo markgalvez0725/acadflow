@@ -109,14 +109,8 @@ export default function StudentLayout() {
   const [forcePassOpen,    setForcePassOpen]    = useState(false)
   const [forcePassIsForced, setForcePassIsForced] = useState(false)
   const forcePassTriggeredRef = useRef(false)
-  useEffect(() => {
-    if (!student || forcePassTriggeredRef.current) return
-    if (student.forceChangePassword || !student.account?.pass || student.account?._tempPass) {
-      forcePassTriggeredRef.current = true
-      setForcePassIsForced(true)
-      setForcePassOpen(true)
-    }
-  }, [student?.forceChangePassword, student?.account?.pass, student?.account?._tempPass])
+  // Passwords are managed by Firebase Auth and set by the student during
+  // registration, so there is no forced first-login password change.
 
   // Profile modal
   const [profileOpen, setProfileOpen] = useState(false)
