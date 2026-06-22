@@ -12,21 +12,14 @@ import SemesterCalendarChip from '@/components/primitives/SemesterCalendarChip'
 import CommandPaletteButton from '@/components/primitives/CommandPaletteButton'
 import ConnectionStatus from '@/components/primitives/ConnectionStatus'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
-import { Rss, LayoutDashboard, School, Users, BookOpen, CalendarCheck, FileQuestion, CalendarDays, Bell, ClipboardList, Video, Settings, LogOut } from 'lucide-react'
+import { Rss, LayoutDashboard, School, Users, BookOpen, CalendarCheck, FileQuestion, CalendarDays, Bell, ClipboardList, Video, Settings, LogOut, Menu } from 'lucide-react'
 
-// Mobile bottom-nav tabs (dark capsule). Desktop keeps the sidebar.
-const ADMIN_NAV_TABS = [
-  { id: 'stream',        Icon: Rss },
-  { id: 'dashboard',     Icon: LayoutDashboard },
-  { id: 'classes',       Icon: School },
-  { id: 'students',      Icon: Users },
-  { id: 'grades',        Icon: BookOpen },
-  { id: 'attendance',    Icon: CalendarCheck },
-  { id: 'activities',    Icon: ClipboardList },
-  { id: 'quizzes',       Icon: FileQuestion },
-  { id: 'notifications', Icon: Bell },
-  { id: 'calendar',      Icon: CalendarDays },
-  { id: 'onlineClasses', Icon: Video },
+// Mobile bottom-nav: 5 primary destinations + "More" (opens the full drawer).
+const MOBILE_NAV = [
+  { id: 'dashboard',  Icon: LayoutDashboard, label: 'Home' },
+  { id: 'students',   Icon: Users,           label: 'Students' },
+  { id: 'grades',     Icon: BookOpen,        label: 'Grades' },
+  { id: 'activities', Icon: ClipboardList,   label: 'Tasks' },
 ]
 
 // Lazy-load tabs
@@ -71,9 +64,9 @@ export default function AdminLayout() {
   const push = usePushNotifications({ db, fbReady, ownerId: 'admin', role: 'admin', toast })
   const unreadMsgCount = messages.filter(m => m.from !== 'admin' && !m.adminRead).length
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  // Expanded by default on desktop so the navy rail shows section labels + nav
-  // text (matches the approved design). Users can still collapse it.
-  const [sidebarExpanded, setSidebarExpanded] = useState(true)
+  // Expanded full sidebar on true desktop (≥1024); on tablet it stays a navy
+  // icon rail (matches the approved design). Users can still toggle it.
+  const [sidebarExpanded, setSidebarExpanded] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [clock, setClock] = useState('')
@@ -204,19 +197,23 @@ export default function AdminLayout() {
       {/* Floating Messenger */}
       <FloatingMessenger unreadCount={unreadMsgCount} />
 
-      {/* Mobile bottom nav — dark capsule (desktop uses the sidebar) */}
+      {/* Mobile bottom nav — 5 primary destinations + More (opens drawer) */}
       <nav className="admin-bottom-nav" aria-label="Sections">
-        {ADMIN_NAV_TABS.map(t => (
+        {MOBILE_NAV.map(t => (
           <button
             key={t.id}
             className={`abn-item${adminTab === t.id ? ' active' : ''}`}
             onClick={() => setAdminTab(t.id)}
-            aria-label={t.id}
-            title={t.id}
+            aria-label={t.label}
           >
-            <t.Icon size={22} />
+            <t.Icon size={20} />
+            <span className="abn-label">{t.label}</span>
           </button>
         ))}
+        <button className="abn-item" onClick={() => setSidebarOpen(true)} aria-label="More">
+          <Menu size={20} />
+          <span className="abn-label">More</span>
+        </button>
       </nav>
 
       {/* Toast + Dialog */}
