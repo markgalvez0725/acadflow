@@ -603,6 +603,107 @@ export function exportStudentRosterExcel({ students, classes }) {
   XLSX.writeFile(wb, `StudentRoster_${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
+// ── Student import template / parser (simple, fill-in Excel) ───────────────
+// Column order shared by the blank template and the parser so a teacher can
+// export the template, fill rows in, and re-import the same file.
+export const STUDENT_IMPORT_COLUMNS = ['Student No.', 'Full Name', 'Course', 'Year Level', 'Section', 'Date of Birth', 'Mobile']
+
+// Normalized header → field. Mirrors the CSV importer's aliases so either path
+// resolves the same columns.
+const STUDENT_COL_ALIASES = {
+  id:     ['studentno', 'sno', 'id', 'studentnumber', 'stuno'],
+  name:   ['fullname', 'name', 'studentname'],
+  course: ['course', 'courseprogram', 'program', 'coursename'],
+  year:   ['yearlevel', 'year', 'yearlvl'],
+  section:['section', 'sec'],
+  dob:    ['dateofbirth', 'dob', 'birthdate', 'birthday'],
+  mobile: ['mobile', 'mobilenumber', 'phone', 'contact'],
+}
+
+/**
+ * Downloads a clean, single-purpose .xlsx the teacher fills row by row.
+ * Sheet 1 "Students": header on row 1, one example row, blank rows ready to type.
+ * Sheet 2 "Classes": reference list of class names + sections (no required input).
+ */
+export function exportStudentImportTemplate({ classes = [] } = {}) {
+  const XLSX = window.XLSX
+  if (!XLSX) { alert('SheetJS not loaded.'); return }
+
+  const example = ['2024-10001', 'Juan dela Cruz', 'BS Computer Science', '1st Year', '2A', '2005-06-15', '+63 900 000 0000']
+  const blanks  = Array.from({ length: 30 }, () => Array(STUDENT_IMPORT_COLUMNS.length).fill(''))
+  const ws = XLSX.utils.aoa_to_sheet([STUDENT_IMPORT_COLUMNS, example, ...blanks])
+  ws['!cols'] = [14, 28, 22, 12, 10, 14, 16].map(w => ({ wch: w }))
+  ws['!freeze'] = { xSplit: 0, ySplit: 1 }
+
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Students')
+
+  // Reference sheet so the teacher knows which classes/sections exist.
+  const active = (classes || []).filter(c => !c.archived)
+  const refRows = active.length
+    ? active.map(c => [c.name || '', c.section || '', (c.subjects || []).join(', ')])
+    : [['(no active classes yet)', '', '']]
+  const wsRef = XLSX.utils.aoa_to_sheet([
+    ['Reference — your active classes (informational only)'],
+    [''],
+    ['Class Name', 'Section', 'Subjects'],
+    ...refRows,
+    [''],
+    ['Notes:'],
+    ['• Only "Student No." and "Full Name" are required. Course is recommended.'],
+    ['• Default password for imported students: Welcome@2026 (changed on first login).'],
+    ['• Keep or delete the example row — rows with errors are skipped on import.'],
+  ])
+  wsRef['!cols'] = [{ wch: 24 }, { wch: 12 }, { wch: 50 }]
+  XLSX.utils.book_append_sheet(wb, wsRef, 'Classes')
+
+  XLSX.writeFile(wb, `StudentImportTemplate_${new Date().toISOString().slice(0, 10)}.xlsx`)
+}
+
+/**
+ * Parses a student-import workbook into row objects { id, name, course, year,
+ * section, dob, mobile }. Locates the header row dynamically, so both the blank
+ * template (header on row 1) and an exported roster (header lower down) work.
+ * Returns [] when no recognizable header/data is found.
+ */
+export function parseStudentImportExcel(workbook) {
+  const XLSX = window.XLSX
+  if (!XLSX) throw new Error('SheetJS not loaded')
+
+  const sheetName = workbook.SheetNames.includes('Students') ? 'Students' : workbook.SheetNames[0]
+  const ws = workbook.Sheets[sheetName]
+  if (!ws) return []
+  const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+  if (!aoa.length) return []
+
+  const norm = v => String(v ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
+
+  // Find the header row: the first row containing a recognizable student-no header.
+  let headerIdx = -1
+  for (let i = 0; i < aoa.length; i++) {
+    const cells = aoa[i].map(norm)
+    if (cells.some(c => STUDENT_COL_ALIASES.id.includes(c))) { headerIdx = i; break }
+  }
+  if (headerIdx === -1) return []
+
+  const headers = aoa[headerIdx].map(norm)
+  const colOf = key => STUDENT_COL_ALIASES[key].reduce((found, alias) => found >= 0 ? found : headers.indexOf(alias), -1)
+  const idxs = Object.fromEntries(Object.keys(STUDENT_COL_ALIASES).map(k => [k, colOf(k)]))
+
+  return aoa.slice(headerIdx + 1).map(row => {
+    const get = k => idxs[k] >= 0 ? String(row[idxs[k]] ?? '').trim() : ''
+    return {
+      id:     get('id'),
+      name:   get('name'),
+      course: get('course'),
+      year:   get('year'),
+      section:get('section'),
+      dob:    get('dob'),
+      mobile: get('mobile'),
+    }
+  }).filter(r => Object.values(r).some(v => v))
+}
+
 // ── exportClassTemplate ───────────────────────────────────────────────────
 /**
  * Exports a 3-sheet class import template:

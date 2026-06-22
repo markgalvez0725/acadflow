@@ -10,6 +10,7 @@ import Modal from '@/components/primitives/Modal'
 import { Download, Upload, FileDown, KeyRound, GraduationCap, CheckCircle2, Pencil, Plus, Save, BookOpen, Check, Users, ClipboardList, Hourglass } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { buildStudentReportCard } from '@/export/reportCard'
+import { exportStudentRosterExcel, exportStudentImportTemplate, parseStudentImportExcel } from '@/export/excelExport'
 import { courseOptions } from '@/constants/courses'
 
 const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
@@ -575,30 +576,43 @@ function ImportStudentsModal({ onClose }) {
   const [fileName, setFileName] = useState('')
   const [saving, setSaving] = useState(false)
 
-  function handleFile(e) {
+  function validateRows(parsed) {
+    const errs = {}
+    parsed.forEach((r, i) => {
+      const id = (r.id || '').toUpperCase()
+      if (!id)                        errs[i] = 'Missing student number'
+      else if (!r.name)               errs[i] = 'Missing full name'
+      else if (!r.course)             errs[i] = 'Missing course'
+      else if (validateSnum(id))      errs[i] = validateSnum(id)
+      else if (students.find(s => s.id === id)) errs[i] = `Student no. "${id}" already exists`
+      else {
+        const dupIdx = parsed.findIndex((x, j) => j < i && (x.id || '').toUpperCase() === id)
+        if (dupIdx >= 0) errs[i] = `Duplicate student no. in file (row ${dupIdx + 2})`
+      }
+    })
+    setRows(parsed)
+    setErrors(errs)
+  }
+
+  async function handleFile(e) {
     const file = e.target.files[0]
     if (!file) return
     setFileName(file.name)
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const parsed = parseCSV(ev.target.result)
-      const errs = {}
-      parsed.forEach((r, i) => {
-        const id = r.id.toUpperCase()
-        if (!id)                        errs[i] = 'Missing student number'
-        else if (!r.name)               errs[i] = 'Missing full name'
-        else if (!r.course)             errs[i] = 'Missing course'
-        else if (validateSnum(id))      errs[i] = validateSnum(id)
-        else if (students.find(s => s.id === id)) errs[i] = `Student no. "${id}" already exists`
-        else {
-          const dupIdx = parsed.findIndex((x, j) => j < i && x.id.toUpperCase() === id)
-          if (dupIdx >= 0) errs[i] = `Duplicate student no. in file (row ${dupIdx + 2})`
-        }
-      })
-      setRows(parsed)
-      setErrors(errs)
+    const isExcel = /\.xlsx?$/i.test(file.name)
+    try {
+      if (isExcel) {
+        const XLSX = window.XLSX
+        if (!XLSX) { toast('Excel reader (SheetJS) not loaded.', 'red'); return }
+        const buf = await file.arrayBuffer()
+        const wb  = XLSX.read(buf, { type: 'array' })
+        validateRows(parseStudentImportExcel(wb))
+      } else {
+        const text = await file.text()
+        validateRows(parseCSV(text))
+      }
+    } catch (err) {
+      toast('Could not read file: ' + err.message, 'red')
     }
-    reader.readAsText(file)
   }
 
   const validRows  = rows.filter((_, i) => !errors[i])
@@ -627,21 +641,26 @@ function ImportStudentsModal({ onClose }) {
   return (
     <Modal onClose={onClose} maxWidth={680}>
       <h3>Import Students</h3>
-      <p className="modal-sub">Upload a CSV file with student data. Download the template to get started.</p>
+      <p className="modal-sub">Download the Excel template, fill in one student per row, then upload it here. CSV files also work.</p>
 
       {/* Template download */}
-      <div className="bg-accent-l border border-accent/20 rounded-lg px-3 py-2.5 mb-4 flex items-center justify-between gap-3">
+      <div className="bg-accent-l border border-accent/20 rounded-lg px-3 py-2.5 mb-4 flex items-center justify-between gap-3 flex-wrap">
         <div className="text-xs text-ink2">
-          <strong className="text-accent">CSV columns:</strong> Student No., Full Name, Course, Year Level, Date of Birth, Mobile
+          <strong className="text-accent">Columns:</strong> Student No., Full Name, Course, Year Level, Section, Date of Birth, Mobile
         </div>
-        <button className="btn btn-ghost btn-sm shrink-0" onClick={() => {
-          const csv = '"Student No.","Full Name","Course","Year Level","Date of Birth","Mobile"\n"2024-10001","Juan dela Cruz","BS Computer Science","1st Year","2005-06-15","+63 900 000 0000"\n'
-          const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
-          const url = URL.createObjectURL(blob)
-          const a = document.createElement('a'); a.href = url; a.download = 'students_template.csv'; a.click(); URL.revokeObjectURL(url)
-        }}>
-          <Download size={13} /> Template
-        </button>
+        <div className="flex gap-2 shrink-0">
+          <button className="btn btn-primary btn-sm" onClick={() => exportStudentImportTemplate({ classes })} title="Download a ready-to-fill Excel template">
+            <Download size={13} /> Excel template
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => {
+            const csv = '"Student No.","Full Name","Course","Year Level","Section","Date of Birth","Mobile"\n"2024-10001","Juan dela Cruz","BS Computer Science","1st Year","2A","2005-06-15","+63 900 000 0000"\n'
+            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a'); a.href = url; a.download = 'students_template.csv'; a.click(); URL.revokeObjectURL(url)
+          }}>
+            CSV
+          </button>
+        </div>
       </div>
 
       {/* File picker */}
@@ -650,9 +669,9 @@ function ImportStudentsModal({ onClose }) {
         onClick={() => fileRef.current?.click()}
       >
         <Upload size={24} className="mx-auto mb-2 text-ink3" />
-        <div className="text-sm font-medium text-ink">{fileName || 'Click to choose a CSV file'}</div>
-        {!fileName && <div className="text-xs text-ink3 mt-1">Supports .csv files</div>}
-        <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleFile} />
+        <div className="text-sm font-medium text-ink">{fileName || 'Click to choose an Excel or CSV file'}</div>
+        {!fileName && <div className="text-xs text-ink3 mt-1">Supports .xlsx and .csv files</div>}
+        <input ref={fileRef} type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={handleFile} />
       </div>
 
       {/* Preview */}
@@ -851,10 +870,13 @@ export default function StudentsTab() {
           <div className="stu-panel-sub">{students.length} student{students.length !== 1 ? 's' : ''} total</div>
         </div>
         <div className="stu-panel-actions">
-          <button className="btn btn-ghost btn-sm" onClick={() => exportRosterCSV(sorted, classes)} title="Export student roster as CSV">
-            <Download size={13} /> Export
+          <button className="btn btn-ghost btn-sm" onClick={() => exportStudentRosterExcel({ students: sorted, classes })} title="Export student roster as Excel (.xlsx)">
+            <Download size={13} /> Excel
           </button>
-          <button className="btn btn-ghost btn-sm" onClick={() => setShowImport(true)} title="Import students from CSV">
+          <button className="btn btn-ghost btn-sm" onClick={() => exportRosterCSV(sorted, classes)} title="Export student roster as CSV">
+            <Download size={13} /> CSV
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowImport(true)} title="Import students from Excel or CSV">
             <Upload size={13} /> Import
           </button>
           <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}><Plus size={16} /> Add Student</button>
