@@ -42,6 +42,7 @@
 
 /* ── Metric / stat card: tighter radius + trend pill ──────────────────── */
 .stat-card { border-radius: var(--radius-lg); }
+.sc-icon-wrap.red { background: var(--red-l); color: var(--red); }
 
 .sc-trend {
   display: inline-flex;
@@ -162,3 +163,65 @@
 }
 .ds-fab svg { width: 24px; height: 24px; }
 @media (max-width: 768px) { .ds-fab.show { display: flex; } }
+
+/* ── Navy academic sidebar (expanded by default on desktop) ───────────── */
+.sidebar { background: var(--navy); border-right: 1px solid rgba(255,255,255,.06); }
+.sb-brand { background: transparent; }
+.sb-brand::after, .sb-brand::before { display: none; }
+.nav-group-label { color: rgba(255,255,255,.42) !important; }
+.sb-nav .nav-item { color: #c2cde6; }
+.sb-nav .nav-item:hover { background: rgba(255,255,255,.08); color: #fff; }
+.sb-nav .nav-item.active { background: var(--accent); color: #fff; box-shadow: none; }
+.sb-footer { border-top: 1px solid rgba(255,255,255,.08); }
+.sb-user strong { color: #fff; }
+.sb-user-info span { color: #9fb0d0; }
+.sb-logout { color: #c2cde6; }
+.sb-logout:hover { background: rgba(255,255,255,.08); color: #fff; }
+.sb-toggle { color: #9fb0d0; background: rgba(255,255,255,.06); }
+.sb-toggle:hover { color: #fff; background: rgba(255,255,255,.12); }
+.credit-footer { color: rgba(255,255,255,.30); }
+
+/* ── Dashboard card / list / progress patterns (from the preview) ─────── */
+.ds-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.ds-card-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.ds-card-h h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ds-card-h h3 svg { width: 16px; height: 16px; color: var(--accent); }
+
+.ds-list-row { display: flex; align-items: center; gap: 12px; padding: 11px 18px; }
+.ds-list-row + .ds-list-row { border-top: 1px solid var(--border); }
+.ds-list-row:hover { background: var(--surface2); }
+.ds-la {
+  width: 38px; height: 38px; border-radius: 11px;
+  background: var(--accent-l); color: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 13px; flex-shrink: 0;
+}
+.ds-ln { font-weight: 600; font-size: 14px; color: var(--ink); }
+.ds-ls { font-size: 12px; color: var(--ink3); margin-top: 1px; }
+.ds-lr { margin-left: auto; font-size: 15px; font-weight: 800; letter-spacing: -.02em; color: var(--ink); }
+
+.ds-statline { padding: 13px 18px; border-bottom: 1px solid var(--border); }
+.ds-statline:last-child { border-bottom: 0; }
+.ds-statline .t { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 7px; color: var(--ink2); }
+.ds-statline .t b { color: var(--ink); font-weight: 700; }
+.ds-bar { height: 8px; border-radius: 20px; background: var(--surface3); overflow: hidden; }
+.ds-bar i { display: block; height: 100%; border-radius: 20px; }
