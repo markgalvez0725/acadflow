@@ -7,7 +7,7 @@ import { getFbAuth } from '@/firebase/firebaseInit'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
-import { Download, Upload, FileDown, KeyRound, GraduationCap, CheckCircle2 } from 'lucide-react'
+import { Download, Upload, FileDown, KeyRound, GraduationCap, CheckCircle2, Pencil, Plus, Save, BookOpen, Check, Users, ClipboardList, Hourglass } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { buildStudentReportCard } from '@/export/reportCard'
 import { courseOptions } from '@/constants/courses'
@@ -50,9 +50,9 @@ function AddStudentModal({ onClose }) {
     const snumErr = validateSnum(id)
     if (snumErr) { setErr(snumErr); return }
     if (!course.trim()) { setErr('Course/Program is required.'); return }
-    if (students.find(s => s.id === id)) { setErr(`⛔ Student number "${id}" already exists.`); return }
+    if (students.find(s => s.id === id)) { setErr(`Student number "${id}" already exists.`); return }
     if (name && students.find(s => s.name.toLowerCase() === name.trim().toLowerCase())) {
-      setErr('⛔ A student with this name already exists.'); return
+      setErr('A student with this name already exists.'); return
     }
 
     let account
@@ -89,7 +89,7 @@ function AddStudentModal({ onClose }) {
       toast('Student added!', 'green')
       onClose()
     } catch (e) {
-      setErr('❌ Failed to save student: ' + e.message)
+      setErr('Failed to save student: ' + e.message)
     } finally {
       setSaving(false)
     }
@@ -161,7 +161,7 @@ function AddStudentModal({ onClose }) {
       <div className="border-t border-border mt-2 pt-3">
         <div className="flex items-center justify-between mb-2">
           <div>
-            <div className="text-xs font-bold text-ink">🔑 Initial Password</div>
+            <div className="text-xs font-bold text-ink"><KeyRound size={14} /> Initial Password</div>
             <div className="text-xs text-ink3 mt-0.5">
               Default: <code className="font-mono text-ink">Welcome@2026</code> — student must change on first login.
             </div>
@@ -191,7 +191,7 @@ function AddStudentModal({ onClose }) {
       <div className="modal-footer">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
         <button className="btn btn-primary" onClick={handleAdd} disabled={saving}>
-          {saving ? 'Adding…' : '➕ Add Student'}
+          {saving ? 'Adding…' : <><Plus size={16} /> Add Student</>}
         </button>
       </div>
     </Modal>
@@ -267,7 +267,7 @@ function EditStudentModal({ student, onClose }) {
 
   return (
     <Modal onClose={onClose} maxWidth={600}>
-      <h3>✏️ Edit Student</h3>
+      <h3><Pencil size={18} /> Edit Student</h3>
       <p className="modal-sub">Update student information. Name and student number cannot be changed here.</p>
       {err && <div className="err-msg mb-3">{err}</div>}
       <div className="input-row">
@@ -331,7 +331,7 @@ function EditStudentModal({ student, onClose }) {
 
       {allSubjects.length > 0 && (
         <div className="text-xs text-ink2 bg-accent-l rounded-lg px-3 py-2 mb-3">
-          <strong className="text-accent">📚 Enrolled subjects ({allSubjects.length}):</strong>{' '}
+          <strong className="text-accent"><BookOpen size={14} /> Enrolled subjects ({allSubjects.length}):</strong>{' '}
           {allSubjects.map(s => (
             <span key={s} className="inline-block bg-surface border border-border rounded px-1.5 py-0.5 mx-0.5">{s}</span>
           ))}
@@ -344,8 +344,8 @@ function EditStudentModal({ student, onClose }) {
           {!student.account?.registered
             ? <Badge variant="gray">No account yet</Badge>
             : student.account?.activated
-              ? <Badge variant="green">✅ Active ({student.account.email || '—'})</Badge>
-              : <Badge variant="yellow">⏳ Pending — not yet activated</Badge>}
+              ? <Badge variant="green"><CheckCircle2 size={14} /> Active ({student.account.email || '—'})</Badge>
+              : <Badge variant="yellow"><Hourglass size={14} /> Pending — not yet activated</Badge>}
           {student.account?.firstLoginAt && (
             <div className="text-xs text-ink3 mt-1">
               First login: {new Date(student.account.firstLoginAt).toLocaleString('en-US', {
@@ -366,7 +366,7 @@ function EditStudentModal({ student, onClose }) {
             onClick={() => setHistoryOpen(v => !v)}
           >
             <span>{historyOpen ? '▾' : '▸'}</span>
-            📋 Academic History ({student.archivedSemesters.length} archived semester{student.archivedSemesters.length !== 1 ? 's' : ''})
+            <ClipboardList size={14} /> Academic History ({student.archivedSemesters.length} archived semester{student.archivedSemesters.length !== 1 ? 's' : ''})
           </button>
           {historyOpen && (
             <div className="flex flex-col gap-3">
@@ -406,7 +406,7 @@ function EditStudentModal({ student, onClose }) {
       <div className="modal-footer">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
         <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-          {saving ? 'Saving…' : '💾 Save Changes'}
+          {saving ? 'Saving…' : <><Save size={16} /> Save Changes</>}
         </button>
       </div>
     </Modal>
@@ -647,7 +647,7 @@ function ImportStudentsModal({ onClose }) {
                     <td>{r.name || '—'}</td>
                     <td>{r.course || '—'}</td>
                     <td>{r.year || '1st Year'}</td>
-                    <td>{errors[i] ? <span className="text-red-500">{errors[i]}</span> : <span className="text-green-600">✓ OK</span>}</td>
+                    <td>{errors[i] ? <span className="text-red-500">{errors[i]}</span> : <span className="text-green-600"><Check size={14} /> OK</span>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -774,7 +774,7 @@ export default function StudentsTab() {
           <button className="btn btn-ghost btn-sm" onClick={() => setShowImport(true)} title="Import students from CSV">
             <Upload size={13} /> Import
           </button>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>➕ Add Student</button>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}><Plus size={16} /> Add Student</button>
         </div>
       </div>
 
@@ -797,7 +797,7 @@ export default function StudentsTab() {
 
       {/* Table */}
       {!sorted.length ? (
-        <div className="empty"><div className="empty-icon">👥</div>{search ? 'No students match your search.' : 'No students yet.'}</div>
+        <div className="empty"><div className="empty-icon"><Users size={40} /></div>{search ? 'No students match your search.' : 'No students yet.'}</div>
       ) : (
         <>
           <div className="tbl-wrap">
@@ -857,8 +857,8 @@ export default function StudentsTab() {
                         {!s.account?.registered
                           ? <Badge variant="gray" style={{ fontSize: 11 }}>No Account</Badge>
                           : s.account?.activated
-                            ? <Badge variant="green" style={{ fontSize: 11 }}>✓ Active</Badge>
-                            : <Badge variant="yellow" style={{ fontSize: 11 }}>⏳ Pending</Badge>}
+                            ? <Badge variant="green" style={{ fontSize: 11 }}><Check size={12} /> Active</Badge>
+                            : <Badge variant="yellow" style={{ fontSize: 11 }}><Hourglass size={12} /> Pending</Badge>}
                       </td>
                       <td>
                         <div className="stu-actions-cell">

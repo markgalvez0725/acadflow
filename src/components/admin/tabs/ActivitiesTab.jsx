@@ -7,7 +7,7 @@ import { getHeldDays, computeFinalGradeFromTerms } from '@/utils/grades'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
-import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2 } from 'lucide-react'
+import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil, ClipboardList, AlarmClock, CircleDot, BarChart3, CheckCircle2, Check, Save, Plus } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { deviceRubric, deviceInstructions, aiInstructions, aiRubric, aiGrade, isNotConfigured } from '@/utils/activityAI'
 
@@ -238,7 +238,7 @@ function ActivityFormModal({ act, onClose }) {
   return (
     <Modal onClose={onClose} size="md">
       <h3 className="text-lg font-bold text-ink mb-1">
-        {isEdit ? '✏️ Edit Activity' : '📋 New Activity'}
+        {isEdit ? <><Pencil size={18} /> Edit Activity</> : <><ClipboardList size={18} /> New Activity</>}
       </h3>
       <p className="modal-sub">{isEdit ? 'Update activity details below.' : 'Fill in the activity details below.'}</p>
 
@@ -322,7 +322,7 @@ function ActivityFormModal({ act, onClose }) {
                     onChange={e => updateCriterion(c.id, 'points', e.target.value)}
                   />
                   <span className="text-xs text-ink3">pts</span>
-                  <button type="button" className="btn btn-ghost btn-sm text-red-500" onClick={() => removeCriterion(c.id)}>✕</button>
+                  <button type="button" className="btn btn-ghost btn-sm text-red-500" onClick={() => removeCriterion(c.id)}><X size={16} /></button>
                 </div>
               ))}
             </div>
@@ -338,7 +338,7 @@ function ActivityFormModal({ act, onClose }) {
       <div className="modal-footer">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
         <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-          {saving ? 'Saving…' : isEdit ? '💾 Save Changes' : '📋 Post Activity'}
+          {saving ? 'Saving…' : isEdit ? <><Save size={16} /> Save Changes</> : <><ClipboardList size={16} /> Post Activity</>}
         </button>
       </div>
     </Modal>
@@ -573,7 +573,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
     <Modal onClose={onClose} size="lg">
       <div className="flex items-start justify-between gap-3 mb-1">
         <div>
-          <h3 className="text-lg font-bold text-ink">📋 {act.title}</h3>
+          <h3 className="text-lg font-bold text-ink"><ClipboardList size={18} /> {act.title}</h3>
           <p className="text-xs text-ink2 mt-0.5">
             {act.subject} · Max {act.maxScore} pts · Deadline: {dlLabel}
           </p>
@@ -587,11 +587,11 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       {/* Deadline banner */}
       {isPast ? (
         <div style={{ background: 'var(--red-l)', color: 'var(--red)', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12 }}>
-          ⏰ <strong>Deadline passed.</strong> Students can no longer submit.
+          <AlarmClock size={14} /> <strong>Deadline passed.</strong> Students can no longer submit.
         </div>
       ) : (
         <div style={{ background: 'var(--green-l)', color: 'var(--green)', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12 }}>
-          🟢 <strong>Open — {timeLeft} remaining.</strong> Students can still submit.
+          <CircleDot size={14} /> <strong>Open — {timeLeft} remaining.</strong> Students can still submit.
         </div>
       )}
 
@@ -604,7 +604,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       {/* Rubric summary */}
       {hasRubric && (
         <div className="mb-3" style={{ background: 'var(--surface2)', borderRadius: 6, padding: '10px 14px' }}>
-          <div className="text-xs font-semibold text-ink2 mb-1">📊 Grading Rubric</div>
+          <div className="text-xs font-semibold text-ink2 mb-1"><BarChart3 size={14} /> Grading Rubric</div>
           <div className="flex flex-wrap gap-2">
             {act.rubric.map(c => (
               <span key={c.id} style={{ fontSize: 11, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 8px', color: 'var(--ink2)' }}>
@@ -650,7 +650,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                     </td>
                     <td>
                       {hasLink
-                        ? <Badge variant="green">✅ Submitted</Badge>
+                        ? <Badge variant="green"><CheckCircle2 size={14} /> Submitted</Badge>
                         : <Badge variant="gray" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>{isPast ? <><AlertCircle size={11} />Missed</> : <><Clock size={11} />Pending</>}</Badge>
                       }
                     </td>
@@ -736,11 +736,11 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
           <button className="btn btn-ghost btn-sm" onClick={handleApplyDefault}>Apply Missed Grade (50)</button>
         )}
         <button className="btn btn-ghost btn-sm" onClick={handleExtend}>Extend Deadline</button>
-        <button className="btn btn-ghost btn-sm" onClick={onEdit}>✏️ Edit</button>
+        <button className="btn btn-ghost btn-sm" onClick={onEdit}><Pencil size={16} /> Edit</button>
         <button className="btn btn-danger btn-sm" onClick={handleDelete}>Delete</button>
         <button className="btn btn-ghost btn-sm ml-auto" onClick={onClose}>Close</button>
         <button className="btn btn-primary btn-sm" onClick={handleSaveAll} disabled={savingAll}>
-          {savingAll ? 'Saving…' : '💾 Save All Grades'}
+          {savingAll ? 'Saving…' : <><Save size={16} /> Save All Grades</>}
         </button>
       </div>
 
@@ -779,7 +779,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                   <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
                     {aiResult.criteria.map((c, i) => (
                       <div key={i} style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ color: c.met ? 'var(--green)' : 'var(--ink3)', fontWeight: 700 }}>{c.met ? '✓' : '✗'}</span>{c.name}
+                        <span style={{ color: c.met ? 'var(--green)' : 'var(--ink3)', fontWeight: 700 }}>{c.met ? <Check size={14} /> : <X size={14} />}</span>{c.name}
                       </div>
                     ))}
                   </div>
@@ -872,7 +872,7 @@ export default function ActivitiesTab() {
       {/* Header */}
       <div className="sec-hdr mb-3">
         <div className="sec-title">Activities</div>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>➕ New Activity</button>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}><Plus size={16} /> New Activity</button>
       </div>
 
       {/* Active Activities */}

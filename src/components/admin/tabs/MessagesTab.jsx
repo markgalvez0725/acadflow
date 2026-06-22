@@ -6,7 +6,7 @@ import { sortByLastName } from '@/utils/format'
 import { notifyStudentMessage, notifyStudentsBroadcast } from '@/firebase/messageNotify'
 import { fbAddMessageReply } from '@/firebase/persistence'
 import Modal from '@/components/primitives/Modal'
-import { X } from 'lucide-react'
+import { X, Pencil, Send, CheckCheck, Megaphone } from 'lucide-react'
 
 // ── Helpers ───────────────────────────────────────────────────────────
 function msgId() {
@@ -103,7 +103,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
 
   return (
     <Modal onClose={onClose} size="md">
-      <h3 className="text-lg font-bold text-ink mb-1">✏️ New Message</h3>
+      <h3 className="text-lg font-bold text-ink mb-1"><Pencil size={18} /> New Message</h3>
       <p className="text-xs text-ink2 mb-4">Send a direct message or announcement to students.</p>
 
       <div className="field mb-3">
@@ -113,12 +113,12 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
           value={to}
           onChange={e => setTo(e.target.value)}
         >
-          <option value="all">📢 All Students (Announcement)</option>
+          <option value="all">All Students (Announcement)</option>
           {Object.keys(classGroups).sort().map(label => {
             const grp = classGroups[label]
             const cls = classes.find(c => c.id === grp[0]?.classId)
             if (cls) {
-              return <option key={'class:' + cls.id} value={'class:' + cls.id}>📋 All in {label}</option>
+              return <option key={'class:' + cls.id} value={'class:' + cls.id}>All in {label}</option>
             }
             return null
           })}
@@ -163,7 +163,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
       <div className="modal-footer">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
         <button className="btn btn-primary" onClick={handleSend} disabled={sending}>
-          {sending ? 'Sending…' : '📤 Send Message'}
+          {sending ? 'Sending…' : <><Send size={16} /> Send Message</>}
         </button>
       </div>
     </Modal>
@@ -219,7 +219,7 @@ function ThreadPanel({ thread, onReply, onClose }) {
               <div className={`msg-meta ${isAdmin ? 'msg-meta-sent' : 'msg-meta-recv'}`}>
                 {entry.senderLabel} · {date}
                 {isAdmin && (
-                  <span className={`msg-tick ${entry.studentRead ? 'msg-tick-read' : ''}`} title={entry.readTitle}>✓✓</span>
+                  <span className={`msg-tick ${entry.studentRead ? 'msg-tick-read' : ''}`} title={entry.readTitle}><CheckCheck size={14} /></span>
                 )}
               </div>
             </div>
@@ -268,7 +268,7 @@ function ReplyBox({ onSend }) {
         onClick={handleSend}
         disabled={sending || !text.trim()}
       >
-        {sending ? '…' : '➤'}
+        {sending ? '…' : <Send size={16} />}
       </button>
     </div>
   )
@@ -568,7 +568,7 @@ export default function MessagesTab() {
       const recipientName = m.to === 'all' ? 'All Students'
         : m.to.startsWith('class:') ? 'Class Broadcast'
         : (students.find(s => s.id === m.to)?.name || m.to)
-      const initials = activeTab === 'announce' ? '📢' : getInitials(recipientName)
+      const initials = activeTab === 'announce' ? <Megaphone size={18} /> : getInitials(recipientName)
       const preview = m.body.slice(0, 60) + (m.body.length > 60 ? '…' : '')
       const isActive = activeConv?.type === 'message' && activeConv.msgId === m.id
       return (
@@ -597,7 +597,7 @@ export default function MessagesTab() {
       {/* Header */}
       <div className="sec-hdr mb-3 flex-shrink-0">
         <div className="sec-title">Messages</div>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowCompose(true)}>✏️ New</button>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowCompose(true)}><Pencil size={16} /> New</button>
       </div>
 
       {/* Main layout: list + thread */}
