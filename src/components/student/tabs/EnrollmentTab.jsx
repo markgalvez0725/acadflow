@@ -100,17 +100,17 @@ function SemesterBanner({ semester }) {
 
   if (semester.status === 'upcoming') {
     return (
-      <div className="rounded-xl border border-amber-300 dark:border-amber-700/50 bg-amber-50 dark:bg-amber-900/20 px-4 py-3.5 flex items-start gap-3">
-        <Bell size={18} className="shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+      <div className="warn-banner rounded-xl border px-4 py-3.5 flex items-start gap-3">
+        <Bell size={18} className="shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-sm text-amber-700 dark:text-amber-300">
-            Upcoming: {semLabel}
+          <div className="font-semibold text-sm">
+            <strong>Upcoming:</strong> {semLabel}
           </div>
-          <div className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+          <div className="text-xs mt-0.5">
             Enrollment has not opened yet. Check back when the semester starts.
           </div>
           {startFmt && (
-            <div className="flex items-center gap-1 text-[11px] text-amber-600/80 dark:text-amber-400/70 mt-1.5">
+            <div className="flex items-center gap-1 text-[11px] mt-1.5" style={{ opacity: .85 }}>
               <CalendarDays size={10} className="shrink-0" />
               Semester starts: <strong className="ml-1">{startFmt}</strong>
             </div>
@@ -475,7 +475,7 @@ export default function EnrollmentTab({ student }) {
       </div>
 
       {/* Enrollment finality notice */}
-      <div className="flex items-start gap-2.5 px-3 py-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40 text-xs text-amber-800 dark:text-amber-300">
+      <div className="warn-banner flex items-start gap-2.5 px-3 py-3 rounded-lg border text-xs">
         <MessageSquare size={14} className="shrink-0 mt-0.5" />
         <span>
           <strong>Important:</strong> Enrollment is final. Once you click <em>Enroll Now</em>, your selection cannot be changed.
@@ -487,7 +487,7 @@ export default function EnrollmentTab({ student }) {
       <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--surface2)] text-xs text-[var(--ink2)]">
         <GraduationCap size={14} className="shrink-0" />
         <span>
-          Your course: <strong className="text-[var(--ink)]">{student.course || <em className="text-red-500">Not set — contact admin to update your profile</em>}</strong>
+          Your course: <strong className="text-[var(--ink)]">{student.course || <em className="text-red-500">Not set — contact your teacher to update your profile</em>}</strong>
           {student.year && <> &middot; <strong className="text-[var(--ink)]">{student.year}</strong></>}
         </span>
       </div>
