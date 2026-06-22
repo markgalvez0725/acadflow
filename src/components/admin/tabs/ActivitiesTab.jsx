@@ -3,7 +3,7 @@ import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { sortByLastName } from '@/utils/format'
-import { getHeldDays, computeFinalGradeFromTerms } from '@/utils/grades'
+import { getHeldDays, computeTerms, scoredPercent, round2 } from '@/utils/grades'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
@@ -50,12 +50,17 @@ function buildUpdatedStudent(s, subject, classId, allActivities, allStudents) {
   const comp = { ...(s.gradeComponents?.[subject] || {}) }
 
   const subjectActs = allActivities.filter(a => a.classId === classId && a.subject === subject)
-  const scores = subjectActs.map(a => (a.submissions || {})[s.id]?.score).filter(v => v != null)
-  if (!scores.length) return null
+  // Normalize each activity to a percentage of its own maxScore so rubric
+  // activities (max ≠ 100) are weighted correctly.
+  const items = subjectActs
+    .map(a => { const sc = (a.submissions || {})[s.id]?.score; return sc != null ? { score: sc, maxScore: a.maxScore || 100 } : null })
+    .filter(Boolean)
+  if (!items.length) return null
 
-  const actAvg = parseFloat((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2))
-  comp.activities = actAvg
+  const actPct = scoredPercent(items)       // full precision %
+  comp.activities = round2(actPct)
 
+  // Persist the raw per-activity scores for the grade-entry modal.
   const actScores = {}
   subjectActs.forEach((a, idx) => {
     const sc = (a.submissions || {})[s.id]?.score
@@ -66,34 +71,26 @@ function buildUpdatedStudent(s, subject, classId, allActivities, allStudents) {
   })
   comp.activityScores = actScores
 
-  const midExamV = comp.midtermExam ?? null
-  const finExamV = comp.finalsExam  ?? null
-  const qzV      = comp.quizzes     ?? null
-
-  const held  = getHeldDays(classId, subject, allStudents)
+  const held   = getHeldDays(classId, subject, allStudents)
   const attSet = s.attendance?.[subject] || new Set()
-  const attV = held > 0 ? parseFloat(((attSet.size / held) * 100).toFixed(2)) : null
+  const attV   = held > 0 ? Math.min(100, (attSet.size / held) * 100) : null
 
-  const csParts = [actAvg, qzV, attV].filter(x => x !== null)
-  const cs = csParts.length
-    ? parseFloat((csParts.reduce((a, b) => a + b, 0) / csParts.length).toFixed(2))
-    : null
-  comp.midtermCS = cs
-  comp.finalsCS  = cs
+  // One canonical computation — Class Standing now includes Attitude, matching
+  // the Grades tab and importer. Intermediates full precision; final rounded.
+  const { cs, midterm, finals, final } = computeTerms({
+    activities: actPct,
+    quizzes:    comp.quizzes ?? null,
+    attendance: attV,
+    attitude:   comp.attitude ?? null,
+    midtermExam: comp.midtermExam ?? null,
+    finalsExam:  comp.finalsExam ?? null,
+  })
+  comp.midtermCS = round2(cs)
+  comp.finalsCS  = round2(cs)
+  if (comp.midtermExam != null) comp.midterm = round2(midterm)
+  if (comp.finalsExam  != null) comp.finals  = round2(finals)
 
-  if (midExamV !== null) {
-    const mtParts = [cs, midExamV].filter(x => x !== null)
-    comp.midterm = parseFloat((mtParts.reduce((a, b) => a + b, 0) / mtParts.length).toFixed(2))
-  }
-
-  if (finExamV !== null) {
-    const ftParts = [cs, finExamV].filter(x => x !== null)
-    comp.finals = parseFloat((ftParts.reduce((a, b) => a + b, 0) / ftParts.length).toFixed(2))
-  }
-
-  const newGrade = (comp.midterm != null || comp.finals != null)
-    ? computeFinalGradeFromTerms(comp.midterm ?? null, comp.finals ?? null)
-    : s.grades?.[subject] ?? null
+  const newGrade = final ?? s.grades?.[subject] ?? null
 
   return {
     ...s,

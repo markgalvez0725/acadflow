@@ -101,36 +101,49 @@ export function gradeInfoForStudent(s, sub, eqScale = DEFAULT_EQ_SCALE) {
 }
 
 // ── Grade % computation ────────────────────────────────────────────────────
+// Rounding policy: intermediate values (Class Standing, Midterm Term, Finals
+// Term) are kept at FULL precision; only the final grade % is rounded to 2 dp.
+// Component values fed in (activities, quizzes, attendance, attitude, exams)
+// must already be percentages (0–100).
+
+export const round2 = n => (n === null || n === undefined || isNaN(n)) ? null : parseFloat(Number(n).toFixed(2));
+
+const _num = x => (x !== null && x !== undefined && !isNaN(x)) ? Number(x) : null;
+const _mean = arr => { const v = arr.filter(x => x !== null && x !== undefined && !isNaN(x)); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; };
+
+// Mean percentage from raw scored items [{ score, maxScore }]. Each item is
+// normalized to (score / maxScore) * 100 so activities/quizzes graded out of a
+// max other than 100 (e.g. rubric totals) count correctly. Full precision;
+// null when there are no scored items.
+export function scoredPercent(items = []) {
+  const pcts = (items || [])
+    .filter(it => it && it.score != null && !isNaN(it.score) && Number(it.maxScore) > 0)
+    .map(it => (Number(it.score) / Number(it.maxScore)) * 100);
+  return pcts.length ? pcts.reduce((s, x) => s + x, 0) / pcts.length : null;
+}
+
 export function computeFinalGradeFromTerms(midtermTerm, finalsTerm) {
-  const v = x => (x !== null && x !== undefined && !isNaN(x)) ? x : null;
-  const mt = v(midtermTerm), ft = v(finalsTerm);
-  const terms = [mt, ft].filter(x => x !== null);
-  if (!terms.length) return null;
-  const raw = terms.reduce((s, x) => s + x, 0) / terms.length;
-  return Math.min(100, Math.max(0, parseFloat(raw.toFixed(2))));
+  const term = _mean([_num(midtermTerm), _num(finalsTerm)]);
+  if (term === null) return null;
+  return Math.min(100, Math.max(0, round2(term)));
+}
+
+// Canonical subject computation used by every grade path (activity grading,
+// grade entry, import, exports). Returns full-precision cs/midterm/finals and
+// the rounded final %, so all screens agree to the last decimal.
+export function computeTerms({ activities = null, quizzes = null, attendance = null, attitude = null, midtermExam = null, finalsExam = null } = {}) {
+  const cs = _mean([_num(activities), _num(quizzes), _num(attendance), _num(attitude)]);
+  const midE = _num(midtermExam), finE = _num(finalsExam);
+  const midterm = midE !== null ? _mean([cs, midE]) : null;
+  const finals  = finE !== null ? _mean([cs, finE]) : null;
+  return { cs, midterm, finals, final: computeFinalGradeFromTerms(midterm, finals) };
 }
 
 export function computeGrade(actV, qzV, attV, midExamV, finExamV, charV = null) {
-  const v    = x => (x !== null && x !== undefined && !isNaN(x)) ? x : null;
-  const act  = v(actV), qz = v(qzV), att = v(attV), char = v(charV);
-  const midE = v(midExamV), finE = v(finExamV);
-
-  const csP = [act, qz, att, char].filter(x => x !== null);
-  const cs  = csP.length ? csP.reduce((s, x) => s + x, 0) / csP.length : null;
-
-  let midterm = null;
-  if (midE !== null) {
-    const p = [cs, midE].filter(x => x !== null);
-    midterm = p.reduce((s, x) => s + x, 0) / p.length;
-  }
-
-  let finals = null;
-  if (finE !== null) {
-    const p = [cs, finE].filter(x => x !== null);
-    finals = p.reduce((s, x) => s + x, 0) / p.length;
-  }
-
-  return computeFinalGradeFromTerms(midterm, finals);
+  return computeTerms({
+    activities: actV, quizzes: qzV, attendance: attV,
+    attitude: charV, midtermExam: midExamV, finalsExam: finExamV,
+  }).final;
 }
 
 // ── GWA (General Weighted Average) ────────────────────────────────────────
@@ -141,11 +154,12 @@ export function getGWA(s, classes = []) {
     ? [...new Set(enrolledIds.flatMap(id => (classes.find(c => c.id === id)?.subjects) || []))]
     : Object.keys(s.grades || {});
   const vals = allSubs.map(sub => {
+    // Prefer the authoritative saved final (computed at full precision on save,
+    // or a manual override); fall back to deriving it from stored terms.
+    const stored = s.grades?.[sub];
+    if (stored !== null && stored !== undefined) return stored;
     const comp = s.gradeComponents?.[sub] || {};
-    const midG = comp.midterm ?? null;
-    const finG = comp.finals  ?? null;
-    const derived = computeFinalGradeFromTerms(midG, finG);
-    return derived ?? s.grades?.[sub] ?? null;
+    return computeFinalGradeFromTerms(comp.midterm ?? null, comp.finals ?? null);
   }).filter(g => g !== null && g !== undefined);
   if (!vals.length) return null;
   return parseFloat((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2));
@@ -182,8 +196,11 @@ export function getAttRate(s, students = [], classes = []) {
 }
 
 // ── Sessions held for a subject in a class ────────────────────────────────
+// Counts the most attendance/excuse records any enrolled student has for the
+// subject. Includes students enrolled via classIds (not just their primary
+// class) so sections with cross-enrolled students don't under-count held days.
 export function getHeldDays(classId, sub, students = []) {
-  const classStudents = students.filter(s => s.classId === classId);
+  const classStudents = students.filter(s => s.classId === classId || s.classIds?.includes(classId));
   if (!classStudents.length) return 0;
   return classStudents.reduce((mx, x) => {
     const sz = (x.attendance[sub] || new Set()).size + (x.excuse[sub] || new Set()).size;

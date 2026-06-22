@@ -3,7 +3,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { sortByLastName } from '@/utils/format'
 import {
-  gradeInfo, combineEquiv, computeGrade, computeFinalGradeFromTerms,
+  gradeInfo, combineEquiv, computeFinalGradeFromTerms, computeTerms, scoredPercent, round2,
   getHeldDays, gradeInfoForStudent, getGradeScaleLabel,
 } from '@/utils/grades'
 import { exportGradingSheet, parseGradingSheetImport, exportCurrentGrades, exportMasterGradingReport } from '@/export/excelExport'
@@ -84,6 +84,17 @@ function GradeEntryModal({ classId, subject, onClose }) {
     return Math.max(max, 1)
   }, [studs, subject, panelQuizzes])
 
+  // Activity average as a percentage: each panel activity input is normalized
+  // by its own maxScore (rubric activities may be out of ≠100). In manual mode
+  // (no panel) inputs are treated as percentages (maxScore 100). Full precision.
+  function actAvgFromInputs(actInputs) {
+    const items = actInputs.map((v, i) => {
+      const sc = toNum(v)
+      return sc === null ? null : { score: sc, maxScore: panelActs[i]?.maxScore || 100 }
+    }).filter(Boolean)
+    return scoredPercent(items)
+  }
+
   // Build initial row values from existing student data + activities panel
   const initRows = useMemo(() => {
     return studs.map(s => {
@@ -109,11 +120,8 @@ function GradeEntryModal({ classId, subject, onClose }) {
             return v != null ? String(v) : ''
           })
 
-      // Compute activity avg from inputs
-      const actNums = actInputs.map(v => toNum(v)).filter(v => v !== null)
-      const actAvg  = actNums.length > 0
-        ? parseFloat((actNums.reduce((a, b) => a + b, 0) / actNums.length).toFixed(2))
-        : null
+      // Compute activity avg from inputs (normalized by each activity's maxScore)
+      const actAvg = round2(actAvgFromInputs(actInputs))
 
       // Per-quiz scores — from panel submissions, fallback to stored quizScores
       const qzScoresMap = comp.quizScores || {}
@@ -199,52 +207,29 @@ function GradeEntryModal({ classId, subject, onClose }) {
   // Recompute actAvg and qzAvg from individual inputs, then recompute final grade
   // Uses combineEquiv (school lookup table) for correct equivalency — not just gradeInfo on raw %
   function recomputeRow(r) {
-    const actNums = r.actInputs.map(v => toNum(v)).filter(v => v !== null)
-    const actAvg  = actNums.length > 0
-      ? parseFloat((actNums.reduce((a, b) => a + b, 0) / actNums.length).toFixed(2))
-      : null
-
+    // Full-precision component percentages (activities normalized by maxScore).
+    const actAvg = actAvgFromInputs(r.actInputs)
     const qzNums = r.qzInputs.map(v => toNum(v)).filter(v => v !== null)
-    const qzAvg  = qzNums.length > 0
-      ? parseFloat((qzNums.reduce((a, b) => a + b, 0) / qzNums.length).toFixed(2))
-      : null
+    const qzAvg  = qzNums.length ? qzNums.reduce((a, b) => a + b, 0) / qzNums.length : null
 
-    const actV        = actAvg
-    const qzV         = qzAvg
-    const attV        = r.attRate
-    const attitudeV   = toNum(r.attitude)
-    const midV        = toNum(r.midtermExam)
-    const finV        = toNum(r.finalsExam)
-
-    // CS = avg(activities, quizzes, attendance, attitude) — mirrors handleSave formula
-    const csParts = [actV, qzV, attV, attitudeV].filter(x => x !== null)
-    const cs = csParts.length
-      ? parseFloat((csParts.reduce((s, x) => s + x, 0) / csParts.length).toFixed(2))
-      : null
-
-    // Midterm Term = avg(CS, Midterm Exam)
-    let midtermTerm = null
-    if (midV !== null) {
-      const p = [cs, midV].filter(x => x !== null)
-      midtermTerm = p.length ? parseFloat((p.reduce((s, x) => s + x, 0) / p.length).toFixed(2)) : null
-    }
-
-    // Finals Term = avg(CS, Finals Exam)
-    let finalsTerm = null
-    if (finV !== null) {
-      const p = [cs, finV].filter(x => x !== null)
-      finalsTerm = p.length ? parseFloat((p.reduce((s, x) => s + x, 0) / p.length).toFixed(2)) : null
-    }
+    // One canonical computation (intermediates full precision; final rounded).
+    const { midterm, finals, final } = computeTerms({
+      activities:  actAvg,
+      quizzes:     qzAvg,
+      attendance:  r.attRate,
+      attitude:    toNum(r.attitude),
+      midtermExam: toNum(r.midtermExam),
+      finalsExam:  toNum(r.finalsExam),
+    })
 
     let fg = r.finalGrade
     let equivPreview = '—'
 
-    if (midtermTerm !== null || finalsTerm !== null) {
-      const computed = computeFinalGradeFromTerms(midtermTerm, finalsTerm)
-      if (computed !== null) fg = String(computed)
-      // Use combineEquiv (school lookup table) for proper equivalency
-      const midEq = midtermTerm !== null ? gradeInfo(midtermTerm, eqScale).eq : null
-      const finEq = finalsTerm  !== null ? gradeInfo(finalsTerm,  eqScale).eq : null
+    if (midterm !== null || finals !== null) {
+      if (final !== null) fg = String(final)
+      // Equivalency via the school combine table on the term equivalents.
+      const midEq = midterm !== null ? gradeInfo(midterm, eqScale).eq : null
+      const finEq = finals  !== null ? gradeInfo(finals,  eqScale).eq : null
       if (midEq && finEq)  equivPreview = combineEquiv(midEq, finEq).eq
       else if (midEq)       equivPreview = midEq
       else if (finEq)       equivPreview = finEq
@@ -253,7 +238,8 @@ function GradeEntryModal({ classId, subject, onClose }) {
       if (fgN !== null) equivPreview = gradeInfo(fgN, eqScale).eq
     }
 
-    return { ...r, actAvg, qzAvg, finalGrade: fg, equivPreview }
+    // actAvg/qzAvg are display values → rounded; computation above used full precision.
+    return { ...r, actAvg: round2(actAvg), qzAvg: round2(qzAvg), finalGrade: fg, equivPreview }
   }
 
   const clampGrade = val => {
@@ -321,45 +307,30 @@ function GradeEntryModal({ classId, subject, onClose }) {
       const ns   = { ...s, grades: { ...s.grades }, gradeComponents: { ...(s.gradeComponents || {}) }, gradeUploadedAt: { ...(s.gradeUploadedAt || {}) } }
       const comp = { ...(ns.gradeComponents[subject] || {}) }
 
-      const actV      = r.actAvg !== null ? clamp(r.actAvg) : null
-      const qzV       = r.qzAvg  !== null ? clamp(r.qzAvg)  : null
+      // Recompute component percentages at full precision from the row inputs
+      // (activities normalized by each activity's maxScore).
+      const actPct    = actAvgFromInputs(r.actInputs)
+      const qzNums    = r.qzInputs.map(v => toNum(v)).filter(v => v !== null)
+      const qzPct     = qzNums.length ? qzNums.reduce((a, b) => a + b, 0) / qzNums.length : null
       const attitudeV = clamp(toNum(r.attitude))
       const midExamV  = clamp(toNum(r.midtermExam))
       const finExamV  = clamp(toNum(r.finalsExam))
       const attV      = r.attRate
 
-      // Persist raw inputs
-      if (actV      != null) comp.activities   = actV
-      if (qzV       != null) comp.quizzes      = qzV
-      if (attitudeV != null) comp.attitude     = attitudeV
-      if (midExamV  != null) comp.midtermExam  = midExamV
-      if (finExamV  != null) comp.finalsExam   = finExamV
+      // Persist component percentages (rounded for clean display/storage).
+      if (actPct    != null) comp.activities  = clamp(round2(actPct))
+      if (qzPct     != null) comp.quizzes     = clamp(round2(qzPct))
+      if (attitudeV != null) comp.attitude    = attitudeV
+      if (midExamV  != null) comp.midtermExam = midExamV
+      if (finExamV  != null) comp.finalsExam  = finExamV
 
-      // CS Midterm = avg(acts, qz, att, attitude)
-      const csMidParts = [actV, qzV, attV, attitudeV].filter(x => x !== null)
-      const csMid = csMidParts.length
-        ? parseFloat((csMidParts.reduce((s, x) => s + x, 0) / csMidParts.length).toFixed(2))
-        : null
-
-      // CS Finals = avg(acts, qz, att, attitude)
-      const csFinParts = [actV, qzV, attV, attitudeV].filter(x => x !== null)
-      const csFin = csFinParts.length
-        ? parseFloat((csFinParts.reduce((s, x) => s + x, 0) / csFinParts.length).toFixed(2))
-        : null
-
-      // Midterm Term = avg(CS Midterm, Midterm Exam)
-      if (midExamV !== null) {
-        const p = [csMid, midExamV].filter(x => x !== null)
-        comp.midtermCS = csMid
-        comp.midterm   = parseFloat((p.reduce((s, x) => s + x, 0) / p.length).toFixed(2))
-      }
-
-      // Finals Term = avg(CS Finals, Finals Exam)
-      if (finExamV !== null) {
-        const p = [csFin, finExamV].filter(x => x !== null)
-        comp.finalsCS = csFin
-        comp.finals   = parseFloat((p.reduce((s, x) => s + x, 0) / p.length).toFixed(2))
-      }
+      // Canonical computation — CS includes Attitude; intermediates full precision.
+      const { cs, midterm, finals, final } = computeTerms({
+        activities: actPct, quizzes: qzPct, attendance: attV,
+        attitude: attitudeV, midtermExam: midExamV, finalsExam: finExamV,
+      })
+      if (midExamV !== null) { comp.midtermCS = round2(cs); comp.midterm = round2(midterm) }
+      if (finExamV !== null) { comp.finalsCS  = round2(cs); comp.finals  = round2(finals) }
 
       // Sync activityScores from individual inputs or panel
       if (panelActs.length > 0) {
@@ -401,11 +372,8 @@ function GradeEntryModal({ classId, subject, onClose }) {
         if (Object.keys(qzMap).length) comp.quizScores = qzMap
       }
 
-      // Final Grade % = avg(Midterm Term, Finals Term)
-      let finalGrade = null
-      if (comp.midterm != null || comp.finals != null) {
-        finalGrade = computeFinalGradeFromTerms(comp.midterm ?? null, comp.finals ?? null)
-      }
+      // Final Grade % = avg(Midterm Term, Finals Term) — full precision, rounded once.
+      const finalGrade = (comp.midterm != null || comp.finals != null) ? final : null
 
       // Manual override
       const rawOverride = r.finalGrade.trim()
@@ -1157,31 +1125,16 @@ export default function GradesTab() {
         comp.quizScores = { ...(comp.quizScores || {}), q1: qzV }
       }
 
-      // Class Standing = avg(activities, quizzes, attendance)
-      const csParts = [actV, qzV, attV].filter(x => x !== null)
-      const cs = csParts.length
-        ? parseFloat((csParts.reduce((a, x) => a + x, 0) / csParts.length).toFixed(2))
-        : null
+      // Canonical computation — Class Standing now includes Attitude (preserved
+      // from existing data); intermediates full precision, final rounded once.
+      const { cs, midterm, finals, final } = computeTerms({
+        activities: actV, quizzes: qzV, attendance: attV,
+        attitude: comp.attitude ?? null, midtermExam: midExamV, finalsExam: finExamV,
+      })
+      if (midExamV !== null) { comp.midtermCS = round2(cs); comp.midterm = round2(midterm) }
+      if (finExamV !== null) { comp.finalsCS  = round2(cs); comp.finals  = round2(finals) }
 
-      // Midterm Term = avg(CS, Midterm Exam)
-      if (midExamV !== null) {
-        const p = [cs, midExamV].filter(x => x !== null)
-        comp.midtermCS = cs
-        comp.midterm   = parseFloat((p.reduce((a, x) => a + x, 0) / p.length).toFixed(2))
-      }
-
-      // Finals Term = avg(CS, Finals Exam)
-      if (finExamV !== null) {
-        const p = [cs, finExamV].filter(x => x !== null)
-        comp.finalsCS = cs
-        comp.finals   = parseFloat((p.reduce((a, x) => a + x, 0) / p.length).toFixed(2))
-      }
-
-      // Final Grade % = avg(Midterm Term, Finals Term)
-      let finalGrade = null
-      if (comp.midterm != null || comp.finals != null) {
-        finalGrade = computeFinalGradeFromTerms(comp.midterm ?? null, comp.finals ?? null)
-      }
+      const finalGrade = (comp.midterm != null || comp.finals != null) ? final : null
 
       ns.grades[sub]          = finalGrade
       ns.gradeComponents[sub] = comp
