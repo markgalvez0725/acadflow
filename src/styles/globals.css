@@ -230,6 +230,7 @@
    KEYFRAMES
 ══════════════════════════════════════════ */
 @keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 0.9s linear infinite; transform-origin: center; }
 @keyframes blink-caret { 0%, 100% { opacity: 1 } 50% { opacity: 0 } }
 
 /* Typing cursor — inline element that blinks */
