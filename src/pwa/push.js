@@ -15,6 +15,10 @@ export const VAPID_KEY =
   ''
 
 let _messaging = null
+let _lastError = ''
+
+/** Last human-readable push error, for surfacing in the UI. */
+export function lastPushError() { return _lastError }
 
 export async function pushSupported() {
   try {
@@ -61,15 +65,34 @@ export async function enablePush() {
     try { swReg = await navigator.serviceWorker.ready } catch { swReg = undefined }
   }
 
+  const opts = {
+    vapidKey: VAPID_KEY,
+    serviceWorkerRegistration: swReg || undefined,
+  }
+
+  _lastError = ''
   try {
-    const token = await getToken(messaging, {
-      vapidKey: VAPID_KEY,
-      serviceWorkerRegistration: swReg || undefined,
-    })
+    const token = await getToken(messaging, opts)
     return token || null
   } catch (e) {
-    console.warn('[push] getToken failed:', e.message)
-    return null
+    // The most common failure after rotating/changing the VAPID key is a
+    // "push service error": the service worker still holds a push subscription
+    // created with the OLD applicationServerKey, and the push service refuses
+    // to re-subscribe with the new key. Clearing the stale subscription and
+    // retrying once resolves it. (Harmless if there is no subscription.)
+    console.warn('[push] getToken failed, clearing stale subscription and retrying:', e?.message)
+    try {
+      if (swReg?.pushManager) {
+        const sub = await swReg.pushManager.getSubscription()
+        if (sub) await sub.unsubscribe()
+      }
+      const token = await getToken(messaging, opts)
+      return token || null
+    } catch (e2) {
+      _lastError = e2?.message || e?.message || 'Push registration failed.'
+      console.warn('[push] getToken failed after retry:', _lastError)
+      return null
+    }
   }
 }
 
