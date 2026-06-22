@@ -12,7 +12,7 @@ import SemesterCalendarChip from '@/components/primitives/SemesterCalendarChip'
 import CommandPaletteButton from '@/components/primitives/CommandPaletteButton'
 import ConnectionStatus from '@/components/primitives/ConnectionStatus'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
-import { Rss, LayoutDashboard, School, Users, BookOpen, CalendarCheck, FileQuestion, CalendarDays, Bell, ClipboardList, Video, Settings, LogOut, Menu } from 'lucide-react'
+import { Rss, LayoutDashboard, School, Users, BookOpen, CalendarCheck, FileQuestion, CalendarDays, Bell, ClipboardList, Video, Settings, LogOut, Menu, MessageSquare } from 'lucide-react'
 
 // Mobile bottom-nav: 5 primary destinations + "More" (opens a tidy sheet).
 const MOBILE_NAV = [
@@ -65,7 +65,8 @@ const TAB_TITLES = {
 
 export default function AdminLayout() {
   const { adminTab, setAdminTab, toastQueue, dismissToast, dialog, resolveDialog, toast } = useUI()
-  const { fbReady, messages, semester, db, admin } = useData()
+  const { fbReady, messages, semester, db, admin, adminNotifs } = useData()
+  const unreadNotifCount = (adminNotifs || []).filter(n => !n.read).length
   const { loginTime, lastLogin, logout } = useAuth()
 
   const adminName = admin?.name || admin?.displayName || 'Teacher'
@@ -81,6 +82,7 @@ export default function AdminLayout() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [messengerOpen, setMessengerOpen] = useState(false)
   const [clock, setClock] = useState('')
 
   // Clock
@@ -122,49 +124,6 @@ export default function AdminLayout() {
         {/* Top bar */}
         <div className="admin-topbar">
           <div className="flex items-center gap-3">
-            {/* Profile avatar — opens Settings / Logout */}
-            <div style={{ position: 'relative', flexShrink: 0 }}>
-              <button
-                onClick={() => setProfileOpen(o => !o)}
-                title="Account"
-                aria-label="Account options"
-                style={{
-                  width: 40, height: 40, borderRadius: '50%',
-                  background: 'var(--accent)', color: '#fff', border: 'none',
-                  cursor: 'pointer', display: 'flex', alignItems: 'center',
-                  justifyContent: 'center', fontWeight: 700, fontSize: 16,
-                }}
-              >
-                {adminInitial}
-              </button>
-              {profileOpen && (
-                <>
-                  <div onClick={() => setProfileOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 60 }} />
-                  <div style={{
-                    position: 'absolute', top: 'calc(100% + 8px)', left: 0, zIndex: 61,
-                    minWidth: 210, background: 'var(--surface)', border: '1px solid var(--border)',
-                    borderRadius: 12, boxShadow: 'var(--shadow-lg)', padding: 6,
-                  }}>
-                    <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border)', marginBottom: 4 }}>
-                      <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--ink)' }}>{adminName}</div>
-                      <div style={{ fontSize: 11, color: 'var(--ink3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{admin?.email || '—'}</div>
-                    </div>
-                    <button
-                      onClick={() => { setProfileOpen(false); setSettingsOpen(true) }}
-                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink)', fontSize: 13, borderRadius: 8, textAlign: 'left' }}
-                    >
-                      <Settings size={16} /> Settings
-                    </button>
-                    <button
-                      onClick={() => { setProfileOpen(false); logout() }}
-                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red)', fontSize: 13, borderRadius: 8, textAlign: 'left' }}
-                    >
-                      <LogOut size={16} /> Logout
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
             <div>
               <h3>{title}</h3>
               <span>{subtitle}</span>
@@ -175,7 +134,17 @@ export default function AdminLayout() {
             <CommandPaletteButton />
             <SemesterCalendarChip semester={semester} />
             <span className="adm-clock hidden sm:inline">{clock}</span>
-            <ThemeToggle style={{ position: 'static', width: 32, height: 32, fontSize: 14 }} />
+            <button
+              onClick={() => setAdminTab('notifications')}
+              aria-label="Notifications"
+              title="Notifications"
+              style={{ position: 'relative', width: 36, height: 36, borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink2)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+            >
+              <Bell size={18} />
+              {unreadNotifCount > 0 && (
+                <span style={{ position: 'absolute', top: 6, right: 7, minWidth: 7, height: 7, borderRadius: '50%', background: 'var(--red)', border: '2px solid var(--surface)' }} />
+              )}
+            </button>
           </div>
         </div>
 
@@ -206,8 +175,8 @@ export default function AdminLayout() {
         </Suspense>
       )}
 
-      {/* Floating Messenger */}
-      <FloatingMessenger unreadCount={unreadMsgCount} />
+      {/* Floating Messenger — bubble hidden on mobile (opened from the nav) */}
+      <FloatingMessenger unreadCount={unreadMsgCount} open={messengerOpen} onOpenChange={setMessengerOpen} />
 
       {/* Mobile bottom nav — 5 primary destinations + More (opens drawer) */}
       <nav className="admin-bottom-nav" aria-label="Sections">
@@ -222,6 +191,13 @@ export default function AdminLayout() {
             <span className="abn-label">{t.label}</span>
           </button>
         ))}
+        <button className={`abn-item${messengerOpen ? ' active' : ''}`} onClick={() => setMessengerOpen(true)} aria-label="Messages">
+          <span className="abn-ic">
+            <MessageSquare size={20} />
+            {unreadMsgCount > 0 && <span className="abn-dot" />}
+          </span>
+          <span className="abn-label">Messages</span>
+        </button>
         <button className={`abn-item${moreOpen ? ' active' : ''}`} onClick={() => setMoreOpen(true)} aria-label="More">
           <Menu size={20} />
           <span className="abn-label">More</span>

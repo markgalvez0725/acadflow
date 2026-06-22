@@ -140,10 +140,16 @@ function ComposeModal({ onClose }) {
 }
 
 // ── Main Component ────────────────────────────────────────────────────
-export default function FloatingAdminMessenger({ unreadCount }) {
+export default function FloatingAdminMessenger({ unreadCount, open: openProp, onOpenChange }) {
   const { students, messages, db, fbReady } = useData()
   const { toast } = useUI()
-  const [open, setOpen]             = useState(false)
+  const [openLocal, setOpenLocal] = useState(false)
+  // Controllable: parent may drive open state (e.g. from the mobile nav).
+  const open = openProp !== undefined ? openProp : openLocal
+  const setOpen = (next) => {
+    const v = typeof next === 'function' ? next(open) : next
+    if (onOpenChange) onOpenChange(v); else setOpenLocal(v)
+  }
   const [activeTab, setActiveTab]   = useState('inbox')
   const [search, setSearch]         = useState('')
   const [view, setView]             = useState('list')
@@ -339,6 +345,7 @@ export default function FloatingAdminMessenger({ unreadCount }) {
     <>
       {/* FAB */}
       <button
+        className="fm-bubble"
         onClick={() => setOpen(o => !o)}
         style={{
           position: 'fixed', bottom: 'calc(86px + env(safe-area-inset-bottom, 0px))', right: 18,
