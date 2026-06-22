@@ -45,6 +45,7 @@ const QuizTab           = lazy(() => import('./tabs/QuizTab'))
 const StreamTab         = lazy(() => import('./tabs/StreamTab'))
 const CalendarTab       = lazy(() => import('./tabs/CalendarTab'))
 const OnlineClassesTab  = lazy(() => import('./tabs/OnlineClassesTab'))
+const MessagesTab       = lazy(() => import('./tabs/MessagesTab'))
 
 // Modals (lazy)
 const AdminSettingsModal = lazy(() => import('./modals/AdminSettingsModal'))
@@ -61,6 +62,7 @@ const TAB_TITLES = {
   notifications:  ['Notifications',  'Real-time alerts for messages and activity submissions'],
   calendar:       ['Calendar',       'Monthly view of activities, quizzes, and announcements'],
   onlineClasses:  ['Online Classes', 'Schedule and manage Google Meet sessions for your classes'],
+  messages:       ['Messages',       'Conversations with your students'],
 }
 
 export default function AdminLayout() {
@@ -179,6 +181,7 @@ export default function AdminLayout() {
               {adminTab === 'notifications'  && <NotificationsTab />}
               {adminTab === 'calendar'       && <CalendarTab />}
               {adminTab === 'onlineClasses' && <OnlineClassesTab />}
+              {adminTab === 'messages'      && <MessagesTab />}
             </Suspense>
           </TabErrorBoundary>
         </div>
@@ -207,7 +210,7 @@ export default function AdminLayout() {
             <span className="abn-label">{t.label}</span>
           </button>
         ))}
-        <button className={`abn-item${messengerOpen ? ' active' : ''}`} onClick={() => setMessengerOpen(true)} aria-label="Messages">
+        <button className={`abn-item${adminTab === 'messages' ? ' active' : ''}`} onClick={() => setAdminTab('messages')} aria-label="Messages">
           <span className="abn-ic">
             <MessageSquare size={20} />
             {unreadMsgCount > 0 && <span className="abn-dot" />}
