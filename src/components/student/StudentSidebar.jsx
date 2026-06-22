@@ -25,7 +25,6 @@ const NAV_GROUPS = [
       { id: 'calendar',      label: 'Calendar',       Icon: CalendarDays },
       { id: 'enrollment',    label: 'Enrollment',     Icon: ClipboardSignature },
       { id: 'onlineClasses', label: 'Online Classes', Icon: Video },
-      { id: 'notifications', label: 'Notifications',  badgeId: 'notif', Icon: Bell },
     ],
   },
 ]

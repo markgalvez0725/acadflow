@@ -5,7 +5,6 @@ import { useData } from '@/context/DataContext'
 import { useAuth } from '@/context/AuthContext'
 import ToastManager from '@/components/primitives/ToastManager'
 import Dialog from '@/components/primitives/Dialog'
-import FloatingMessenger from './FloatingMessenger'
 import StudentSidebar from './StudentSidebar'
 import { SkeletonRows, SkeletonDashboard, TabErrorBoundary } from '@/components/primitives/SkeletonLoader'
 import SemesterCalendarChip from '@/components/primitives/SemesterCalendarChip'
@@ -60,7 +59,6 @@ const MORE_NAV = [
   { id: 'calendar',      Icon: CalendarDays,        label: 'Calendar' },
   { id: 'enrollment',    Icon: ClipboardSignature,  label: 'Enrollment' },
   { id: 'onlineClasses', Icon: Video,               label: 'Meet' },
-  { id: 'notifications', Icon: Bell,                label: 'Alerts' },
 ]
 
 export default function StudentLayout() {
@@ -123,7 +121,6 @@ export default function StudentLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarExpanded, setSidebarExpanded] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024)
   const [moreOpen, setMoreOpen] = useState(false)
-  const [messengerOpen, setMessengerOpen] = useState(false)
 
   // Force change password modal
   const [forcePassOpen,    setForcePassOpen]    = useState(false)
@@ -377,9 +374,6 @@ export default function StudentLayout() {
           push={push}
         />
       </Suspense>
-
-      {/* Floating Messenger — bubble hidden on mobile (Messages is a tab there) */}
-      <FloatingMessenger student={student} messages={messages} unreadCount={unreadMsgCount} open={messengerOpen} onOpenChange={setMessengerOpen} />
 
       {/* Toast + Dialog */}
       <ToastManager toasts={toastQueue} onDismiss={dismissToast} />
