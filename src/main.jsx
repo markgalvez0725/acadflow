@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import './styles/globals.css'
+import './styles/design-system.css'
 import { registerServiceWorker } from './pwa/registerSW'
 
 // Apply saved frosted-glass preference before first paint (default: on).
