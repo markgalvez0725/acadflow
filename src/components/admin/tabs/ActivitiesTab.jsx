@@ -10,6 +10,7 @@ import Badge from '@/components/primitives/Badge'
 import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil, ClipboardList, AlarmClock, CircleDot, BarChart3, CheckCircle2, Check, Save, Plus } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { deviceRubric, deviceInstructions, aiInstructions, aiRubric, aiGrade, isNotConfigured } from '@/utils/activityAI'
+import { sendPushToOwners } from '@/firebase/pushTokens'
 
 function fmtLocalInput(d) {
   const pad = n => String(n).padStart(2, '0')
@@ -576,6 +577,30 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
     }
   }
 
+  // Manual deadline reminder: notify enrolled students who haven't submitted.
+  async function handleRemind() {
+    const missing = enrolledStudents.filter(s => !(act.submissions || {})[s.id]?.link)
+    if (!missing.length) { toast('Everyone enrolled has already submitted.', 'green'); return }
+    const ok = await openDialog({
+      title: `Remind ${missing.length} student${missing.length === 1 ? '' : 's'}?`,
+      msg: `Send a reminder to enrolled students who haven't submitted "${act.title}".`,
+      confirmLabel: 'Send reminder',
+      showCancel: true,
+    })
+    if (!ok) return
+    const ids = missing.map(s => s.id)
+    const title = `Reminder: ${act.title}`
+    const body = isPast
+      ? `${act.subject} — this activity is past due. Please submit as soon as you can.`
+      : `${act.subject} — due ${dlLabel}. Don't forget to submit.`
+    // In-app notifications (reliable) + best-effort web push.
+    if (fbReady && db.current) {
+      for (const id of ids) pushStudentNotif(db.current, id, title, body, 'activities')
+      sendPushToOwners(db.current, ids, { title, body }, { url: 'activities', tag: 'deadline-reminder' })
+    }
+    toast(`Reminder sent to ${ids.length} student${ids.length === 1 ? '' : 's'}.`, 'green')
+  }
+
   return (
     <Modal onClose={onClose} size="lg">
       <div className="flex items-start justify-between gap-3 mb-1">
@@ -754,6 +779,9 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
           <button className="btn btn-ghost btn-sm" onClick={handleApplyDefault}>Apply Missed Grade (50)</button>
         )}
         <button className="btn btn-ghost btn-sm" onClick={handleExtend}>Extend Deadline</button>
+        <button className="btn btn-ghost btn-sm" onClick={handleRemind} title="Notify enrolled students who haven't submitted">
+          <AlarmClock size={16} /> Remind Missing
+        </button>
         <button className="btn btn-ghost btn-sm" onClick={onEdit}><Pencil size={16} /> Edit</button>
         <button className="btn btn-danger btn-sm" onClick={handleDelete}>Delete</button>
         <button className="btn btn-ghost btn-sm ml-auto" onClick={onClose}>Close</button>
