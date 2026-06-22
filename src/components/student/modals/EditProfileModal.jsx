@@ -55,7 +55,10 @@ export default function EditProfileModal({ student: s, onClose }) {
   const changedAt = s.snumChangedAt || 0
   const daysSince = changedAt ? Math.floor((now - changedAt) / 86400000) : 9999
   const daysLeft  = SNUM_CHANGE_DAYS - daysSince
-  const snumLocked = changedAt && daysLeft <= 0
+  // Student numbers are managed by the teacher. Locking this on the student side
+  // keeps identity stable and lets Firestore rules forbid students from
+  // re-creating their own record (which would bypass grade protection).
+  const snumLocked = true
 
   let snumBadge = null
   let snumInfo  = ''
