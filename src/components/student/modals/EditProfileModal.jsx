@@ -73,9 +73,28 @@ export default function EditProfileModal({ student: s, onClose }) {
   function handlePhotoChange(e) {
     const file = e.target.files[0]
     if (!file) return
-    if (file.size > 2 * 1024 * 1024) { toast('Photo must be under 2 MB.', 'warn'); return }
+    if (!file.type.startsWith('image/')) { toast('Please choose an image file.', 'warn'); return }
+    if (file.size > 10 * 1024 * 1024) { toast('Photo must be under 10 MB.', 'warn'); return }
     const reader = new FileReader()
-    reader.onload = ev => setPhoto(ev.target.result)
+    reader.onload = ev => {
+      // Resize to a small square-ish thumbnail so it stays well under
+      // Firestore's 1 MB document limit and doesn't bloat roster reads.
+      const img = new Image()
+      img.onload = () => {
+        const MAX = 256
+        const scale = Math.min(1, MAX / Math.max(img.width, img.height))
+        const w = Math.max(1, Math.round(img.width * scale))
+        const h = Math.max(1, Math.round(img.height * scale))
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, w, h)
+        setPhoto(canvas.toDataURL('image/jpeg', 0.82))
+      }
+      img.onerror = () => toast('Could not read that image.', 'warn')
+      img.src = ev.target.result
+    }
     reader.readAsDataURL(file)
   }
 
