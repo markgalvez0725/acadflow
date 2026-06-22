@@ -428,3 +428,57 @@ export async function fbPushMeetingNotifs(db, meeting, students, type) {
     }));
   }
 }
+
+// ── Full backup restore ────────────────────────────────────────────────────
+// Writes a backup object (produced by DataContext.buildBackup) back to
+// Firestore. Restores durable academic data only — students, classes,
+// messages, activities, quizzes, announcements, online meetings, attendance
+// sessions, excuse requests and settings. Transient/derived collections
+// (notifications, auditLog) are intentionally NOT written back. Existing docs
+// with matching ids are overwritten; docs not present in the backup are left
+// untouched (this is a restore, not a wipe). onProgress(label, count) reports
+// progress per section.
+export async function fbRestoreFromBackup(db, backup, onProgress = () => {}) {
+  if (!db) throw new Error('Firebase not connected');
+  const d = backup?.data;
+  if (!d || typeof d !== 'object') throw new Error('Backup file has no data.');
+
+  const clone = obj => JSON.parse(JSON.stringify(obj));
+
+  // Per-doc collections keyed by an `id` field.
+  const writeColl = async (name, items) => {
+    const arr = Array.isArray(items) ? items.filter(x => x && x.id != null) : [];
+    for (let i = 0; i < arr.length; i += BATCH) {
+      await Promise.all(arr.slice(i, i + BATCH).map(it =>
+        fbWithTimeout(setDoc(doc(db, name, String(it.id)), clone(it)))
+      ));
+    }
+    onProgress(name, arr.length);
+  };
+
+  await writeColl('students', d.students);
+
+  if (Array.isArray(d.classes)) {
+    await fbWithTimeout(setDoc(doc(db, 'portal', 'classes'), { list: clone(d.classes) }));
+    onProgress('classes', d.classes.length);
+  }
+
+  await writeColl('messages', d.messages);
+  await writeColl('activities', d.activities);
+  await writeColl('quizzes', d.quizzes);
+  await writeColl('announcements', d.announcements);
+  await writeColl('onlineMeetings', d.meetings);
+  await writeColl('attendanceSessions', d.attendanceSessions);
+  await writeColl('excuseRequests', d.excuseRequests);
+
+  if (d.settings && typeof d.settings === 'object') {
+    const s = {};
+    if (Array.isArray(d.settings.equivScale)) s.equivScale = d.settings.equivScale;
+    if (d.settings.semester) s.semester = d.settings.semester;
+    if (d.settings.latePolicy) s.latePolicy = d.settings.latePolicy;
+    if (Object.keys(s).length) {
+      await fbWithTimeout(setDoc(doc(db, 'portal', 'settings'), s, { merge: true }));
+      onProgress('settings', 1);
+    }
+  }
+}

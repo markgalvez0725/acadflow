@@ -7,8 +7,9 @@ import {
   fbDeleteStudent, fbSaveAnnouncement, fbDeleteAnnouncement, fbPushAnnouncementNotifs,
   fbAddAnnouncementComment, fbAddCommentReply,
   fbSaveMeetLink, fbScheduleMeeting, fbStartMeeting, fbEndMeeting, fbCancelMeeting, fbPushMeetingNotifs,
-  fbSetSubjectRep, fbDeleteClassRelatedData, fbAddAuditLog,
+  fbSetSubjectRep, fbDeleteClassRelatedData, fbAddAuditLog, fbRestoreFromBackup,
 } from '@/firebase/persistence'
+import { serializeStudents } from '@/utils/attendance'
 import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase, saveSemesterToFirebase, saveLatePolicyToFirebase } from '@/firebase/settings'
 import { DEFAULT_LATE_POLICY, normalizeLatePolicy } from '@/utils/latePenalty'
 import { sendPushToOwners } from '@/firebase/pushTokens'
@@ -264,6 +265,45 @@ export function DataProvider({ children }) {
       console.warn('[DataContext] saveEquivScale Firebase sync failed:', e.message)
     }
   }, [])
+
+  // ── Full data backup / restore ─────────────────────────────────────────
+  // Serializes the current in-memory data (students with Sets converted to
+  // arrays) into a portable JSON object. Credentials and Firebase/EmailJS
+  // config are intentionally excluded — this is academic data, not secrets.
+  const buildBackup = useCallback(() => ({
+    app: 'acadflow',
+    version: 1,
+    exportedAt: Date.now(),
+    counts: {
+      students: students.length, classes: classes.length, messages: messages.length,
+      activities: activities.length, quizzes: quizzes.length, announcements: announcements.length,
+      meetings: meetings.length, attendanceSessions: attendanceSessions.length, excuseRequests: excuseRequests.length,
+    },
+    data: {
+      students: serializeStudents(students),
+      classes,
+      messages,
+      activities,
+      quizzes,
+      announcements,
+      meetings,
+      attendanceSessions,
+      excuseRequests,
+      adminNotifs,   // included for record; not written back on restore
+      auditLog,      // included for record; not written back on restore
+      settings: { equivScale: eqScale, semester, latePolicy },
+    },
+  }), [students, classes, messages, activities, quizzes, announcements, meetings, attendanceSessions, excuseRequests, adminNotifs, auditLog, eqScale, semester, latePolicy])
+
+  const restoreBackup = useCallback(async (backup, onProgress) => {
+    await fbRestoreFromBackup(dbRef.current, backup, onProgress)
+    logAudit({
+      action: 'data.restore',
+      target: 'Full backup',
+      summary: `Restored data from backup${backup?.exportedAt ? ' dated ' + new Date(backup.exportedAt).toLocaleString('en-PH') : ''}`,
+      meta: { counts: backup?.counts || null },
+    })
+  }, [logAudit])
 
   const saveLatePolicy = useCallback(async (policy) => {
     const norm = normalizeLatePolicy(policy)
@@ -808,6 +848,7 @@ export function DataProvider({ children }) {
       ejs, setEjs, saveEjs,
       eqScale, saveEquivScale,
       latePolicy, saveLatePolicy,
+      buildBackup, restoreBackup,
       semester, saveSemester,
       admin, setAdmin, saveAdmin,
     }}>

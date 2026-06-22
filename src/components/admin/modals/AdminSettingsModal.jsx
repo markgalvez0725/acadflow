@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react'
-import { Lightbulb } from 'lucide-react'
+import React, { useState, useMemo, useRef } from 'react'
+import { Lightbulb, Download, Upload, ShieldCheck } from 'lucide-react'
 import { doc, setDoc } from 'firebase/firestore'
 import { fbWithTimeout } from '@/firebase/firebaseInit'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
@@ -18,6 +18,7 @@ const TABS = [
   { id: 'notifs',   label: 'Notifications' },
   { id: 'eq',       label: 'Equiv Scale' },
   { id: 'late',     label: 'Late Policy' },
+  { id: 'data',     label: 'Backup' },
   { id: 'firebase', label: 'Firebase' },
 ]
 
@@ -668,6 +669,105 @@ function LatePolicyTab() {
   )
 }
 
+// ── Backup / Restore Tab ───────────────────────────────────────────────────
+function DataTab() {
+  const { buildBackup, restoreBackup, fbReady } = useData()
+  const { toast, openDialog } = useUI()
+  const fileRef = useRef(null)
+  const [restoring, setRestoring] = useState(false)
+  const [progress, setProgress]   = useState('')
+
+  function handleBackup() {
+    try {
+      const backup = buildBackup()
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `acadflow-backup-${new Date().toISOString().slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast('Backup downloaded.', 'green')
+    } catch (e) {
+      toast('Backup failed: ' + e.message, 'red')
+    }
+  }
+
+  async function handleRestoreFile(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    let backup
+    try {
+      backup = JSON.parse(await file.text())
+    } catch (err) {
+      toast('That file is not valid JSON.', 'red'); return
+    }
+    if (backup?.app !== 'acadflow' || !backup?.data) {
+      toast('This does not look like an AcadFlow backup file.', 'red'); return
+    }
+    const c = backup.counts || {}
+    const ok = await openDialog({
+      title: 'Restore from backup?',
+      msg: `This will overwrite current records with the backup${backup.exportedAt ? ' from ' + new Date(backup.exportedAt).toLocaleString('en-PH') : ''}:\n\n` +
+        `• ${c.students ?? '?'} students\n• ${c.classes ?? '?'} classes\n• ${c.activities ?? '?'} activities\n• ${c.messages ?? '?'} messages\n\n` +
+        `Records that exist now but are not in the backup are left untouched. This cannot be undone.`,
+      type: 'danger',
+      confirmLabel: 'Restore',
+      showCancel: true,
+    })
+    if (!ok) return
+    setRestoring(true)
+    setProgress('Starting…')
+    try {
+      await restoreBackup(backup, (label, count) => setProgress(`Restored ${count} ${label}…`))
+      toast('Restore complete.', 'green')
+      setProgress('Done.')
+    } catch (err) {
+      toast('Restore failed: ' + err.message, 'red')
+      setProgress('')
+    } finally {
+      setRestoring(false)
+    }
+  }
+
+  return (
+    <div>
+      <p className="modal-sub" style={{ marginBottom: 16 }}>
+        Download a full snapshot of your data (students, grades, attendance, classes, activities,
+        quizzes, announcements, messages and settings) as a single JSON file you can keep safe,
+        then restore it here if anything goes wrong. Passwords and Firebase/EmailJS config are not
+        included.
+      </p>
+
+      <div className="flex items-center justify-between gap-3 p-3 mb-3 rounded-lg" style={{ border: '1px solid var(--border)', background: 'var(--surface2)' }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--ink)' }}><Download size={14} /> Download backup</div>
+          <div className="text-xs text-ink3 mt-0.5">Saves a timestamped .json snapshot to your device.</div>
+        </div>
+        <button className="btn btn-primary btn-sm shrink-0" onClick={handleBackup} disabled={!fbReady}>Download</button>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 p-3 rounded-lg" style={{ border: '1px solid var(--border)', background: 'var(--surface2)' }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--ink)' }}><Upload size={14} /> Restore from backup</div>
+          <div className="text-xs text-ink3 mt-0.5">Overwrites matching records. Notifications and the audit log are not restored.</div>
+          {progress && <div className="text-xs mt-1" style={{ color: 'var(--accent)' }}>{progress}</div>}
+        </div>
+        <button className="btn btn-ghost btn-sm shrink-0" onClick={() => fileRef.current?.click()} disabled={restoring || !fbReady}>
+          {restoring ? 'Restoring…' : 'Choose file…'}
+        </button>
+        <input ref={fileRef} type="file" accept=".json,application/json" className="hidden" onChange={handleRestoreFile} />
+      </div>
+
+      <div className="text-xs text-ink2 mt-3" style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+        <ShieldCheck size={14} style={{ flexShrink: 0, marginTop: 1, color: 'var(--green)' }} />
+        <span>Tip: download a backup before bulk deletes, archiving a semester, or importing a large roster.</span>
+      </div>
+    </div>
+  )
+}
+
 export default function AdminSettingsModal({ onClose, push }) {
   const [activeTab, setActiveTab] = useState('semester')
 
@@ -714,6 +814,7 @@ export default function AdminSettingsModal({ onClose, push }) {
       {activeTab === 'notifs'   && <NotificationsTab push={push} />}
       {activeTab === 'eq'       && <EquivScaleTab />}
       {activeTab === 'late'     && <LatePolicyTab />}
+      {activeTab === 'data'     && <DataTab />}
       {activeTab === 'firebase' && <FirebaseTab />}
     </Modal>
   )
