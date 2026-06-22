@@ -200,9 +200,12 @@ function AddStudentModal({ onClose }) {
 
 // ── Edit Student Modal ────────────────────────────────────────────────
 function EditStudentModal({ student, onClose }) {
-  const { classes, students, saveStudents } = useData()
+  const { classes, students, saveStudents, deleteStudent } = useData()
   const { toast } = useUI()
 
+  const [name, setName]       = useState(student.name || '')
+  const [snum, setSnum]       = useState(student.id || '')
+  const isRegistered = !!student.account?.registered
   const [course, setCourse]   = useState(student.course || '')
   const [year, setYear]       = useState(student.year || '1st Year')
   const [section, setSection] = useState(student.section || '')
@@ -230,32 +233,49 @@ function EditStudentModal({ student, onClose }) {
 
   async function handleSave() {
     setErr('')
+    const trimName = name.trim()
+    const trimSnum = snum.trim().toUpperCase()
+    if (!trimName) { setErr('Full name is required.'); return }
     if (!course.trim()) { setErr('Course is required.'); return }
+
+    // Student number can only be changed before the student has an account,
+    // because their login email is derived from it.
+    const snumChanged = !isRegistered && trimSnum !== student.id
+    if (snumChanged) {
+      const sErr = validateSnum(trimSnum)
+      if (sErr) { setErr(sErr); return }
+      if (students.some(s => s.id === trimSnum)) { setErr(`Student number "${trimSnum}" already exists.`); return }
+    }
 
     const newClassId = classId || null
     const allClassIds = [...new Set([newClassId, ...extraIds].filter(Boolean))]
+    const finalId = snumChanged ? trimSnum : student.id
 
-    const updatedStudents = students.map(s => {
-      if (s.id !== student.id) return s
-      const primaryCls = classes.find(c => c.id === newClassId)
-      const finalSection = section.trim() || primaryCls?.section || ''
-      const ns = { ...s, course: course.trim(), year, section: finalSection, classId: newClassId, classIds: allClassIds, grades: { ...s.grades }, attendance: { ...s.attendance }, excuse: { ...s.excuse } }
-      if (s.gradeComponents) ns.gradeComponents = { ...s.gradeComponents }
-      allClassIds.forEach(cid => {
-        const cls = classes.find(c => c.id === cid)
-        if (!cls) return
-        cls.subjects.forEach(sub => {
-          if (ns.grades[sub] === undefined)  ns.grades[sub] = null
-          if (!ns.attendance[sub])           ns.attendance[sub] = new Set()
-          if (!ns.excuse[sub])               ns.excuse[sub] = new Set()
-        })
+    const primaryCls = classes.find(c => c.id === newClassId)
+    const finalSection = section.trim() || primaryCls?.section || ''
+    const ns = { ...student, id: finalId, name: trimName, course: course.trim(), year, section: finalSection, classId: newClassId, classIds: allClassIds, grades: { ...student.grades }, attendance: { ...student.attendance }, excuse: { ...student.excuse } }
+    if (student.gradeComponents) ns.gradeComponents = { ...student.gradeComponents }
+    allClassIds.forEach(cid => {
+      const cls = classes.find(c => c.id === cid)
+      if (!cls) return
+      cls.subjects.forEach(sub => {
+        if (ns.grades[sub] === undefined)  ns.grades[sub] = null
+        if (!ns.attendance[sub])           ns.attendance[sub] = new Set()
+        if (!ns.excuse[sub])               ns.excuse[sub] = new Set()
       })
-      return ns
     })
 
     setSaving(true)
     try {
-      await saveStudents(updatedStudents, [student.id])
+      if (snumChanged) {
+        // Re-key the record: remove the old doc, write under the new number.
+        const newList = students.filter(s => s.id !== student.id).concat(ns)
+        await deleteStudent(student.id)
+        await saveStudents(newList, [finalId])
+      } else {
+        const updatedStudents = students.map(s => s.id === student.id ? ns : s)
+        await saveStudents(updatedStudents, [finalId])
+      }
       toast('Student updated!', 'green')
       onClose()
     } catch (e) {
@@ -268,16 +288,24 @@ function EditStudentModal({ student, onClose }) {
   return (
     <Modal onClose={onClose} maxWidth={600}>
       <h3><Pencil size={18} /> Edit Student</h3>
-      <p className="modal-sub">Update student information. Name and student number cannot be changed here.</p>
+      <p className="modal-sub">Update student information.{isRegistered ? ' The student number is locked once the student has an account.' : ''}</p>
       {err && <div className="err-msg mb-3">{err}</div>}
       <div className="input-row">
         <div className="field">
-          <label>Full Name <span className="text-ink3 font-normal">(read-only — contact support to change)</span></label>
-          <input value={student.name} readOnly style={{ background: 'var(--border)', color: 'var(--ink2)', cursor: 'not-allowed' }} />
+          <label>Full Name <span className="text-red-500">*</span></label>
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="Juan dela Cruz" />
         </div>
         <div className="field">
-          <label>Student Number <span className="text-ink3 font-normal">(read-only)</span></label>
-          <input value={student.id} readOnly style={{ background: 'var(--border)', color: 'var(--ink2)', cursor: 'not-allowed' }} />
+          <label>Student Number {isRegistered
+            ? <span className="text-ink3 font-normal">(locked — student has an account)</span>
+            : <span className="text-red-500">*</span>}</label>
+          <input
+            value={snum}
+            onChange={e => setSnum(e.target.value)}
+            readOnly={isRegistered}
+            maxLength={15}
+            style={isRegistered ? { background: 'var(--border)', color: 'var(--ink2)', cursor: 'not-allowed' } : {}}
+          />
         </div>
       </div>
       <div className="input-row">
