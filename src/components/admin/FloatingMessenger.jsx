@@ -6,7 +6,7 @@ import { sortByLastName } from '@/utils/format'
 import { notifyStudentMessage, notifyStudentsBroadcast } from '@/firebase/messageNotify'
 import { fbAddMessageReply } from '@/firebase/persistence'
 import Modal from '@/components/primitives/Modal'
-import { MessageSquare, X } from 'lucide-react'
+import { MessageSquare, X, Pencil, Send, CheckCheck, Megaphone } from 'lucide-react'
 
 // ── Helpers ───────────────────────────────────────────────────────────
 function msgId() {
@@ -91,17 +91,17 @@ function ComposeModal({ onClose }) {
 
   return (
     <Modal onClose={onClose} size="md">
-      <h3 className="text-lg font-bold text-ink mb-1">✏️ New Message</h3>
+      <h3 className="text-lg font-bold text-ink mb-1"><Pencil size={18} /> New Message</h3>
       <p className="text-xs text-ink2 mb-4">Send a direct message or announcement to students.</p>
 
       <div className="field mb-3">
         <label className="text-xs font-semibold text-ink2 mb-1 block">To</label>
         <select className="input w-full" value={to} onChange={e => setTo(e.target.value)}>
-          <option value="all">📢 All Students (Announcement)</option>
+          <option value="all">All Students (Announcement)</option>
           {Object.keys(classGroups).sort().map(label => {
             const grp = classGroups[label]
             const cls = classes.find(c => c.id === grp[0]?.classId)
-            if (cls) return <option key={'class:' + cls.id} value={'class:' + cls.id}>📋 All in {label}</option>
+            if (cls) return <option key={'class:' + cls.id} value={'class:' + cls.id}>All in {label}</option>
             return null
           })}
           <option disabled>── Individual Students ──</option>
@@ -132,7 +132,7 @@ function ComposeModal({ onClose }) {
       <div className="modal-footer">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
         <button className="btn btn-primary" onClick={handleSend} disabled={sending}>
-          {sending ? 'Sending…' : '📤 Send Message'}
+          {sending ? 'Sending…' : <><Send size={16} /> Send Message</>}
         </button>
       </div>
     </Modal>
@@ -385,7 +385,7 @@ export default function FloatingAdminMessenger({ unreadCount }) {
               {view === 'list' ? 'Messages' : (thread?.headerName || 'Messages')}
             </span>
             {view === 'list' && (
-              <button className="btn btn-primary btn-sm" style={{ fontSize: 11, padding: '2px 10px', flexShrink: 0 }} onClick={() => setShowCompose(true)}>✏️ New</button>
+              <button className="btn btn-primary btn-sm" style={{ fontSize: 11, padding: '2px 10px', flexShrink: 0 }} onClick={() => setShowCompose(true)}><Pencil size={14} /> New</button>
             )}
             <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink3)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
               <X size={16} />
@@ -468,7 +468,7 @@ export default function FloatingAdminMessenger({ unreadCount }) {
                         onClick={() => openMessage(m.id)}
                         style={{ cursor: 'pointer' }}
                       >
-                        <div className="msg-conv-avatar announce-avatar">{activeTab === 'announce' ? '📢' : getInitials(recipientName)}</div>
+                        <div className="msg-conv-avatar announce-avatar">{activeTab === 'announce' ? <Megaphone size={18} /> : getInitials(recipientName)}</div>
                         <div className="msg-conv-body">
                           <div className="msg-conv-name">→ {recipientName}</div>
                           <div className="msg-conv-preview">{m.subject + ' — ' + preview}</div>
@@ -511,7 +511,7 @@ export default function FloatingAdminMessenger({ unreadCount }) {
                       <div className={`msg-meta${isAdmin ? ' msg-meta-sent' : ' msg-meta-recv'}`} style={{ fontSize: 10 }}>
                         {entry.senderLabel} · {date}
                         {isAdmin && (
-                          <span className={`msg-tick${entry.studentRead ? ' msg-tick-read' : ''}`} title={entry.readTitle}>✓✓</span>
+                          <span className={`msg-tick${entry.studentRead ? ' msg-tick-read' : ''}`} title={entry.readTitle}><CheckCheck size={14} /></span>
                         )}
                       </div>
                     </div>
@@ -536,7 +536,7 @@ export default function FloatingAdminMessenger({ unreadCount }) {
                   onClick={handleReply}
                   disabled={sending || !replyText.trim()}
                 >
-                  {sending ? '…' : '➤'}
+                  {sending ? '…' : <Send size={16} />}
                 </button>
               </div>
             </div>
