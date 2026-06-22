@@ -9,6 +9,7 @@ import { notifyStudentsBroadcast } from '@/firebase/messageNotify'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
+import KebabMenu from '@/components/primitives/KebabMenu'
 import { Download, Upload, FileDown, KeyRound, GraduationCap, CheckCircle2, Pencil, Plus, Save, BookOpen, Check, Users, ClipboardList, Hourglass, Send } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { buildStudentReportCard } from '@/export/reportCard'
@@ -809,16 +810,33 @@ export default function StudentsTab() {
   const [resetStudent, setResetStudent]   = useState(null)
   const [selected, setSelected]           = useState(() => new Set())
   const [showMessage, setShowMessage]     = useState(false)
+  const [statusFilter, setStatusFilter]   = useState('all') // 'all' | 'assigned' | 'unassigned'
+
+  // A student is "assigned" when they're enrolled in at least one existing class.
+  const isAssigned = (s) => {
+    const ids = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
+    return ids.some(id => classes.some(c => c.id === id))
+  }
+
+  const counts = useMemo(() => {
+    let assigned = 0
+    students.forEach(s => { if (isAssigned(s)) assigned++ })
+    return { all: students.length, assigned, unassigned: students.length - assigned }
+  }, [students, classes])
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    return students.filter(s =>
-      s.name?.toLowerCase().includes(q) ||
-      s.id?.toLowerCase().includes(q) ||
-      (s.course || '').toLowerCase().includes(q) ||
-      (s.account?.email || '').toLowerCase().includes(q)
-    )
-  }, [students, search])
+    return students.filter(s => {
+      if (statusFilter === 'assigned'   && !isAssigned(s)) return false
+      if (statusFilter === 'unassigned' &&  isAssigned(s)) return false
+      return (
+        s.name?.toLowerCase().includes(q) ||
+        s.id?.toLowerCase().includes(q) ||
+        (s.course || '').toLowerCase().includes(q) ||
+        (s.account?.email || '').toLowerCase().includes(q)
+      )
+    })
+  }, [students, search, statusFilter, classes])
 
   const sorted = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1
@@ -953,6 +971,19 @@ export default function StudentsTab() {
         </div>
       </div>
 
+      {/* Status segments — separate assigned vs unassigned students */}
+      <div className="seg-filter mb-3">
+        {[['all', 'All', counts.all], ['assigned', 'With Class', counts.assigned], ['unassigned', 'Unassigned', counts.unassigned]].map(([k, label, n]) => (
+          <button
+            key={k}
+            className={`seg-btn${statusFilter === k ? ' active' : ''}`}
+            onClick={() => { setStatusFilter(k); setPage(1) }}
+          >
+            {label} <span className="seg-count">{n}</span>
+          </button>
+        ))}
+      </div>
+
       {/* Search + per-page */}
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <input
@@ -1056,32 +1087,14 @@ export default function StudentsTab() {
                             ? <Badge variant="green" style={{ fontSize: 11 }}><Check size={12} /> Active</Badge>
                             : <Badge variant="yellow" style={{ fontSize: 11 }}><Hourglass size={12} /> Pending</Badge>}
                       </td>
-                      <td>
-                        <div className="stu-actions-cell">
-                          <button className="btn btn-ghost btn-sm" onClick={() => setEditStudent(s)} title="Edit">
-                            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1 12l1.5-.4 7-7a1 1 0 000-1.4L8.8 2.5a1 1 0 00-1.4 0l-7 7L1 12z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/></svg>
-                            Edit
-                          </button>
-                          {s.account?.registered && (
-                            <button
-                              className="btn btn-ghost btn-sm"
-                              onClick={() => setResetStudent(s)}
-                              title="Reset password"
-                              aria-label={`Reset password for ${s.name}`}
-                            >
-                              <KeyRound size={13} />
-                            </button>
-                          )}
-                          <button className="btn btn-ghost btn-sm" onClick={() => setExportStudent(s)} title="Export student report" aria-label={`Export report for ${s.name}`}>
-                            <FileDown size={13} />
-                          </button>
-                          <button className="btn btn-ghost btn-sm" onClick={() => buildStudentReportCard(s, { classes, students, eqScale, semester })} title="Download report card (PDF)" aria-label={`Download report card for ${s.name}`}>
-                            <GraduationCap size={13} />
-                          </button>
-                          <button className="btn btn-danger btn-sm" onClick={() => handleDelete(s)} title="Delete" aria-label={`Delete ${s.name}`}>
-                            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true"><path d="M1.5 3h10M4.5 3V2h4v1M2.5 3l.6 7.5h5.8l.6-7.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                          </button>
-                        </div>
+                      <td style={{ textAlign: 'right' }}>
+                        <KebabMenu label={`Actions for ${s.name}`} items={[
+                          { label: 'Edit', onClick: () => setEditStudent(s) },
+                          s.account?.registered && { label: 'Reset password', onClick: () => setResetStudent(s) },
+                          { label: 'Export report', onClick: () => setExportStudent(s) },
+                          { label: 'Report card (PDF)', onClick: () => buildStudentReportCard(s, { classes, students, eqScale, semester }) },
+                          { label: 'Delete', onClick: () => handleDelete(s), danger: true },
+                        ]} />
                       </td>
                     </tr>
                   )

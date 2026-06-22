@@ -6,6 +6,7 @@ import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, Chevro
 import DOMPurify from 'dompurify'
 import { v4 as uuidv4 } from 'uuid'
 import ExpandableHtml from '@/components/primitives/ExpandableHtml'
+import KebabMenu from '@/components/primitives/KebabMenu'
 
 const PAGE_SIZE = 10
 
@@ -588,50 +589,6 @@ function AnnouncementDetailModal({ ann, classes, onClose, onEdit }) {
         </div>
       </div>
     </Modal>
-  )
-}
-
-// Three-dots overflow menu. `items` is an array of { label, onClick, danger }
-// (falsy entries are skipped). Closes on outside click / Escape.
-function KebabMenu({ items, label = 'Post actions' }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-  useEffect(() => {
-    if (!open) return
-    const onDoc = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    const onKey = e => { if (e.key === 'Escape') setOpen(false) }
-    document.addEventListener('mousedown', onDoc)
-    document.addEventListener('keydown', onKey)
-    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey) }
-  }, [open])
-
-  const visible = (items || []).filter(Boolean)
-  if (!visible.length) return null
-
-  return (
-    <div ref={ref} className="kebab" onClick={e => e.stopPropagation()}>
-      <button
-        type="button"
-        className="kebab-trigger"
-        aria-label={label}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen(o => !o)}
-      >⋮</button>
-      {open && (
-        <div role="menu" className="kebab-menu">
-          {visible.map((it, i) => (
-            <button
-              key={i}
-              role="menuitem"
-              type="button"
-              className={`kebab-item${it.danger ? ' kebab-item--danger' : ''}`}
-              onClick={() => { setOpen(false); it.onClick?.() }}
-            >{it.label}</button>
-          ))}
-        </div>
-      )}
-    </div>
   )
 }
 
