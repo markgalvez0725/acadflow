@@ -719,6 +719,7 @@ export default function StudentsTab() {
   const [editStudent, setEditStudent]     = useState(null)
   const [exportStudent, setExportStudent] = useState(null)
   const [resetStudent, setResetStudent]   = useState(null)
+  const [selected, setSelected]           = useState(() => new Set())
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -766,6 +767,45 @@ export default function StudentsTab() {
   function SortIcon({ col }) {
     if (sortCol !== col) return <span className="stu-sort-icon">↕</span>
     return <span className={`stu-sort-icon ${sortDir}`}>{sortDir === 'asc' ? '↑' : '↓'}</span>
+  }
+
+  // ── Bulk selection ────────────────────────────────────────────────────
+  const allPageSelected = slice.length > 0 && slice.every(s => selected.has(s.id))
+  function toggleOne(id) {
+    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+  function toggleAllPage() {
+    setSelected(prev => {
+      const n = new Set(prev)
+      if (slice.every(s => n.has(s.id))) slice.forEach(s => n.delete(s.id))
+      else slice.forEach(s => n.add(s.id))
+      return n
+    })
+  }
+  function clearSelection() { setSelected(new Set()) }
+
+  function handleExportSelected() {
+    exportRosterCSV(students.filter(s => selected.has(s.id)), classes)
+  }
+
+  async function handleBulkDelete() {
+    const ids = [...selected]
+    if (!ids.length) return
+    const ok = await openDialog({
+      title: `Delete ${ids.length} student${ids.length === 1 ? '' : 's'}?`,
+      msg: 'All grades and attendance records for the selected students will be permanently deleted. This cannot be undone.',
+      type: 'danger',
+      confirmLabel: `Delete ${ids.length}`,
+      showCancel: true,
+    })
+    if (!ok) return
+    let done = 0
+    for (const id of ids) {
+      try { await deleteStudent(id); done++ } catch (e) {}
+    }
+    clearSelection()
+    setPage(1)
+    toast(`Deleted ${done} student${done === 1 ? '' : 's'}.`, done ? 'green' : 'red')
   }
 
   async function handleDelete(s) {
@@ -823,6 +863,18 @@ export default function StudentsTab() {
         </select>
       </div>
 
+      {/* Bulk action bar — appears when one or more students are selected */}
+      {selected.size > 0 && (
+        <div className="flex items-center gap-2 mb-3 flex-wrap" style={{ padding: '8px 12px', borderRadius: 10, background: 'var(--accent-l)', border: '1px solid var(--border)' }}>
+          <span style={{ fontWeight: 600, fontSize: 13 }}>{selected.size} selected</span>
+          <button className="btn btn-ghost btn-sm" onClick={handleExportSelected} title="Export selected students as CSV">
+            <Download size={13} /> Export selected
+          </button>
+          <button className="btn btn-danger btn-sm" onClick={handleBulkDelete}>Delete selected</button>
+          <button className="btn btn-ghost btn-sm" onClick={clearSelection} style={{ marginLeft: 'auto' }}>Clear</button>
+        </div>
+      )}
+
       {/* Table */}
       {!sorted.length ? (
         <div className="empty"><div className="empty-icon"><Users size={40} /></div>{search ? 'No students match your search.' : 'No students yet.'}</div>
@@ -832,6 +884,9 @@ export default function StudentsTab() {
             <table className="tbl">
               <thead>
                 <tr>
+                  <th style={{ width: 32, textAlign: 'center' }}>
+                    <input type="checkbox" aria-label="Select all students on this page" checked={allPageSelected} onChange={toggleAllPage} style={{ width: 'auto', margin: 0, cursor: 'pointer' }} />
+                  </th>
                   <th onClick={() => toggleSort('name')} style={{ cursor: 'pointer' }}>Name <SortIcon col="name" /></th>
                   <th onClick={() => toggleSort('id')} style={{ cursor: 'pointer' }}>Stn. No. <SortIcon col="id" /></th>
                   <th onClick={() => toggleSort('course')} style={{ cursor: 'pointer' }}>Course <SortIcon col="course" /></th>
@@ -847,7 +902,10 @@ export default function StudentsTab() {
                   const enrolledClasses = enrolledIds.map(id => classes.find(c => c.id === id)).filter(Boolean)
                   const initial = (s.name || '?').charAt(0).toUpperCase()
                   return (
-                    <tr key={s.id}>
+                    <tr key={s.id} style={selected.has(s.id) ? { background: 'var(--accent-l)' } : undefined}>
+                      <td style={{ textAlign: 'center' }}>
+                        <input type="checkbox" aria-label={`Select ${s.name}`} checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} style={{ width: 'auto', margin: 0, cursor: 'pointer' }} />
+                      </td>
                       <td>
                         <div className="stu-name-cell">
                           <div className="stu-avatar">{initial}</div>
