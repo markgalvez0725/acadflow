@@ -1,12 +1,25 @@
 import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react'
-import { verifyPassword, hashPassword } from '@/utils/crypto'
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth'
+import { doc, getDoc } from 'firebase/firestore'
+import { hashPassword } from '@/utils/crypto'
 import { genOTP, verifyOTP, consumeOTP } from '@/utils/otp'
 import { isLockedOut, recordFailedAttempt, clearAttempts } from '@/utils/validate'
+import { getFbAuth, getDb } from '@/firebase/firebaseInit'
+import { ADMIN_EMAIL, studentEmail, studentDocId } from '@/constants/auth'
 
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
 const SESSION_KEY = 'cp_session'
 const LAST_LOGIN_PREFIX = 'cp_lastlogin_'
-const DEFAULT_PASS = 'Welcome@2026'
+
+// Map Firebase Auth error codes to friendly, non-leaky messages.
+function friendlyAuthError(e) {
+  const c = (e && e.code) || ''
+  if (c.includes('too-many-requests')) return 'Too many attempts. Please wait a few minutes and try again.'
+  if (c.includes('network'))           return 'Network error. Check your connection and try again.'
+  if (c.includes('user-disabled'))     return 'This account has been disabled. Please contact your teacher.'
+  if (c.includes('operation-not-allowed')) return 'Sign-in is not enabled yet. Ask the admin to turn on Email/Password sign-in.'
+  return 'Incorrect login details. Please try again.'
+}
 
 const AuthContext = createContext(null)
 
@@ -114,72 +127,68 @@ export function AuthProvider({ children }) {
     } catch (e) {}
   }
 
-  // ── Admin login ─────────────────────────────────────────────────────────
-  const loginAdmin = useCallback(async (username, password, admin) => {
+  // ── Admin login (Firebase Auth) ───────────────────────────────────────────
+  // Signs in with the fixed admin email; only the password is variable, so a
+  // non-admin Firebase user can never gain the admin role here.
+  const loginAdmin = useCallback(async (_username, password) => {
     const lockMsg = isLockedOut('admin')
     if (lockMsg) return { ok: false, msg: lockMsg }
+    const auth = getFbAuth()
+    if (!auth) return { ok: false, msg: 'Authentication is still starting. Please wait a moment and try again.' }
 
-    const userMatch = username.trim().toLowerCase() === (admin.user || 'admin').toLowerCase()
-    const passMatch = await verifyPassword(password, admin.pass)
-
-    if (!userMatch || !passMatch) {
+    try {
+      const cred = await signInWithEmailAndPassword(auth, ADMIN_EMAIL, password)
+      if ((cred.user.email || '').toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+        await signOut(auth)
+        recordFailedAttempt('admin')
+        return { ok: false, msg: 'This is not the admin account.' }
+      }
+    } catch (e) {
       recordFailedAttempt('admin')
-      return { ok: false, msg: 'Invalid username or password.' }
+      return { ok: false, msg: friendlyAuthError(e) }
     }
     clearAttempts('admin')
     _startSession('admin')
     return { ok: true }
   }, [])
 
-  // ── Student login ───────────────────────────────────────────────────────
-  const loginStudent = useCallback(async (studentId, password, students) => {
-    const key = 'student_' + studentId
+  // ── Student login (Firebase Auth) ─────────────────────────────────────────
+  const loginStudent = useCallback(async (studentId, password) => {
+    const snum = (studentId || '').trim()
+    const key = 'student_' + snum.toLowerCase()
     const lockMsg = isLockedOut(key)
     if (lockMsg) return { ok: false, msg: lockMsg }
+    const auth = getFbAuth()
+    if (!auth) return { ok: false, msg: 'Authentication is still starting. Please wait a moment and try again.' }
 
-    const student = students.find(s => s.id.toLowerCase() === studentId.trim().toLowerCase())
-    if (!student) {
+    try {
+      await signInWithEmailAndPassword(auth, studentEmail(snum), password)
+    } catch (e) {
       recordFailedAttempt(key)
-      return { ok: false, msg: 'Student ID not found.' }
-    }
-    const storedHash = student.account?.pass ?? student.pass
-    let match = await verifyPassword(password, storedHash)
-    // Fallback: any student who has not fully set up their account can log in
-    // with the default password and will be forced to change it on first login.
-    // This covers: no account at all, imported students (_tempPass), and any
-    // existing student whose account is not yet marked as registered.
-    const notRegistered = !student.account?.registered
-    if (!match && password === DEFAULT_PASS && notRegistered) {
-      match = true
-    }
-    if (!match) {
-      recordFailedAttempt(key)
-      return { ok: false, msg: 'Incorrect password.' }
+      return { ok: false, msg: friendlyAuthError(e) }
     }
     clearAttempts(key)
-    // Also force password change if the student logged in with the default password,
-    // regardless of account flags — ensures no account bypasses the change requirement.
-    const usedDefaultPass = password === DEFAULT_PASS
-    const needsPassSetup = notRegistered || student.forceChangePassword || usedDefaultPass
 
-    // Record first login timestamp when student uses a temp/default password
-    // for the first time. Fire-and-forget — never blocks session start.
-    let sessionStudent = student
-    if ((student.account?._tempPass || (notRegistered && password === DEFAULT_PASS)) && !student.account?.firstLoginAt) {
-      const now = Date.now()
-      sessionStudent = {
-        ...student,
-        account: { ...student.account, firstLoginAt: now },
-      }
+    // Confirm a roster record exists, then let StudentLayout resolve the full
+    // (deserialized) record from the live students list via the _pending flag.
+    let exists = false
+    try {
+      const snap = await getDoc(doc(getDb(), 'students', studentDocId(snum)))
+      exists = snap.exists()
+    } catch (e) {}
+    if (!exists) {
+      await signOut(auth)
+      return { ok: false, msg: 'Your student record was not found. Please contact your teacher.' }
     }
 
-    _startSession('student', sessionStudent)
-    return { ok: true, student: sessionStudent, forceChange: needsPassSetup }
+    _startSession('student', { id: studentDocId(snum), _pending: true })
+    return { ok: true, student: { id: studentDocId(snum) } }
   }, [])
 
   // ── Logout ──────────────────────────────────────────────────────────────
   const logout = useCallback((reason) => {
     clearTimeout(sessionTimerRef.current)
+    try { const a = getFbAuth(); if (a) signOut(a) } catch (e) {}
     try { localStorage.removeItem(SESSION_KEY) } catch (e) {}
     otpSessionsRef.current = {}
     setSessionRole(null)
