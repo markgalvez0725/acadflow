@@ -473,7 +473,7 @@ const FB_FIELDS = [
 
 function FirebaseTab() {
   const { fbReady, fbConfig, reinitFirebase } = useData()
-  const { toast } = useUI()
+  const { toast, openDialog } = useUI()
 
   const envConfig = getFbConfigFromEnv()
   const usingEnv  = !!envConfig
@@ -520,6 +520,14 @@ function FirebaseTab() {
   }
 
   async function handleClear() {
+    const ok = await openDialog({
+      title: 'Clear Firebase config?',
+      msg: 'This disconnects the app from your database on this device. You will need to re-enter the config to reconnect.',
+      type: 'danger',
+      confirmLabel: 'Clear config',
+      showCancel: true,
+    })
+    if (!ok) return
     localStorage.removeItem('cp_firebase_enc')
     localStorage.removeItem('cp_firebase')
     setFields({ apiKey: '', authDomain: '', projectId: '', storageBucket: '', messagingSenderId: '', appId: '' })
