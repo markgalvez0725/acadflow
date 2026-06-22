@@ -116,8 +116,10 @@ export default function MessagesTab({ student: s, messages }) {
       setView('thread')
       return
     }
-    // Mark all teacher messages as read (including those with new replies)
-    const teacherMsgIds = directMsgs.filter(m => m.from !== s.id).map(m => m.id)
+    // Mark the whole conversation read — including the student's own messages
+    // that received a teacher reply, otherwise their readAt never updates and
+    // the unread badge stays lit after reading.
+    const teacherMsgIds = directMsgs.map(m => m.id)
     markRead(teacherMsgIds)
     const lastMsg = directMsgs[directMsgs.length - 1]
     setReplyMsgId(lastMsg.id)
