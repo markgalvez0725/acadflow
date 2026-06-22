@@ -866,18 +866,19 @@ export default function StudentsTab() {
                               className="btn btn-ghost btn-sm"
                               onClick={() => setResetStudent(s)}
                               title="Reset password"
+                              aria-label={`Reset password for ${s.name}`}
                             >
                               <KeyRound size={13} />
                             </button>
                           )}
-                          <button className="btn btn-ghost btn-sm" onClick={() => setExportStudent(s)} title="Export student report">
+                          <button className="btn btn-ghost btn-sm" onClick={() => setExportStudent(s)} title="Export student report" aria-label={`Export report for ${s.name}`}>
                             <FileDown size={13} />
                           </button>
-                          <button className="btn btn-ghost btn-sm" onClick={() => buildStudentReportCard(s, { classes, students, eqScale, semester })} title="Download report card (PDF)">
+                          <button className="btn btn-ghost btn-sm" onClick={() => buildStudentReportCard(s, { classes, students, eqScale, semester })} title="Download report card (PDF)" aria-label={`Download report card for ${s.name}`}>
                             <GraduationCap size={13} />
                           </button>
-                          <button className="btn btn-danger btn-sm" onClick={() => handleDelete(s)} title="Delete">
-                            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1.5 3h10M4.5 3V2h4v1M2.5 3l.6 7.5h5.8l.6-7.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          <button className="btn btn-danger btn-sm" onClick={() => handleDelete(s)} title="Delete" aria-label={`Delete ${s.name}`}>
+                            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true"><path d="M1.5 3h10M4.5 3V2h4v1M2.5 3l.6 7.5h5.8l.6-7.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
                           </button>
                         </div>
                       </td>
