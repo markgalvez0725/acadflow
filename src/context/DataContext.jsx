@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react'
-import { fbInit, getFbConfigFromEnv } from '@/firebase/firebaseInit'
+import { onAuthStateChanged } from 'firebase/auth'
+import { fbInit, getFbConfigFromEnv, getFbAuth } from '@/firebase/firebaseInit'
 import { fbStartListening, stopListening } from '@/firebase/listeners'
 import {
   persistStudentsSync, persistClassesSync, persistAdmin, loadAdminFromStorage,
@@ -40,13 +41,14 @@ export function DataProvider({ children }) {
   const [admin, setAdmin]               = useState({ user: 'admin', pass: 'Admin@1234', email: 'admin@school.edu', resetPin: null })
 
   const _bootstrapping = useRef(false)
+  const _authUnsubRef  = useRef(null)
 
   // ── Bootstrap Firebase on mount ─────────────────────────────────────────
   useEffect(() => {
     if (_bootstrapping.current) return
     _bootstrapping.current = true
     _bootstrap()
-    return () => stopListening()
+    return () => { stopListening(); if (_authUnsubRef.current) _authUnsubRef.current() }
   }, [])
 
   async function _bootstrap() {
@@ -71,46 +73,61 @@ export function DataProvider({ children }) {
     dbRef.current = db
     setFbReady(true)
 
-    // 3. Load admin credentials (Firebase primary, localStorage fallback)
-    // Firebase is preferred to always pick up credential changes made in the console.
-    const fbAdmin = await syncAdminFromFirebase(db)
-    if (fbAdmin) {
-      setAdmin(fbAdmin)
-      await persistAdmin(null, fbAdmin)
-    } else {
-      const local = await loadAdminFromStorage()
-      if (local?.pass) setAdmin(local)
+    // Load admin info, settings, and start real-time listeners. All Firestore
+    // reads happen here so they can be gated behind authentication below.
+    const loadData = async () => {
+      // Admin record (display only — login itself is via Firebase Auth).
+      try {
+        const fbAdmin = await syncAdminFromFirebase(db)
+        if (fbAdmin) { setAdmin(fbAdmin); await persistAdmin(null, fbAdmin) }
+        else { const local = await loadAdminFromStorage(); if (local?.pass) setAdmin(local) }
+      } catch (e) {}
+
+      // Portal settings (equiv scale, semester).
+      try {
+        const settings = await syncSettingsFromFirebase(db)
+        if (settings?.equivScale) setEqScale(settings.equivScale)
+        if (settings?.semester) setSemester(settings.semester)
+      } catch (e) {}
+
+      // Real-time listeners.
+      fbStartListening(db, {
+        onStudentsUpdate: setStudents,
+        onClassesUpdate:    setClasses,
+        onMessagesUpdate:   setMessages,
+        onActivitiesUpdate: setActivities,
+        onAdminNotifUpdate: setAdminNotifs,
+        onQuizzesUpdate:    setQuizzes,
+        onAnnouncementsUpdate: setAnnouncements,
+        onMeetingsUpdate: setMeetings,
+        onAttendanceSessionsUpdate: setAttendanceSessions,
+        onExcuseRequestsUpdate: setExcuseRequests,
+        onConfigUpdate: ({ ejsConfig }) => {
+          if (ejsConfig) {
+            setEjs({ ...ejsConfig, configured: true })
+          }
+        },
+        onSettingsUpdate: data => {
+          if (Array.isArray(data?.equivScale) && data.equivScale.length === DEFAULT_EQ_SCALE.length) {
+            setEqScale(data.equivScale)
+          }
+          if (data?.semester) setSemester(data.semester)
+        },
+      })
     }
 
-    // 4. Load portal settings (equiv scale, semester)
-    const settings = await syncSettingsFromFirebase(db)
-    if (settings?.equivScale) setEqScale(settings.equivScale)
-    if (settings?.semester) setSemester(settings.semester)
-
-    // 5. Start real-time listeners
-    fbStartListening(db, {
-      onStudentsUpdate: setStudents,
-      onClassesUpdate:    setClasses,
-      onMessagesUpdate:   setMessages,
-      onActivitiesUpdate: setActivities,
-      onAdminNotifUpdate: setAdminNotifs,
-      onQuizzesUpdate:    setQuizzes,
-      onAnnouncementsUpdate: setAnnouncements,
-      onMeetingsUpdate: setMeetings,
-      onAttendanceSessionsUpdate: setAttendanceSessions,
-      onExcuseRequestsUpdate: setExcuseRequests,
-      onConfigUpdate: ({ ejsConfig }) => {
-        if (ejsConfig) {
-          setEjs({ ...ejsConfig, configured: true })
-        }
-      },
-      onSettingsUpdate: data => {
-        if (Array.isArray(data?.equivScale) && data.equivScale.length === DEFAULT_EQ_SCALE.length) {
-          setEqScale(data.equivScale)
-        }
-        if (data?.semester) setSemester(data.semester)
-      },
-    })
+    // Gate all data loading behind sign-in so locked Firestore rules
+    // (require auth) don't reject reads. Runs on sign-in; stops on sign-out.
+    const auth = getFbAuth()
+    if (!auth) {
+      await loadData()
+    } else {
+      let started = false
+      _authUnsubRef.current = onAuthStateChanged(auth, (user) => {
+        if (user && !started) { started = true; loadData() }
+        else if (!user && started) { started = false; stopListening() }
+      })
+    }
 
     // Security: remove any plaintext Firebase config from localStorage
     setTimeout(() => { try { localStorage.removeItem('cp_firebase') } catch (e) {} }, 3000)
