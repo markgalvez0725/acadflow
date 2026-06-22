@@ -3,6 +3,7 @@ import { Lightbulb } from 'lucide-react'
 import { doc, setDoc } from 'firebase/firestore'
 import { fbWithTimeout } from '@/firebase/firebaseInit'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
+import ThemeToggle from '@/components/primitives/ThemeToggle'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { encryptFbConfig, loadFbConfigFromStorage } from '@/utils/crypto'
@@ -600,6 +601,15 @@ export default function AdminSettingsModal({ onClose, push }) {
   return (
     <Modal onClose={onClose} size="lg">
       <ModalHeader title="Admin Settings" onClose={onClose} />
+
+      {/* Appearance — theme toggle */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '4px 0 16px', marginBottom: 16, borderBottom: '1px solid var(--border)' }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--ink)' }}>Appearance</div>
+          <div style={{ fontSize: 12, color: 'var(--ink3)' }}>Switch between light and dark mode</div>
+        </div>
+        <ThemeToggle style={{ position: 'static', width: 38, height: 38, fontSize: 15, flexShrink: 0 }} />
+      </div>
 
       {/* Tab bar */}
       <div className="flex gap-1 mb-5" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
