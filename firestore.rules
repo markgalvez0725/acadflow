@@ -58,6 +58,11 @@ service cloud.firestore {
     // Online meetings are scheduled and controlled by the teacher.
     match /onlineMeetings/{docId}     { allow read: if signedIn(); allow write: if isAdmin(); }
 
+    // Audit log: append-only history of admin actions (grade edits, deletions).
+    // Teacher-only — written by the admin client and read only in the Audit Log
+    // tab. The cron uses the service account, which bypasses these rules.
+    match /auditLog/{docId}           { allow read, write: if isAdmin(); }
+
     // ── Shared collections students legitimately write to ────────────────
     match /messages/{docId}           { allow read, write: if signedIn(); }
     match /activities/{docId}         { allow read, write: if signedIn(); }
