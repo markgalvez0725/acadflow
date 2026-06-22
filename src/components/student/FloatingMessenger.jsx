@@ -5,7 +5,7 @@ import { useUI } from '@/context/UIContext'
 import { relativeTime } from '@/utils/format'
 import { notifyAdminMessage } from '@/firebase/messageNotify'
 import { fbAddMessageReply, fbMarkMessageRead } from '@/firebase/persistence'
-import { MessageSquare, GraduationCap, CheckCheck, X } from 'lucide-react'
+import { MessageSquare, GraduationCap, CheckCheck, X, Send } from 'lucide-react'
 
 function getStudentMessages(messages, s) {
   const id = s.id
@@ -345,7 +345,7 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
                   onClick={sendReply}
                   disabled={sending || !replyText.trim()}
                 >
-                  {sending ? '…' : '➤'}
+                  {sending ? '…' : <Send size={16} />}
                 </button>
               </div>
             </div>
