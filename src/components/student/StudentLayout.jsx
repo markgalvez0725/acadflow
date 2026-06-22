@@ -13,7 +13,7 @@ import CommandPaletteButton from '@/components/primitives/CommandPaletteButton'
 import ConnectionStatus from '@/components/primitives/ConnectionStatus'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { activeClasses, activeClassIds } from '@/utils/active'
-import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut } from 'lucide-react'
+import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare } from 'lucide-react'
 
 // Lazy-load tabs
 const StreamTab        = lazy(() => import('./tabs/StreamTab'))
@@ -26,6 +26,7 @@ const StudentQuizTab   = lazy(() => import('./tabs/QuizTab'))
 const CalendarTab      = lazy(() => import('./tabs/CalendarTab'))
 const OnlineClassesTab = lazy(() => import('./tabs/OnlineClassesTab'))
 const EnrollmentTab    = lazy(() => import('./tabs/EnrollmentTab'))
+const MessagesTab      = lazy(() => import('./tabs/MessagesTab'))
 
 // Lazy-load modals
 const EditProfileModal         = lazy(() => import('./modals/EditProfileModal'))
@@ -43,6 +44,7 @@ const TAB_TITLES = {
   calendar:      ['Calendar',       'Deadlines and events'],
   onlineClasses: ['Online Classes', 'Join your Google Meet sessions'],
   enrollment:    ['Enrollment',     'Your enrolled subjects'],
+  messages:      ['Messages',       'Chat with your teacher'],
 }
 
 // Mobile bottom-nav: 4 primary + More (opens a sheet)
@@ -121,6 +123,7 @@ export default function StudentLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarExpanded, setSidebarExpanded] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [messengerOpen, setMessengerOpen] = useState(false)
 
   // Force change password modal
   const [forcePassOpen,    setForcePassOpen]    = useState(false)
@@ -284,6 +287,7 @@ export default function StudentLayout() {
               {studentTab === 'calendar'      && <CalendarTab      student={student} viewClassId={effectiveClassId} classes={classes} />}
               {studentTab === 'onlineClasses' && <OnlineClassesTab student={student} />}
               {studentTab === 'enrollment'    && <EnrollmentTab    student={student} />}
+              {studentTab === 'messages'      && <MessagesTab      student={student} messages={messages} />}
             </Suspense>
           </TabErrorBoundary>
         </div>
@@ -308,6 +312,13 @@ export default function StudentLayout() {
             </button>
           )
         })}
+        <button className={`abn-item${studentTab === 'messages' ? ' active' : ''}`} onClick={() => setStudentTab('messages')} aria-label="Messages">
+          <span className="abn-ic">
+            <MessageSquare size={20} />
+            {unreadMsgCount > 0 && <span className="abn-dot" />}
+          </span>
+          <span className="abn-label">Messages</span>
+        </button>
         <button className={`abn-item${moreOpen ? ' active' : ''}`} onClick={() => setMoreOpen(true)} aria-label="More">
           <Menu size={20} />
           <span className="abn-label">More</span>
@@ -367,8 +378,8 @@ export default function StudentLayout() {
         />
       </Suspense>
 
-      {/* Floating Messenger */}
-      <FloatingMessenger student={student} messages={messages} unreadCount={unreadMsgCount} />
+      {/* Floating Messenger — bubble hidden on mobile (Messages is a tab there) */}
+      <FloatingMessenger student={student} messages={messages} unreadCount={unreadMsgCount} open={messengerOpen} onOpenChange={setMessengerOpen} />
 
       {/* Toast + Dialog */}
       <ToastManager toasts={toastQueue} onDismiss={dismissToast} />

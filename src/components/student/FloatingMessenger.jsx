@@ -19,10 +19,15 @@ function getStudentMessages(messages, s) {
 }
 
 
-export default function FloatingStudentMessenger({ student: s, messages, unreadCount }) {
+export default function FloatingStudentMessenger({ student: s, messages, unreadCount, open: openProp, onOpenChange }) {
   const { db, fbReady } = useData()
   const { toast } = useUI()
-  const [open, setOpen]             = useState(false)
+  const [openLocal, setOpenLocal] = useState(false)
+  const open = openProp !== undefined ? openProp : openLocal
+  const setOpen = (next) => {
+    const v = typeof next === 'function' ? next(open) : next
+    if (onOpenChange) onOpenChange(v); else setOpenLocal(v)
+  }
   const [search, setSearch]         = useState('')
   const [view, setView]             = useState('list')
   const [threadTitle, setThreadTitle] = useState('')
@@ -184,6 +189,7 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
     <>
       {/* FAB */}
       <button
+        className="fm-bubble"
         onClick={() => setOpen(o => !o)}
         style={{
           position: 'fixed', bottom: 'calc(86px + env(safe-area-inset-bottom, 0px))', right: 18,
