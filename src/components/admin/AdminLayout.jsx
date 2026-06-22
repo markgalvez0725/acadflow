@@ -14,12 +14,23 @@ import ConnectionStatus from '@/components/primitives/ConnectionStatus'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { Rss, LayoutDashboard, School, Users, BookOpen, CalendarCheck, FileQuestion, CalendarDays, Bell, ClipboardList, Video, Settings, LogOut, Menu } from 'lucide-react'
 
-// Mobile bottom-nav: 5 primary destinations + "More" (opens the full drawer).
+// Mobile bottom-nav: 5 primary destinations + "More" (opens a tidy sheet).
 const MOBILE_NAV = [
   { id: 'dashboard',  Icon: LayoutDashboard, label: 'Home' },
   { id: 'students',   Icon: Users,           label: 'Students' },
   { id: 'grades',     Icon: BookOpen,        label: 'Grades' },
   { id: 'activities', Icon: ClipboardList,   label: 'Tasks' },
+]
+
+// Secondary destinations shown in the "More" bottom sheet on phones.
+const MORE_NAV = [
+  { id: 'stream',        Icon: Rss,          label: 'Stream' },
+  { id: 'classes',       Icon: School,       label: 'Classes' },
+  { id: 'attendance',    Icon: CalendarCheck, label: 'Attendance' },
+  { id: 'quizzes',       Icon: FileQuestion, label: 'Quizzes' },
+  { id: 'notifications', Icon: Bell,         label: 'Alerts' },
+  { id: 'calendar',      Icon: CalendarDays, label: 'Calendar' },
+  { id: 'onlineClasses', Icon: Video,        label: 'Meet' },
 ]
 
 // Lazy-load tabs
@@ -69,6 +80,7 @@ export default function AdminLayout() {
   const [sidebarExpanded, setSidebarExpanded] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   const [clock, setClock] = useState('')
 
   // Clock
@@ -210,11 +222,41 @@ export default function AdminLayout() {
             <span className="abn-label">{t.label}</span>
           </button>
         ))}
-        <button className="abn-item" onClick={() => setSidebarOpen(true)} aria-label="More">
+        <button className={`abn-item${moreOpen ? ' active' : ''}`} onClick={() => setMoreOpen(true)} aria-label="More">
           <Menu size={20} />
           <span className="abn-label">More</span>
         </button>
       </nav>
+
+      {/* Mobile "More" sheet — tidy grid of the remaining destinations */}
+      {moreOpen && (
+        <div className="ds-sheet-backdrop" onClick={() => setMoreOpen(false)}>
+          <div className="ds-sheet" onClick={e => e.stopPropagation()}>
+            <div className="ds-sheet-grip" />
+            <div className="ds-sheet-title">More</div>
+            <div className="ds-sheet-grid">
+              {MORE_NAV.map(t => (
+                <button
+                  key={t.id}
+                  className={`ds-tile${adminTab === t.id ? ' active' : ''}`}
+                  onClick={() => { setAdminTab(t.id); setMoreOpen(false) }}
+                >
+                  <t.Icon size={22} />
+                  <span>{t.label}</span>
+                </button>
+              ))}
+              <button className="ds-tile" onClick={() => { setMoreOpen(false); setSettingsOpen(true) }}>
+                <Settings size={22} />
+                <span>Settings</span>
+              </button>
+              <button className="ds-tile ds-tile-danger" onClick={() => { setMoreOpen(false); logout() }}>
+                <LogOut size={22} />
+                <span>Logout</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast + Dialog */}
       <ToastManager toasts={toastQueue} onDismiss={dismissToast} />
