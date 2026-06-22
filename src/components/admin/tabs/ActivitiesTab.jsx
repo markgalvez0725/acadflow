@@ -348,7 +348,7 @@ function ActivityFormModal({ act, onClose }) {
 
 // ── View / Grade Modal ────────────────────────────────────────────────
 function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
-  const { students, activities, saveStudents, db, fbReady } = useData()
+  const { students, activities, saveStudents, db, fbReady, logAudit } = useData()
   const { toast, openDialog } = useUI()
   const [scores,        setScores]       = useState({})
   const [feedbacks,     setFeedbacks]    = useState({}) // { [studentId]: string } — teacher feedback
@@ -571,6 +571,12 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
     if (!ok) return
     try {
       await deleteDoc(doc(db.current, 'activities', act.id))
+      logAudit?.({
+        action: 'activity.delete',
+        target: act.title,
+        summary: `Deleted activity "${act.title}"${act.subject ? ' (' + act.subject + ')' : ''}`,
+        meta: { activityId: act.id, subject: act.subject || null, classId: act.classId || null },
+      })
       onDelete()
     } catch (e) {
       toast('Failed: ' + e.message, 'red')
