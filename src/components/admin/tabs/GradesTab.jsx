@@ -3,7 +3,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { sortByLastName } from '@/utils/format'
 import {
-  gradeInfo, combineEquiv, computeFinalGradeFromTerms, computeTerms, scoredPercent, round2,
+  gradeInfo, combineEquiv, computeTerms, scoredPercent, round2,
   getHeldDays, gradeInfoForStudent, getGradeScaleLabel,
 } from '@/utils/grades'
 import { exportGradingSheet, parseGradingSheetImport, exportCurrentGrades, exportMasterGradingReport } from '@/export/excelExport'
@@ -982,7 +982,7 @@ export default function GradesTab() {
 
     const ok = await openDialog({
       title: 'Recompute all grades?',
-      msg: `This will recompute final grades for all ${studsInClass.length} student${studsInClass.length !== 1 ? 's' : ''} in ${cls.name} ${cls.section} using their stored grade components (midterm term, finals term). Grades already at their correct values will not change.`,
+      msg: `This re-derives grades for all ${studsInClass.length} student${studsInClass.length !== 1 ? 's' : ''} in ${cls.name} ${cls.section} from their underlying components — activity scores (normalized by each activity's max score), quizzes, attendance, attitude and exams — using the current formula. Use this to apply accuracy fixes to existing grades. Manual final-grade overrides will be replaced.`,
       type: 'warning',
       confirmLabel: 'Recompute Grades',
       showCancel: true,
@@ -1001,21 +1001,46 @@ export default function GradesTab() {
         gradeUploadedAt: { ...(s.gradeUploadedAt || {}) },
       }
 
+      // Only touch subjects that already have grade data.
       const subjects = Object.keys(ns.gradeComponents)
       let changed = false
       subjects.forEach(sub => {
-        const comp = ns.gradeComponents[sub]
-        if (!comp) return
-        const midG = comp.midterm ?? null
-        const finG = comp.finals  ?? null
-        if (midG === null && finG === null) return
+        const comp = { ...(ns.gradeComponents[sub] || {}) }
 
-        const recomputed = computeFinalGradeFromTerms(midG, finG)
-        if (recomputed === null) return
+        // Activities: recompute from this class+subject's submissions (normalized
+        // by maxScore); fall back to the stored average when there are none.
+        const items = activities
+          .filter(a => a.classId === effectiveId && a.subject === sub)
+          .map(a => { const sc = (a.submissions || {})[s.id]?.score; return sc != null ? { score: sc, maxScore: a.maxScore || 100 } : null })
+          .filter(Boolean)
+        const actPct = items.length ? scoredPercent(items) : (comp.activities ?? null)
+        if (items.length) comp.activities = round2(actPct)
 
-        ns.grades[sub] = recomputed
-        if (!ns.gradeUploadedAt[sub]) ns.gradeUploadedAt[sub] = now
-        changed = true
+        // Attendance: recompute from records (held-days now counts cross-enrolled).
+        const held   = getHeldDays(effectiveId, sub, students)
+        const attSet = s.attendance?.[sub] || new Set()
+        const attV   = held > 0 ? Math.min(100, (attSet.size / held) * 100) : null
+
+        const qzV       = comp.quizzes     ?? null
+        const attitudeV = comp.attitude    ?? null
+        const midExamV  = comp.midtermExam ?? null
+        const finExamV  = comp.finalsExam  ?? null
+
+        const { cs, midterm, finals, final } = computeTerms({
+          activities: actPct, quizzes: qzV, attendance: attV,
+          attitude: attitudeV, midtermExam: midExamV, finalsExam: finExamV,
+        })
+        if (midExamV != null) { comp.midtermCS = round2(cs); comp.midterm = round2(midterm) }
+        if (finExamV != null) { comp.finalsCS  = round2(cs); comp.finals  = round2(finals) }
+
+        ns.gradeComponents[sub] = comp
+
+        const newFinal = (comp.midterm != null || comp.finals != null) ? final : null
+        if (newFinal !== null) {
+          ns.grades[sub] = newFinal
+          if (!ns.gradeUploadedAt[sub]) ns.gradeUploadedAt[sub] = now
+          changed = true
+        }
       })
 
       if (changed) updatedCount++
