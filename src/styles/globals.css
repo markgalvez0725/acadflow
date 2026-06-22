@@ -2982,6 +2982,52 @@ textarea.input { resize: vertical; }
 .stream-card--pinned {
   border-left: 3px solid var(--accent);
 }
+/* Three-dots overflow menu */
+.kebab { position: relative; flex-shrink: 0; }
+.kebab-trigger {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink3);
+  font-size: 18px;
+  line-height: 1;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.kebab-trigger:hover { background: var(--surface2); color: var(--ink); }
+.kebab-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  min-width: 152px;
+  z-index: 50;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+}
+.kebab-item {
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.kebab-item:hover { background: var(--surface2); }
+.kebab-item--danger { color: var(--red); }
 .stream-card-header {
   display: flex;
   align-items: center;

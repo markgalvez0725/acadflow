@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
-import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, ChevronDown, ChevronUp, Clock, Users, Award, CheckCircle2, XCircle, AlertCircle, Plus, Trash2, CalendarOff, Video, ToggleLeft, ToggleRight, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered } from 'lucide-react'
+import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, ChevronDown, ChevronUp, Clock, Users, Award, CheckCircle2, XCircle, AlertCircle, Plus, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered } from 'lucide-react'
 import DOMPurify from 'dompurify'
 import { v4 as uuidv4 } from 'uuid'
 import ExpandableHtml from '@/components/primitives/ExpandableHtml'
@@ -591,21 +591,77 @@ function AnnouncementDetailModal({ ann, classes, onClose, onEdit }) {
   )
 }
 
+// Three-dots overflow menu. `items` is an array of { label, onClick, danger }
+// (falsy entries are skipped). Closes on outside click / Escape.
+function KebabMenu({ items, label = 'Post actions' }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!open) return
+    const onDoc = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    const onKey = e => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey) }
+  }, [open])
+
+  const visible = (items || []).filter(Boolean)
+  if (!visible.length) return null
+
+  return (
+    <div ref={ref} className="kebab" onClick={e => e.stopPropagation()}>
+      <button
+        type="button"
+        className="kebab-trigger"
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen(o => !o)}
+      >⋮</button>
+      {open && (
+        <div role="menu" className="kebab-menu">
+          {visible.map((it, i) => (
+            <button
+              key={i}
+              role="menuitem"
+              type="button"
+              className={`kebab-item${it.danger ? ' kebab-item--danger' : ''}`}
+              onClick={() => { setOpen(false); it.onClick?.() }}
+            >{it.label}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function AnnouncementCard({ item, classObj, onEdit, onToggleActive, onTogglePin, onDelete }) {
   const ann = item.data
+  const pinned = !!item.pinned   // effective (respects expiry), computed by the feed
   const [expanded, setExpanded] = useState(false)
   const hasMessage = ann.message && ann.message !== '<p></p>' && ann.message !== ''
   const commentCount = (ann.comments || []).length
+  const hasActions = onEdit || onToggleActive || onTogglePin || onDelete
 
   return (
-    <div className={`stream-card${ann.pinned ? ' stream-card--pinned' : ''}`}>
+    <div className={`stream-card${pinned ? ' stream-card--pinned' : ''}`}>
       <div className="stream-card-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <TypeIcon type="announcement" />
           <TypeBadge type="announcement" />
-          {ann.pinned && <span className="badge badge-blue" style={{ fontSize: 10 }}>📌 Pinned</span>}
+          {pinned && <span className="badge badge-blue" style={{ fontSize: 10 }}>Pinned</span>}
         </div>
-        <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{timeAgo(ann.createdAt)}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{timeAgo(ann.createdAt)}</span>
+          {hasActions && (
+            <KebabMenu items={[
+              onTogglePin   && { label: ann.pinned ? 'Unpin' : 'Pin', onClick: onTogglePin },
+              onToggleActive && { label: ann.active ? 'Deactivate' : 'Activate', onClick: onToggleActive },
+              onEdit        && { label: 'Edit', onClick: onEdit },
+              onDelete      && { label: 'Delete', onClick: onDelete, danger: true },
+            ]} />
+          )}
+        </div>
       </div>
       <div className="stream-card-title">{ann.title}</div>
       {hasMessage && (
@@ -628,40 +684,6 @@ function AnnouncementCard({ item, classObj, onEdit, onToggleActive, onTogglePin,
         <ul style={{ marginTop: 8, paddingLeft: 20, fontSize: 13, color: 'var(--ink2)', listStyle: 'disc' }}>
           {ann.topics.map((t, i) => <li key={i}>{t}</li>)}
         </ul>
-      )}
-      {(onEdit || onToggleActive || onTogglePin || onDelete) && (
-        <div
-          onClick={e => e.stopPropagation()}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}
-        >
-          {onToggleActive && (
-            <button
-              className="btn btn-ghost btn-sm"
-              title={ann.active ? 'Deactivate' : 'Activate'}
-              onClick={onToggleActive}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginRight: 'auto' }}
-            >
-              {ann.active
-                ? <><ToggleRight size={16} style={{ color: 'var(--green)' }} /> Active</>
-                : <><ToggleLeft size={16} style={{ color: 'var(--ink3)' }} /> Inactive</>}
-            </button>
-          )}
-          {onTogglePin && (
-            <button className="btn btn-ghost btn-sm" onClick={onTogglePin} title={ann.pinned ? 'Unpin from top' : 'Pin to top'} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ filter: ann.pinned ? 'none' : 'grayscale(1)', opacity: ann.pinned ? 1 : 0.6 }}>📌</span> {ann.pinned ? 'Unpin' : 'Pin'}
-            </button>
-          )}
-          {onEdit && <button className="btn btn-secondary btn-sm" onClick={onEdit}>Edit</button>}
-          {onDelete && (
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={onDelete}
-              style={{ color: 'var(--red)', display: 'inline-flex', alignItems: 'center', gap: 5 }}
-            >
-              <Trash2 size={14} /> Delete
-            </button>
-          )}
-        </div>
       )}
       <div className="stream-card-footer">
         <span style={{ fontSize: 11, color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -890,7 +912,8 @@ export default function StreamTab() {
     announcements.forEach(ann => {
       if (filterClass !== 'all' && ann.classId !== 'all' && ann.classId !== filterClass) return
       if (filterType !== 'all' && filterType !== 'announcement') return
-      items.push({ id: `ann-${ann.id}`, type: 'announcement', ts: ann.createdAt || 0, data: ann, classId: ann.classId, pinned: !!ann.pinned })
+      // Effective pin: a pinned post stops floating once it has expired.
+      items.push({ id: `ann-${ann.id}`, type: 'announcement', ts: ann.createdAt || 0, data: ann, classId: ann.classId, pinned: !!ann.pinned && !isExpired(ann) })
     })
 
     // Activities
@@ -1035,7 +1058,16 @@ export default function StreamTab() {
     }
   }
 
+  const PIN_LIMIT = 3
   async function handleTogglePin(ann) {
+    if (!ann.pinned) {
+      // Count only currently-effective pins (expired ones don't occupy a slot).
+      const activePins = announcements.filter(a => a.pinned && !isExpired(a)).length
+      if (activePins >= PIN_LIMIT) {
+        toast(`You can pin up to ${PIN_LIMIT} posts. Unpin one first.`, 'error')
+        return
+      }
+    }
     try {
       await saveAnnouncement({ ...ann, pinned: !ann.pinned })
       toast(ann.pinned ? 'Unpinned.' : 'Pinned to top.', 'success')
@@ -1055,12 +1087,10 @@ export default function StreamTab() {
     }
   }
 
-  const sortedAnnouncements = useMemo(() =>
-    [...announcements].sort((a, b) =>
-      ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || (b.createdAt - a.createdAt)
-    ),
-    [announcements]
-  )
+  const sortedAnnouncements = useMemo(() => {
+    const pin = a => (a.pinned && !isExpired(a)) ? 1 : 0
+    return [...announcements].sort((a, b) => (pin(b) - pin(a)) || (b.createdAt - a.createdAt))
+  }, [announcements]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!fbReady) {
     return (
@@ -1112,22 +1142,18 @@ export default function StreamTab() {
                         {ann.type === 'no_class' ? 'No Class' : ann.type === 'online_class' ? 'Online Class' : 'Meeting Topics'}
                       </span>
                       {effectivelyActive ? <span className="badge badge-green">Active</span> : expired ? <span className="badge badge-gray">Expired</span> : <span className="badge badge-gray">Inactive</span>}
-                      {ann.pinned && <span className="badge badge-blue">📌 Pinned</span>}
+                      {ann.pinned && !expired && <span className="badge badge-blue">Pinned</span>}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--ink2)', marginTop: 2 }}>{getClassName(ann.classId)}</div>
                     {ann.message && <div className="ann-message ann-message--preview" style={{ fontSize: 13, marginTop: 4 }} dangerouslySetInnerHTML={{ __html: sanitizeHtml(ann.message) }} />}
                     <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 6 }}>Posted: {formatDate(ann.createdAt)}</div>
                   </div>
-                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-                    <button className="btn btn-ghost btn-sm" title={ann.pinned ? 'Unpin' : 'Pin to top'} onClick={() => handleTogglePin(ann)} style={{ padding: '4px 6px', display: 'flex', alignItems: 'center', fontSize: 14, lineHeight: 1, opacity: ann.pinned ? 1 : 0.4, filter: ann.pinned ? 'none' : 'grayscale(1)' }}>
-                      📌
-                    </button>
-                    <button className="btn btn-ghost btn-sm" title={ann.active ? 'Deactivate' : 'Activate'} onClick={() => handleToggleActive(ann)} style={{ padding: '4px 6px', display: 'flex', alignItems: 'center' }}>
-                      {ann.active ? <ToggleRight size={18} style={{ color: 'var(--green)' }} /> : <ToggleLeft size={18} style={{ color: 'var(--ink3)' }} />}
-                    </button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => { setEditAnn(ann); setFormOpen(true) }} style={{ padding: '4px 8px', fontSize: 12 }}>Edit</button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => setDeleteId(ann.id)} style={{ padding: '4px 6px', display: 'flex', alignItems: 'center', color: 'var(--red)' }}><Trash2 size={14} /></button>
-                  </div>
+                  <KebabMenu items={[
+                    { label: ann.pinned ? 'Unpin' : 'Pin', onClick: () => handleTogglePin(ann) },
+                    { label: ann.active ? 'Deactivate' : 'Activate', onClick: () => handleToggleActive(ann) },
+                    { label: 'Edit', onClick: () => { setEditAnn(ann); setFormOpen(true) } },
+                    { label: 'Delete', onClick: () => setDeleteId(ann.id), danger: true },
+                  ]} />
                 </div>
               </div>
             )
@@ -1190,8 +1216,8 @@ export default function StreamTab() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {streamItems.slice(streamPage * PAGE_SIZE, (streamPage + 1) * PAGE_SIZE).map((item, idx, arr) => {
           const classObj = getClassObj(item)
-          const label = item.pinned ? '📌 Pinned' : getGroupLabel(item.ts)
-          const prevLabel = idx > 0 ? (arr[idx - 1].pinned ? '📌 Pinned' : getGroupLabel(arr[idx - 1].ts)) : null
+          const label = item.pinned ? 'Pinned' : getGroupLabel(item.ts)
+          const prevLabel = idx > 0 ? (arr[idx - 1].pinned ? 'Pinned' : getGroupLabel(arr[idx - 1].ts)) : null
           const showGroup = label !== prevLabel
           return (
             <React.Fragment key={item.id}>
