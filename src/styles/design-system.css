@@ -60,6 +60,12 @@
 .sc-trend.flat { background: var(--surface3); color: var(--ink2); }
 .sc-trend svg  { width: 12px; height: 12px; }
 
+/* ── Compact topbar on narrow widths: just the search icon + bell ──────── */
+@media (max-width: 1023px) {
+  .tb-desktop-only { display: none !important; }
+  .adm-clock { display: none !important; }
+}
+
 /* ── Topbar title/subtitle: keep the description tight on every tab ─────── */
 .admin-topbar h3 { line-height: 1.2; }
 .admin-topbar span { line-height: 1.25; display: block; margin-top: 1px; }
