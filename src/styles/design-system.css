@@ -92,6 +92,21 @@
   }
 }
 
+/* ── Warning banner: guaranteed-contrast amber in both themes ──────────── */
+.warn-banner {
+  background: #fdf3e0;
+  border-color: #f1d493 !important;
+  color: #7c4a03;
+}
+.warn-banner strong { color: #5f3902; }
+.warn-banner em { color: inherit; }
+[data-theme="dark"] .warn-banner {
+  background: rgba(217,119,6,.13);
+  border-color: rgba(217,119,6,.32) !important;
+  color: #f7c277;
+}
+[data-theme="dark"] .warn-banner strong { color: #fcd9a8; }
+
 /* ── Page header pattern (breadcrumb + title + subtitle + actions) ─────── */
 .ds-page-head {
   display: flex;
