@@ -64,7 +64,7 @@ export default function EditProfileModal({ student: s, onClose }) {
   let snumInfo  = ''
   if (snumLocked) {
     snumBadge = <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--red-l)', color: 'var(--red)', padding: '2px 7px', borderRadius: 10, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Lock size={10} /> Locked</span>
-    snumInfo  = 'Student number is locked. Contact your admin to update it.'
+    snumInfo  = 'Student number is locked. Contact your teacher to update it.'
   } else if (changedAt && daysLeft > 0) {
     snumBadge = <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--yellow-l)', color: 'var(--yellow)', padding: '2px 7px', borderRadius: 10, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Timer size={10} /> {daysLeft}d left</span>
     snumInfo  = `You can still change your student number for ${daysLeft} more day${daysLeft !== 1 ? 's' : ''}. After that it will be locked permanently.`
