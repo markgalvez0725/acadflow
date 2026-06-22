@@ -299,8 +299,18 @@ function ConvItem({ isActive, isUnread, avatarChar, isAnnounce, name, preview, t
 const PER_PAGE = 10
 
 export default function MessagesTab() {
-  const { students, messages, db, fbReady } = useData()
+  const { students, classes, messages, db, fbReady } = useData()
   const { toast } = useUI()
+
+  // Class + section label for the student behind a conversation, used to group
+  // the inbox. Unassigned students fall into a trailing "Unassigned" group.
+  function classLabelFor(sid) {
+    const s = students.find(x => x.id === sid)
+    if (!s) return 'Unassigned'
+    const cid = s.classId || (s.classIds && s.classIds[0])
+    const cls = classes.find(c => c.id === cid)
+    return cls ? `${cls.name} ${cls.section}` : 'Unassigned'
+  }
   const [activeTab, setActiveTab]       = useState('inbox')
   const [search, setSearch]             = useState('')
   const [page, setPage]                 = useState(1)
@@ -326,9 +336,16 @@ export default function MessagesTab() {
       const allReplies = arr.flatMap(m => (m.replies || []).map(r => ({ ...r, msgId: m.id })))
       const lastActivity = allReplies.length ? Math.max(latest.ts, ...allReplies.map(r => r.ts)) : latest.ts
       const hasUnread = arr.some(m => !m.adminRead && m.from !== 'admin')
-      return { sid: latest.from, latestMsg: latest, allMsgs: arr, lastActivity, hasUnread }
-    }).sort((a, b) => b.lastActivity - a.lastActivity)
-  }, [inboxMsgs])
+      const classLabel = classLabelFor(latest.from)
+      return { sid: latest.from, latestMsg: latest, allMsgs: arr, lastActivity, hasUnread, classLabel }
+    }).sort((a, b) => {
+      // Group by class+section (Unassigned last), then most-recent activity.
+      const ua = a.classLabel === 'Unassigned', ub = b.classLabel === 'Unassigned'
+      if (ua !== ub) return ua ? 1 : -1
+      const cmp = a.classLabel.localeCompare(b.classLabel)
+      return cmp !== 0 ? cmp : b.lastActivity - a.lastActivity
+    })
+  }, [inboxMsgs, students, classes])
 
   // Apply search
   const filteredList = useMemo(() => {
@@ -542,23 +559,30 @@ export default function MessagesTab() {
     }
 
     if (activeTab === 'inbox') {
+      let lastLabel = null
       return pageSlice.map(cv => {
         const s = students.find(x => x.id === cv.sid)
         const name = s?.name || cv.sid
         const preview = cv.latestMsg.body.slice(0, 60) + (cv.latestMsg.body.length > 60 ? '…' : '')
         const isActive = activeConv?.type === 'conversation' && activeConv.studentId === cv.sid
+        // Emit a class+section header at the top of each group (and at the start
+        // of the page so the current group is always labelled).
+        const showHeader = cv.classLabel !== lastLabel
+        lastLabel = cv.classLabel
         return (
-          <ConvItem
-            key={cv.sid}
-            isActive={isActive}
-            isUnread={cv.hasUnread}
-            avatarChar={getInitials(name)}
-            isAnnounce={false}
-            name={name}
-            preview={preview}
-            time={relativeTime(cv.lastActivity)}
-            onClick={() => openConversation(cv.sid)}
-          />
+          <React.Fragment key={cv.sid}>
+            {showHeader && <div className="msg-group-hdr">{cv.classLabel}</div>}
+            <ConvItem
+              isActive={isActive}
+              isUnread={cv.hasUnread}
+              avatarChar={getInitials(name)}
+              isAnnounce={false}
+              name={name}
+              preview={preview}
+              time={relativeTime(cv.lastActivity)}
+              onClick={() => openConversation(cv.sid)}
+            />
+          </React.Fragment>
         )
       })
     }

@@ -1,13 +1,15 @@
 import React, { useState, useMemo, useRef, lazy, Suspense } from 'react'
+import { doc, setDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { hashPassword } from '@/utils/crypto'
 import { validateSnum } from '@/utils/validate'
 import { getFbAuth } from '@/firebase/firebaseInit'
+import { notifyStudentsBroadcast } from '@/firebase/messageNotify'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
-import { Download, Upload, FileDown, KeyRound, GraduationCap, CheckCircle2, Pencil, Plus, Save, BookOpen, Check, Users, ClipboardList, Hourglass } from 'lucide-react'
+import { Download, Upload, FileDown, KeyRound, GraduationCap, CheckCircle2, Pencil, Plus, Save, BookOpen, Check, Users, ClipboardList, Hourglass, Send } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { buildStudentReportCard } from '@/export/reportCard'
 import { exportStudentRosterExcel, exportStudentImportTemplate, parseStudentImportExcel } from '@/export/excelExport'
@@ -723,6 +725,73 @@ function ImportStudentsModal({ onClose }) {
   )
 }
 
+// ── Message Selected Modal ────────────────────────────────────────────
+// Fans out an individual direct message to each selected student (so each
+// gets their own thread in Messages) plus an in-app badge + best-effort push.
+function MessageSelectedModal({ recipients, onClose }) {
+  const { db, fbReady } = useData()
+  const { toast } = useUI()
+  const [subject, setSubject] = useState('')
+  const [body, setBody]       = useState('')
+  const [err, setErr]         = useState('')
+  const [sending, setSending] = useState(false)
+
+  async function handleSend() {
+    setErr('')
+    if (!subject.trim()) { setErr('Subject is required.'); return }
+    if (!body.trim())    { setErr('Message body is required.'); return }
+    if (subject.length > 200) { setErr('Subject too long (max 200 characters).'); return }
+    if (body.length > 3000)   { setErr('Message too long (max 3000 characters).'); return }
+    if (!fbReady || !db.current) { setErr('Firebase is not connected.'); return }
+
+    setSending(true)
+    try {
+      const ts  = Date.now()
+      const ids = recipients.map(s => s.id)
+      await Promise.all(recipients.map((s, i) => {
+        const id = `msg_${ts}_${i}_${Math.random().toString(36).slice(2, 7)}`
+        return setDoc(doc(db.current, 'messages', id), {
+          id, from: 'admin', to: s.id,
+          subject: subject.trim(), body: body.trim(),
+          ts, read: [], adminRead: true, replies: [], type: 'direct', classId: null,
+        })
+      }))
+      notifyStudentsBroadcast(db.current, ids, subject.trim())
+      toast(`Message sent to ${ids.length} student${ids.length === 1 ? '' : 's'}.`, 'green')
+      onClose()
+    } catch (e) {
+      setErr('Failed to send: ' + e.message)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <Modal onClose={onClose} maxWidth={520}>
+      <h3><Send size={18} /> Message {recipients.length} student{recipients.length === 1 ? '' : 's'}</h3>
+      <p className="modal-sub">Each recipient gets their own direct message thread. They can reply individually.</p>
+
+      <div className="field mb-3">
+        <label>Subject <span className="text-red-500">*</span></label>
+        <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="e.g. Reminder" maxLength={200} />
+      </div>
+      <div className="field mb-2">
+        <label>Message <span className="text-red-500">*</span></label>
+        <textarea rows={5} value={body} onChange={e => setBody(e.target.value)} placeholder="Type your message…" maxLength={3000} />
+      </div>
+
+      {err && <div className="err-msg mb-2">{err}</div>}
+
+      <div className="modal-footer">
+        <button className="btn btn-ghost" onClick={onClose} disabled={sending}>Cancel</button>
+        <button className="btn btn-primary" onClick={handleSend} disabled={sending}>
+          {sending ? 'Sending…' : <><Send size={16} /> Send to {recipients.length}</>}
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Students Tab ──────────────────────────────────────────────────────
 export default function StudentsTab() {
   const { classes, students, saveStudents, deleteStudent, restoreStudents, eqScale, semester, fbReady } = useData()
@@ -739,6 +808,7 @@ export default function StudentsTab() {
   const [exportStudent, setExportStudent] = useState(null)
   const [resetStudent, setResetStudent]   = useState(null)
   const [selected, setSelected]           = useState(() => new Set())
+  const [showMessage, setShowMessage]     = useState(false)
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -904,6 +974,9 @@ export default function StudentsTab() {
       {selected.size > 0 && (
         <div className="flex items-center gap-2 mb-3 flex-wrap" style={{ padding: '8px 12px', borderRadius: 10, background: 'var(--accent-l)', border: '1px solid var(--border)' }}>
           <span style={{ fontWeight: 600, fontSize: 13 }}>{selected.size} selected</span>
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowMessage(true)} title="Send a message to the selected students">
+            <Send size={13} /> Message selected
+          </button>
           <button className="btn btn-ghost btn-sm" onClick={handleExportSelected} title="Export selected students as CSV">
             <Download size={13} /> Export selected
           </button>
@@ -1025,6 +1098,7 @@ export default function StudentsTab() {
       {/* Modals */}
       {showAdd      && <AddStudentModal onClose={() => setShowAdd(false)} />}
       {showImport   && <ImportStudentsModal onClose={() => setShowImport(false)} />}
+      {showMessage  && <MessageSelectedModal recipients={students.filter(s => selected.has(s.id))} onClose={() => setShowMessage(false)} />}
       {editStudent  && <EditStudentModal student={editStudent} onClose={() => setEditStudent(null)} />}
       {resetStudent && <ResetPasswordModal student={resetStudent} onClose={() => setResetStudent(null)} />}
       {exportStudent && (
