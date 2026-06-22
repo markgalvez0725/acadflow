@@ -3,6 +3,8 @@
 // AI calls go through /api/ai-generate (gated by a free Gemini key); every
 // function has an on-device fallback so the app works with no key.
 
+import { getIdToken } from '@/firebase/firebaseInit'
+
 // ── On-device rubric templates by activity type ───────────────────────────
 const RUBRIC_TEMPLATES = [
   { keys: ['essay', 'paper', 'writing', 'reaction', 'reflection'], rubric: [
@@ -47,10 +49,11 @@ export function deviceInstructions(title = '', subject = '') {
 
 // ── AI wrappers (call /api/ai-generate) ───────────────────────────────────
 async function callAI(prompt, json) {
+  const idToken = await getIdToken()
   const r = await fetch('/api/ai-generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt, json: !!json }),
+    body: JSON.stringify({ prompt, json: !!json, idToken }),
   })
   if (r.status === 501) { const e = new Error('not-configured'); e.code = 501; throw e }
   if (!r.ok) {

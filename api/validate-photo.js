@@ -11,6 +11,7 @@
 // } }
 
 import { guard } from './_guard.js'
+import { requireUser } from './_fbadmin.js'
 
 const PROMPT = `You are a strict ID-photo reviewer for a school portal. A valid student profile photo must be a professional headshot: ONE person in professional business attire (collared shirt, blouse, polo, suit, blazer, formal/business-casual top) photographed against a plain WHITE or very light, uniform background.
 
@@ -29,6 +30,7 @@ Rules: "fail" if not white background, not a single person, no clear face, or cl
 export default async function handler(req, res) {
   if (guard(req, res, { max: 15 })) return
   if (req.method !== 'POST') return res.status(405).end()
+  if (!(await requireUser(req, res))) return
 
   const key = process.env.GEMINI_API_KEY
   if (!key) return res.status(501).json({ error: 'AI not configured (GEMINI_API_KEY missing)' })

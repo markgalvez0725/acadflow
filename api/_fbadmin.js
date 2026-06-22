@@ -113,6 +113,41 @@ export async function verifyIdToken(idToken, projectId) {
   return payload
 }
 
+// ── App-user authentication (any signed-in admin OR student) ──────────────
+// The known project id, used as a last-resort fallback so token verification
+// never fails open just because an env var or service account is missing.
+const FALLBACK_PROJECT_ID = 'collegeportal-d2b98'
+
+// Resolve the Firebase project id from env → service account → hardcoded.
+export function resolveProjectId() {
+  return process.env.FB_PROJECT_ID
+    || loadServiceAccount()?.project_id
+    || FALLBACK_PROJECT_ID
+}
+
+// Pull the ID token from { idToken } in the body or an Authorization header.
+export function extractIdToken(req) {
+  const fromBody = req.body && typeof req.body.idToken === 'string' ? req.body.idToken : ''
+  if (fromBody) return fromBody
+  const h = req.headers?.authorization || req.headers?.Authorization || ''
+  const m = /^Bearer\s+(.+)$/i.exec(String(h))
+  return m ? m[1] : ''
+}
+
+// Require a valid Firebase session for this project. On failure, writes a 401
+// and returns null (caller should `return` immediately). On success returns
+// the decoded token payload (contains email, sub, etc.).
+export async function requireUser(req, res) {
+  const idToken = extractIdToken(req)
+  if (!idToken) { res.status(401).json({ error: 'Sign in required' }); return null }
+  try {
+    return await verifyIdToken(idToken, resolveProjectId())
+  } catch {
+    res.status(401).json({ error: 'Your session is invalid or has expired. Please sign in again.' })
+    return null
+  }
+}
+
 // ── Identity Toolkit Admin (Auth) ─────────────────────────────────────────
 export async function lookupLocalId(projectId, accessToken, email) {
   const r = await fetch(

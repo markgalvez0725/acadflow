@@ -250,6 +250,7 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
                 <input
                   className="input"
                   style={{ width: '100%', fontSize: 12 }}
+                  aria-label="Search messages"
                   placeholder="Search messages…"
                   value={search}
                   onChange={e => setSearch(e.target.value)}

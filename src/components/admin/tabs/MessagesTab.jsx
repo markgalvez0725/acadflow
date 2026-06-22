@@ -633,6 +633,7 @@ export default function MessagesTab() {
             <input
               className="input w-full"
               style={{ fontSize: 12 }}
+              aria-label="Search messages"
               placeholder="Search messages…"
               value={search}
               onChange={e => handleSearch(e.target.value)}

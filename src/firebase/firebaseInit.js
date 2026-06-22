@@ -34,6 +34,20 @@ export function getFbAuth() { return _auth; }
 export function isReady() { return !!_db; }
 
 /**
+ * Current user's Firebase ID token, or '' when signed-out / unavailable.
+ * Sent to the protected /api/* endpoints so they can verify the caller is a
+ * signed-in app user. Never throws — callers can include it unconditionally.
+ */
+export async function getIdToken() {
+  try {
+    const u = _auth?.currentUser
+    return u ? await u.getIdToken() : ''
+  } catch {
+    return ''
+  }
+}
+
+/**
  * Initialize (or reuse) the Firebase app and return the Firestore db.
  * @param {object} fbConfig — { apiKey, projectId, ... }
  * @returns {Promise<import('firebase/firestore').Firestore|null>}

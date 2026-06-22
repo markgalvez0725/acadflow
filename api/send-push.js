@@ -12,6 +12,7 @@
 // Request body: { tokens: string[], notification: { title, body }, data?: {} }
 import crypto from 'crypto'
 import { guard } from './_guard.js'
+import { requireUser } from './_fbadmin.js'
 
 function b64url(input) {
   return Buffer.from(input).toString('base64')
@@ -52,6 +53,7 @@ async function getAccessToken(sa) {
 export default async function handler(req, res) {
   if (guard(req, res, { max: 40 })) return
   if (req.method !== 'POST') return res.status(405).end()
+  if (!(await requireUser(req, res))) return
 
   const raw = process.env.FCM_SERVICE_ACCOUNT
   if (!raw) return res.status(501).json({ error: 'Push not configured (FCM_SERVICE_ACCOUNT missing)' })
@@ -61,8 +63,12 @@ export default async function handler(req, res) {
   catch { return res.status(500).json({ error: 'Invalid FCM_SERVICE_ACCOUNT JSON' }) }
 
   const { tokens = [], notification = {}, data = {} } = req.body || {}
-  if (!Array.isArray(tokens) || tokens.length === 0) {
-    return res.status(400).json({ error: 'No tokens provided' })
+  // Keep only plausible FCM registration tokens (non-empty strings of a
+  // reasonable length) so malformed input can't waste the messaging quota.
+  const validTokens = (Array.isArray(tokens) ? tokens : [])
+    .filter(t => typeof t === 'string' && t.length >= 20 && t.length <= 4096)
+  if (validTokens.length === 0) {
+    return res.status(400).json({ error: 'No valid tokens provided' })
   }
 
   let accessToken
@@ -76,7 +82,7 @@ export default async function handler(req, res) {
   const stringData = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)]))
 
   const results = await Promise.allSettled(
-    tokens.slice(0, 500).map((token) =>
+    validTokens.slice(0, 500).map((token) =>
       fetch(endpoint, {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -96,5 +102,5 @@ export default async function handler(req, res) {
   )
 
   const sent = results.filter((r) => r.status === 'fulfilled' && r.value).length
-  res.status(200).json({ sent, total: tokens.length })
+  res.status(200).json({ sent, total: validTokens.length })
 }

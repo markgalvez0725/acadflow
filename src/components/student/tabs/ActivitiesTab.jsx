@@ -187,6 +187,12 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                   {sub.link && (
                     <a href={sub.link} target="_blank" rel="noreferrer" className="sa-act-link">View submission ↗</a>
                   )}
+                  {sub.feedback && (
+                    <div style={{ marginTop: 8, padding: '8px 10px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3 }}>Teacher feedback</div>
+                      <div style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{sub.feedback}</div>
+                    </div>
+                  )}
                 </div>
               ) : hasLink ? (
                 <div className="sa-act-submitted">

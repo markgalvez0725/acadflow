@@ -262,6 +262,7 @@ export default function MessagesTab({ student: s, messages }) {
 
       <input
         className="input mb-3"
+        aria-label="Search messages"
         placeholder="Search messages…"
         value={search}
         onChange={e => { setSearch(e.target.value); setPage(1) }}

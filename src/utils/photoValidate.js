@@ -15,6 +15,8 @@
 //
 // Returns a single verdict object the UI can render directly.
 
+import { getIdToken } from '@/firebase/firebaseInit'
+
 /** Draw an image onto an offscreen canvas no larger than `max` px. */
 function toCanvas(imgEl, max = 256) {
   const w = imgEl.naturalWidth || imgEl.width
@@ -78,10 +80,11 @@ async function detectFaces(imgEl) {
 /** POST the (downscaled) image to the AI vision endpoint. Null when off/failed. */
 async function runAIValidation(dataUrl, signal) {
   try {
+    const idToken = await getIdToken()
     const r = await fetch('/api/validate-photo', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageBase64: dataUrl, mimeType: 'image/jpeg' }),
+      body: JSON.stringify({ imageBase64: dataUrl, mimeType: 'image/jpeg', idToken }),
       signal,
     })
     if (r.status === 501) return { configured: false }   // no key — expected

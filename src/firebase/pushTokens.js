@@ -3,7 +3,7 @@
 // are never clobbered by full-document student writes. Server-side send code
 // reads this collection to deliver pushes.
 import { doc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore'
-import { fbWithTimeout } from './firebaseInit'
+import { fbWithTimeout, getIdToken } from './firebaseInit'
 
 export async function fbSavePushToken(db, token, ownerId, role) {
   if (!db || !token) return
@@ -55,10 +55,12 @@ export async function sendPushToOwners(db, ownerIds, notification, data = {}) {
     })
     if (!tokens.length) return
 
+    const idToken = await getIdToken()
+    if (!idToken) return // not signed in — skip (in-app notification still fires)
     await fetch('/api/send-push', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tokens, notification, data }),
+      body: JSON.stringify({ tokens, notification, data, idToken }),
     }).catch(() => {})
   } catch (e) {
     // Push is best-effort; never let it affect the calling flow.

@@ -28,6 +28,28 @@ function sanitizeAnn(html) {
   return DOMPurify.sanitize(html || '', ANN_SANITIZE)
 }
 
+// Human "time remaining" label for a deadline timestamp.
+function deadlineLabel(deadline, now) {
+  const diff = deadline - now
+  if (diff <= 0) return 'Overdue'
+  const mins = Math.round(diff / 60000)
+  if (mins < 60) return `Due in ${mins}m`
+  const hrs = Math.round(mins / 60)
+  if (hrs < 24) return `Due in ${hrs}h`
+  const days = Math.round(hrs / 24)
+  return `Due in ${days}d`
+}
+
+// Urgency colour: overdue / <24h = red, <72h = amber, otherwise muted.
+function deadlineColor(deadline, now) {
+  const diff = deadline - now
+  if (diff <= 0) return 'var(--red)'
+  const hrs = diff / 3600000
+  if (hrs < 24) return 'var(--red)'
+  if (hrs < 72) return 'var(--yellow)'
+  return 'var(--ink2)'
+}
+
 function formatAnnDate(ms) {
   if (!ms) return null
   return new Date(ms).toLocaleString('en-PH', {
@@ -419,6 +441,15 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
     return true
   }).length
 
+  // Next few unsubmitted activities that carry a deadline, soonest first
+  // (overdue ones sort to the top so they aren't missed).
+  const nowTs = Date.now()
+  const upcomingDeadlines = activities
+    .filter(a => enrolledIds.includes(a.classId) && a.deadline)
+    .filter(a => !((a.submissions || {})[s.id]?.link))
+    .sort((a, b) => a.deadline - b.deadline)
+    .slice(0, 5)
+
   if (!fbReady) return <SkeletonDashboard />
 
   return (
@@ -524,6 +555,40 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
 
       {/* Study Coach — on-device insights, no external AI */}
       <SmartInsights title="Study Coach" insights={studentInsights} />
+
+      {/* Upcoming deadlines — soonest unsubmitted activities with a due date */}
+      {upcomingDeadlines.length > 0 && (
+        <>
+          <div className="sec-hdr" style={{ marginTop: 22, marginBottom: 12 }}>
+            <div className="sec-title sec-title-ic"><Clock /> Upcoming deadlines</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {upcomingDeadlines.map(a => {
+              const color = deadlineColor(a.deadline, nowTs)
+              const label = deadlineLabel(a.deadline, nowTs)
+              return (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => setStudentTab('activities')}
+                  className="card"
+                  aria-label={`${a.title}${a.subject ? ' — ' + a.subject : ''}, ${label}. Open activities.`}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', textAlign: 'left', cursor: 'pointer', width: '100%', border: '1px solid var(--border)' }}
+                >
+                  <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.title}</div>
+                    <div style={{ fontSize: 12, color: 'var(--ink3)' }}>
+                      {(a.subject || 'Activity')} · {new Date(a.deadline).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 700, color, flexShrink: 0 }}>{label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
 
       {/* Subjects — one expandable card each (tap to reveal the breakdown) */}
       <div className="sec-hdr" style={{ marginTop: 22, marginBottom: 12 }}>

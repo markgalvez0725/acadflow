@@ -1033,6 +1033,7 @@ export default function AttendanceTab() {
           ))}
         </select>
         <input className="input" style={{ maxWidth: 220 }}
+          aria-label="Search students"
           placeholder="Search student…"
           value={search}
           onChange={e => setSearch(e.target.value)} />

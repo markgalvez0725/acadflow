@@ -20,6 +20,7 @@ export default function StudentActionSheet({
   onClose,
   onEditProfile,
   onChangePassword,
+  onNotifPrefs,
   onLogout,
   student,
   push,
@@ -57,6 +58,11 @@ export default function StudentActionSheet({
       Icon: push.permission === 'granted' ? BellRing : Bell,
       onClick: () => { if (push.permission !== 'granted') push.enable?.() },
     }] : []),
+    {
+      label: 'Notification Preferences',
+      Icon: Bell,
+      onClick: () => { onClose(); onNotifPrefs?.() },
+    },
     {
       label: theme === 'dark' ? 'Light mode' : 'Dark mode',
       Icon: theme === 'dark' ? Sun : Moon,

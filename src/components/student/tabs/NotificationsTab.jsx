@@ -5,6 +5,7 @@ import { useUI } from '@/context/UIContext'
 import Pagination from '@/components/primitives/Pagination'
 import { Mail, Upload, CheckCircle, BookOpen, MessageSquare, Bell, Trash2, Megaphone, Video } from 'lucide-react'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
+import { applyNotifPrefs, isNotifAllowed } from '@/utils/notifPrefs'
 
 const PER_PAGE = 10
 
@@ -50,8 +51,10 @@ export default function NotificationsTab({ student, notifs, setNotifs }) {
   const { setStudentTab, openDialog } = useUI()
   const [page, setPage] = useState(1)
 
-  const sorted = [...notifs].sort((a, b) => b.ts - a.ts)
-  const slice  = sorted.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+  // Hide categories the student has muted in their notification preferences.
+  const visible = applyNotifPrefs(notifs, student?.notifPrefs)
+  const sorted  = [...visible].sort((a, b) => b.ts - a.ts)
+  const slice   = sorted.slice((page - 1) * PER_PAGE, page * PER_PAGE)
 
   async function persistNotifs(newItems) {
     if (!fbReady || !db.current) return
@@ -89,7 +92,7 @@ export default function NotificationsTab({ student, notifs, setNotifs }) {
     if (page > maxPage) setPage(maxPage)
   }
 
-  if (!notifs.length) {
+  if (!visible.length) {
     return (
       <div className="empty">
         <div className="empty-icon"><Bell size={40} /></div>
@@ -105,11 +108,12 @@ export default function NotificationsTab({ student, notifs, setNotifs }) {
     <div className="student-notifications">
       <div className="sec-hdr mb-3">
         <div className="sec-title">Notifications</div>
-        {notifs.some(n => !n.read) && (
+        {visible.some(n => !n.read) && (
           <button
             className="btn btn-ghost btn-sm"
             onClick={async () => {
-              const updated = notifs.map(x => ({ ...x, read: true }))
+              // Only mark the currently-visible (unmuted) notifications as read.
+              const updated = notifs.map(x => isNotifAllowed(x, student?.notifPrefs) ? { ...x, read: true } : x)
               await persistNotifs(updated)
             }}
           >
@@ -156,7 +160,7 @@ export default function NotificationsTab({ student, notifs, setNotifs }) {
         })}
       </div>
 
-      <Pagination total={notifs.length} perPage={PER_PAGE} page={page} onChange={setPage} />
+      <Pagination total={sorted.length} perPage={PER_PAGE} page={page} onChange={setPage} />
     </div>
   )
 }

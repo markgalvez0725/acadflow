@@ -12,6 +12,7 @@ import CommandPaletteButton from '@/components/primitives/CommandPaletteButton'
 import ConnectionStatus from '@/components/primitives/ConnectionStatus'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { activeClasses, activeClassIds } from '@/utils/active'
+import { isNotifAllowed } from '@/utils/notifPrefs'
 import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare } from 'lucide-react'
 
 // Lazy-load tabs
@@ -31,6 +32,7 @@ const MessagesTab      = lazy(() => import('./tabs/MessagesTab'))
 const EditProfileModal         = lazy(() => import('./modals/EditProfileModal'))
 const ForceChangePasswordModal = lazy(() => import('./modals/ForceChangePasswordModal'))
 const StudentActionSheet       = lazy(() => import('./modals/StudentActionSheet'))
+const NotifPrefsModal          = lazy(() => import('./modals/NotifPrefsModal'))
 const NotifyPrompt             = lazy(() => import('./NotifyPrompt'))
 
 const TAB_TITLES = {
@@ -130,6 +132,7 @@ export default function StudentLayout() {
   // Profile / account sheet
   const [profileOpen, setProfileOpen] = useState(false)
   const [actionSheetOpen, setActionSheetOpen] = useState(false)
+  const [notifPrefsOpen, setNotifPrefsOpen] = useState(false)
 
   // Web push (FCM) — opt-in per device, no-op when unsupported/unconfigured
   const push = usePushNotifications({ db, fbReady, ownerId: student?.id, role: 'student', toast })
@@ -155,7 +158,7 @@ export default function StudentLayout() {
     if (push.permission !== 'default') setNotifyPromptOpen(false)
   }, [push.permission])
 
-  const unreadNotifCount = studentNotifs.filter(n => !n.read).length
+  const unreadNotifCount = studentNotifs.filter(n => !n.read && isNotifAllowed(n, student?.notifPrefs)).length
 
   // Activities the student hasn't submitted yet and aren't past due
   const openActivityCount = (() => {
@@ -239,6 +242,7 @@ export default function StudentLayout() {
 
   return (
     <div className="admin-layout" id="student-portal">
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-30 bg-black/40" onClick={() => setSidebarOpen(false)} />
@@ -293,7 +297,7 @@ export default function StudentLayout() {
         </div>
 
         {/* Tab content */}
-        <div className="admin-body">
+        <main className="admin-body" id="main-content" tabIndex={-1}>
           <TabErrorBoundary key={studentTab}>
             <Suspense fallback={<SkeletonRows />}>
               {studentTab === 'stream'        && <StreamTab        student={student} viewClassId={effectiveClassId} classes={classes} />}
@@ -309,7 +313,7 @@ export default function StudentLayout() {
               {studentTab === 'messages'      && <MessagesTab      student={student} messages={messages} />}
             </Suspense>
           </TabErrorBoundary>
-        </div>
+        </main>
       </div>
 
       {/* Mobile bottom nav — 4 primary + More */}
@@ -391,11 +395,18 @@ export default function StudentLayout() {
           onClose={() => setActionSheetOpen(false)}
           onEditProfile={() => setProfileOpen(true)}
           onChangePassword={() => { setForcePassIsForced(false); setForcePassOpen(true) }}
+          onNotifPrefs={() => setNotifPrefsOpen(true)}
           onLogout={() => logout('manual')}
           student={student}
           push={push}
         />
       </Suspense>
+
+      {notifPrefsOpen && (
+        <Suspense fallback={null}>
+          <NotifPrefsModal student={student} onClose={() => setNotifPrefsOpen(false)} />
+        </Suspense>
+      )}
 
       {notifyPromptOpen && (
         <Suspense fallback={null}>

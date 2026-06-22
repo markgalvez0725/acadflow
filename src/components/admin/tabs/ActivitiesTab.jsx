@@ -350,6 +350,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
   const { students, activities, saveStudents, db, fbReady } = useData()
   const { toast, openDialog } = useUI()
   const [scores,        setScores]       = useState({})
+  const [feedbacks,     setFeedbacks]    = useState({}) // { [studentId]: string } — teacher feedback
   const [rubricChecks,  setRubricChecks] = useState({}) // { [studentId]: { [criterionId]: bool } }
   const [aiFor,    setAiFor]    = useState(null)  // studentId for grading assist
   const [aiText,   setAiText]   = useState('')
@@ -410,6 +411,8 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
         [`submissions.${s.id}.graded`]: true,
       }
       if (rubricSnapshot !== undefined) update[`submissions.${s.id}.rubricChecks`] = rubricSnapshot
+      // Persist teacher feedback only when the field was touched this session.
+      if (feedbacks[s.id] !== undefined) update[`submissions.${s.id}.feedback`] = feedbacks[s.id].trim()
       await updateDoc(doc(db.current, 'activities', act.id), update)
       // Update local student grade components
       const updated = buildUpdatedStudent(s, act.subject, act.classId, activities, students)
@@ -500,6 +503,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
         update[`submissions.${s.id}.score`]  = score
         update[`submissions.${s.id}.graded`] = true
         if (hasRubric) update[`submissions.${s.id}.rubricChecks`] = rubricChecks[s.id] || {}
+        if (feedbacks[s.id] !== undefined) update[`submissions.${s.id}.feedback`] = feedbacks[s.id].trim()
       })
       await updateDoc(doc(db.current, 'activities', act.id), update)
       const updatedStudents = students.map(s => {
@@ -540,6 +544,9 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
   function applyAiGrade(studentId) {
     if (!aiResult) return
     setScores(prev => ({ ...prev, [studentId]: String(aiResult.score) }))
+    // Pre-fill the feedback box with the AI's notes so the teacher can review,
+    // edit, and save it for the student (previously it was shown but discarded).
+    if (aiResult.feedback) setFeedbacks(prev => ({ ...prev, [studentId]: aiResult.feedback }))
     if (hasRubric && Array.isArray(aiResult.criteria)) {
       const checks = {}
       act.rubric.forEach(c => {
@@ -628,6 +635,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                 <th>Submission</th>
                 {hasRubric && <th>Rubric</th>}
                 <th>Score /{act.maxScore}</th>
+                <th>Feedback</th>
                 <th>Save</th>
               </tr>
             </thead>
@@ -698,6 +706,16 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                         onChange={e => setScores(prev => ({ ...prev, [s.id]: e.target.value }))}
                         style={{ width: 70, padding: '5px 7px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, textAlign: 'center', background: 'var(--surface)', color: 'var(--ink)' }}
                         placeholder="—"
+                      />
+                    </td>
+                    <td>
+                      <textarea
+                        value={feedbacks[s.id] !== undefined ? feedbacks[s.id] : (sub.feedback || '')}
+                        onChange={e => setFeedbacks(prev => ({ ...prev, [s.id]: e.target.value }))}
+                        placeholder="Optional feedback…"
+                        aria-label={`Feedback for ${s.name}`}
+                        rows={2}
+                        style={{ width: 190, minWidth: 150, padding: '5px 7px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 12, lineHeight: 1.45, background: 'var(--surface)', color: 'var(--ink)', resize: 'vertical', fontFamily: 'inherit' }}
                       />
                     </td>
                     <td>

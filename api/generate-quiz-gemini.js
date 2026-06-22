@@ -12,6 +12,7 @@
 // Response: { questions: [{type, question, options?, answer}] }
 
 import { guard } from './_guard.js'
+import { requireUser } from './_fbadmin.js'
 
 const SHAPES = {
   multiple_choice: '{"type":"multiple_choice","question":"...","options":["A","B","C","D"],"answer":"A"}',
@@ -24,6 +25,7 @@ const SHAPES = {
 export default async function handler(req, res) {
   if (guard(req, res, { max: 20 })) return
   if (req.method !== 'POST') return res.status(405).end()
+  if (!(await requireUser(req, res))) return
 
   const key = process.env.GEMINI_API_KEY
   if (!key) return res.status(501).json({ error: 'Gemini not configured (GEMINI_API_KEY missing)' })
@@ -31,12 +33,15 @@ export default async function handler(req, res) {
   const { text = '', count = 10, types = ['multiple_choice', 'true_false', 'fill_in_the_blank', 'identification'] } = req.body || {}
   if (!text.trim()) return res.status(400).json({ error: 'No lesson text provided' })
 
-  const allowed = types.filter(t => SHAPES[t])
+  // Clamp the requested count to a sane range to prevent quota/cost abuse.
+  const n = Math.max(1, Math.min(50, parseInt(count, 10) || 10))
+
+  const allowed = (Array.isArray(types) ? types : []).filter(t => SHAPES[t])
   const shapeHints = allowed.map(t => `- ${t}: ${SHAPES[t]}`).join('\n')
   const lesson = text.slice(0, 18000) // keep request small
 
   const prompt = `You are a teacher creating a quiz strictly from the lesson material below.
-Generate exactly ${count} questions using ONLY these types:
+Generate exactly ${n} questions using ONLY these types:
 ${shapeHints}
 
 Rules:

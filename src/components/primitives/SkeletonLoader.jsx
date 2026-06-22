@@ -8,14 +8,29 @@ export class TabErrorBoundary extends React.Component {
   static getDerivedStateFromError(error) {
     return { error }
   }
+  componentDidCatch(error, info) {
+    console.error('[AcadFlow] Tab error:', error, info?.componentStack)
+  }
   render() {
     if (this.state.error) {
+      const isDev = !!(import.meta.env && import.meta.env.DEV)
       return (
         <div style={{ padding: 24, color: 'var(--red)', background: 'var(--red-l)', borderRadius: 'var(--radius)', margin: 8 }}>
           <strong>Something went wrong loading this tab.</strong>
-          <pre style={{ marginTop: 8, fontSize: 11, whiteSpace: 'pre-wrap', color: 'inherit', opacity: .8 }}>
-            {this.state.error?.message}
-          </pre>
+          <div style={{ marginTop: 10 }}>
+            <button
+              type="button"
+              onClick={() => this.setState({ error: null })}
+              style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid var(--red)', background: 'transparent', color: 'var(--red)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+            >
+              Try again
+            </button>
+          </div>
+          {isDev && (
+            <pre style={{ marginTop: 10, fontSize: 11, whiteSpace: 'pre-wrap', color: 'inherit', opacity: .8 }}>
+              {this.state.error?.message}
+            </pre>
+          )}
         </div>
       )
     }

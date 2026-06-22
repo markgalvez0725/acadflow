@@ -426,6 +426,7 @@ export default function FloatingAdminMessenger({ unreadCount, open: openProp, on
                 <input
                   className="input"
                   style={{ width: '100%', fontSize: 12 }}
+                  aria-label="Search conversations"
                   placeholder="Search…"
                   value={search}
                   onChange={e => setSearch(e.target.value)}

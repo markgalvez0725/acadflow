@@ -9,6 +9,7 @@ import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { extractTextFromFile } from '@/utils/lessonExtract'
 import { generateDraftQuestions } from '@/utils/quizGen'
+import { getIdToken } from '@/firebase/firebaseInit'
 
 
 function quizId() {
@@ -692,10 +693,11 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
     try {
       if (method === 'ai') {
         try {
+          const idToken = await getIdToken()
           const r = await fetch('/api/generate-quiz-gemini', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text, count, types: qTypes }),
+            body: JSON.stringify({ text, count, types: qTypes, idToken }),
           })
           if (r.ok) {
             const data = await r.json()

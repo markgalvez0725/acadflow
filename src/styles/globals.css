@@ -4311,3 +4311,30 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
     overscroll-behavior: contain;
   }
 }
+
+/* ── Accessibility: skip-to-content link ──────────────────────────────────
+   Visually hidden until focused (keyboard Tab on page load), then anchored at
+   the top-left so keyboard users can jump past the sidebar/topbar nav. */
+@layer components {
+  .skip-link {
+    position: fixed;
+    top: -100px;
+    left: 12px;
+    z-index: 1000;
+    padding: 10px 16px;
+    border-radius: 10px;
+    background: var(--accent, #1a4a9e);
+    color: #fff;
+    font-weight: 600;
+    font-size: 14px;
+    text-decoration: none;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, .25);
+    transition: top .15s ease;
+  }
+  .skip-link:focus,
+  .skip-link:focus-visible {
+    top: 12px;
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+  }
+}

@@ -7,10 +7,12 @@
 // Response: { text: string } or, when json=true, { json: any }
 
 import { guard } from './_guard.js'
+import { requireUser } from './_fbadmin.js'
 
 export default async function handler(req, res) {
   if (guard(req, res, { max: 20 })) return
   if (req.method !== 'POST') return res.status(405).end()
+  if (!(await requireUser(req, res))) return
 
   const key = process.env.GEMINI_API_KEY
   if (!key) return res.status(501).json({ error: 'AI not configured (GEMINI_API_KEY missing)' })

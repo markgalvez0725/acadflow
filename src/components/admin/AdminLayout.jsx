@@ -121,6 +121,7 @@ export default function AdminLayout() {
 
   return (
     <div className="admin-layout" id="admin-portal">
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -166,7 +167,7 @@ export default function AdminLayout() {
           </div>
         </div>
 
-        <div className="admin-body">
+        <main className="admin-body" id="main-content" tabIndex={-1}>
           {/* Tab panels */}
           <TabErrorBoundary key={adminTab}>
             <Suspense fallback={<SkeletonRows />}>
@@ -184,7 +185,7 @@ export default function AdminLayout() {
               {adminTab === 'messages'      && <MessagesTab />}
             </Suspense>
           </TabErrorBoundary>
-        </div>
+        </main>
       </div>
 
       {/* Modals */}
