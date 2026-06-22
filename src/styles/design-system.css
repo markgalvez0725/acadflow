@@ -296,3 +296,31 @@
 .ds-tile.active { background: var(--accent-l); color: var(--accent); border-color: transparent; }
 .ds-tile svg { width: 22px; height: 22px; }
 .ds-tile-danger { color: var(--red); }
+
+/* ── Mobile polish: topbar spacing, nav fill, messenger in the nav ─────── */
+@media (max-width: 767px) {
+  /* Roomier top bar */
+  .admin-topbar { padding: 10px 16px; gap: 14px; }
+
+  /* The floating messenger bubble is replaced by a nav item on phones */
+  .fm-bubble { display: none !important; }
+
+  /* Bottom nav: icon-only; the active item fills its navy segment */
+  .admin-bottom-nav { padding: 5px 7px; gap: 4px; max-width: 470px; }
+  .admin-bottom-nav .abn-item {
+    flex: 1 1 0;
+    width: auto;
+    height: 46px;
+    padding: 0;
+    flex-direction: row;
+    border-radius: 14px;
+  }
+  .abn-label { display: none; }
+  .admin-bottom-nav .abn-item.active { background: var(--accent); color: #fff; }
+  .abn-ic { position: relative; display: inline-flex; align-items: center; justify-content: center; }
+  .abn-dot {
+    position: absolute; top: -3px; right: -4px;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--red); border: 2px solid #12161f;
+  }
+}
