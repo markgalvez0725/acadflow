@@ -7,7 +7,7 @@ import { getFbAuth } from '@/firebase/firebaseInit'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
-import { Download, Upload, FileDown, KeyRound, GraduationCap } from 'lucide-react'
+import { Download, Upload, FileDown, KeyRound, GraduationCap, CheckCircle2 } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { buildStudentReportCard } from '@/export/reportCard'
 import { courseOptions } from '@/constants/courses'
@@ -451,21 +451,21 @@ function ResetPasswordModal({ student, onClose }) {
 
   return (
     <Modal onClose={onClose} maxWidth={440}>
-      <h3>🔑 Reset Password</h3>
+      <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}><KeyRound size={20} />Reset Password</h3>
 
       {!opened ? (
         <>
           <p className="modal-sub">
             This starts a live reset for <strong>{student.name}</strong> (#{student.id}).
-            A temporary password is created on the student's own device and signs them in
-            automatically — you never have to handle or share it.
+            The student sets their own new password on their device — you never have to
+            handle or share one.
           </p>
 
           <div className="field mb-4 p-3 rounded-xl bg-bg2 text-sm text-ink2" style={{ lineHeight: 1.6 }}>
             <strong className="text-ink">Before you click:</strong> ask the student to open the
             login screen → <em>Forgot Password</em> → enter their student number and tap
-            <em> Start</em>. Then open the window below. Their screen fills in a temporary
-            password and logs them in within a few seconds.
+            <em> Start</em>. Then open the window below. Within a few seconds they'll be prompted
+            to choose a new password, then signed in.
           </div>
 
           {err && <div className="err-msg mb-3">{err}</div>}
@@ -479,11 +479,13 @@ function ResetPasswordModal({ student, onClose }) {
         </>
       ) : (
         <>
-          <p className="modal-sub">
-            ✅ Reset window is <strong>open for 10 minutes</strong>. As soon as
-            <strong> {student.name}</strong> taps <em>Start</em> on their Forgot Password screen,
-            they'll be signed in automatically with a fresh temporary password and can change it
-            from their profile.
+          <p className="modal-sub" style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+            <CheckCircle2 size={18} style={{ flexShrink: 0, marginTop: 2, color: 'var(--green)' }} />
+            <span>
+              Reset window is <strong>open for 10 minutes</strong>. As soon as
+              <strong> {student.name}</strong> taps <em>Start</em> on their Forgot Password screen,
+              they'll be prompted to set a new password and signed in automatically.
+            </span>
           </p>
           <div className="modal-footer">
             <button className="btn btn-primary" onClick={onClose}>Done</button>
