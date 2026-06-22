@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react'
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { useUI } from '@/context/UIContext'
 import { useData } from '@/context/DataContext'
 import { useAuth } from '@/context/AuthContext'
@@ -98,6 +98,22 @@ export default function AdminLayout() {
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
   }, [])
+
+  // Pop a toast whenever a genuinely new notification arrives (any type).
+  const lastNotifTs = useRef(0)
+  const notifReady = useRef(false)
+  useEffect(() => {
+    const list = adminNotifs || []
+    if (!list.length) return
+    const latest = list.reduce((m, n) => Math.max(m, n.ts || 0), 0)
+    if (!notifReady.current) { notifReady.current = true; lastNotifTs.current = latest; return }
+    if (latest > lastNotifTs.current) {
+      const fresh = list.filter(n => (n.ts || 0) > lastNotifTs.current).sort((a, b) => b.ts - a.ts)
+      lastNotifTs.current = latest
+      const n = fresh[0]
+      if (n) toast(n.body ? `${n.title} — ${n.body}` : n.title, 'info')
+    }
+  }, [adminNotifs])
 
   const [title, subtitle] = TAB_TITLES[adminTab] || ['', '']
 
