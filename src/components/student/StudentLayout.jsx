@@ -10,6 +10,7 @@ import { SkeletonRows, SkeletonDashboard, TabErrorBoundary } from '@/components/
 import SemesterCalendarChip from '@/components/primitives/SemesterCalendarChip'
 import CommandPaletteButton from '@/components/primitives/CommandPaletteButton'
 import ConnectionStatus from '@/components/primitives/ConnectionStatus'
+import ThemeToggle from '@/components/primitives/ThemeToggle'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { activeClasses, activeClassIds } from '@/utils/active'
 import { isNotifAllowed } from '@/utils/notifPrefs'
@@ -281,6 +282,7 @@ export default function StudentLayout() {
             )}
             <span className="tb-desktop-only"><ConnectionStatus compact /></span>
             <CommandPaletteButton compact />
+            <ThemeToggle style={{ position: 'static', width: 36, height: 36, borderRadius: 10 }} />
             <span className="tb-desktop-only"><SemesterCalendarChip semester={semester} /></span>
             <button
               onClick={() => setStudentTab('notifications')}
