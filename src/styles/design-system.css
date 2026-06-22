@@ -225,3 +225,24 @@
 .ds-statline .t b { color: var(--ink); font-weight: 700; }
 .ds-bar { height: 8px; border-radius: 20px; background: var(--surface3); overflow: hidden; }
 .ds-bar i { display: block; height: 100%; border-radius: 20px; }
+
+/* ── Responsive shell: tablet rail only, mobile 5-item nav ─────────────── */
+/* Tablet (768–1023): show the navy icon rail, hide the mobile bottom nav. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .admin-bottom-nav { display: none !important; }
+  .student-bottom-nav { display: none !important; }
+}
+/* Mobile (≤767): bottom nav becomes evenly-spaced icon + label items. */
+@media (max-width: 767px) {
+  .admin-bottom-nav { max-width: 500px; gap: 2px; }
+  .admin-bottom-nav .abn-item {
+    flex: 1 1 0;
+    width: auto;
+    height: auto;
+    flex-direction: column;
+    gap: 2px;
+    padding: 5px 0;
+    border-radius: 13px;
+  }
+  .abn-label { font-size: 10px; font-weight: 600; line-height: 1; }
+}
