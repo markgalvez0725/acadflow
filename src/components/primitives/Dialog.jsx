@@ -1,12 +1,13 @@
 import React, { useEffect, useRef } from 'react'
 import ReactDOM from 'react-dom'
 import { useUI } from '@/context/UIContext'
+import { Info, CheckCircle2, AlertTriangle } from 'lucide-react'
 
 const ICONS = {
-  info:    '💬',
-  success: '✅',
-  danger:  '⚠️',
-  warning: '⚠️',
+  info:    Info,
+  success: CheckCircle2,
+  danger:  AlertTriangle,
+  warning: AlertTriangle,
 }
 
 export default function Dialog() {
@@ -42,7 +43,7 @@ export default function Dialog() {
       >
         <div className="dlg-body">
           <div className={`dlg-icon-wrap dlg-${type}`} aria-hidden="true">
-            {ICONS[type] || '💬'}
+            {(() => { const I = ICONS[type] || Info; return <I size={26} /> })()}
           </div>
           <div className="dlg-text">
             <div className="dlg-title">{title}</div>
