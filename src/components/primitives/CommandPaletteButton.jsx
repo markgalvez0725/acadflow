@@ -21,9 +21,9 @@ export default function CommandPaletteButton({ compact = false }) {
       }}
     >
       <Search size={14} />
-      {!compact && <span className="hidden md:inline">Search</span>}
+      {!compact && <span className="hidden lg:inline">Search</span>}
       {!compact && (
-        <span className="hidden md:inline" style={{
+        <span className="hidden lg:inline" style={{
           fontFamily: 'var(--font-mono)', fontSize: 10, padding: '1px 5px',
           borderRadius: 5, background: 'var(--surface)', border: '1px solid var(--border)',
         }}>
