@@ -186,7 +186,7 @@ export default function DashboardTab() {
       </div>
 
       {/* Charts */}
-      <div className="grid-2 mb-4">
+      <div className="grid-2 mb-4 ds-desktop-only">
         <div className="chart-wrap">
           <div className="chart-title">Class Grade Overview</div>
           <BarChart data={barData} height={160} />
@@ -200,7 +200,7 @@ export default function DashboardTab() {
       </div>
 
       {/* At-risk + Low attendance */}
-      <div className="grid-2 mb-4">
+      <div className="grid-2 mb-4 ds-desktop-only">
         <div>
           <div className="sec-hdr"><div className="sec-title sec-title-ic"><ShieldCheck /> Students at Risk (below 75%)</div></div>
           {!atRisk.length ? (
@@ -250,7 +250,7 @@ export default function DashboardTab() {
       </div>
 
       {/* All students overview */}
-      <div className="card card-pad">
+      <div className="card card-pad ds-desktop-only">
         <div className="sec-hdr">
           <div className="sec-title sec-title-ic"><Users /> All Students Overview</div>
           <span className="text-xs text-ink2">{students.length} total</span>
