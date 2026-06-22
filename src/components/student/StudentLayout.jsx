@@ -3,17 +3,17 @@ import { onSnapshot, doc } from 'firebase/firestore'
 import { useUI } from '@/context/UIContext'
 import { useData } from '@/context/DataContext'
 import { useAuth } from '@/context/AuthContext'
-import ThemeToggle from '@/components/primitives/ThemeToggle'
 import ToastManager from '@/components/primitives/ToastManager'
 import Dialog from '@/components/primitives/Dialog'
 import FloatingMessenger from './FloatingMessenger'
+import StudentSidebar from './StudentSidebar'
 import { SkeletonRows, SkeletonDashboard, TabErrorBoundary } from '@/components/primitives/SkeletonLoader'
 import SemesterCalendarChip from '@/components/primitives/SemesterCalendarChip'
 import CommandPaletteButton from '@/components/primitives/CommandPaletteButton'
 import ConnectionStatus from '@/components/primitives/ConnectionStatus'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { activeClasses, activeClassIds } from '@/utils/active'
-import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature } from 'lucide-react'
+import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut } from 'lucide-react'
 
 // Lazy-load tabs
 const StreamTab        = lazy(() => import('./tabs/StreamTab'))
@@ -32,17 +32,33 @@ const EditProfileModal         = lazy(() => import('./modals/EditProfileModal'))
 const ForceChangePasswordModal = lazy(() => import('./modals/ForceChangePasswordModal'))
 const StudentActionSheet       = lazy(() => import('./modals/StudentActionSheet'))
 
-const NAV_ITEMS = [
-  { id: 'stream',        label: 'Stream',         Icon: Rss },
-  { id: 'overview',      label: 'Overview',      Icon: LayoutDashboard },
-  { id: 'grades',        label: 'Grades',         Icon: BookOpen },
-  { id: 'attendance',    label: 'Attendance',     Icon: CalendarCheck },
-  { id: 'activities',    label: 'Activities',     Icon: ClipboardList },
-  { id: 'quizzes',       label: 'Quizzes',        Icon: FileQuestion },
-  { id: 'notifications', label: 'Notifications',  Icon: Bell },
-  { id: 'calendar',      label: 'Calendar',       Icon: CalendarDays },
-  { id: 'onlineClasses', label: 'Online Classes', Icon: Video },
-  { id: 'enrollment',    label: 'Enrollment',     Icon: ClipboardSignature },
+const TAB_TITLES = {
+  overview:      ['Home',           'Your academic overview'],
+  stream:        ['Stream',         'Class announcements and updates'],
+  grades:        ['Grades',         'Your grades by subject'],
+  attendance:    ['Attendance',     'Your attendance record'],
+  activities:    ['Activities',     'Submit and track your activities'],
+  quizzes:       ['Quizzes',        'Take and review quizzes'],
+  notifications: ['Notifications',  'Your alerts'],
+  calendar:      ['Calendar',       'Deadlines and events'],
+  onlineClasses: ['Online Classes', 'Join your Google Meet sessions'],
+  enrollment:    ['Enrollment',     'Your enrolled subjects'],
+}
+
+// Mobile bottom-nav: 4 primary + More (opens a sheet)
+const MOBILE_NAV = [
+  { id: 'overview',   Icon: LayoutDashboard, label: 'Home',    badgeId: null },
+  { id: 'grades',     Icon: BookOpen,        label: 'Grades',  badgeId: null },
+  { id: 'activities', Icon: ClipboardList,   label: 'Tasks',   badgeId: 'act' },
+  { id: 'quizzes',    Icon: FileQuestion,    label: 'Quizzes', badgeId: 'quiz' },
+]
+const MORE_NAV = [
+  { id: 'stream',        Icon: Rss,                 label: 'Stream' },
+  { id: 'attendance',    Icon: CalendarCheck,       label: 'Attendance' },
+  { id: 'calendar',      Icon: CalendarDays,        label: 'Calendar' },
+  { id: 'enrollment',    Icon: ClipboardSignature,  label: 'Enrollment' },
+  { id: 'onlineClasses', Icon: Video,               label: 'Meet' },
+  { id: 'notifications', Icon: Bell,                label: 'Alerts' },
 ]
 
 export default function StudentLayout() {
@@ -73,7 +89,6 @@ export default function StudentLayout() {
   const [viewClassId, setViewClassId] = useState(null)
   const effectiveClassId = viewClassId || enrolledClasses[0]?.id || null
 
-  // When enrolled classes change (e.g. after pending resolve), reset viewClassId if stale
   useEffect(() => {
     if (viewClassId && !enrolledClasses.find(c => c.id === viewClassId)) {
       setViewClassId(null)
@@ -102,17 +117,16 @@ export default function StudentLayout() {
     if (fresh) setStudent(fresh)
   }, [students])
 
-  // Nav collapsed state
-  const [navCollapsed, setNavCollapsed] = useState(false)
+  // Shell state
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarExpanded, setSidebarExpanded] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024)
+  const [moreOpen, setMoreOpen] = useState(false)
 
   // Force change password modal
   const [forcePassOpen,    setForcePassOpen]    = useState(false)
   const [forcePassIsForced, setForcePassIsForced] = useState(false)
-  const forcePassTriggeredRef = useRef(false)
-  // Passwords are managed by Firebase Auth and set by the student during
-  // registration, so there is no forced first-login password change.
 
-  // Profile modal
+  // Profile / account sheet
   const [profileOpen, setProfileOpen] = useState(false)
   const [actionSheetOpen, setActionSheetOpen] = useState(false)
 
@@ -129,8 +143,8 @@ export default function StudentLayout() {
     return activities.filter(a => {
       if (!studentClassIds.includes(a.classId)) return false
       const sub = (a.submissions || {})[student.id]
-      if (sub?.link) return false // already submitted
-      if (a.deadline && now > a.deadline) return false // past due
+      if (sub?.link) return false
+      if (a.deadline && now > a.deadline) return false
       return true
     }).length
   })()
@@ -146,6 +160,7 @@ export default function StudentLayout() {
       !q.submissions?.[student.id]
     ).length
   })()
+
   const unreadMsgCount = messages.filter(m => {
     if (!student) return false
     const id = student.id
@@ -158,16 +173,29 @@ export default function StudentLayout() {
     )
     if (!isVisible) return false
     const lastReadAt = m.readAt?.[id] || 0
-    // For teacher-initiated messages, the base message itself can be unread.
     if (m.from !== id) {
       const studentRead = Array.isArray(m.read) && m.read.includes(id)
       if (!studentRead) return true
     }
-    // For any thread (including ones the student started), a teacher reply that
-    // arrived after the student last opened it counts as unread.
     const lastAdminReply = (m.replies || []).filter(r => r.from === 'admin').reduce((max, r) => Math.max(max, r.ts || 0), 0)
     return lastAdminReply > lastReadAt
   }).length
+
+  // Toast on any genuinely new notification.
+  const lastNotifTs = useRef(0)
+  const notifReady = useRef(false)
+  useEffect(() => {
+    const list = studentNotifs || []
+    if (!list.length) return
+    const latest = list.reduce((m, n) => Math.max(m, n.ts || 0), 0)
+    if (!notifReady.current) { notifReady.current = true; lastNotifTs.current = latest; return }
+    if (latest > lastNotifTs.current) {
+      const fresh = list.filter(n => (n.ts || 0) > lastNotifTs.current).sort((a, b) => b.ts - a.ts)
+      lastNotifTs.current = latest
+      const n = fresh[0]
+      if (n) toast(n.body ? `${n.title} — ${n.body}` : n.title, 'info')
+    }
+  }, [studentNotifs])
 
   if (!student) {
     return (
@@ -177,114 +205,144 @@ export default function StudentLayout() {
     )
   }
 
-  const activeClass = classes.find(c => c.id === effectiveClassId)
+  const badges = { act: openActivityCount, quiz: openQuizCount, notif: unreadNotifCount }
+  const [title, subtitle] = TAB_TITLES[studentTab] || ['', '']
+
+  function badgeFor(id) {
+    if (id === 'activities') return openActivityCount
+    if (id === 'quizzes')    return openQuizCount
+    if (id === 'notifications') return unreadNotifCount
+    return 0
+  }
 
   return (
-    <div className={`student-layout${navCollapsed ? ' nav-collapsed' : ''}`} id="student-portal">
-      {/* Top bar */}
-      <div className="student-topbar">
-        <div className="flex items-center gap-3 min-w-0">
-          {/* Avatar */}
-          <button
-            className="stud-avatar"
-            onClick={() => setActionSheetOpen(true)}
-            title="Account options"
-            aria-label="Account options"
-            style={{ flexShrink: 0 }}
-          >
-            {student.photo
-              ? <img src={student.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-              : <span style={{ fontSize: 18, lineHeight: 1 }}>{(student.name || '?')[0].toUpperCase()}</span>
-            }
-          </button>
-          <div className="min-w-0">
-            <div className="student-name truncate">{student.name || 'Student'}</div>
-            <div className="student-id text-ink3 text-xs truncate">{student.snum || student.id}</div>
+    <div className="admin-layout" id="student-portal">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-30 bg-black/40" onClick={() => setSidebarOpen(false)} />
+      )}
+
+      {/* Sidebar */}
+      <div className={`sidebar-wrap${sidebarOpen ? ' open' : ''}${sidebarExpanded ? ' expanded' : ''}`}>
+        <StudentSidebar
+          student={student}
+          badges={badges}
+          onSettings={() => setActionSheetOpen(true)}
+          onLogout={() => logout('manual')}
+          onToggle={() => setSidebarExpanded(e => !e)}
+        />
+      </div>
+
+      {/* Main content */}
+      <div className={`admin-main${sidebarExpanded ? ' sidebar-expanded' : ''}`}>
+        {/* Top bar */}
+        <div className="admin-topbar">
+          <div>
+            <h3>{title}</h3>
+            <span>{subtitle}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            {enrolledClasses.length > 1 && (
+              <select
+                className="class-selector tb-desktop-only"
+                value={effectiveClassId || ''}
+                onChange={e => setViewClassId(e.target.value)}
+              >
+                {enrolledClasses.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}{c.section ? ` - ${c.section}` : ''}</option>
+                ))}
+              </select>
+            )}
+            <span className="tb-desktop-only"><ConnectionStatus compact /></span>
+            <CommandPaletteButton compact />
+            <span className="tb-desktop-only"><SemesterCalendarChip semester={semester} /></span>
+            <button
+              onClick={() => setStudentTab('notifications')}
+              aria-label="Notifications"
+              title="Notifications"
+              style={{ position: 'relative', width: 36, height: 36, borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink2)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+            >
+              <Bell size={18} />
+              {unreadNotifCount > 0 && (
+                <span style={{ position: 'absolute', top: 6, right: 7, minWidth: 7, height: 7, borderRadius: '50%', background: 'var(--red)', border: '2px solid var(--surface)' }} />
+              )}
+            </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Class selector — only when enrolled in 2+ classes */}
-          {enrolledClasses.length > 1 && (
-            <select
-              className="class-selector"
-              value={effectiveClassId || ''}
-              onChange={e => setViewClassId(e.target.value)}
-            >
-              {enrolledClasses.map(c => (
-                <option key={c.id} value={c.id}>{c.name}{c.section ? ` - ${c.section}` : ''}</option>
-              ))}
-            </select>
-          )}
-          <ConnectionStatus compact />
-          <CommandPaletteButton compact />
-          <SemesterCalendarChip semester={semester} />
-          <ThemeToggle style={{ position: 'static', width: 32, height: 32, fontSize: 14 }} />
+        {/* Tab content */}
+        <div className="admin-body">
+          <TabErrorBoundary key={studentTab}>
+            <Suspense fallback={<SkeletonRows />}>
+              {studentTab === 'stream'        && <StreamTab        student={student} viewClassId={effectiveClassId} classes={classes} />}
+              {studentTab === 'overview'      && <OverviewTab      student={student} viewClassId={effectiveClassId} classes={classes} />}
+              {studentTab === 'grades'        && <GradesTab        student={student} viewClassId={effectiveClassId} classes={classes} />}
+              {studentTab === 'attendance'    && <AttendanceTab    student={student} viewClassId={effectiveClassId} classes={classes} />}
+              {studentTab === 'activities'    && <ActivitiesTab    student={student} viewClassId={effectiveClassId} activities={activities} />}
+              {studentTab === 'quizzes'       && <StudentQuizTab   student={student} viewClassId={effectiveClassId} />}
+              {studentTab === 'notifications' && <NotificationsTab student={student} notifs={studentNotifs} setNotifs={setStudentNotifs} />}
+              {studentTab === 'calendar'      && <CalendarTab      student={student} viewClassId={effectiveClassId} classes={classes} />}
+              {studentTab === 'onlineClasses' && <OnlineClassesTab student={student} />}
+              {studentTab === 'enrollment'    && <EnrollmentTab    student={student} />}
+            </Suspense>
+          </TabErrorBoundary>
         </div>
       </div>
 
-      {/* Tab content */}
-      <div className="student-body">
-        <TabErrorBoundary key={studentTab}>
-          <Suspense fallback={<SkeletonRows />}>
-            {studentTab === 'stream'        && <StreamTab        student={student} viewClassId={effectiveClassId} classes={classes} />}
-            {studentTab === 'overview'      && <OverviewTab      student={student} viewClassId={effectiveClassId} classes={classes} />}
-            {studentTab === 'grades'        && <GradesTab        student={student} viewClassId={effectiveClassId} classes={classes} />}
-            {studentTab === 'attendance'    && <AttendanceTab    student={student} viewClassId={effectiveClassId} classes={classes} />}
-            {studentTab === 'activities'    && <ActivitiesTab    student={student} viewClassId={effectiveClassId} activities={activities} />}
-            {studentTab === 'quizzes'       && <StudentQuizTab   student={student} viewClassId={effectiveClassId} />}
-            {studentTab === 'notifications' && <NotificationsTab student={student} notifs={studentNotifs} setNotifs={setStudentNotifs} />}
-            {studentTab === 'calendar'     && <CalendarTab      student={student} viewClassId={effectiveClassId} classes={classes} />}
-            {studentTab === 'onlineClasses' && <OnlineClassesTab student={student} />}
-            {studentTab === 'enrollment'    && <EnrollmentTab    student={student} />}
-          </Suspense>
-        </TabErrorBoundary>
-      </div>
-
-      {/* Bottom nav — floating pill */}
-      <nav className={`student-bottom-nav${navCollapsed ? ' collapsed' : ''}`}>
-        {NAV_ITEMS.map(item => {
-          const badge = item.id === 'notifications' ? unreadNotifCount : item.id === 'quizzes' ? openQuizCount : item.id === 'activities' ? openActivityCount : 0
+      {/* Mobile bottom nav — 4 primary + More */}
+      <nav className="admin-bottom-nav" aria-label="Sections">
+        {MOBILE_NAV.map(t => {
+          const badge = t.badgeId ? badgeFor(t.id) : 0
           return (
             <button
-              key={item.id}
-              className={`nav-item ${studentTab === item.id ? 'active' : ''}`}
-              onClick={() => setStudentTab(item.id)}
-              title={item.label}
+              key={t.id}
+              className={`abn-item${studentTab === t.id ? ' active' : ''}`}
+              onClick={() => setStudentTab(t.id)}
+              aria-label={t.label}
             >
-              <span className="nav-icon" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <item.Icon size={18} />
-                {badge > 0 && (
-                  <span style={{
-                    position: 'absolute', top: -4, right: -6,
-                    background: 'var(--accent)', color: '#fff',
-                    borderRadius: 10, fontSize: 9, fontWeight: 700,
-                    padding: '0 4px', lineHeight: '14px', minWidth: 14,
-                    textAlign: 'center',
-                  }}>
-                    {badge > 99 ? '99+' : badge}
-                  </span>
-                )}
+              <span className="abn-ic">
+                <t.Icon size={20} />
+                {badge > 0 && <span className="abn-dot" />}
               </span>
-              <span className="nav-label">{item.label}</span>
+              <span className="abn-label">{t.label}</span>
             </button>
           )
         })}
-        {/* Collapse toggle — desktop only */}
-        <button
-          className="nav-item nav-collapse-toggle"
-          onClick={() => setNavCollapsed(c => !c)}
-          title={navCollapsed ? 'Expand nav' : 'Collapse nav'}
-        >
-          <span className="nav-icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {navCollapsed
-              ? <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              : <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 4L6 8l4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            }
-          </span>
-          <span className="nav-label">{navCollapsed ? 'More' : 'Less'}</span>
+        <button className={`abn-item${moreOpen ? ' active' : ''}`} onClick={() => setMoreOpen(true)} aria-label="More">
+          <Menu size={20} />
+          <span className="abn-label">More</span>
         </button>
       </nav>
+
+      {/* Mobile "More" sheet */}
+      {moreOpen && (
+        <div className="ds-sheet-backdrop" onClick={() => setMoreOpen(false)}>
+          <div className="ds-sheet" onClick={e => e.stopPropagation()}>
+            <div className="ds-sheet-grip" />
+            <div className="ds-sheet-title">More</div>
+            <div className="ds-sheet-grid">
+              {MORE_NAV.map(t => (
+                <button
+                  key={t.id}
+                  className={`ds-tile${studentTab === t.id ? ' active' : ''}`}
+                  onClick={() => { setStudentTab(t.id); setMoreOpen(false) }}
+                >
+                  <t.Icon size={22} />
+                  <span>{t.label}</span>
+                </button>
+              ))}
+              <button className="ds-tile" onClick={() => { setMoreOpen(false); setActionSheetOpen(true) }}>
+                <Settings size={22} />
+                <span>Account</span>
+              </button>
+              <button className="ds-tile ds-tile-danger" onClick={() => { setMoreOpen(false); logout('manual') }}>
+                <LogOut size={22} />
+                <span>Logout</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modals */}
       {profileOpen && (
