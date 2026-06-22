@@ -55,7 +55,9 @@ export default function LoginScreen() {
 
   // Register form
   const [regSnum,    setRegSnum]    = useState('')
-  const [regName,    setRegName]    = useState('')
+  const [regSurname, setRegSurname] = useState('')
+  const [regFirst,   setRegFirst]   = useState('')
+  const [regMiddle,  setRegMiddle]  = useState('')
   const [regCourse,  setRegCourse]  = useState('')
   const [regYear,    setRegYear]    = useState('1st Year')
   const [regSection, setRegSection] = useState('')
@@ -221,12 +223,16 @@ export default function LoginScreen() {
 
     const snErr = validateSnum(regSnum)
     if (snErr) return setErr(snErr)
-    // Enforce the school's name format: "SURNAME, FNAME MNAME", ALL UPPERCASE.
-    const nameVal = regName.trim().toUpperCase().replace(/\s+/g, ' ').replace(/\s*,\s*/g, ', ')
-    if (!nameVal) return setErr('Please enter your full name.')
-    const [surnamePart, ...givenParts] = nameVal.split(',')
-    if (!nameVal.includes(',') || !surnamePart.trim() || !givenParts.join(',').trim())
-      return setErr('Enter your name as SURNAME, FNAME MNAME — surname first, then a comma (e.g. DELA CRUZ, JUAN ANTONIO).')
+    // Compose the canonical school format from separate fields so the surname
+    // is never ambiguous: "SURNAME, FNAME MNAME", ALL UPPERCASE.
+    const clean   = v => v.trim().toUpperCase().replace(/\s+/g, ' ')
+    const surname = clean(regSurname)
+    const first   = clean(regFirst)
+    const middle  = clean(regMiddle)
+    if (!surname) return setErr('Please enter your surname.')
+    if (!first)   return setErr('Please enter your first name.')
+    const given   = [first, middle].filter(Boolean).join(' ')
+    const nameVal = `${surname}, ${given}`
     if (!regCourse.trim()) return setErr('Please enter your course/program.')
     if (!regSection.trim()) return setErr('Please enter your section.')
     if (!regEmail.includes('@')) return setErr('Please enter a valid email address.')
@@ -596,11 +602,21 @@ export default function LoginScreen() {
                 <label>Student Number</label>
               </div>
               <div className="field-float">
-                <input type="text" placeholder=" " value={regName} onChange={e => setRegName(e.target.value.toUpperCase())} autoComplete="name" />
-                <label>Full Name</label>
+                <input type="text" placeholder=" " value={regSurname} onChange={e => setRegSurname(e.target.value.toUpperCase())} autoComplete="family-name" />
+                <label>Surname</label>
               </div>
-              <p style={{ fontSize: 11, color: 'var(--ink3)', margin: '-8px 2px 12px', lineHeight: 1.5 }}>
-                Format: <strong>SURNAME, FNAME MNAME</strong> — surname first, then a comma (e.g. DELA CRUZ, JUAN ANTONIO).
+              <div className="ff-row">
+                <div className="field-float">
+                  <input type="text" placeholder=" " value={regFirst} onChange={e => setRegFirst(e.target.value.toUpperCase())} autoComplete="given-name" />
+                  <label>First Name</label>
+                </div>
+                <div className="field-float">
+                  <input type="text" placeholder=" " value={regMiddle} onChange={e => setRegMiddle(e.target.value.toUpperCase())} autoComplete="additional-name" />
+                  <label>Middle Name</label>
+                </div>
+              </div>
+              <p style={{ fontSize: 11, color: 'var(--ink3)', margin: '-4px 2px 12px', lineHeight: 1.5 }}>
+                Saved as <strong>{(regSurname.trim() || 'SURNAME').toUpperCase()}, {[regFirst.trim().toUpperCase(), regMiddle.trim().toUpperCase()].filter(Boolean).join(' ') || 'FNAME MNAME'}</strong> to match your class records. Middle name is optional.
               </p>
               <div className="field-float field-float--select">
                 <select value={regCourse} onChange={e => setRegCourse(e.target.value)}>
