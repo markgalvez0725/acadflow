@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Eye, EyeOff, BarChart2, CalendarCheck, Rss, MessageSquare } from 'lucide-react'
 import AcadFlowLogo from '@/components/primitives/AcadFlowLogo'
 import { useTypingEffect } from '@/hooks/useTypingEffect'
@@ -33,7 +33,7 @@ const STUDENT_PHRASES = [
 export default function LoginScreen() {
   const { loginStudent } = useAuth()
   const { students, saveStudents, fbReady, classes } = useData()
-  const { theme } = useUI()
+  const { theme, toast } = useUI()
 
   const [mode, setMode]       = useState('student')
   const [loading, setLoading] = useState(false)
@@ -44,6 +44,13 @@ export default function LoginScreen() {
   // Login form
   const [snum, setSnum] = useState('')
   const [pass, setPass] = useState('')
+
+  // Forgot-password (live, teacher-coordinated) reset
+  const [rpNum,    setRpNum]    = useState('')
+  const [rpStatus, setRpStatus] = useState('idle') // 'idle' | 'waiting' | 'signing'
+  const [rpTemp,   setRpTemp]   = useState('')
+  const rpTimer = useRef(null)
+  const rpDeadline = useRef(0)
 
   // Register form
   const [regSnum,    setRegSnum]    = useState('')
@@ -96,6 +103,77 @@ export default function LoginScreen() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // ── Forgot password — live reset coordinated with the teacher ─────────────
+  // The student enters their number and taps Start. We poll the server; while
+  // the teacher's reset window is open, the server hands back a fresh temporary
+  // password, which we use to sign the student in automatically.
+  function stopReset() {
+    if (rpTimer.current) { clearInterval(rpTimer.current); rpTimer.current = null }
+  }
+
+  // Clean up polling if the component unmounts or the user leaves forgot mode.
+  useEffect(() => () => stopReset(), [])
+  useEffect(() => { if (mode !== 'forgot') { stopReset(); setRpStatus('idle'); setRpTemp('') } }, [mode])
+
+  async function pollClaim(number) {
+    if (Date.now() > rpDeadline.current) {
+      stopReset()
+      setRpStatus('idle')
+      return setErr('The reset window timed out. Ask your teacher to open it again, then tap Start.')
+    }
+    try {
+      const r = await fetch('/api/claim-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentNumber: number }),
+      })
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) { /* transient — keep waiting unless it's a hard error */
+        if (r.status === 404 || r.status === 501) { stopReset(); setRpStatus('idle'); setErr(data.error || 'Reset is unavailable right now.') }
+        return
+      }
+      if (data.tempPassword) {
+        stopReset()
+        setRpTemp(data.tempPassword)
+        setRpStatus('signing')
+        const result = await loginStudent(number, data.tempPassword)
+        if (!result.ok) {
+          setRpStatus('idle')
+          setErr(result.msg || 'Could not sign you in. Please try again.')
+          return
+        }
+        toast('Signed in with a temporary password. Please change it in your profile.', 'success')
+        // Session starts — this screen unmounts as the student portal loads.
+      }
+      // else: { pending: true } → keep polling
+    } catch {
+      // network blip — keep polling until the deadline
+    }
+  }
+
+  function handleForgotStart(e) {
+    e.preventDefault()
+    clearMessages()
+    const clean = sanitizeSnum(rpNum)
+    const snErr = validateSnum(clean)
+    if (snErr) return setErr(snErr)
+
+    setRpTemp('')
+    setRpStatus('waiting')
+    rpDeadline.current = Date.now() + 10 * 60_000 // match the server window
+    stopReset()
+    pollClaim(clean)                         // immediate first check
+    rpTimer.current = setInterval(() => pollClaim(clean), 3000)
+  }
+
+  function handleForgotCancel() {
+    stopReset()
+    setRpStatus('idle')
+    setRpTemp('')
+    setMode('student')
+    clearMessages()
   }
 
   // ── Register — verified, roster-gated account creation (Firebase Auth) ─────
@@ -575,17 +653,62 @@ export default function LoginScreen() {
 
           {/* ── Forgot Password — teacher-managed reset ──────────────── */}
           {mode === 'forgot' && (
-            <div>
+            <form onSubmit={handleForgotStart}>
               <h3 className="font-display text-lg font-bold text-ink mb-1">Forgot Password</h3>
               <p className="text-sm text-ink2 mb-4" style={{ lineHeight: 1.6 }}>
-                Password resets are handled by your teacher. Please contact them with your
-                student number, and they'll set a new password for you. You can then sign in
-                and change it from your profile.
+                First, message your teacher and ask them to open a reset for you. Enter your
+                student number below, then tap <strong>Start</strong> — the moment your teacher
+                opens the window, you'll be signed in automatically.
               </p>
-              <button type="button" className="btn btn-primary btn-full mt-2" onClick={() => { setMode('student'); clearMessages() }}>
-                ← Back to Sign In
-              </button>
-            </div>
+
+              <div className="field-float">
+                <input
+                  type="text"
+                  placeholder=" "
+                  value={rpNum}
+                  onChange={e => setRpNum(e.target.value)}
+                  disabled={rpStatus !== 'idle'}
+                  autoComplete="off"
+                />
+                <label>Student Number</label>
+              </div>
+
+              {rpStatus === 'idle' && (
+                <>
+                  <button type="submit" className="btn btn-primary btn-full mt-2">
+                    Start
+                  </button>
+                  <button type="button" className="link-btn w-full text-center mt-3" onClick={handleForgotCancel}>
+                    ← Back to Sign In
+                  </button>
+                </>
+              )}
+
+              {rpStatus === 'waiting' && (
+                <>
+                  <div className="mt-3 p-3 rounded-xl bg-bg2 text-sm text-ink2 flex items-center gap-3" style={{ lineHeight: 1.5 }}>
+                    <span className="typing-cursor" aria-hidden="true" />
+                    Waiting for your teacher to open the reset… Keep this window open.
+                  </div>
+                  <button type="button" className="link-btn w-full text-center mt-3" onClick={handleForgotCancel}>
+                    Cancel
+                  </button>
+                </>
+              )}
+
+              {rpStatus === 'signing' && (
+                <div className="mt-3">
+                  <label className="block text-xs font-bold uppercase tracking-widest text-ink3 mb-1">Temporary password</label>
+                  <code
+                    className="block w-full font-mono text-base bg-bg border border-border rounded-lg px-3 py-2 select-all tracking-widest"
+                    style={{ letterSpacing: '0.1em' }}
+                  >
+                    {rpTemp}
+                  </code>
+                  <p className="text-sm text-ink2 mt-2">Signing you in…</p>
+                </div>
+              )}
+            </form>
           )}
 
           {/* ── Forgot Password Step 1b — Set Security Question ─────── */}
