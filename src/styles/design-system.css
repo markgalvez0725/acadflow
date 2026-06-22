@@ -246,3 +246,17 @@
   }
   .abn-label { font-size: 10px; font-weight: 600; line-height: 1; }
 }
+
+/* Keep the phone dashboard tidy: hide chart-heavy / wide-table sections that
+   don't read well on a narrow screen. The metric cards + Recent students +
+   At a glance already give the mobile summary. */
+@media (max-width: 767px) {
+  .ds-desktop-only { display: none !important; }
+}
+
+/* Page header: stack the actions full-width on phones so they don't crowd. */
+@media (max-width: 600px) {
+  .ds-page-head { align-items: stretch; }
+  .ds-ph-actions { width: 100%; }
+  .ds-ph-actions .btn { flex: 1 1 0; justify-content: center; }
+}
