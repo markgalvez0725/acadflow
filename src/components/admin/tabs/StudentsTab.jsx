@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useRef, lazy, Suspense } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { hashPassword, generateRandomPassword } from '@/utils/crypto'
+import { hashPassword } from '@/utils/crypto'
 import { validateSnum } from '@/utils/validate'
+import { getFbAuth } from '@/firebase/firebaseInit'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
@@ -413,80 +414,82 @@ function EditStudentModal({ student, onClose }) {
 }
 
 // ── Reset Password Modal ──────────────────────────────────────────────
+// Live, coordinated reset. The teacher opens a short reset window for one
+// student; the student's own device claims a fresh temporary password and is
+// signed in automatically. No password is shown to or stored by the teacher.
 function ResetPasswordModal({ student, onClose }) {
-  const { students, saveStudents } = useData()
   const { toast } = useUI()
 
-  const [password]          = useState(() => generateRandomPassword())
-  const [copied, setCopied] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [opened, setOpened] = useState(false)
   const [err, setErr]       = useState('')
 
-  async function handleReset() {
+  async function handleOpenSession() {
     setSaving(true)
     setErr('')
     try {
-      const hashed = await hashPassword(password)
-      const updated = students.map(s =>
-        s.id !== student.id
-          ? s
-          : { ...s, account: { ...s.account, pass: hashed, _tempPass: true } }
-      )
-      await saveStudents(updated, [student.id])
-      toast('Password reset! Share the new password with the student.', 'green')
-      onClose()
+      const user = getFbAuth()?.currentUser
+      if (!user) throw new Error('Your session expired. Please sign in again.')
+      const idToken = await user.getIdToken()
+
+      const r = await fetch('/api/admin-open-reset-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken, studentNumber: student.id }),
+      })
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(data.error || 'Could not open reset session')
+
+      setOpened(true)
+      toast('Reset window opened. The student can now claim it (valid 10 minutes).', 'green')
     } catch (e) {
-      setErr('Failed to reset password: ' + e.message)
+      setErr(e.message)
+    } finally {
       setSaving(false)
     }
   }
 
-  function handleCopy() {
-    navigator.clipboard.writeText(password).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
-  }
-
   return (
-    <Modal onClose={onClose} maxWidth={420}>
+    <Modal onClose={onClose} maxWidth={440}>
       <h3>🔑 Reset Password</h3>
-      <p className="modal-sub">
-        A new random password has been generated for <strong>{student.name}</strong>.
-        The student will be required to change it on next login.
-      </p>
 
-      {err && <div className="err-msg mb-3">{err}</div>}
+      {!opened ? (
+        <>
+          <p className="modal-sub">
+            This starts a live reset for <strong>{student.name}</strong> (#{student.id}).
+            A temporary password is created on the student's own device and signs them in
+            automatically — you never have to handle or share it.
+          </p>
 
-      <div className="field mb-4">
-        <label>Generated Password</label>
-        <div className="flex items-center gap-2">
-          <code
-            className="flex-1 font-mono text-base bg-bg border border-border rounded-lg px-3 py-2 select-all tracking-widest"
-            style={{ letterSpacing: '0.1em' }}
-          >
-            {password}
-          </code>
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={handleCopy}
-            title="Copy to clipboard"
-            style={{ flexShrink: 0 }}
-          >
-            {copied ? '✓ Copied' : '📋 Copy'}
-          </button>
-        </div>
-        <div className="text-xs text-ink3 mt-1">
-          Copy this password and share it with the student before confirming.
-        </div>
-      </div>
+          <div className="field mb-4 p-3 rounded-xl bg-bg2 text-sm text-ink2" style={{ lineHeight: 1.6 }}>
+            <strong className="text-ink">Before you click:</strong> ask the student to open the
+            login screen → <em>Forgot Password</em> → enter their student number and tap
+            <em> Start</em>. Then open the window below. Their screen fills in a temporary
+            password and logs them in within a few seconds.
+          </div>
 
-      <div className="modal-footer">
-        <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
-        <button className="btn btn-primary" onClick={handleReset} disabled={saving}>
-          {saving ? 'Resetting…' : 'Confirm Reset'}
-        </button>
-      </div>
+          {err && <div className="err-msg mb-3">{err}</div>}
+
+          <div className="modal-footer">
+            <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleOpenSession} disabled={saving}>
+              {saving ? 'Opening…' : 'Open Reset Window'}
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="modal-sub">
+            ✅ Reset window is <strong>open for 10 minutes</strong>. As soon as
+            <strong> {student.name}</strong> taps <em>Start</em> on their Forgot Password screen,
+            they'll be signed in automatically with a fresh temporary password and can change it
+            from their profile.
+          </p>
+          <div className="modal-footer">
+            <button className="btn btn-primary" onClick={onClose}>Done</button>
+          </div>
+        </>
+      )}
     </Modal>
   )
 }
