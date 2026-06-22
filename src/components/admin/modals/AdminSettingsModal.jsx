@@ -17,6 +17,7 @@ const TABS = [
   { id: 'cred',     label: 'Credentials' },
   { id: 'notifs',   label: 'Notifications' },
   { id: 'eq',       label: 'Equiv Scale' },
+  { id: 'late',     label: 'Late Policy' },
   { id: 'firebase', label: 'Firebase' },
 ]
 
@@ -595,6 +596,78 @@ function FirebaseTab() {
 }
 
 // ── Main Modal ────────────────────────────────────────────────────────────────
+// ── Late Policy Tab ────────────────────────────────────────────────────────
+function LatePolicyTab() {
+  const { latePolicy, saveLatePolicy } = useData()
+  const { toast } = useUI()
+  const [enabled, setEnabled]   = useState(!!latePolicy?.enabled)
+  const [perDay, setPerDay]     = useState(String(latePolicy?.percentPerDay ?? 10))
+  const [maxPct, setMaxPct]     = useState(String(latePolicy?.maxPercent ?? 100))
+  const [grace, setGrace]       = useState(String(latePolicy?.graceMins ?? 0))
+  const [saving, setSaving]     = useState(false)
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      await saveLatePolicy({
+        enabled,
+        percentPerDay: parseFloat(perDay) || 0,
+        maxPercent: parseFloat(maxPct) || 0,
+        graceMins: parseFloat(grace) || 0,
+      })
+      toast('Late policy saved.', 'green')
+    } catch (e) {
+      toast('Saved locally — sync failed: ' + e.message, 'red')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div>
+      <p className="modal-sub" style={{ marginBottom: 14 }}>
+        When enabled, activity submissions handed in after the deadline lose part of their
+        earned score automatically when you grade them. You can waive the penalty per student
+        in the activity's grading panel.
+      </p>
+
+      <label className="flex items-center gap-2 mb-4" style={{ cursor: 'pointer', fontWeight: 600, fontSize: 14, color: 'var(--ink)' }}>
+        <input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} style={{ width: 'auto', margin: 0 }} />
+        Apply late-submission penalty
+      </label>
+
+      <div className="input-row" style={{ opacity: enabled ? 1 : 0.5 }}>
+        <div className="field">
+          <label>Deduction per day late (%)</label>
+          <input type="number" min="0" max="100" value={perDay} onChange={e => setPerDay(e.target.value)} disabled={!enabled} />
+          <div className="text-xs text-ink3 mt-1">% of the earned score removed for each day past the deadline.</div>
+        </div>
+        <div className="field">
+          <label>Maximum deduction (%)</label>
+          <input type="number" min="0" max="100" value={maxPct} onChange={e => setMaxPct(e.target.value)} disabled={!enabled} />
+          <div className="text-xs text-ink3 mt-1">Cap on the total penalty (e.g. 50 = never lose more than half).</div>
+        </div>
+      </div>
+      <div className="field" style={{ opacity: enabled ? 1 : 0.5 }}>
+        <label>Grace period (minutes)</label>
+        <input type="number" min="0" value={grace} onChange={e => setGrace(e.target.value)} disabled={!enabled} style={{ maxWidth: 160 }} />
+        <div className="text-xs text-ink3 mt-1">Submissions within this window after the deadline are still treated as on time.</div>
+      </div>
+
+      <div className="text-xs text-ink2 bg-accent-l rounded-lg px-3 py-2 mt-2 mb-4">
+        Example: a score of <strong>90</strong> submitted <strong>2 days</strong> late at <strong>{perDay || 0}%/day</strong>{' '}
+        becomes <strong>{(() => { const f = Math.min(parseFloat(maxPct) || 0, (parseFloat(perDay) || 0) * 2) / 100; return Math.max(0, 90 * (1 - f)).toFixed(2) })()}</strong>.
+      </div>
+
+      <div className="modal-footer">
+        <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving}>
+          {saving ? 'Saving…' : 'Save Policy'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function AdminSettingsModal({ onClose, push }) {
   const [activeTab, setActiveTab] = useState('semester')
 
@@ -640,6 +713,7 @@ export default function AdminSettingsModal({ onClose, push }) {
       {activeTab === 'cred'     && <CredentialsTab />}
       {activeTab === 'notifs'   && <NotificationsTab push={push} />}
       {activeTab === 'eq'       && <EquivScaleTab />}
+      {activeTab === 'late'     && <LatePolicyTab />}
       {activeTab === 'firebase' && <FirebaseTab />}
     </Modal>
   )

@@ -184,6 +184,12 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                     {score}/{maxScore}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--ink3)' }}>Grade received</div>
+                  {sub.latePenalty?.percent > 0 && (
+                    <div style={{ fontSize: 11, color: 'var(--red)', fontWeight: 600, marginTop: 2 }}>
+                      Late submission penalty: −{sub.latePenalty.percent}%
+                      {sub.latePenalty.rawScore != null && <span style={{ color: 'var(--ink3)', fontWeight: 400 }}> (before penalty: {sub.latePenalty.rawScore}/{maxScore})</span>}
+                    </div>
+                  )}
                   {sub.link && (
                     <a href={sub.link} target="_blank" rel="noreferrer" className="sa-act-link">View submission ↗</a>
                   )}

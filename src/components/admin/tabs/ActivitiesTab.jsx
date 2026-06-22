@@ -11,6 +11,7 @@ import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { deviceRubric, deviceInstructions, aiInstructions, aiRubric, aiGrade, isNotConfigured } from '@/utils/activityAI'
 import { sendPushToOwners } from '@/firebase/pushTokens'
+import { lateInfo, applyLatePenalty } from '@/utils/latePenalty'
 
 function fmtLocalInput(d) {
   const pad = n => String(n).padStart(2, '0')
@@ -348,11 +349,12 @@ function ActivityFormModal({ act, onClose }) {
 
 // ── View / Grade Modal ────────────────────────────────────────────────
 function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
-  const { students, activities, saveStudents, db, fbReady, logAudit } = useData()
+  const { students, activities, saveStudents, db, fbReady, logAudit, latePolicy } = useData()
   const { toast, openDialog } = useUI()
   const [scores,        setScores]       = useState({})
   const [feedbacks,     setFeedbacks]    = useState({}) // { [studentId]: string } — teacher feedback
   const [rubricChecks,  setRubricChecks] = useState({}) // { [studentId]: { [criterionId]: bool } }
+  const [waived,        setWaived]       = useState({}) // { [studentId]: bool } — late penalty waived
   const [aiFor,    setAiFor]    = useState(null)  // studentId for grading assist
   const [aiText,   setAiText]   = useState('')
   const [aiBusy,   setAiBusy]   = useState(false)
@@ -405,22 +407,35 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
 
     const rubricSnapshot = hasRubric ? (rubricChecks[s.id] || {}) : undefined
 
+    // Late penalty: deduct from the entered score unless the deadline was met or
+    // the teacher waived it. The effective (penalized) score is what gets stored.
+    const sub = (act.submissions || {})[s.id] || {}
+    const li  = lateInfo(sub, act, latePolicy)
+    const eff = applyLatePenalty(score, sub, act, latePolicy, waived[s.id])
+    const penalized = li.late && !waived[s.id] && eff !== score
+
     setSaving(prev => ({ ...prev, [s.id]: true }))
     try {
       const update = {
-        [`submissions.${s.id}.score`]:  score,
+        [`submissions.${s.id}.score`]:  eff,
         [`submissions.${s.id}.graded`]: true,
+        // Record the penalty for transparency, or clear a stale one.
+        [`submissions.${s.id}.latePenalty`]: penalized ? { percent: li.percent, days: li.days, rawScore: score } : null,
       }
       if (rubricSnapshot !== undefined) update[`submissions.${s.id}.rubricChecks`] = rubricSnapshot
       // Persist teacher feedback only when the field was touched this session.
       if (feedbacks[s.id] !== undefined) update[`submissions.${s.id}.feedback`] = feedbacks[s.id].trim()
       await updateDoc(doc(db.current, 'activities', act.id), update)
-      // Update local student grade components
-      const updated = buildUpdatedStudent(s, act.subject, act.classId, activities, students)
+      // Recompute the student's grade against the effective score (patch the
+      // in-memory activity so the new score is reflected immediately).
+      const patchedActs = activities.map(a => a.id === act.id
+        ? { ...a, submissions: { ...(a.submissions || {}), [s.id]: { ...sub, score: eff, graded: true } } }
+        : a)
+      const updated = buildUpdatedStudent(s, act.subject, act.classId, patchedActs, students)
       if (updated) await saveStudents(students.map(x => x.id === s.id ? updated : x), [s.id])
-      toast('Score saved!', 'green')
+      toast(penalized ? `Saved with late penalty (−${li.percent}%): ${eff}/${act.maxScore}` : 'Score saved!', 'green')
       if (fbReady && db.current) {
-        pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} — Score: ${score}/${act.maxScore}`, 'activities')
+        pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} — Score: ${eff}/${act.maxScore}${penalized ? ` (late −${li.percent}%)` : ''}`, 'activities')
       }
     } catch (e) {
       toast('Save failed: ' + e.message, 'red')
@@ -499,25 +514,38 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
     setSavingAll(true)
     try {
       const update = {}
+      const effById = {}        // effective (penalized) score per student
+      let penalizedCount = 0
       toSave.forEach(s => {
         const score = parseFloat(scores[s.id])
-        update[`submissions.${s.id}.score`]  = score
+        const sub   = (act.submissions || {})[s.id] || {}
+        const li    = lateInfo(sub, act, latePolicy)
+        const eff   = applyLatePenalty(score, sub, act, latePolicy, waived[s.id])
+        const penalized = li.late && !waived[s.id] && eff !== score
+        if (penalized) penalizedCount++
+        effById[s.id] = eff
+        update[`submissions.${s.id}.score`]  = eff
         update[`submissions.${s.id}.graded`] = true
+        update[`submissions.${s.id}.latePenalty`] = penalized ? { percent: li.percent, days: li.days, rawScore: score } : null
         if (hasRubric) update[`submissions.${s.id}.rubricChecks`] = rubricChecks[s.id] || {}
         if (feedbacks[s.id] !== undefined) update[`submissions.${s.id}.feedback`] = feedbacks[s.id].trim()
       })
       await updateDoc(doc(db.current, 'activities', act.id), update)
+      // Patch this activity's submissions with the effective scores so the
+      // grade recompute reflects the penalties immediately.
+      const patchedSubs = { ...(act.submissions || {}) }
+      toSave.forEach(s => { patchedSubs[s.id] = { ...(patchedSubs[s.id] || {}), score: effById[s.id], graded: true } })
+      const patchedActs = activities.map(a => a.id === act.id ? { ...a, submissions: patchedSubs } : a)
       const updatedStudents = students.map(s => {
         if (!toSave.find(x => x.id === s.id)) return s
-        const updated = buildUpdatedStudent(s, act.subject, act.classId, activities, students)
+        const updated = buildUpdatedStudent(s, act.subject, act.classId, patchedActs, students)
         return updated || s
       })
       await saveStudents(updatedStudents, toSave.map(s => s.id))
-      toast(`Saved grades for ${toSave.length} student${toSave.length !== 1 ? 's' : ''}.`, 'green')
+      toast(`Saved grades for ${toSave.length} student${toSave.length !== 1 ? 's' : ''}.${penalizedCount ? ` ${penalizedCount} late-penalized.` : ''}`, 'green')
       if (fbReady && db.current) {
         for (const s of toSave) {
-          const score = parseFloat(scores[s.id])
-          pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} — Score: ${score}/${act.maxScore}`, 'activities')
+          pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} — Score: ${effById[s.id]}/${act.maxScore}`, 'activities')
         }
       }
     } catch (e) {
@@ -680,6 +708,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                   : '—'
                 const inputVal = scores[s.id] !== undefined ? scores[s.id] : String(curScore)
                 const checks = rubricChecks[s.id] || {}
+                const li = lateInfo(sub, act, latePolicy)
                 return (
                   <tr key={s.id}>
                     <td>
@@ -738,6 +767,18 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                         style={{ width: 70, padding: '5px 7px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, textAlign: 'center', background: 'var(--surface)', color: 'var(--ink)' }}
                         placeholder="—"
                       />
+                      {li.late && (
+                        <div style={{ marginTop: 4, fontSize: 10, lineHeight: 1.4, color: waived[s.id] ? 'var(--ink3)' : 'var(--red)', whiteSpace: 'nowrap' }}>
+                          <AlarmClock size={10} /> {li.days}d late · −{li.percent}%
+                          {inputVal !== '' && !isNaN(parseFloat(inputVal)) && !waived[s.id] && (
+                            <span> → <strong>{applyLatePenalty(parseFloat(inputVal), sub, act, latePolicy, false)}</strong></span>
+                          )}
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 2, color: 'var(--ink2)', cursor: 'pointer', fontWeight: 600 }}>
+                            <input type="checkbox" checked={!!waived[s.id]} onChange={() => setWaived(p => ({ ...p, [s.id]: !p[s.id] }))} style={{ width: 'auto', margin: 0 }} />
+                            Waive penalty
+                          </label>
+                        </div>
+                      )}
                     </td>
                     <td>
                       <textarea

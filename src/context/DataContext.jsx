@@ -9,7 +9,8 @@ import {
   fbSaveMeetLink, fbScheduleMeeting, fbStartMeeting, fbEndMeeting, fbCancelMeeting, fbPushMeetingNotifs,
   fbSetSubjectRep, fbDeleteClassRelatedData, fbAddAuditLog,
 } from '@/firebase/persistence'
-import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase, saveSemesterToFirebase } from '@/firebase/settings'
+import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase, saveSemesterToFirebase, saveLatePolicyToFirebase } from '@/firebase/settings'
+import { DEFAULT_LATE_POLICY, normalizeLatePolicy } from '@/utils/latePenalty'
 import { sendPushToOwners } from '@/firebase/pushTokens'
 import {
   fbOpenAttendanceSession, fbCloseAttendanceSession, fbMarkCheckedIn,
@@ -50,6 +51,7 @@ export function DataProvider({ children }) {
 
   const [ejs, setEjs] = useState({ publicKey: '', serviceId: '', templateId: '', configured: false })
   const [eqScale, setEqScale]           = useState(DEFAULT_EQ_SCALE)
+  const [latePolicy, setLatePolicy]     = useState(DEFAULT_LATE_POLICY)
   const [admin, setAdmin]               = useState({ user: 'admin', pass: 'Admin@1234', email: 'admin@school.edu', resetPin: null })
 
   const _bootstrapping = useRef(false)
@@ -125,6 +127,7 @@ export function DataProvider({ children }) {
             setEqScale(data.equivScale)
           }
           if (data?.semester) setSemester(data.semester)
+          if (data?.latePolicy) setLatePolicy(normalizeLatePolicy(data.latePolicy))
         },
       })
     }
@@ -178,6 +181,7 @@ export function DataProvider({ children }) {
           setEqScale(data.equivScale)
         }
         if (data?.semester) setSemester(data.semester)
+        if (data?.latePolicy) setLatePolicy(normalizeLatePolicy(data.latePolicy))
       },
     })
     return true
@@ -258,6 +262,15 @@ export function DataProvider({ children }) {
     try { localStorage.setItem('cp_eq_scale', JSON.stringify(scale)) } catch (e) {}
     try { await saveSettingsToFirebase(dbRef.current, scale) } catch (e) {
       console.warn('[DataContext] saveEquivScale Firebase sync failed:', e.message)
+    }
+  }, [])
+
+  const saveLatePolicy = useCallback(async (policy) => {
+    const norm = normalizeLatePolicy(policy)
+    setLatePolicy(norm)
+    try { await saveLatePolicyToFirebase(dbRef.current, norm) } catch (e) {
+      console.warn('[DataContext] saveLatePolicy Firebase sync failed:', e.message)
+      throw e
     }
   }, [])
 
@@ -794,6 +807,7 @@ export function DataProvider({ children }) {
       db: dbRef,
       ejs, setEjs, saveEjs,
       eqScale, saveEquivScale,
+      latePolicy, saveLatePolicy,
       semester, saveSemester,
       admin, setAdmin, saveAdmin,
     }}>
