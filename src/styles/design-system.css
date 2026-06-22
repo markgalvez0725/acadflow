@@ -228,6 +228,20 @@
 .sb-toggle:hover { color: #fff; background: rgba(255,255,255,.12); }
 .credit-footer { color: rgba(255,255,255,.30); }
 
+/* The glass fallbacks in globals.css (glass off, reduced transparency, and no
+   backdrop-filter support) flip every glass panel back to an opaque --surface.
+   That is correct for the topbars/cards, but the academic sidebar is ALREADY
+   opaque navy with light nav text — flipping only its background to white left
+   the labels invisible. The sidebar has no transparency to reduce, so keep it
+   navy in every one of those cases (matches the globals !important strength). */
+html[data-glass="off"] .sidebar { background: var(--navy) !important; }
+@media (prefers-reduced-transparency: reduce) {
+  .sidebar { background: var(--navy) !important; }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .sidebar { background: var(--navy); }
+}
+
 /* ── Dashboard card / list / progress patterns (from the preview) ─────── */
 .ds-card {
   background: var(--surface);
