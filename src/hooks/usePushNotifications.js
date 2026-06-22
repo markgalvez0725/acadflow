@@ -3,7 +3,7 @@
 // toast and (re)saves the registration token. Degrades to a no-op when push
 // is unsupported or unconfigured.
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { pushSupported, pushPermission, enablePush, onForegroundPush, VAPID_KEY } from '@/pwa/push'
+import { pushSupported, pushPermission, enablePush, onForegroundPush, lastPushError, VAPID_KEY } from '@/pwa/push'
 import { fbSavePushToken } from '@/firebase/pushTokens'
 
 export function usePushNotifications({ db, fbReady, ownerId, role = 'student', toast } = {}) {
@@ -52,6 +52,8 @@ export function usePushNotifications({ db, fbReady, ownerId, role = 'student', t
         toast?.('Notifications are blocked. Enable them in your browser settings.', 'error', 6000)
       } else if (!VAPID_KEY) {
         toast?.('Push is not configured yet (missing VAPID key).', 'warn', 6000)
+      } else if (lastPushError()) {
+        toast?.('Could not enable push: ' + lastPushError(), 'error', 7000)
       }
       return false
     } finally {
