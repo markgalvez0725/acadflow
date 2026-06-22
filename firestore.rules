@@ -1,0 +1,75 @@
+rules_version = '2';
+
+// AcadFlow Firestore Security Rules — role-based
+// ----------------------------------------------
+// Auth model: the teacher signs in with a real admin email; students sign in
+// with a synthetic email <studentNumber>@acadflow.app. Every request is
+// authenticated (request.auth != null) once signed in.
+//
+// Goals of these rules:
+//   • Everyone signed in can READ the collections the app listens to (the app
+//     subscribes to whole collections, so reads stay broad but require login).
+//   • Only the TEACHER can write class config, grade weights, app config and
+//     online meetings, and only the teacher can create/delete student records.
+//   • Students may update their own-facing data (profile, attendance check-in,
+//     messages, submissions, etc.) but CANNOT change grade fields. Grades and
+//     grade components on a student record can only be written by the teacher.
+//
+// HOW TO APPLY:
+//   Firebase Console → project (collegeportal-d2b98) → Build → Firestore
+//   Database → Rules tab → replace everything with this file → Publish.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // The teacher account. Update this if the admin email ever changes.
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == 'markgalvez@ucc-caloocan.edu.ph';
+    }
+
+    // True when a write does NOT touch grade-bearing fields on a student doc.
+    function gradeFieldsUntouched() {
+      return !request.resource.data.diff(resource.data)
+        .affectedKeys().hasAny(['grades', 'gradeComponents']);
+    }
+
+    // ── Student records ───────────────────────────────────────────────────
+    // Read: any signed-in user (the app listens to the whole collection).
+    // Create/Delete: teacher only (prevents forging or wiping records).
+    // Update: teacher freely; students may update their own-facing fields but
+    //         never grades / gradeComponents.
+    match /students/{sid} {
+      allow read:   if signedIn();
+      allow create: if isAdmin();
+      allow delete: if isAdmin();
+      allow update: if isAdmin() || (signedIn() && gradeFieldsUntouched());
+    }
+
+    // ── Teacher-only configuration ────────────────────────────────────────
+    // Class list, grade weights / equivalence scale (settings), and the
+    // app/EJS config all live under portal/*. Students never write these.
+    match /portal/{docId}             { allow read: if signedIn(); allow write: if isAdmin(); }
+
+    // Online meetings are scheduled and controlled by the teacher.
+    match /onlineMeetings/{docId}     { allow read: if signedIn(); allow write: if isAdmin(); }
+
+    // ── Shared collections students legitimately write to ────────────────
+    match /messages/{docId}           { allow read, write: if signedIn(); }
+    match /activities/{docId}         { allow read, write: if signedIn(); }
+    match /notifications/{docId}      { allow read, write: if signedIn(); }
+    match /quizzes/{docId}            { allow read, write: if signedIn(); }
+    match /announcements/{docId}      { allow read, write: if signedIn(); }
+    match /attendanceSessions/{docId} { allow read, write: if signedIn(); }
+    match /excuseRequests/{docId}     { allow read, write: if signedIn(); }
+    match /pushTokens/{docId}         { allow read, write: if signedIn(); }
+
+    // resetSessions/* is intentionally NOT matched here — it is written and read
+    // only by the server (service account), which bypasses these rules. Leaving
+    // it unmatched denies all direct client access, which is what we want.
+  }
+}
