@@ -5,6 +5,7 @@ import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, ChevronDown, ChevronUp, Clock, Users, Award, CheckCircle2, XCircle, AlertCircle, Plus, Trash2, CalendarOff, Video, ToggleLeft, ToggleRight, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered } from 'lucide-react'
 import DOMPurify from 'dompurify'
 import { v4 as uuidv4 } from 'uuid'
+import ExpandableHtml from '@/components/primitives/ExpandableHtml'
 
 const PAGE_SIZE = 10
 
@@ -604,10 +605,9 @@ function AnnouncementCard({ item, classObj, onEdit, onToggleActive, onDelete }) 
       </div>
       <div className="stream-card-title">{ann.title}</div>
       {hasMessage && (
-        <div
-          className="ann-message"
+        <ExpandableHtml
+          html={sanitizeHtml(ann.message)}
           style={{ fontSize: 13, color: 'var(--ink2)', marginTop: 6, lineHeight: 1.6 }}
-          dangerouslySetInnerHTML={{ __html: sanitizeHtml(ann.message) }}
         />
       )}
       {ann.meetingLink && (
@@ -855,6 +855,7 @@ export default function StreamTab() {
   const { classes, students, activities, quizzes, announcements, saveAnnouncement, deleteAnnouncement, fbReady } = useData()
   const { toast } = useUI()
   const [filterClass, setFilterClass] = useState('all')
+  const [filterSubject, setFilterSubject] = useState('all')
   const [filterType, setFilterType] = useState('all')
   const [annPage, setAnnPage] = useState(0)
   const [streamPage, setStreamPage] = useState(0)
@@ -864,6 +865,13 @@ export default function StreamTab() {
   const [viewAnn,  setViewAnn]  = useState(null)
 
   const activeClasses = useMemo(() => classes.filter(c => !c.archived), [classes])
+
+  // Subjects available for the subject filter — scoped to the selected class,
+  // or the union of all active classes when "All Classes" is chosen.
+  const subjectOptions = useMemo(() => {
+    const src = filterClass === 'all' ? activeClasses : activeClasses.filter(c => c.id === filterClass)
+    return [...new Set(src.flatMap(c => c.subjects || []))].sort()
+  }, [activeClasses, filterClass])
 
   // Build stream items from all data sources
   const streamItems = useMemo(() => {
@@ -880,6 +888,7 @@ export default function StreamTab() {
     activities.forEach(act => {
       if (filterClass !== 'all' && act.classId !== filterClass) return
       if (filterType !== 'all' && filterType !== 'activity') return
+      if (filterSubject !== 'all' && act.subject !== filterSubject) return
       items.push({ id: `act-${act.id}`, type: 'activity', ts: act.createdAt || 0, data: act, classId: act.classId })
     })
 
@@ -888,6 +897,7 @@ export default function StreamTab() {
       if (filterType !== 'all' && filterType !== 'quiz') return
       const matchesClass = filterClass === 'all' || (quiz.classIds || []).includes(filterClass)
       if (!matchesClass) return
+      if (filterSubject !== 'all' && quiz.subject !== filterSubject) return
       items.push({ id: `quiz-${quiz.id}`, type: 'quiz', ts: quiz.openAt || 0, data: quiz, classId: quiz.classIds?.[0] })
     })
 
@@ -906,6 +916,7 @@ export default function StreamTab() {
         const cls = classes.find(c => c.id === cid)
         if (!cls) return
         ;(cls.subjects || []).forEach(subj => {
+          if (filterSubject !== 'all' && subj !== filterSubject) return
           if (seenSubjects.has(subj)) return
           const gradeData = gc[subj]
           const uploadedAt = uploadedAts[subj]
@@ -939,6 +950,7 @@ export default function StreamTab() {
           const cls = classes.find(c => c.id === cid)
           if (!cls) return
           ;(cls.subjects || []).forEach(subj => {
+            if (filterSubject !== 'all' && subj !== filterSubject) return
             const attDates = stu.attendance?.[subj] || new Set()
             attDates.forEach(date => {
               const key = `${cid}|${subj}|${date}`
@@ -988,7 +1000,7 @@ export default function StreamTab() {
     }
 
     return items.sort((a, b) => b.ts - a.ts)
-  }, [classes, students, activities, quizzes, announcements, filterClass, filterType])
+  }, [classes, students, activities, quizzes, announcements, filterClass, filterSubject, filterType])
 
   function getClassObj(item) {
     return classes.find(c => c.id === item.classId) || null
@@ -1108,13 +1120,27 @@ export default function StreamTab() {
           className="form-input"
           style={{ flex: 1, minWidth: 160, maxWidth: 260, fontSize: 13 }}
           value={filterClass}
-          onChange={e => { setFilterClass(e.target.value); setAnnPage(0); setStreamPage(0) }}
+          onChange={e => { setFilterClass(e.target.value); setFilterSubject('all'); setAnnPage(0); setStreamPage(0) }}
         >
           <option value="all">All Classes</option>
           {activeClasses.map(c => (
             <option key={c.id} value={c.id}>{c.name}{c.section ? ` — ${c.section}` : ''}</option>
           ))}
         </select>
+        {subjectOptions.length > 0 && (
+          <select
+            className="form-input"
+            style={{ flex: 1, minWidth: 140, maxWidth: 220, fontSize: 13 }}
+            value={filterSubject}
+            onChange={e => { setFilterSubject(e.target.value); setStreamPage(0) }}
+            title="Filter the stream by subject"
+          >
+            <option value="all">All Subjects</option>
+            {subjectOptions.map(subj => (
+              <option key={subj} value={subj}>{subj}</option>
+            ))}
+          </select>
+        )}
         <select
           className="form-input"
           style={{ flex: 1, minWidth: 140, maxWidth: 200, fontSize: 13 }}

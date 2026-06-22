@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
 import { activeClassIds } from '@/utils/active'
+import ExpandableHtml from '@/components/primitives/ExpandableHtml'
+import { sanitizeAnnouncementHtml } from '@/utils/sanitizeHtml'
 
 const PAGE_SIZE = 10
 
@@ -110,10 +112,9 @@ function AnnouncementCard({ item, classObj }) {
       </div>
       <div className="stream-card-title">{ann.title}</div>
       {hasMessage && (
-        <div
-          className="ann-message"
+        <ExpandableHtml
+          html={sanitizeAnnouncementHtml(ann.message)}
           style={{ fontSize: 13, color: 'var(--ink2)', marginTop: 6, lineHeight: 1.6 }}
-          dangerouslySetInnerHTML={{ __html: ann.message }}
         />
       )}
       {ann.meetingLink && (
@@ -321,6 +322,7 @@ function AttendanceCard({ item, classObj }) {
 export default function StreamTab({ student, viewClassId, classes }) {
   const { activities, quizzes, announcements, fbReady, semester } = useData()
   const [filterType, setFilterType] = useState('all')
+  const [filterSubject, setFilterSubject] = useState('all')
   const [streamPage, setStreamPage] = useState(0)
 
   // Only current-semester, non-archived classes feed the stream.
@@ -333,6 +335,12 @@ export default function StreamTab({ student, viewClassId, classes }) {
     if (viewClassId) return [viewClassId]
     return studentClassIds
   }, [viewClassId, studentClassIds])
+
+  // Subjects across the visible classes, for the subject filter.
+  const subjectOptions = useMemo(() => {
+    const subs = effectiveClassIds.flatMap(id => classes.find(c => c.id === id)?.subjects || [])
+    return [...new Set(subs)].sort()
+  }, [effectiveClassIds, classes])
 
   const streamItems = useMemo(() => {
     const items = []
@@ -353,6 +361,7 @@ export default function StreamTab({ student, viewClassId, classes }) {
     if (filterType === 'all' || filterType === 'activity') {
       activities.forEach(act => {
         if (!effectiveClassIds.includes(act.classId)) return
+        if (filterSubject !== 'all' && act.subject !== filterSubject) return
         items.push({ id: `act-${act.id}`, type: 'activity', ts: act.createdAt || 0, data: act, classId: act.classId })
       })
     }
@@ -362,6 +371,7 @@ export default function StreamTab({ student, viewClassId, classes }) {
       quizzes.forEach(quiz => {
         const matchesClass = (quiz.classIds || []).some(id => effectiveClassIds.includes(id))
         if (!matchesClass) return
+        if (filterSubject !== 'all' && quiz.subject !== filterSubject) return
         items.push({ id: `quiz-${quiz.id}`, type: 'quiz', ts: quiz.openAt || 0, data: quiz, classId: quiz.classIds?.[0] })
       })
     }
@@ -374,6 +384,7 @@ export default function StreamTab({ student, viewClassId, classes }) {
         const cls = classes.find(c => c.id === cid)
         if (!cls) return
         ;(cls.subjects || []).forEach(subj => {
+          if (filterSubject !== 'all' && subj !== filterSubject) return
           const gradeData = gc[subj]
           const uploadedAt = uploadedAts[subj]
           if (!gradeData && !uploadedAt) return
@@ -394,6 +405,7 @@ export default function StreamTab({ student, viewClassId, classes }) {
         const cls = classes.find(c => c.id === cid)
         if (!cls) return
         ;(cls.subjects || []).forEach(subj => {
+          if (filterSubject !== 'all' && subj !== filterSubject) return
           const attDates = student.attendance?.[subj]
           if (!attDates) return
           const datesArr = attDates instanceof Set ? [...attDates] : (Array.isArray(attDates) ? attDates : [])
@@ -412,7 +424,7 @@ export default function StreamTab({ student, viewClassId, classes }) {
     }
 
     return items.sort((a, b) => b.ts - a.ts)
-  }, [student, effectiveClassIds, activities, quizzes, announcements, filterType, classes])
+  }, [student, effectiveClassIds, activities, quizzes, announcements, filterType, filterSubject, classes])
 
   function getClassObj(item) {
     return classes.find(c => c.id === item.classId) || null
@@ -429,10 +441,10 @@ export default function StreamTab({ student, viewClassId, classes }) {
   return (
     <div style={{ paddingBottom: 32 }}>
       {/* Filter */}
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 16, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <select
           className="form-input"
-          style={{ fontSize: 13, width: '100%', maxWidth: 220 }}
+          style={{ fontSize: 13, flex: 1, minWidth: 150, maxWidth: 220 }}
           value={filterType}
           onChange={e => { setFilterType(e.target.value); setStreamPage(0) }}
         >
@@ -443,6 +455,18 @@ export default function StreamTab({ student, viewClassId, classes }) {
           <option value="grade">Grades</option>
           <option value="attendance">Attendance</option>
         </select>
+        {subjectOptions.length > 1 && (
+          <select
+            className="form-input"
+            style={{ fontSize: 13, flex: 1, minWidth: 140, maxWidth: 220 }}
+            value={filterSubject}
+            onChange={e => { setFilterSubject(e.target.value); setStreamPage(0) }}
+            title="Filter by subject"
+          >
+            <option value="all">All Subjects</option>
+            {subjectOptions.map(subj => <option key={subj} value={subj}>{subj}</option>)}
+          </select>
+        )}
       </div>
 
       {streamItems.length === 0 && (
