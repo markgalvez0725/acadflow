@@ -148,10 +148,10 @@ export default function AdminLayout() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <ConnectionStatus />
+            <span className="tb-desktop-only"><ConnectionStatus /></span>
             <CommandPaletteButton />
-            <SemesterCalendarChip semester={semester} />
-            <span className="adm-clock hidden sm:inline">{clock}</span>
+            <span className="tb-desktop-only"><SemesterCalendarChip semester={semester} /></span>
+            <span className="adm-clock tb-desktop-only">{clock}</span>
             <button
               onClick={() => setAdminTab('notifications')}
               aria-label="Notifications"
