@@ -1,0 +1,164 @@
+/* ════════════════════════════════════════════════════════════════════════
+   AcadFlow — Design System layer
+   Loaded AFTER globals.css. Additive: it re-tints the palette to the
+   academic navy/blue direction from the approved preview and adds the
+   shared structural patterns (page header, metric trend, card "view all"
+   link, empty-state call-to-action) used across every tab.
+   Removing the import in main.jsx fully reverts to the previous look.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* ── Academic palette re-tint (light) ─────────────────────────────────── */
+:root {
+  --accent:    #3b6fe0;
+  --accent-l:  rgba(59,111,224,.10);
+  --accent-m:  #2f5fd0;
+  --accent-2:  #1f3a6e;
+
+  --navy:      #16264a;
+  --navy-2:    #1f3a6e;
+
+  --grad-brand:   linear-gradient(135deg, #3b6fe0 0%, #1f3a6e 100%);
+  --grad-brand-r: linear-gradient(135deg, #1f3a6e 0%, #3b6fe0 100%);
+  --grad-cool:    linear-gradient(135deg, #14b8a6 0%, #3b6fe0 100%);
+
+  --glow-accent: 0 0 24px rgba(59,111,224,.20);
+  --glow-sm:     0 0 14px rgba(59,111,224,.14);
+  --focus-ring:  0 0 0 3px rgba(59,111,224,.28);
+}
+
+/* ── Academic palette re-tint (dark) ──────────────────────────────────── */
+[data-theme="dark"] {
+  --accent:    #5b8cff;
+  --accent-l:  rgba(91,140,255,.16);
+  --accent-m:  #3b6fe0;
+  --accent-2:  #9fb8ff;
+
+  --navy:      #0f1d3a;
+  --navy-2:    #16264a;
+
+  --grad-brand:   linear-gradient(135deg, #5b8cff 0%, #2f5fd0 100%);
+  --grad-brand-r: linear-gradient(135deg, #2f5fd0 0%, #5b8cff 100%);
+}
+
+/* ── Metric / stat card: tighter radius + trend pill ──────────────────── */
+.stat-card { border-radius: var(--radius-lg); }
+
+.sc-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  margin-top: 6px;
+  width: fit-content;
+}
+.sc-trend.up   { background: var(--green-l);  color: var(--green); }
+.sc-trend.down { background: var(--red-l);    color: var(--red); }
+.sc-trend.flat { background: var(--surface3); color: var(--ink2); }
+.sc-trend svg  { width: 12px; height: 12px; }
+
+/* ── Page header pattern (breadcrumb + title + subtitle + actions) ─────── */
+.ds-page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+.ds-ph-main { min-width: 0; }
+.ds-crumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink3);
+  margin-bottom: 6px;
+}
+.ds-crumb svg { width: 13px; height: 13px; }
+.ds-page-head h1 {
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: -.03em;
+  color: var(--ink);
+  line-height: 1.15;
+}
+.ds-page-head p {
+  font-size: 13.5px;
+  color: var(--ink2);
+  margin-top: 4px;
+}
+.ds-ph-actions { display: flex; gap: 10px; flex-shrink: 0; flex-wrap: wrap; }
+
+/* ── Card header "view all" link ──────────────────────────────────────── */
+.sec-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+.sec-link:hover { color: var(--accent-m); }
+.sec-link svg { width: 13px; height: 13px; }
+
+.sec-title-ic {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.sec-title-ic svg { width: 16px; height: 16px; color: var(--accent); }
+
+/* ── Empty state with a call-to-action ────────────────────────────────── */
+.empty-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  padding: 34px 20px;
+  color: var(--ink3);
+}
+.empty-cta .ec-ic {
+  width: 54px;
+  height: 54px;
+  border-radius: var(--radius);
+  background: var(--surface3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink3);
+  margin-bottom: 10px;
+}
+.empty-cta .ec-ic svg { width: 26px; height: 26px; }
+.empty-cta b { color: var(--ink); font-size: 14px; font-weight: 700; }
+.empty-cta span { font-size: 12.5px; max-width: 260px; line-height: 1.5; }
+.empty-cta .btn, .empty-cta button { margin-top: 12px; }
+
+/* ── Mobile floating action button (used on phone breakpoints) ────────── */
+.ds-fab {
+  display: none;
+  position: fixed;
+  right: 18px;
+  bottom: 84px;
+  width: 52px;
+  height: 52px;
+  border-radius: 17px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 22px rgba(59,111,224,.42);
+  z-index: 40;
+  cursor: pointer;
+}
+.ds-fab svg { width: 24px; height: 24px; }
+@media (max-width: 768px) { .ds-fab.show { display: flex; } }
