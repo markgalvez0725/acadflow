@@ -71,7 +71,9 @@ export default function AdminLayout() {
   const push = usePushNotifications({ db, fbReady, ownerId: 'admin', role: 'admin', toast })
   const unreadMsgCount = messages.filter(m => m.from !== 'admin' && !m.adminRead).length
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [sidebarExpanded, setSidebarExpanded] = useState(false)
+  // Expanded by default on desktop so the navy rail shows section labels + nav
+  // text (matches the approved design). Users can still collapse it.
+  const [sidebarExpanded, setSidebarExpanded] = useState(true)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [clock, setClock] = useState('')
