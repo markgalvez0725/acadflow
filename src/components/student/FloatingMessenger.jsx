@@ -18,22 +18,6 @@ function getStudentMessages(messages, s) {
   ).sort((a, b) => b.ts - a.ts)
 }
 
-async function pushAdminNotif(db, s, text, type) {
-  try {
-    const ref = doc(db, 'notifications', 'admin')
-    const { getDoc, setDoc: sd } = await import('firebase/firestore')
-    const snap = await getDoc(ref)
-    const existing = snap.exists() ? (snap.data().items || []) : []
-    const notif = {
-      id: 'n' + Date.now() + Math.random().toString(36).slice(2, 5),
-      type, read: false, ts: Date.now(),
-      title: 'Reply from ' + (s.name || s.id),
-      body: text.slice(0, 80),
-      link: 'messages',
-    }
-    await sd(ref, { items: [notif, ...existing].slice(0, 200) }, { merge: false })
-  } catch (e) {}
-}
 
 export default function FloatingStudentMessenger({ student: s, messages, unreadCount }) {
   const { db, fbReady } = useData()

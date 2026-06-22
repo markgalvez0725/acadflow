@@ -195,6 +195,7 @@ export default function StudentLayout() {
             className="stud-avatar"
             onClick={() => setActionSheetOpen(true)}
             title="Account options"
+            aria-label="Account options"
             style={{ flexShrink: 0 }}
           >
             {student.photo
