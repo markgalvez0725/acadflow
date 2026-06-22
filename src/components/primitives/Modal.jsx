@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useRef } from 'react'
 import ReactDOM from 'react-dom'
 import { X } from 'lucide-react'
 
@@ -9,6 +9,9 @@ import { X } from 'lucide-react'
  * @param {{ isOpen: boolean, onClose: () => void, size?: 'sm'|'md'|'lg', children: React.ReactNode, zIndex?: number }} props
  */
 export default function Modal({ isOpen = true, onClose, size = 'md', children, zIndex = 200, wide = false }) {
+  const panelRef = useRef(null)
+  const prevFocusRef = useRef(null)
+
   // Lock body scroll when modal is open
   useEffect(() => {
     if (isOpen) {
@@ -27,6 +30,32 @@ export default function Modal({ isOpen = true, onClose, size = 'md', children, z
     return () => window.removeEventListener('keydown', handler)
   }, [isOpen, onClose])
 
+  // Move focus into the dialog on open and restore it on close.
+  useEffect(() => {
+    if (!isOpen) return
+    prevFocusRef.current = document.activeElement
+    const el = panelRef.current
+    if (el) {
+      const focusable = el.querySelector('input, textarea, select, button, [href], [tabindex]:not([tabindex="-1"])')
+      ;(focusable || el).focus()
+    }
+    return () => {
+      const prev = prevFocusRef.current
+      if (prev && typeof prev.focus === 'function') prev.focus()
+    }
+  }, [isOpen])
+
+  // Trap Tab focus within the dialog.
+  function handleKeyDown(e) {
+    if (e.key !== 'Tab' || !panelRef.current) return
+    const items = panelRef.current.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')
+    if (!items.length) return
+    const first = items[0]
+    const last = items[items.length - 1]
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+  }
+
   if (!isOpen) return null
 
   const maxW = wide ? 'max-w-[960px]' : ({
@@ -43,8 +72,13 @@ export default function Modal({ isOpen = true, onClose, size = 'md', children, z
       onClick={e => { if (e.target === e.currentTarget) onClose?.() }}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
+        onKeyDown={handleKeyDown}
         className={`glass-panel bg-surface border border-border rounded-lg w-full ${maxW} max-h-[90vh] overflow-y-auto shadow-lg`}
-        style={{ padding: 28 }}
+        style={{ padding: 28, outline: 'none' }}
       >
         {children}
       </div>

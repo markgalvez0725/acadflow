@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useRef } from 'react'
 import ReactDOM from 'react-dom'
 import { useUI } from '@/context/UIContext'
 
@@ -11,6 +11,17 @@ const ICONS = {
 
 export default function Dialog() {
   const { dialog, resolveDialog } = useUI()
+  const confirmRef = useRef(null)
+
+  // Focus the primary action and allow Escape to cancel.
+  useEffect(() => {
+    if (!dialog) return
+    confirmRef.current?.focus()
+    const handler = e => { if (e.key === 'Escape') resolveDialog(false) }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [dialog, resolveDialog])
+
   if (!dialog) return null
 
   const { title, msg, type = 'info', confirmLabel = 'OK', cancelLabel = 'Cancel', showCancel = false } = dialog
@@ -22,12 +33,15 @@ export default function Dialog() {
       onClick={() => resolveDialog(false)}
     >
       <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-label={title}
         className="bg-surface border border-border w-full max-w-[420px] overflow-hidden"
         style={{ borderRadius: 18, animation: 'dialogPop .22s cubic-bezier(.22,.8,.38,1) both' }}
         onClick={e => e.stopPropagation()}
       >
         <div className="dlg-body">
-          <div className={`dlg-icon-wrap dlg-${type}`}>
+          <div className={`dlg-icon-wrap dlg-${type}`} aria-hidden="true">
             {ICONS[type] || '💬'}
           </div>
           <div className="dlg-text">
@@ -45,6 +59,7 @@ export default function Dialog() {
             </button>
           )}
           <button
+            ref={confirmRef}
             className={`btn ${type === 'danger' ? 'btn-danger' : 'btn-primary'}`}
             onClick={() => resolveDialog(true)}
           >
