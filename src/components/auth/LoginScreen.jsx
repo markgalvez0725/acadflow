@@ -221,7 +221,12 @@ export default function LoginScreen() {
 
     const snErr = validateSnum(regSnum)
     if (snErr) return setErr(snErr)
-    if (!regName.trim()) return setErr('Please enter your full name.')
+    // Enforce the school's name format: "SURNAME, FNAME MNAME", ALL UPPERCASE.
+    const nameVal = regName.trim().toUpperCase().replace(/\s+/g, ' ').replace(/\s*,\s*/g, ', ')
+    if (!nameVal) return setErr('Please enter your full name.')
+    const [surnamePart, ...givenParts] = nameVal.split(',')
+    if (!nameVal.includes(',') || !surnamePart.trim() || !givenParts.join(',').trim())
+      return setErr('Enter your name as SURNAME, FNAME MNAME — surname first, then a comma (e.g. DELA CRUZ, JUAN ANTONIO).')
     if (!regCourse.trim()) return setErr('Please enter your course/program.')
     if (!regSection.trim()) return setErr('Please enter your section.')
     if (!regEmail.includes('@')) return setErr('Please enter a valid email address.')
@@ -269,12 +274,13 @@ export default function LoginScreen() {
       }
 
       // 3) Verify identity against the roster (name + course + year + section).
-      const norm        = v => (v == null ? '' : String(v)).trim().toLowerCase()
+      const norm        = v => (v == null ? '' : String(v)).trim().toLowerCase().replace(/\s+/g, ' ')
+      const normName    = v => norm(v).replace(/\s*,\s*/g, ', ')   // forgiving on spacing/comma, strict on order
       const normSection = v => norm(v).replace(/[\s\-_]/g, '')
       const yearDigit   = v => { const m = String(v ?? '').match(/(\d)/); return m ? m[1] : null }
       const rosterSection = roster.section || ''
       const mismatch =
-        (roster.name   && norm(roster.name)   !== norm(regName))   ? 'name' :
+        (roster.name   && normName(roster.name) !== normName(nameVal)) ? 'name' :
         (roster.course && norm(roster.course) !== norm(regCourse)) ? 'course' :
         (roster.year && yearDigit(roster.year) && yearDigit(roster.year) !== yearDigit(regYear)) ? 'year level' :
         (rosterSection && normSection(rosterSection) !== normSection(regSection)) ? 'section' : null
@@ -290,7 +296,7 @@ export default function LoginScreen() {
         'account.activated': true,
         'account.email': regEmail.trim(),
       }
-      if (!roster.name)    patch.name    = regName.trim()
+      if (!roster.name)    patch.name    = nameVal
       if (!roster.course)  patch.course  = regCourse.trim()
       if (!roster.year)    patch.year    = regYear
       if (!roster.section) patch.section = regSection.trim()
@@ -590,9 +596,12 @@ export default function LoginScreen() {
                 <label>Student Number</label>
               </div>
               <div className="field-float">
-                <input type="text" placeholder=" " value={regName} onChange={e => setRegName(e.target.value)} autoComplete="name" />
+                <input type="text" placeholder=" " value={regName} onChange={e => setRegName(e.target.value.toUpperCase())} autoComplete="name" />
                 <label>Full Name</label>
               </div>
+              <p style={{ fontSize: 11, color: 'var(--ink3)', margin: '-8px 2px 12px', lineHeight: 1.5 }}>
+                Format: <strong>SURNAME, FNAME MNAME</strong> — surname first, then a comma (e.g. DELA CRUZ, JUAN ANTONIO).
+              </p>
               <div className="field-float field-float--select">
                 <select value={regCourse} onChange={e => setRegCourse(e.target.value)}>
                   <option value="">— Select course —</option>
