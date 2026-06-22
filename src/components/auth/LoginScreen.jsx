@@ -398,8 +398,8 @@ export default function LoginScreen() {
           </div>
         )}
 
-        {err   && <div className="err-msg" style={{ display: 'block' }}>{err}</div>}
-        {okMsg && <div className="ok-msg"  style={{ display: 'block' }}>{okMsg}</div>}
+        {err   && <div className="err-msg" role="alert" style={{ display: 'block' }}>{err}</div>}
+        {okMsg && <div className="ok-msg"  role="status" aria-live="polite" style={{ display: 'block' }}>{okMsg}</div>}
 
           {/* ── Student Login ─────────────────────────────────────────── */}
           {mode === 'student' && (
