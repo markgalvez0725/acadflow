@@ -10,6 +10,8 @@ import SmartInsights from '@/components/primitives/SmartInsights'
 import { generateClassInsights } from '@/utils/insights'
 import { Users, School, BookOpen, CalendarCheck, ShieldCheck } from 'lucide-react'
 import { SkeletonDashboard } from '@/components/primitives/SkeletonLoader'
+import MetricCard from '@/components/ds/MetricCard'
+import EmptyState from '@/components/ds/EmptyState'
 
 const PER_PAGE = 10
 
@@ -99,12 +101,12 @@ export default function DashboardTab() {
       {/* Smart Insights (on-device, no external AI) */}
       <SmartInsights title="Class Insights" insights={classInsights} />
 
-      {/* Stat cards */}
+      {/* Metric cards */}
       <div className="stat-grid mb-4">
-        <div className="stat-card"><div className="sc-icon"><Users size={22} /></div><div className="sc-val">{stats.total}</div><div className="sc-label">Total Students</div><div className="sc-sub">{stats.regCount} with accounts</div></div>
-        <div className="stat-card"><div className="sc-icon"><School size={22} /></div><div className="sc-val">{stats.classes}</div><div className="sc-label">Active Classes</div><div className="sc-sub">{stats.subjects} subjects total</div></div>
-        <div className="stat-card"><div className="sc-icon"><BookOpen size={22} /></div><div className="sc-val">{stats.avgGwa}</div><div className="sc-label">Average GWA</div><div className="sc-sub">School-wide</div></div>
-        <div className="stat-card"><div className="sc-icon"><CalendarCheck size={22} /></div><div className="sc-val">{stats.avgAtt}</div><div className="sc-label">Avg. Attendance</div><div className="sc-sub">Across all students</div></div>
+        <MetricCard Icon={Users}         color="blue"   value={stats.total}   label="Total Students"   sub={`${stats.regCount} with accounts`} />
+        <MetricCard Icon={School}        color="purple" value={stats.classes} label="Active Classes"   sub={`${stats.subjects} subjects total`} />
+        <MetricCard Icon={BookOpen}      color="green"  value={stats.avgGwa}  label="Average GWA"      sub="School-wide" />
+        <MetricCard Icon={CalendarCheck} color="teal"   value={stats.avgAtt}  label="Avg. Attendance"  sub="Across all students" />
       </div>
 
       {/* Charts */}
@@ -126,7 +128,7 @@ export default function DashboardTab() {
         <div>
           <div className="sec-hdr"><div className="sec-title">Students at Risk (below 75%)</div></div>
           {!atRisk.length ? (
-            <div className="empty"><div className="empty-icon"><ShieldCheck size={28} /></div>No at-risk students</div>
+            <EmptyState Icon={ShieldCheck} title="No students at risk" text="Everyone with complete grades is passing. Nice work." />
           ) : (
             <>
               <div className="tbl-wrap">
@@ -149,7 +151,7 @@ export default function DashboardTab() {
         <div>
           <div className="sec-hdr"><div className="sec-title">Low Attendance (&lt; 80%)</div></div>
           {!lowAtt.length ? (
-            <div className="empty"><div className="empty-icon"><CalendarCheck size={28} /></div>No low-attendance students</div>
+            <EmptyState Icon={CalendarCheck} title="Attendance looks healthy" text="No students are below the 80% attendance threshold." />
           ) : (
             <>
               <div className="tbl-wrap">
