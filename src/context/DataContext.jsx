@@ -17,6 +17,17 @@ import {
 } from '@/firebase/attendanceExtras'
 import { loadFbConfigFromStorage, readStoredEJS } from '@/utils/crypto'
 import { DEFAULT_EQ_SCALE } from '@/utils/grades'
+import { ADMIN_EMAIL } from '@/constants/auth'
+
+// The audit log is teacher-only (its Firestore rule denies students). Only
+// attach its listener for the admin so student sessions don't trip a
+// "Missing or insufficient permissions" error on a collection they never read.
+function isAdminUser() {
+  try {
+    const email = getFbAuth()?.currentUser?.email || ''
+    return !!email && email.toLowerCase() === ADMIN_EMAIL.toLowerCase()
+  } catch { return false }
+}
 
 const DataContext = createContext(null)
 
@@ -103,7 +114,7 @@ export function DataProvider({ children }) {
         onMeetingsUpdate: setMeetings,
         onAttendanceSessionsUpdate: setAttendanceSessions,
         onExcuseRequestsUpdate: setExcuseRequests,
-        onAuditLogUpdate: setAuditLog,
+        onAuditLogUpdate: isAdminUser() ? setAuditLog : undefined,
         onConfigUpdate: ({ ejsConfig }) => {
           if (ejsConfig) {
             setEjs({ ...ejsConfig, configured: true })
@@ -156,7 +167,7 @@ export function DataProvider({ children }) {
       onMeetingsUpdate: setMeetings,
       onAttendanceSessionsUpdate: setAttendanceSessions,
       onExcuseRequestsUpdate: setExcuseRequests,
-      onAuditLogUpdate: setAuditLog,
+      onAuditLogUpdate: isAdminUser() ? setAuditLog : undefined,
       onConfigUpdate: ({ ejsConfig }) => {
         if (ejsConfig) {
           setEjs({ ...ejsConfig, configured: true })
