@@ -58,6 +58,14 @@ export default function MessagesTab({ student: s, messages }) {
       const latest = directMsgs[0]
       const allReplies = directMsgs.flatMap(m => m.replies || [])
       const lastActivity = allReplies.length ? Math.max(latest.ts, ...allReplies.map(r => r.ts)) : latest.ts
+      // Newest entry across messages AND replies, so the list preview reflects
+      // the most recent line of the conversation (not just the last top-level
+      // message). Without this a teacher's latest reply never shows in the list.
+      const allEntries = directMsgs.flatMap(m => [
+        { body: m.body || '', from: m.from, ts: m.ts || 0 },
+        ...(m.replies || []).map(r => ({ body: r.body || '', from: r.from, ts: r.ts || 0 })),
+      ]).filter(e => e.body).sort((a, b) => b.ts - a.ts)
+      const lastEntry = allEntries[0] || latest
       const hasUnread = directMsgs.some(m => {
         if (m.from === s.id) return false
         const studentRead = Array.isArray(m.read) && m.read.includes(s.id)
@@ -67,7 +75,7 @@ export default function MessagesTab({ student: s, messages }) {
         return lastAdminReply > lastReadAt
       })
       const totalReplies = directMsgs.reduce((a, m) => a + (m.replies || []).length, 0)
-      result.push({ type: 'direct', latest, lastActivity, hasUnread, replyCount: totalReplies, msgCount: directMsgs.length })
+      result.push({ type: 'direct', latest, lastEntry, lastActivity, hasUnread, replyCount: totalReplies, msgCount: directMsgs.length })
     }
     announcements.forEach(m => {
       const isRead = Array.isArray(m.read) && m.read.includes(s.id)
@@ -271,9 +279,10 @@ export default function MessagesTab({ student: s, messages }) {
           <div className="rounded-xl border border-border bg-surface" style={{ overflow: 'hidden' }}>
             {slice.map((item, i) => {
               if (item.type === 'direct') {
-                const m = item.latest
+                const m = item.lastEntry || item.latest
                 const isOwn = m.from === s.id
-                const preview = (isOwn ? 'You: ' : '') + m.body.slice(0, 60) + (m.body.length > 60 ? '…' : '')
+                const body = m.body || ''
+                const preview = (isOwn ? 'You: ' : '') + body.slice(0, 60) + (body.length > 60 ? '…' : '')
                 const replyHint = item.msgCount > 1
                   ? `${item.msgCount} messages · ${item.replyCount} repl${item.replyCount === 1 ? 'y' : 'ies'}`
                   : item.replyCount ? `${item.replyCount} repl${item.replyCount === 1 ? 'y' : 'ies'}` : ''
