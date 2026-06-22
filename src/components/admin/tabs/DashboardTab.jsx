@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { getGWA, getAttRate } from '@/utils/grades'
+import { computeAssessmentStats } from '@/utils/assessmentStats'
 import { sortByLastName } from '@/utils/format'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
@@ -18,7 +19,7 @@ import EmptyState from '@/components/ds/EmptyState'
 const PER_PAGE = 10
 
 export default function DashboardTab() {
-  const { students, classes, fbReady, admin } = useData()
+  const { students, classes, activities = [], fbReady, admin } = useData()
   const { setAdminTab } = useUI()
   const [riskPage, setRiskPage]     = useState(1)
   const [lowAttPage, setLowAttPage] = useState(1)
@@ -70,6 +71,8 @@ export default function DashboardTab() {
   const recent = useMemo(() => allStudents.slice(0, 5), [allStudents])
 
   const classInsights = useMemo(() => generateClassInsights(students, classes), [students, classes])
+
+  const assess = useMemo(() => computeAssessmentStats(activities, students, classes), [activities, students, classes])
 
   // Chart data
   const barData = useMemo(() => classes.filter(c => !c.archived).map(cls => {
@@ -247,6 +250,44 @@ export default function DashboardTab() {
             </>
           )}
         </div>
+      </div>
+
+      {/* Assessment completion analytics */}
+      <div className="card card-pad mb-4">
+        <div className="sec-hdr">
+          <div className="sec-title sec-title-ic"><BookOpen /> Grading &amp; Submissions</div>
+          <button className="sec-link" onClick={() => setAdminTab('activities')}>Go to Activities <ArrowRight /></button>
+        </div>
+        {!assess.awaitingGrading && !assess.overdueMissing ? (
+          <EmptyState Icon={BookOpen} title="All caught up" text="No submissions are awaiting grading and nothing is overdue." />
+        ) : (
+          <>
+            <div className="grid-2 mb-3">
+              <div className="ds-statline">
+                <div className="t"><span>Submissions awaiting grading</span><b>{assess.awaitingGrading}</b></div>
+              </div>
+              <div className="ds-statline">
+                <div className="t"><span>Overdue missing submissions</span><b style={{ color: assess.overdueMissing ? 'var(--red)' : 'inherit' }}>{assess.overdueMissing}</b></div>
+              </div>
+            </div>
+            {assess.needsGrading.length > 0 && (
+              <div className="tbl-wrap">
+                <table className="tbl">
+                  <thead><tr><th>Activity</th><th>Subject</th><th>Awaiting grading</th></tr></thead>
+                  <tbody>
+                    {assess.needsGrading.slice(0, 8).map(a => (
+                      <tr key={a.id} style={{ cursor: 'pointer' }} onClick={() => setAdminTab('activities')}>
+                        <td><strong>{a.title}</strong></td>
+                        <td>{a.subject || '—'}</td>
+                        <td><Badge variant="orange">{a.ungraded} of {a.submitted}</Badge></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* All students overview */}
