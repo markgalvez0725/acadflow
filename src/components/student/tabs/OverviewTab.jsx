@@ -12,6 +12,17 @@ import { generateStudentInsights } from '@/utils/insights'
 import { buildStudentReportCard } from '@/export/reportCard'
 import { FileDown } from 'lucide-react'
 import { activeClassIds, activeSubjects } from '@/utils/active'
+import DOMPurify from 'dompurify'
+
+// Defense-in-depth: announcement HTML is sanitized on save, but sanitize again
+// at render in case a record was written directly to the database.
+const ANN_SANITIZE = {
+  ALLOWED_TAGS: ['b', 'i', 'u', 'em', 'strong', 'mark', 'p', 'br', 'ul', 'ol', 'li', 'h3', 'h4', 'a', 'pre', 'code', 'font', 'table', 'thead', 'tbody', 'tr', 'td', 'th'],
+  ALLOWED_ATTR: ['href', 'target', 'rel', 'size', 'colspan', 'rowspan'],
+}
+function sanitizeAnn(html) {
+  return DOMPurify.sanitize(html || '', ANN_SANITIZE)
+}
 
 function formatAnnDate(ms) {
   if (!ms) return null
@@ -234,7 +245,7 @@ function AnnouncementDetailModal({ ann, student, onClose }) {
 
         {/* Message */}
         {ann.message && (
-          <div className="ann-message" dangerouslySetInnerHTML={{ __html: ann.message }} />
+          <div className="ann-message" dangerouslySetInnerHTML={{ __html: sanitizeAnn(ann.message) }} />
         )}
 
         {/* Topics */}
@@ -320,12 +331,6 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
 
   const [viewAnn, setViewAnn] = useState(null)
   const [chartsOpen, setChartsOpen] = useState(false)
-
-  // Toggle state per subject: 'equiv' | 'pct'
-  const [toggleMap, setToggleMap] = useState({})
-  function toggleCell(sub, field) {
-    setToggleMap(m => ({ ...m, [`${sub}-${field}`]: m[`${sub}-${field}`] === 'pct' ? 'equiv' : 'pct' }))
-  }
 
   // Only current, non-archived classes count — archived/ended/past subjects drop off.
   const enrolledIds = useMemo(() => activeClassIds(s, classes, semester), [s, classes, semester])
@@ -419,7 +424,11 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
           {activeAnnouncements.map(ann => (
             <div
               key={ann.id}
+              role="button"
+              tabIndex={0}
+              aria-label={`Open announcement: ${ann.title}`}
               onClick={() => setViewAnn(ann)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setViewAnn(ann) } }}
               style={{
                 display: 'flex', alignItems: 'flex-start', gap: 10,
                 padding: '12px 14px', borderRadius: 10,
@@ -436,7 +445,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
                   {ann.title}
                 </div>
                 {ann.message && (
-                  <div className="ann-message ann-message--preview" style={{ fontSize: 12, marginTop: 2 }} dangerouslySetInnerHTML={{ __html: ann.message }} />
+                  <div className="ann-message ann-message--preview" style={{ fontSize: 12, marginTop: 2 }} dangerouslySetInnerHTML={{ __html: sanitizeAnn(ann.message) }} />
                 )}
                 {ann.type === 'meeting_topics' && ann.topics?.length > 0 && (
                   <ol style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 12, color: 'var(--ink2)', lineHeight: 1.8 }}>

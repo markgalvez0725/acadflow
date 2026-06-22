@@ -47,7 +47,7 @@ function resolveAction(n) {
 
 export default function NotificationsTab({ student, notifs, setNotifs }) {
   const { db, fbReady } = useData()
-  const { setStudentTab } = useUI()
+  const { setStudentTab, openDialog } = useUI()
   const [page, setPage] = useState(1)
 
   const sorted = [...notifs].sort((a, b) => b.ts - a.ts)
@@ -73,6 +73,14 @@ export default function NotificationsTab({ student, notifs, setNotifs }) {
 
   async function deleteNotif(e, id) {
     e.stopPropagation()
+    const ok = await openDialog({
+      title: 'Delete notification?',
+      msg: 'This will remove it permanently.',
+      type: 'danger',
+      confirmLabel: 'Delete',
+      showCancel: true,
+    })
+    if (!ok) return
     const updated = notifs.filter(x => x.id !== id)
     await persistNotifs(updated)
     // Adjust page if last item on page was deleted
