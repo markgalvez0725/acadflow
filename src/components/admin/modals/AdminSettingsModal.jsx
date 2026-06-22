@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react'
+import { Lightbulb } from 'lucide-react'
 import { doc, setDoc } from 'firebase/firestore'
 import { fbWithTimeout } from '@/firebase/firebaseInit'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
@@ -11,9 +12,9 @@ import { gradeInfo, DEFAULT_EQ_SCALE } from '@/utils/grades'
 import { saveSettingsToFirebase } from '@/firebase/settings'
 
 const TABS = [
-  { id: 'semester', label: '🗓 Semester' },
+  { id: 'semester', label: 'Semester' },
   { id: 'cred',     label: 'Credentials' },
-  { id: 'notifs',   label: '🔔 Notifications' },
+  { id: 'notifs',   label: 'Notifications' },
   { id: 'eq',       label: 'Equiv Scale' },
   { id: 'firebase', label: 'Firebase' },
 ]
@@ -71,9 +72,9 @@ function NotificationsTab({ push }) {
 
 // ── Semester Tab ──────────────────────────────────────────────────────────────
 const STATUS_OPTS = [
-  { value: 'upcoming', label: '⏳ Upcoming' },
-  { value: 'active',   label: '✅ Active / Open' },
-  { value: 'ended',    label: '🏁 Ended' },
+  { value: 'upcoming', label: 'Upcoming' },
+  { value: 'active',   label: 'Active / Open' },
+  { value: 'ended',    label: 'Ended' },
 ]
 
 function SemesterTab() {
@@ -189,9 +190,9 @@ function SemesterTab() {
       </form>
 
       <div className="text-xs text-[var(--ink3)] bg-[var(--surface2)] rounded-lg px-3 py-2.5 leading-relaxed">
-        <strong>💡 Semester Workflow:</strong><br />
+        <strong><Lightbulb size={15} /> Semester Workflow:</strong><br />
         1. Set the semester here before the term begins.<br />
-        2. <strong>Setting status to ✅ Active / Open</strong> automatically opens enrollment for all classes assigned to this semester. Setting it to ⏳ Upcoming or 🏁 Ended automatically closes their enrollment.<br />
+        2. <strong>Setting status to Active / Open</strong> automatically opens enrollment for all classes assigned to this semester. Setting it to Upcoming or Ended automatically closes their enrollment.<br />
         3. When a class is <em>archived</em>, enrolled students' subject records are automatically snapshotted and cleared — they appear in each student's Academic History.<br />
         4. <em>Unarchive</em> a class to make it active again, then re-enroll students manually via the Students tab.
       </div>
