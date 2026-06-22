@@ -1,6 +1,7 @@
 // ── Firebase initialization — modular SDK v10 ─────────────────────────────
 import { initializeApp, getApps, deleteApp } from 'firebase/app'
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
+import { getAuth } from 'firebase/auth'
 
 /** Hardcoded Firebase config — always available on any device. */
 const HARDCODED_FB_CONFIG = {
@@ -25,9 +26,11 @@ export function getFbConfigFromEnv() {
 const FB_WRITE_TIMEOUT = 20000;
 let _app = null;
 let _db  = null;
+let _auth = null;
 let _initializing = false;
 
 export function getDb() { return _db; }
+export function getFbAuth() { return _auth; }
 export function isReady() { return !!_db; }
 
 /**
@@ -96,6 +99,17 @@ export async function fbInit(fbConfig) {
       _db = initializeFirestore(_app, { experimentalAutoDetectLongPolling: true });
       console.log('[Firebase] ✅ Firestore ready (long-poll enabled).');
     }
+
+    // Initialize Auth (Email/Password). Persists the session in local storage
+    // by default so users stay signed in across reloads.
+    try {
+      _auth = getAuth(_app);
+      console.log('[Firebase] ✅ Auth ready.');
+    } catch (e) {
+      console.warn('[Firebase] Auth init failed:', e.message);
+      _auth = null;
+    }
+
     return _db;
   } catch (e) {
     console.error('[Firebase] ❌ Init failed:', e.code || '', e.message);
