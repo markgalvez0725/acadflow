@@ -171,12 +171,26 @@ export function AuthProvider({ children }) {
 
     // Confirm a roster record exists, then let StudentLayout resolve the full
     // (deserialized) record from the live students list via the _pending flag.
-    let exists = false
-    try {
-      const snap = await getDoc(doc(getDb(), 'students', studentDocId(snum)))
-      exists = snap.exists()
-    } catch (e) {}
-    if (!exists) {
+    //
+    // IMPORTANT: right after sign-in the Firestore SDK may not have picked up
+    // the new auth token yet, so the first read can be denied by security rules.
+    // We retry a few times (forcing the ID token to mint first) and only treat
+    // the account as missing when a read SUCCEEDS and the doc truly is absent.
+    // A read that keeps failing is treated as "unknown" — we let login proceed
+    // and StudentLayout resolves the record from the live listener instead of
+    // falsely locking the student out.
+    let exists = null // null = read never succeeded (unknown); true/false = known
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        if (auth.currentUser) { try { await auth.currentUser.getIdToken() } catch (e) {} }
+        const snap = await getDoc(doc(getDb(), 'students', studentDocId(snum)))
+        exists = snap.exists()
+        break
+      } catch (e) {
+        await new Promise(r => setTimeout(r, 400))
+      }
+    }
+    if (exists === false) {
       await signOut(auth)
       return { ok: false, msg: 'Your student record was not found. Please contact your teacher.' }
     }
