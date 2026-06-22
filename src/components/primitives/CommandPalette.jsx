@@ -57,9 +57,9 @@ function fuzzyScore(query, text) {
 }
 
 export default function CommandPalette() {
-  const { sessionRole } = useAuth()
+  const { sessionRole, currentStudent } = useAuth()
   const { theme, toggleTheme, adminTab, setAdminTab, studentTab, setStudentTab, toast } = useUI()
-  const { students = [], classes = [] } = useData()
+  const { students = [], classes = [], activities = [], quizzes = [] } = useData()
 
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -184,10 +184,64 @@ export default function CommandPalette() {
           run: () => { setAdminTab('classes'); toast?.(`Open Classes → ${c.name}`, 'info', 2500); setOpen(false) },
         })
       })
+      activities.slice(0, 300).forEach((a) => {
+        const c = classes.find((x) => x.id === a.classId)
+        entities.push({
+          id: 'activity:' + a.id,
+          label: a.title,
+          hint: [a.subject, c?.name].filter(Boolean).join(' · '),
+          section: 'Activities',
+          keywords: `${a.title} ${a.subject || ''} activity assignment`,
+          Icon: ClipboardList,
+          run: () => { setAdminTab('activities'); toast?.(`Open Activities → ${a.title}`, 'info', 2500); setOpen(false) },
+        })
+      })
+      quizzes.slice(0, 200).forEach((qz) => {
+        entities.push({
+          id: 'quiz:' + qz.id,
+          label: qz.title,
+          hint: qz.subject || '',
+          section: 'Quizzes',
+          keywords: `${qz.title} ${qz.subject || ''} quiz exam`,
+          Icon: FileQuestion,
+          run: () => { setAdminTab('quizzes'); toast?.(`Open Quizzes → ${qz.title}`, 'info', 2500); setOpen(false) },
+        })
+      })
+    }
+
+    // Student-only: search your own subjects (→ grades) and activities.
+    if (!isAdmin && currentStudent) {
+      const me = students.find((s) => s.id === currentStudent.id)
+      if (me) {
+        const myClassIds = me.classIds?.length ? me.classIds : (me.classId ? [me.classId] : [])
+        const mySubjects = [...new Set(myClassIds.flatMap((id) => classes.find((c) => c.id === id)?.subjects || []))]
+        mySubjects.forEach((sub) => {
+          entities.push({
+            id: 'subject:' + sub,
+            label: sub,
+            hint: 'View grade',
+            section: 'My Grades',
+            keywords: `${sub} grade subject`,
+            Icon: GraduationCap,
+            run: () => { setStudentTab('grades'); setOpen(false) },
+          })
+        })
+        activities.filter((a) => myClassIds.includes(a.classId)).slice(0, 200).forEach((a) => {
+          entities.push({
+            id: 'sact:' + a.id,
+            label: a.title,
+            hint: a.subject || '',
+            section: 'My Activities',
+            keywords: `${a.title} ${a.subject || ''} activity assignment`,
+            Icon: ClipboardList,
+            run: () => { setStudentTab('activities'); setOpen(false) },
+          })
+        })
+      }
     }
 
     return [...tabs, ...actions, ...entities]
-  }, [isAdmin, theme, deferredInstall, students, classes, go, toggleTheme, setAdminTab, toast])
+  }, [isAdmin, theme, deferredInstall, students, classes, activities, quizzes, currentStudent, go, toggleTheme, setAdminTab, setStudentTab, toast])
 
   const filtered = useMemo(() => {
     if (!query.trim()) {
@@ -251,7 +305,7 @@ export default function CommandPalette() {
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={isAdmin ? 'Search tabs, students, classes…' : 'Search tabs and actions…'}
+            placeholder={isAdmin ? 'Search tabs, students, classes, activities…' : 'Search tabs, subjects, activities…'}
             style={{
               flex: 1, minWidth: 0, border: 'none', outline: 'none',
               background: 'var(--surface2)', borderRadius: 10, padding: '10px 12px',
