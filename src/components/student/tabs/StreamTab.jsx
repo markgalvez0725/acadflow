@@ -102,11 +102,12 @@ function AnnouncementCard({ item, classObj }) {
   const commentCount = (ann.comments || []).length
 
   return (
-    <div className="stream-card">
+    <div className={`stream-card${ann.pinned ? ' stream-card--pinned' : ''}`}>
       <div className="stream-card-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ color: '#f59e0b' }}><Megaphone size={16} /></span>
           <TypeBadge type="announcement" />
+          {ann.pinned && <span className="badge badge-blue" style={{ fontSize: 10 }}>📌 Pinned</span>}
         </div>
         <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{timeAgo(ann.createdAt)}</span>
       </div>
@@ -353,7 +354,7 @@ export default function StreamTab({ student, viewClassId, classes }) {
         if (!matchesClass) return
         // Hide scheduled announcements until their publish time.
         if (ann.publishAt && ann.publishAt > nowTs) return
-        items.push({ id: `ann-${ann.id}`, type: 'announcement', ts: ann.createdAt || 0, data: ann, classId: ann.classId })
+        items.push({ id: `ann-${ann.id}`, type: 'announcement', ts: ann.createdAt || 0, data: ann, classId: ann.classId, pinned: !!ann.pinned })
       })
     }
 
@@ -423,7 +424,8 @@ export default function StreamTab({ student, viewClassId, classes }) {
       })
     }
 
-    return items.sort((a, b) => b.ts - a.ts)
+    // Pinned announcements first, then most recent.
+    return items.sort((a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || (b.ts - a.ts))
   }, [student, effectiveClassIds, activities, quizzes, announcements, filterType, filterSubject, classes])
 
   function getClassObj(item) {
@@ -478,8 +480,8 @@ export default function StreamTab({ student, viewClassId, classes }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {streamItems.slice(streamPage * PAGE_SIZE, (streamPage + 1) * PAGE_SIZE).map((item, idx, arr) => {
           const classObj = getClassObj(item)
-          const label = getGroupLabel(item.ts)
-          const prevLabel = idx > 0 ? getGroupLabel(arr[idx - 1].ts) : null
+          const label = item.pinned ? '📌 Pinned' : getGroupLabel(item.ts)
+          const prevLabel = idx > 0 ? (arr[idx - 1].pinned ? '📌 Pinned' : getGroupLabel(arr[idx - 1].ts)) : null
           const showGroup = label !== prevLabel
           return (
             <React.Fragment key={item.id}>

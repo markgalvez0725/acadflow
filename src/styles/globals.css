@@ -2979,6 +2979,9 @@ textarea.input { resize: vertical; }
   transform: translateY(-2px);
   border-color: var(--border2);
 }
+.stream-card--pinned {
+  border-left: 3px solid var(--accent);
+}
 .stream-card-header {
   display: flex;
   align-items: center;
