@@ -4,6 +4,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { sortByLastName } from '@/utils/format'
 import { isClassCurrent } from '@/utils/active'
+import { isGroupMessage, autoGroupName, groupName } from '@/utils/groupChat'
 import { notifyStudentMessage, notifyStudentsBroadcast } from '@/firebase/messageNotify'
 import { fbAddMessageReply, fbDeleteMessage } from '@/firebase/persistence'
 import Modal from '@/components/primitives/Modal'
@@ -22,32 +23,6 @@ function recipientDisplay(to, students) {
 function studentsInClasses(students, classIds) {
   const ids = classIds || []
   return students.filter(s => ids.some(id => s.classId === id || s.classIds?.includes(id)))
-}
-
-// A group chat = an admin announcement targeting all / a class / a subject.
-function isGroupMessage(m) {
-  return m?.from === 'admin' && m?.type === 'announcement'
-}
-
-// Auto-generated group-chat name from the subject + course/year (or class/section).
-function autoGroupName(m, classes) {
-  if (m.to === 'all') return 'All Students'
-  if (typeof m.to === 'string' && m.to.startsWith('class:')) {
-    const c = classes.find(x => x.id === m.to.slice(6))
-    return c ? `${c.name}${c.section ? ' ' + c.section : ''}` : 'Class group'
-  }
-  if (typeof m.to === 'string' && m.to.startsWith('subject:')) {
-    const sub = m.targetSubject || m.to.slice(8)
-    const c = classes.find(x => (m.classIds || []).includes(x.id))
-    const cy = c ? [c.course, c.year].filter(Boolean).join(' ') : ''
-    return cy ? `${sub} · ${cy}` : sub
-  }
-  return 'Group chat'
-}
-
-// The displayed group name: a teacher override if set, else the auto name.
-function groupName(m, classes) {
-  return (m.groupName && m.groupName.trim()) ? m.groupName.trim() : autoGroupName(m, classes)
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────

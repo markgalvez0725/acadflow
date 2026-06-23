@@ -3,7 +3,8 @@ import { doc, setDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { relativeTime } from '@/utils/format'
-import { getStudentMessages, announcementTitle } from '@/utils/studentMessages'
+import { getStudentMessages } from '@/utils/studentMessages'
+import { groupName } from '@/utils/groupChat'
 import { isClassCurrent } from '@/utils/active'
 import { notifyAdminMessage } from '@/firebase/messageNotify'
 import { fbAddMessageReply, fbMarkMessageRead } from '@/firebase/persistence'
@@ -94,10 +95,11 @@ export default function MessagesTab({ student: s, messages }) {
     if (!q) return allMsgs
     return allMsgs.filter(m =>
       m.subject?.toLowerCase().includes(q) ||
+      groupName(m, classes).toLowerCase().includes(q) ||
       m.body?.toLowerCase().includes(q) ||
       (m.replies || []).some(r => r.body?.toLowerCase().includes(q))
     )
-  }, [allMsgs, search])
+  }, [allMsgs, search, classes])
 
   const items = useMemo(() => {
     const announcements = filtered.filter(m => m.type === 'announcement').sort((a, b) => b.ts - a.ts)
@@ -201,7 +203,7 @@ export default function MessagesTab({ student: s, messages }) {
       { from: m.from, body: m.body, ts: m.ts, subject: m.subject, isMain: true },
       ...(m.replies || []).map(r => ({ ...r, isMain: false })),
     ].sort((a, b) => a.ts - b.ts)
-    setThreadTitle(announcementTitle(m))
+    setThreadTitle(groupName(m, classes))
     setThreadEntries(allEntries)
     const active = groupChatActive(m)
     setCanReply(active)
@@ -421,7 +423,7 @@ export default function MessagesTab({ student: s, messages }) {
                     <div className="s-conv-body">
                       <div className="s-conv-name">
                         {item.hasUnread && <span className="unread-dot" />}
-                        {announcementTitle(m)}
+                        {groupName(m, classes)}
                       </div>
                       <div className="s-conv-preview">{preview}</div>
                       {replyCount > 0 && <div style={{ fontSize: 10, color: 'var(--green)', marginTop: 2 }}>{replyCount} repl{replyCount === 1 ? 'y' : 'ies'}</div>}
