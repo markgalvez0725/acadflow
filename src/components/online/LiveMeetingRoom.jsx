@@ -10,16 +10,22 @@ import { loadJitsi, meetingRoomName, JITSI_DOMAIN } from '@/utils/jitsi'
 // a Jitsi Meet iframe (real audio/video/screen-share); the surrounding chrome —
 // header, joined banner and control bar — is ours, mirroring the app's preview
 // design. Native Jitsi toolbar is hidden so every control routes through here.
-export default function LiveMeetingRoom({ meeting, displayName, email, isHost = false, subtitle, onLeave }) {
+export default function LiveMeetingRoom({ meeting, displayName, email, isHost = false, subtitle, onLeave, onEnd }) {
   const holderRef = useRef(null)
   const apiRef = useRef(null)
   const timerRef = useRef(null)
-  // Leaving can be signalled twice (our hangup fallback + Jitsi's readyToClose);
-  // fire onLeave exactly once. onLeave is read through a ref so the latest
-  // closure (e.g. the host's "end the meeting" handler) always runs.
+  // Leaving can be signalled twice (our hangup + Jitsi's readyToClose); resolve
+  // exactly once. Callbacks are read through refs so the latest closures run.
+  // `ended` chooses onEnd (close the class for everyone) vs onLeave (just exit).
   const onLeaveRef = useRef(onLeave); onLeaveRef.current = onLeave
+  const onEndRef = useRef(onEnd); onEndRef.current = onEnd
   const leftRef = useRef(false)
-  const finishLeave = () => { if (leftRef.current) return; leftRef.current = true; onLeaveRef.current?.() }
+  const finish = (ended) => {
+    if (leftRef.current) return
+    leftRef.current = true
+    if (ended && onEndRef.current) onEndRef.current()
+    else onLeaveRef.current?.()
+  }
 
   const [phase, setPhase] = useState('loading') // loading | joined | error
   const [error, setError] = useState('')
@@ -33,6 +39,7 @@ export default function LiveMeetingRoom({ meeting, displayName, email, isHost = 
   // own prejoin / "waiting for host" / sign-in screens are never hidden behind
   // our loading overlay (which would otherwise trap the user on "Connecting…").
   const [reveal, setReveal] = useState(false)
+  const [confirmEnd, setConfirmEnd] = useState(false) // host Leave/End chooser
 
   useEffect(() => {
     let disposed = false
@@ -83,7 +90,7 @@ export default function LiveMeetingRoom({ meeting, displayName, email, isHost = 
         // Fires for every participant; only reflect our own hand state.
         try { if (e.id === api._myUserID || e.id === api.getMyUserId?.()) setHandRaised(!!e.handRaised) } catch (err) { /* ignore */ }
       })
-      api.addEventListener('readyToClose', () => { if (!disposed) finishLeave() })
+      api.addEventListener('readyToClose', () => { if (!disposed) finish(false) })
     }).catch(err => {
       if (disposed) return
       setError(err?.message || 'Could not start the video room.')
@@ -100,10 +107,15 @@ export default function LiveMeetingRoom({ meeting, displayName, email, isHost = 
   }, [meeting?.id])
 
   function cmd(name) { try { apiRef.current?.executeCommand(name) } catch (e) { /* ignore */ } }
-  function leave() {
+  // Disconnect from Jitsi and resolve. `ended` is host-only: it ends the class
+  // for everyone. We resolve synchronously so the guard wins over readyToClose.
+  function doLeave(ended) {
     cmd('hangup')
-    // hangup → readyToClose handles the leave, but close promptly as a fallback.
-    setTimeout(finishLeave, 250)
+    finish(ended)
+  }
+  function onLeaveClick() {
+    if (isHost) setConfirmEnd(true) // host picks Leave vs End for everyone
+    else doLeave(false)
   }
 
   const elapsed = `${String(Math.floor(secs / 60)).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}`
@@ -170,10 +182,29 @@ export default function LiveMeetingRoom({ meeting, displayName, email, isHost = 
         <Ctrl onClick={() => cmd('toggleParticipantsPane')} label="Participants">
           <Users size={19} />
         </Ctrl>
-        <button style={S.leave} onClick={leave} aria-label="Leave meeting">
+        <button style={S.leave} onClick={onLeaveClick} aria-label="Leave meeting">
           <PhoneOff size={18} /> Leave
         </button>
       </div>
+
+      {/* Host-only chooser: step out, or end the class for everyone */}
+      {confirmEnd && (
+        <div style={S.confirmBackdrop} onClick={() => setConfirmEnd(false)}>
+          <div style={S.confirmCard} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Leave or end class">
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>Leave the class?</div>
+            <div style={{ fontSize: 13, color: '#9aa6b6', lineHeight: 1.5, marginBottom: 18 }}>
+              End it for everyone, or step out and keep the class running for your students.
+            </div>
+            <button style={S.confirmDanger} onClick={() => { setConfirmEnd(false); doLeave(true) }}>
+              <VideoOff size={16} /> End class for everyone
+            </button>
+            <button style={S.confirmGhost} onClick={() => { setConfirmEnd(false); doLeave(false) }}>
+              <PhoneOff size={16} /> Leave, keep class running
+            </button>
+            <button style={S.confirmCancel} onClick={() => setConfirmEnd(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
     </div>,
     document.body
   )
@@ -214,4 +245,9 @@ const S = {
   controls: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '12px 14px calc(env(safe-area-inset-bottom) + 12px)', borderTop: '1px solid rgba(255,255,255,.08)', flexShrink: 0, flexWrap: 'wrap' },
   ctrlPill: { padding: '8px 16px', borderRadius: 999, background: 'rgba(255,255,255,.1)', color: '#e8edf4', border: '1px solid rgba(255,255,255,.2)', cursor: 'pointer' },
   leave: { height: 46, padding: '0 20px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 8, background: '#ef4444', color: '#fff', border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
+  confirmBackdrop: { position: 'absolute', inset: 0, zIndex: 5, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 },
+  confirmCard: { width: '100%', maxWidth: 360, background: '#161b22', border: '1px solid rgba(255,255,255,.10)', borderRadius: 16, padding: '20px 20px 16px', color: '#e8edf4', boxShadow: '0 20px 60px rgba(0,0,0,.5)' },
+  confirmDanger: { width: '100%', height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: '#ef4444', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 8 },
+  confirmGhost: { width: '100%', height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'rgba(255,255,255,.08)', color: '#e8edf4', border: '1px solid rgba(255,255,255,.14)', borderRadius: 10, fontSize: 14, fontWeight: 500, cursor: 'pointer', marginBottom: 8 },
+  confirmCancel: { width: '100%', height: 38, background: 'none', color: '#9aa6b6', border: 'none', fontSize: 13, cursor: 'pointer' },
 }
