@@ -28,7 +28,7 @@ function parseStudentName(full) {
 function buildStudentName(surname, first, middle) {
   const sur = (surname || '').trim()
   const fm = [(first || '').trim(), (middle || '').trim()].filter(Boolean).join(' ')
-  return sur ? `${sur}, ${fm}`.replace(/,\s*$/, '') : fm
+  return (sur ? `${sur}, ${fm}`.replace(/,\s*$/, '') : fm).toUpperCase()
 }
 
 export default function EditProfileModal({ student: s, onClose }) {

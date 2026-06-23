@@ -88,7 +88,7 @@ function AddStudentModal({ onClose }) {
 
     setSaving(true)
     try {
-      const newStudent = { id, name: name.trim(), course: course.trim(), year, section: finalSection, classId: classId || null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account }
+      const newStudent = { id, name: name.trim().toUpperCase(), course: course.trim(), year, section: finalSection, classId: classId || null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account }
       await saveStudents([...students, newStudent], [id])
       toast('Student added!', 'green')
       onClose()
@@ -257,7 +257,7 @@ function EditStudentModal({ student, onClose }) {
 
     const primaryCls = classes.find(c => c.id === newClassId)
     const finalSection = section.trim() || primaryCls?.section || ''
-    const ns = { ...student, id: finalId, name: trimName, course: course.trim(), year, section: finalSection, classId: newClassId, classIds: allClassIds, grades: { ...student.grades }, attendance: { ...student.attendance }, excuse: { ...student.excuse } }
+    const ns = { ...student, id: finalId, name: trimName.toUpperCase(), course: course.trim(), year, section: finalSection, classId: newClassId, classIds: allClassIds, grades: { ...student.grades }, attendance: { ...student.attendance }, excuse: { ...student.excuse } }
     if (student.gradeComponents) ns.gradeComponents = { ...student.gradeComponents }
     allClassIds.forEach(cid => {
       const cls = classes.find(c => c.id === cid)
@@ -533,7 +533,7 @@ function exportRosterCSV(students, classes) {
   const headers = ['Student No.', 'Full Name', 'Course', 'Year Level', 'Date of Birth', 'Mobile', 'Primary Class', 'Email', 'Account Status']
   const rows = students.map(s => {
     const cls = classes.find(c => c.id === s.classId)
-    return [s.id, s.name, s.course || '', s.year || '', s.dob || '', s.mobile || '', cls ? `${cls.name} ${cls.section}` : '', s.account?.email || '', !s.account?.registered ? 'No Account' : s.account?.activated ? 'Active' : 'Pending']
+    return [s.id, (s.name || '').toUpperCase(), s.course || '', s.year || '', s.dob || '', s.mobile || '', cls ? `${cls.name} ${cls.section}` : '', s.account?.email || '', !s.account?.registered ? 'No Account' : s.account?.activated ? 'Active' : 'Pending']
   })
   const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
@@ -629,7 +629,7 @@ function ImportStudentsModal({ onClose }) {
         const id = r.id.toUpperCase()
         const allClassIds = []
         const grades = {}, attendance = {}, excuse = {}, gradeComponents = {}
-        return { id, name: r.name, course: r.course, year: r.year || '1st Year', section: r.section || '', mobile: r.mobile || '', dob: r.dob || '', classId: null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account: { registered: true, pass: await hashPassword(DEFAULT_PASS), email: '', _tempPass: true } }
+        return { id, name: (r.name || '').toUpperCase(), course: r.course, year: r.year || '1st Year', section: r.section || '', mobile: r.mobile || '', dob: r.dob || '', classId: null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account: { registered: true, pass: await hashPassword(DEFAULT_PASS), email: '', _tempPass: true } }
       }))
       await saveStudents([...students, ...newStudents], newStudents.map(s => s.id))
       toast(`Imported ${newStudents.length} student${newStudents.length !== 1 ? 's' : ''}!`, 'green')
