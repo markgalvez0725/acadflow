@@ -7,14 +7,29 @@ import { fbWithTimeout, getIdToken } from './firebaseInit'
 
 export async function fbSavePushToken(db, token, ownerId, role) {
   if (!db || !token) return
+  const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') || ''
   try {
     await fbWithTimeout(setDoc(doc(db, 'pushTokens', token), {
       token,
       ownerId: ownerId || null,
       role: role || 'student',
-      ua: (typeof navigator !== 'undefined' ? navigator.userAgent : '') || '',
+      ua,
       updatedAt: Date.now(),
     }, { merge: true }))
+
+    // Prune this owner's older tokens for the SAME device (same user-agent).
+    // FCM rotates tokens; without this a device accumulates several live tokens
+    // and the server fans out to all of them — so the same push shows several
+    // times. Keeping one token per owner+device delivers exactly one push.
+    if (ownerId) {
+      const snap = await getDocs(collection(db, 'pushTokens'))
+      const stale = []
+      snap.forEach((d) => {
+        const t = d.data()
+        if (t && t.ownerId === ownerId && t.ua === ua && t.token !== token) stale.push(t.token)
+      })
+      await Promise.all(stale.map((t) => deleteDoc(doc(db, 'pushTokens', t)).catch(() => {})))
+    }
   } catch (e) {
     console.warn('[push] save token failed:', e.message)
   }

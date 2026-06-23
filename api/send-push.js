@@ -81,6 +81,16 @@ export default async function handler(req, res) {
   const endpoint = `https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`
   const stringData = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)]))
 
+  // Data-ONLY message: a top-level `notification` payload is auto-displayed by
+  // the browser/FCM AND also triggers the SW's onBackgroundMessage (which
+  // displays it again) — that double-shows every push. Carrying title/body in
+  // `data` lets the service worker render exactly one notification.
+  const payloadData = {
+    ...stringData,
+    title: notification.title || 'AcadFlow',
+    body: notification.body || '',
+  }
+
   const results = await Promise.allSettled(
     validTokens.slice(0, 500).map((token) =>
       fetch(endpoint, {
@@ -89,10 +99,8 @@ export default async function handler(req, res) {
         body: JSON.stringify({
           message: {
             token,
-            notification: { title: notification.title || 'AcadFlow', body: notification.body || '' },
-            data: stringData,
+            data: payloadData,
             webpush: {
-              notification: { icon: '/icon-192.png', badge: '/icon-192.png' },
               fcmOptions: data.url ? { link: data.url } : undefined,
             },
           },

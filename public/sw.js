@@ -97,14 +97,17 @@ try {
 
   const messaging = firebase.messaging();
   messaging.onBackgroundMessage((payload) => {
+    // Messages are sent data-only (title/body live in payload.data) so they are
+    // displayed here exactly once. Fall back to payload.notification just in
+    // case an older sender or another source delivers a notification message.
     const n = payload.notification || {};
-    const data = payload.data || {};
-    self.registration.showNotification(n.title || 'AcadFlow', {
-      body: n.body || '',
+    const d = payload.data || {};
+    self.registration.showNotification(n.title || d.title || 'AcadFlow', {
+      body: n.body || d.body || '',
       icon: '/icon-192.png',
       badge: '/icon-192.png',
-      tag: data.tag || 'acadflow',
-      data: { url: data.url || '/' },
+      tag: d.tag || 'acadflow',
+      data: { url: d.url || '/' },
     });
   });
 } catch (e) {
