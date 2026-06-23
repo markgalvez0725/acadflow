@@ -47,11 +47,17 @@ export default function OnlineClassesTab() {
       })
       window.open(url, '_blank', 'noopener,noreferrer')
       toast('You are live — students can now join.', 'success')
+      setPanel('meetings') // hand the teacher off to manage/end the live class
     } catch (e) {
       toast('Failed to go live.', 'error')
     } finally {
       setGoingLive('')
     }
+  }
+
+  // A currently-live meeting for this class/subject, if any.
+  function liveMeetingFor(classId, subject) {
+    return meetings.find(m => m.status === 'live' && m.classId === classId && (m.subject || null) === (subject || null))
   }
 
   // ── Section 2: Schedule Form ──────────────────────────────────────────
@@ -216,7 +222,16 @@ export default function OnlineClassesTab() {
                             <Save size={14} />
                           </button>
                         </div>
-                        {val.trim() && (
+                        {liveMeetingFor(cls.id, sub) ? (
+                          <button
+                            className="btn btn-sm"
+                            style={{ marginTop: 6, width: '100%', background: '#ef4444', color: '#fff' }}
+                            onClick={() => setPanel('meetings')}
+                            title="This class is live — manage or end it in the Meetings tab"
+                          >
+                            <Radio size={13} className="animate-pulse" style={{ marginRight: 5 }} /> Live now — manage in Meetings
+                          </button>
+                        ) : val.trim() ? (
                           <button
                             className="btn btn-primary btn-sm"
                             style={{ marginTop: 6, width: '100%' }}
@@ -227,7 +242,7 @@ export default function OnlineClassesTab() {
                             <Radio size={13} style={{ marginRight: 5 }} />
                             {goingLive === linkKey(cls.id, sub) ? 'Going live…' : 'Go Live now'}
                           </button>
-                        )}
+                        ) : null}
                       </div>
                     )
                   })}
