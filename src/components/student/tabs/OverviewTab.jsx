@@ -18,6 +18,7 @@ import { generateStudentInsights } from '@/utils/insights'
 import { buildStudentReportCard } from '@/export/reportCard'
 import { FileDown } from 'lucide-react'
 import { activeClassIds, activeSubjects } from '@/utils/active'
+import { deadlineColor } from '@/utils/deadlines'
 import DOMPurify from 'dompurify'
 
 const SemesterWrapped = lazy(() => import('@/components/student/modals/SemesterWrapped'))
@@ -31,28 +32,6 @@ const ANN_SANITIZE = {
 }
 function sanitizeAnn(html) {
   return DOMPurify.sanitize(html || '', ANN_SANITIZE)
-}
-
-// Human "time remaining" label for a deadline timestamp.
-function deadlineLabel(deadline, now) {
-  const diff = deadline - now
-  if (diff <= 0) return 'Overdue'
-  const mins = Math.round(diff / 60000)
-  if (mins < 60) return `Due in ${mins}m`
-  const hrs = Math.round(mins / 60)
-  if (hrs < 24) return `Due in ${hrs}h`
-  const days = Math.round(hrs / 24)
-  return `Due in ${days}d`
-}
-
-// Urgency colour: overdue / <24h = red, <72h = amber, otherwise muted.
-function deadlineColor(deadline, now) {
-  const diff = deadline - now
-  if (diff <= 0) return 'var(--red)'
-  const hrs = diff / 3600000
-  if (hrs < 24) return 'var(--red)'
-  if (hrs < 72) return 'var(--yellow)'
-  return 'var(--ink2)'
 }
 
 function formatAnnDate(ms) {
@@ -358,7 +337,7 @@ function AnnIcon({ type, size = 18 }) {
 }
 
 export default function OverviewTab({ student: s, viewClassId, classes }) {
-  const { activities, students, eqScale, announcements, quizzes, semester, fbReady, liveMeetings, liveSessions } = useData()
+  const { activities, students, eqScale, announcements, quizzes, semester, fbReady, liveMeetings, liveSessions, meetings } = useData()
   const { setStudentTab } = useUI()
 
   const [viewAnn, setViewAnn] = useState(null)
@@ -466,14 +445,39 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
   // merged and sorted soonest-first (overdue floats to the top). This is the
   // student-facing half of the smart-reminder system.
   const nowTs = Date.now()
-  const WEEK = 7 * 24 * 60 * 60 * 1000
-  const upcomingDeadlines = pendingItems({ student: s, classes, activities, quizzes, semester, now: nowTs })
+  const DAY = 24 * 60 * 60 * 1000
+  const WEEK = 7 * DAY
+  const pendingAll = pendingItems({ student: s, classes, activities, quizzes, semester, now: nowTs })
+  const upcomingDeadlines = pendingAll
     .filter(it => it.when - nowTs <= WEEK)
     .sort((a, b) => a.when - b.when)
     .slice(0, 6)
 
   // Live / imminent online classes for the "Live now" banner.
   const liveNow = (liveMeetings || []).filter(m => enrolledIds.includes(m.classId))
+
+  // ── "Today at a glance" — a tappable summary band, the daily landing strip ──
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+  const t0 = todayStart.getTime(), t1 = t0 + DAY
+  const myMeetings = (meetings || []).filter(m => enrolledIds.includes(m.classId))
+  const classesTodayCount = myMeetings.filter(m =>
+    m.status === 'live' ||
+    (m.status !== 'ended' && m.scheduledAt && m.scheduledAt >= t0 && m.scheduledAt < t1)
+  ).length
+  const dueSoonCount = pendingAll.filter(it => it.when > nowTs && it.when - nowTs <= 2 * DAY).length
+  const overdueCount = pendingAll.filter(it => it.when <= nowTs).length
+  const openQuizCount = (quizzes || []).filter(q =>
+    q.classIds?.some(id => enrolledIds.includes(id)) &&
+    nowTs >= q.openAt && nowTs <= q.closeAt && !q.submissions?.[s.id]
+  ).length
+  const todayChips = [
+    { key: 'classes', Icon: Video, color: 'var(--accent)', value: classesTodayCount, label: classesTodayCount === 1 ? 'class today' : 'classes today', tab: 'onlineClasses' },
+    overdueCount > 0
+      ? { key: 'due', Icon: ClipboardList, color: 'var(--red)', value: overdueCount, label: overdueCount === 1 ? 'overdue task' : 'overdue tasks', tab: 'activities' }
+      : { key: 'due', Icon: ClipboardList, color: dueSoonCount ? 'var(--yellow)' : 'var(--green)', value: dueSoonCount, label: 'due in 48h', tab: 'activities' },
+    { key: 'quizzes', Icon: FileQuestion, color: openQuizCount ? 'var(--purple)' : 'var(--ink3)', value: openQuizCount, label: openQuizCount === 1 ? 'open quiz' : 'open quizzes', tab: 'quizzes' },
+    { key: 'announce', Icon: MessageSquare, color: activeAnnouncements.length ? 'var(--accent)' : 'var(--ink3)', value: activeAnnouncements.length, label: 'announcements', tab: 'stream' },
+  ]
 
   if (!fbReady) return <SkeletonDashboard />
 
@@ -565,6 +569,23 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
           <button className="btn btn-primary" onClick={() => setStudentTab('grades')}><BarChart3 size={16} /> View grades</button>
         </>}
       />
+
+      {/* Today at a glance — tappable summary chips (the daily landing strip) */}
+      <div className="today-strip" role="group" aria-label="Today at a glance">
+        {todayChips.map(chip => (
+          <button
+            key={chip.key}
+            type="button"
+            className="today-chip"
+            onClick={() => setStudentTab(chip.tab)}
+            aria-label={`${chip.value} ${chip.label}. Open ${chip.tab}.`}
+          >
+            <span className="today-chip-ic" style={{ color: chip.color }} aria-hidden="true"><chip.Icon size={18} /></span>
+            <span className="today-chip-val" style={{ color: chip.value ? 'var(--ink)' : 'var(--ink3)' }}>{chip.value}</span>
+            <span className="today-chip-lbl">{chip.label}</span>
+          </button>
+        ))}
+      </div>
 
       {/* Live quiz — join banner (real-time, only while a game is open) */}
       {liveQuizForMe && (
