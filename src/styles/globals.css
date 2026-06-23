@@ -5143,16 +5143,10 @@ html[data-glass="on"] .student-bottom-nav {
   -webkit-backdrop-filter: var(--glass-blur) !important;
   backdrop-filter: var(--glass-blur) !important;
 }
-/* Left sidebar stays fully SOLID even in glass mode. Any translucency + blur
-   washed out the light-gray nav labels in the light theme (the base glass rule
-   reads var(--glass-bg), so it must be overridden explicitly here). This keeps
-   the nav identical to the readable flat look across desktop, tablet & the
-   mobile drawer, in both themes. */
-html[data-glass="on"] .sidebar {
-  background: var(--surface) !important;
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
-}
+/* NOTE: the left sidebar is intentionally NOT glassed. It is an opaque navy
+   panel with light nav text (see design-system.css). Any attempt to make it
+   translucent/white turns the light labels invisible, so glass mode must leave
+   the sidebar's navy styling completely untouched — across all views & themes. */
 /* Ambient aurora behind everything so the frosted panels have something to refract. */
 html[data-glass="on"] body::before {
   content: '';
@@ -5176,7 +5170,6 @@ html[data-glass="on"][data-theme="dark"] body::before {
 @media (prefers-reduced-transparency: reduce) {
   html[data-glass="on"] .glass-panel,
   html[data-glass="on"] .card,
-  html[data-glass="on"] .sidebar,
   html[data-glass="on"] .admin-topbar,
   html[data-glass="on"] .student-topbar,
   html[data-glass="on"] .student-bottom-nav {
