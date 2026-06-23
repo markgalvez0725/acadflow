@@ -5112,30 +5112,39 @@ html { scroll-behavior: smooth; }
    Clean Academic overrides (which also use !important).
 ══════════════════════════════════════════════════════════════════════════ */
 html[data-glass="on"] {
-  --glass-bg:        rgba(255, 255, 255, .72);
-  --glass-bg-strong: rgba(255, 255, 255, .90);
+  --glass-bg:        rgba(255, 255, 255, .70);   /* content cards — translucent */
+  --glass-bg-strong: rgba(255, 255, 255, .92);   /* chrome / modals — near-opaque, stays legible */
   --glass-border:    rgba(255, 255, 255, .55);
-  --glass-blur:      blur(16px) saturate(150%);
+  --glass-blur:      blur(16px) saturate(140%);
 }
 html[data-glass="on"][data-theme="dark"] {
-  --glass-bg:        rgba(23, 32, 51, .70);
-  --glass-bg-strong: rgba(23, 32, 51, .90);
-  --glass-border:    rgba(255, 255, 255, .10);
-  --glass-blur:      blur(16px) saturate(150%);
+  --glass-bg:        rgba(23, 32, 51, .66);
+  --glass-bg-strong: rgba(23, 32, 51, .92);
+  --glass-border:    rgba(255, 255, 255, .12);
+  --glass-blur:      blur(16px) saturate(140%);
 }
+/* Content cards / panels: the translucent frosted surfaces. */
 html[data-glass="on"] .glass-panel,
-html[data-glass="on"] .card,
+html[data-glass="on"] .card {
+  background: var(--glass-bg) !important;
+  -webkit-backdrop-filter: var(--glass-blur) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  border: 1px solid var(--glass-border) !important;
+}
+/* Modals read better near-opaque so input fields stay crisp. */
+html[data-glass="on"] .glass-panel {
+  background: var(--glass-bg-strong) !important;
+}
+/* Chrome (sidebar + top bars + bottom nav): use the near-opaque frost and keep
+   their OWN separating borders untouched, so nav text never washes out against
+   the page — this is what fixed the compromised left-nav in the light theme. */
 html[data-glass="on"] .sidebar,
 html[data-glass="on"] .admin-topbar,
 html[data-glass="on"] .student-topbar,
 html[data-glass="on"] .student-bottom-nav {
-  background: var(--glass-bg) !important;
+  background: var(--glass-bg-strong) !important;
   -webkit-backdrop-filter: var(--glass-blur) !important;
   backdrop-filter: var(--glass-blur) !important;
-  border: 1px solid var(--glass-border);
-}
-html[data-glass="on"] .glass-panel {
-  background: var(--glass-bg-strong) !important;
 }
 /* Ambient aurora behind everything so the frosted panels have something to refract. */
 html[data-glass="on"] body::before {

@@ -143,6 +143,13 @@ export default function CommandPalette() {
           if (glassOn) delete document.documentElement.dataset.glass
           else document.documentElement.dataset.glass = 'on'
           try { localStorage.setItem('acadflow_glass', glassOn ? 'off' : 'on') } catch (e) {}
+          // Nudge a repaint so the newly-added/removed backdrop-filter applies
+          // immediately — Chrome can otherwise defer it until the next scroll.
+          try {
+            const els = document.querySelectorAll('.glass-panel, .card, .sidebar, .admin-topbar, .student-topbar, .student-bottom-nav')
+            els.forEach(el => { el.style.willChange = 'backdrop-filter' })
+            requestAnimationFrame(() => els.forEach(el => { el.style.willChange = '' }))
+          } catch (e) {}
           setOpen(false)
         },
       },
