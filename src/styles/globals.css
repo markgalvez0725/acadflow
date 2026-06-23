@@ -4777,3 +4777,25 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
     outline-offset: 2px;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   POLISH SWEEP — Phase 1: motion & affordances (additive, no regressions)
+   Appended last and purely additive: a reduced-motion safety net, smooth
+   in-page scrolling, and a branded text selection. Nothing here overrides an
+   existing component's look — it only adds behavior that was missing.
+══════════════════════════════════════════════════════════════════════════ */
+html { scroll-behavior: smooth; }
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  color: var(--ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

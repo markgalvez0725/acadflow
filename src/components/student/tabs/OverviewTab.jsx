@@ -143,7 +143,7 @@ function StudentCommentsSection({ ann, student }) {
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{
               width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-              background: c.role === 'teacher' ? 'rgba(59,130,246,0.15)' : 'rgba(168,85,247,0.15)',
+              background: c.role === 'teacher' ? 'var(--accent-l)' : 'var(--purple-l)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 11, fontWeight: 700,
               color: c.role === 'teacher' ? 'var(--accent)' : 'var(--purple)',
@@ -178,7 +178,7 @@ function StudentCommentsSection({ ann, student }) {
                 <div key={r.id} style={{ display: 'flex', gap: 8 }}>
                   <div style={{
                     width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
-                    background: r.role === 'teacher' ? 'rgba(59,130,246,0.15)' : 'rgba(168,85,247,0.15)',
+                    background: r.role === 'teacher' ? 'var(--accent-l)' : 'var(--purple-l)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 10, fontWeight: 700,
                     color: r.role === 'teacher' ? 'var(--accent)' : 'var(--purple)',
@@ -333,15 +333,15 @@ function AnnouncementDetailModal({ ann, student, onClose }) {
 
 function annBgColor(type) {
   if (type === 'no_class')       return 'rgba(234,179,8,0.1)'
-  if (type === 'online_class')   return 'rgba(59,130,246,0.1)'
+  if (type === 'online_class')   return 'var(--accent-l)'
   if (type === 'meeting_topics') return 'var(--purple-l)'
-  return 'rgba(59,130,246,0.1)'
+  return 'var(--accent-l)'
 }
 function annBorderColor(type) {
   if (type === 'no_class')       return 'rgba(234,179,8,0.3)'
-  if (type === 'online_class')   return 'rgba(59,130,246,0.3)'
+  if (type === 'online_class')   return 'color-mix(in srgb, var(--accent) 30%, transparent)'
   if (type === 'meeting_topics') return 'var(--purple)'
-  return 'rgba(59,130,246,0.3)'
+  return 'color-mix(in srgb, var(--accent) 30%, transparent)'
 }
 function annIconColor(type) {
   if (type === 'no_class')       return 'var(--yellow)'
