@@ -214,18 +214,27 @@ export default function FloatingAdminMessenger({ unreadCount, open: openProp, on
 
       const entries = []
       studentMsgs.forEach(m => {
-        const studentRead = Array.isArray(m.read) && m.read.length > 0
-        const readTime = studentRead && m.readAt ? Object.values(m.readAt)[0] : null
+        // The student stamps readAt[sid] to the latest moment they read this
+        // thread (covering both the base message and any admin replies), so we
+        // can show an accurate read tick per entry — replies included.
+        const readAtSid = (m.readAt && m.readAt[sid]) || 0
+        const mainRead = (Array.isArray(m.read) && m.read.includes(sid)) || readAtSid >= (m.ts || 0)
+        const readWhen = readAtSid ? ' ' + relativeTime(readAtSid) : ''
         entries.push({
           from: m.from, body: m.body, ts: m.ts, subject: m.subject, msgId: m.id, isMain: true,
           senderLabel: m.from === 'admin' ? 'You' : name,
-          studentRead, readTitle: studentRead ? 'Read ' + (readTime ? relativeTime(readTime) : '') : 'Delivered',
+          studentRead: m.from === 'admin' ? mainRead : false,
+          readTitle: mainRead ? 'Read' + readWhen : 'Delivered',
         })
-        ;(m.replies || []).forEach(r => entries.push({
-          from: r.from, body: r.body, ts: r.ts, subject: null, msgId: m.id, isMain: false,
-          senderLabel: r.from === 'admin' ? 'You' : name,
-          studentRead: false, readTitle: 'Delivered',
-        }))
+        ;(m.replies || []).forEach(r => {
+          const replyRead = readAtSid >= (r.ts || 0)
+          entries.push({
+            from: r.from, body: r.body, ts: r.ts, subject: null, msgId: m.id, isMain: false,
+            senderLabel: r.from === 'admin' ? 'You' : name,
+            studentRead: r.from === 'admin' ? replyRead : false,
+            readTitle: replyRead ? 'Read' + readWhen : 'Delivered',
+          })
+        })
       })
       entries.sort((a, b) => a.ts - b.ts)
       return {
