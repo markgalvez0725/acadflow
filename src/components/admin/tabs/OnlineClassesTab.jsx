@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save } from 'lucide-react'
+import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio } from 'lucide-react'
 
 export default function OnlineClassesTab() {
-  const { classes, meetings, saveMeetLink, scheduleMeeting, startMeeting, endMeeting, cancelMeeting } = useData()
+  const { classes, meetings, saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting } = useData()
   const { toast } = useUI()
   const [panel, setPanel] = useState('links')
+  const [goingLive, setGoingLive] = useState('') // key of the link currently going live
 
   // ── Section 1: Meet Links ─────────────────────────────────────────────
   const [linkDrafts, setLinkDrafts] = useState({})
@@ -25,6 +26,31 @@ export default function OnlineClassesTab() {
       toast(subject ? `Meet link saved for ${subject}.` : 'Meet link saved.', 'success')
     } catch (e) {
       toast('Failed to save Meet link.', 'error')
+    }
+  }
+
+  // One-click: mark the class live in AcadFlow (so enrolled students see Join)
+  // AND open the Meet for the teacher.
+  async function handleGoLive(cls, subject, link) {
+    const url = (link || '').trim()
+    if (!url) { toast('Add a Meet link first.', 'error'); return }
+    const key = linkKey(cls.id, subject)
+    setGoingLive(key)
+    try {
+      await startInstantMeeting({
+        classId: cls.id,
+        className: classLabel(cls),
+        subject: subject || null,
+        title: subject || `${cls.name} — live class`,
+        description: '',
+        meetLink: url,
+      })
+      window.open(url, '_blank', 'noopener,noreferrer')
+      toast('You are live — students can now join.', 'success')
+    } catch (e) {
+      toast('Failed to go live.', 'error')
+    } finally {
+      setGoingLive('')
     }
   }
 
@@ -186,10 +212,22 @@ export default function OnlineClassesTab() {
                               <ExternalLink size={14} />
                             </a>
                           )}
-                          <button className="btn btn-primary btn-sm" onClick={() => handleSaveLink(cls, sub, saved)} title="Save Meet link">
+                          <button className="btn btn-ghost btn-sm" onClick={() => handleSaveLink(cls, sub, saved)} title="Save Meet link">
                             <Save size={14} />
                           </button>
                         </div>
+                        {val.trim() && (
+                          <button
+                            className="btn btn-primary btn-sm"
+                            style={{ marginTop: 6, width: '100%' }}
+                            disabled={goingLive === linkKey(cls.id, sub)}
+                            onClick={() => handleGoLive(cls, sub, val)}
+                            title="Start the class now — students get a Join button"
+                          >
+                            <Radio size={13} style={{ marginRight: 5 }} />
+                            {goingLive === linkKey(cls.id, sub) ? 'Going live…' : 'Go Live now'}
+                          </button>
+                        )}
                       </div>
                     )
                   })}
