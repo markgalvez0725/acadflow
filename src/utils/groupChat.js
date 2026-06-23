@@ -19,13 +19,21 @@ export function courseShort(course) {
   return raw
 }
 
+// Combine a year digit and a section into a "3A" suffix without doubling the
+// year when the section already encodes it (e.g. section "3A" + year "3").
+function yearSection(yr, sec) {
+  const y = String(yr || '')
+  const s = String(sec || '')
+  if (y && s && !s.startsWith(y)) return `${y}${s}` // "3" + "A" → "3A"
+  return s || y                                     // "3A", or just "A"/"3"
+}
+
 // "BSEMC 2A" — course short + year digit + section, for a class.
 export function classTag(cls) {
   if (!cls) return ''
   const cs = courseShort(cls.course || cls.name)
   const yr = (String(cls.year || '').match(/\d+/) || [''])[0]
-  const sec = cls.section || ''
-  return `${cs} ${yr}${sec}`.trim()
+  return `${cs} ${yearSection(yr, cls.section)}`.trim()
 }
 
 // "BSEMC 2A" for a student — course + year + their (primary) class section.
@@ -35,7 +43,7 @@ export function studentTag(student, classes = []) {
   const yr = (String(student.year || '').match(/\d+/) || [''])[0]
   const cid = student.classId || (student.classIds && student.classIds[0])
   const sec = (classes.find(c => c.id === cid) || {}).section || ''
-  const tag = `${cs} ${yr}${sec}`.trim()
+  const tag = `${cs} ${yearSection(yr, sec)}`.trim()
   return tag || student.id || ''
 }
 
