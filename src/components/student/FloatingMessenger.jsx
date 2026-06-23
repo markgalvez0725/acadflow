@@ -14,7 +14,8 @@ function getStudentMessages(messages, s) {
     m.to === 'all' ||
     m.to === id ||
     (m.from === id && m.to === 'admin') ||
-    (m.type === 'announcement' && m.classId && enrolledClassIds.includes(m.classId))
+    (m.type === 'announcement' && m.classId && enrolledClassIds.includes(m.classId)) ||
+    (m.type === 'announcement' && Array.isArray(m.classIds) && m.classIds.some(cid => enrolledClassIds.includes(cid)))
   ).sort((a, b) => b.ts - a.ts)
 }
 

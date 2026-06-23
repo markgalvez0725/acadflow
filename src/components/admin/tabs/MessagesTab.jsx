@@ -3,11 +3,26 @@ import { collection, doc, setDoc, updateDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { sortByLastName } from '@/utils/format'
+import { isClassCurrent } from '@/utils/active'
 import { notifyStudentMessage, notifyStudentsBroadcast } from '@/firebase/messageNotify'
 import { fbAddMessageReply, fbDeleteMessage } from '@/firebase/persistence'
 import Modal from '@/components/primitives/Modal'
 import KebabMenu from '@/components/primitives/KebabMenu'
-import { X, Pencil, Send, CheckCheck, Megaphone, Trash2, Search, ChevronDown, Check } from 'lucide-react'
+import { X, Pencil, Send, CheckCheck, Megaphone, Trash2, Search, ChevronDown, Check, BookOpen } from 'lucide-react'
+
+// Human-readable recipient label for a message's `to` field.
+function recipientDisplay(to, students) {
+  if (to === 'all') return 'All Students'
+  if (typeof to === 'string' && to.startsWith('class:')) return 'Class Broadcast'
+  if (typeof to === 'string' && to.startsWith('subject:')) return to.slice(8) + ' (subject)'
+  return students.find(s => s.id === to)?.name || to
+}
+
+// Students enrolled in any of the given class ids.
+function studentsInClasses(students, classIds) {
+  const ids = classIds || []
+  return students.filter(s => ids.some(id => s.classId === id || s.classIds?.includes(id)))
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────
 function msgId() {
@@ -43,7 +58,7 @@ function Avatar({ photo, char, announce = false, size = 38 }) {
 // Searchable dropdown replacing the native <select> that dumped every student
 // at once. Shows All-Students + per-class broadcasts + individual students with
 // their profile photos, filtered by a search box.
-function RecipientPicker({ students, classes, classGroups, value, onChange }) {
+function RecipientPicker({ students, classes, classGroups, subjectGroups, value, onChange }) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const wrapRef = useRef(null)
@@ -65,19 +80,25 @@ function RecipientPicker({ students, classes, classGroups, value, onChange }) {
       const cls = classes.find(c => c.id === cid)
       return { label: cls ? `All in ${cls.name} ${cls.section}` : 'Class broadcast', sub: 'Announcement', announce: true }
     }
+    if (typeof value === 'string' && value.startsWith('subject:')) {
+      const name = value.slice(8)
+      const g = (subjectGroups || []).find(x => x.subject === name)
+      return { label: name, sub: g ? `Subject group · ${g.count} student${g.count !== 1 ? 's' : ''}` : 'Subject group', subjectIcon: true }
+    }
     const s = students.find(x => x.id === value)
     return s ? { label: s.name, sub: s.id, photo: s.photo, char: getInitials(s.name) } : { label: 'Select recipient…', sub: '' }
-  }, [value, students, classes])
+  }, [value, students, classes, subjectGroups])
 
   const ql = q.trim().toLowerCase()
   const matchStudent = s => !ql || s.name.toLowerCase().includes(ql) || String(s.id).toLowerCase().includes(ql)
+  const matchSubject = g => !ql || g.subject.toLowerCase().includes(ql)
 
   function pick(v) { onChange(v); setOpen(false); setQ('') }
 
   return (
     <div className="recipient-picker" ref={wrapRef}>
       <button type="button" className="recipient-trigger input w-full" onClick={() => setOpen(o => !o)}>
-        <Avatar photo={selected.photo} char={selected.char || <Megaphone size={15} />} announce={selected.announce} size={26} />
+        <Avatar photo={selected.photo} char={selected.char || (selected.subjectIcon ? <BookOpen size={14} /> : <Megaphone size={15} />)} announce={selected.announce || selected.subjectIcon} size={26} />
         <span className="recipient-trigger-label">
           <span className="recipient-trigger-name">{selected.label}</span>
           {selected.sub && <span className="recipient-trigger-sub">{selected.sub}</span>}
@@ -119,9 +140,28 @@ function RecipientPicker({ students, classes, classGroups, value, onChange }) {
                     </button>
                   )
                 })}
-                <div className="recipient-divider">Individual students</div>
               </>
             )}
+            {/* Current-semester subjects → group message to everyone taking it */}
+            {(subjectGroups || []).some(matchSubject) && (
+              <>
+                <div className="recipient-divider">Subjects (this semester)</div>
+                {(subjectGroups || []).filter(matchSubject).map(g => {
+                  const v = 'subject:' + g.subject
+                  return (
+                    <button type="button" key={v} className="recipient-opt" onClick={() => pick(v)}>
+                      <Avatar char={<BookOpen size={14} />} announce size={30} />
+                      <span className="recipient-opt-text">
+                        <span className="recipient-opt-name">{g.subject}</span>
+                        <span className="recipient-opt-sub">Group chat · {g.count} student{g.count !== 1 ? 's' : ''}</span>
+                      </span>
+                      {value === v && <Check size={15} className="recipient-check" />}
+                    </button>
+                  )
+                })}
+              </>
+            )}
+            {!ql && <div className="recipient-divider">Individual students</div>}
             {/* Individual students */}
             {Object.keys(classGroups).sort().flatMap(label =>
               sortByLastName(classGroups[label]).filter(matchStudent).map(s => (
@@ -135,8 +175,8 @@ function RecipientPicker({ students, classes, classGroups, value, onChange }) {
                 </button>
               ))
             )}
-            {ql && !students.some(matchStudent) && (
-              <div className="recipient-empty">No students match “{q}”.</div>
+            {ql && !students.some(matchStudent) && !(subjectGroups || []).some(matchSubject) && (
+              <div className="recipient-empty">No recipients match “{q}”.</div>
             )}
           </div>
         </div>
@@ -147,7 +187,7 @@ function RecipientPicker({ students, classes, classGroups, value, onChange }) {
 
 // ── Compose Modal ─────────────────────────────────────────────────────
 function ComposeModal({ onClose, replyToStudentId = null }) {
-  const { students, classes, messages, db, fbReady } = useData()
+  const { students, classes, messages, semester, db, fbReady } = useData()
   const { toast } = useUI()
   const [to, setTo]           = useState(replyToStudentId || 'all')
   const [subject, setSubject] = useState('')
@@ -167,6 +207,29 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
     return groups
   }, [students, classes])
 
+  // Open subjects for the CURRENT semester → a group message reaches every
+  // student enrolled in a current-semester class that teaches that subject.
+  const subjectGroups = useMemo(() => {
+    const currentClasses = classes.filter(c => isClassCurrent(c, semester))
+    const bySubject = {}
+    currentClasses.forEach(c => {
+      (c.subjects || []).forEach(sub => {
+        if (!bySubject[sub]) bySubject[sub] = new Set()
+        bySubject[sub].add(c.id)
+      })
+    })
+    return Object.keys(bySubject).sort().map(sub => {
+      const classIds = [...bySubject[sub]]
+      const count = studentsInClasses(students, classIds).length
+      return { subject: sub, classIds, count }
+    }).filter(g => g.count > 0)
+  }, [classes, semester, students])
+
+  // Resolve the target class ids for the chosen subject (used at send time).
+  function subjectClassIds(name) {
+    return (subjectGroups.find(g => g.subject === name)?.classIds) || []
+  }
+
   async function handleSend() {
     setErr('')
     if (!subject.trim()) { setErr('Subject is required.'); return }
@@ -176,10 +239,17 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
     if (!fbReady || !db.current) { setErr('Firebase is not connected.'); return }
 
     setSending(true)
-    const isClassBroadcast = to.startsWith('class:')
-    const classId = isClassBroadcast ? to.slice(6) : null
-    const msgType = (to === 'all' || isClassBroadcast) ? 'announcement' : 'direct'
+    const isClassBroadcast   = to.startsWith('class:')
+    const isSubjectBroadcast = to.startsWith('subject:')
+    const classId    = isClassBroadcast ? to.slice(6) : null
+    const subjectName = isSubjectBroadcast ? to.slice(8) : null
+    const subjClassIds = isSubjectBroadcast ? subjectClassIds(subjectName) : null
+    const msgType = (to === 'all' || isClassBroadcast || isSubjectBroadcast) ? 'announcement' : 'direct'
     const id = msgId()
+
+    if (isSubjectBroadcast && (!subjClassIds || !subjClassIds.length)) {
+      setErr('That subject has no current-semester classes.'); setSending(false); return
+    }
 
     const msg = {
       id,
@@ -193,6 +263,10 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
       replies:   [],
       type:      msgType,
       classId:   classId || null,
+      // Subject group messages fan out to every current-semester class teaching
+      // the subject; students receive it if enrolled in any of these.
+      classIds:  subjClassIds || null,
+      targetSubject: subjectName || null,
     }
 
     try {
@@ -204,6 +278,9 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
         const ids = students
           .filter(s => s.classId === classId || s.classIds?.includes(classId))
           .map(s => s.id)
+        notifyStudentsBroadcast(db.current, ids, subject.trim())
+      } else if (isSubjectBroadcast) {
+        const ids = studentsInClasses(students, subjClassIds).map(s => s.id)
         notifyStudentsBroadcast(db.current, ids, subject.trim())
       } else {
         notifyStudentMessage(db.current, to, body.trim())
@@ -228,6 +305,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
           students={students}
           classes={classes}
           classGroups={classGroups}
+          subjectGroups={subjectGroups}
           value={to}
           onChange={setTo}
         />
@@ -608,9 +686,7 @@ export default function MessagesTab() {
     if (activeConv.type === 'message') {
       const m = messages.find(x => x.id === activeConv.msgId)
       if (!m) return null
-      const recipientName = m.to === 'all' ? 'All Students'
-        : m.to.startsWith('class:') ? 'Class Broadcast'
-        : (students.find(s => s.id === m.to)?.name || m.to)
+      const recipientName = recipientDisplay(m.to, students)
       const readCount = m.read?.length || 0
       const anyRead = readCount > 0
 
@@ -699,6 +775,9 @@ export default function MessagesTab() {
           const cid = m.to.slice(6)
           const ids = students.filter(s => s.classId === cid || s.classIds?.includes(cid)).map(s => s.id)
           notifyStudentsBroadcast(db.current, ids, text)
+        } else if (typeof m.to === 'string' && m.to.startsWith('subject:')) {
+          const ids = studentsInClasses(students, m.classIds).map(s => s.id)
+          notifyStudentsBroadcast(db.current, ids, text)
         } else if (m.to && m.to !== 'admin') {
           notifyStudentMessage(db.current, m.to, text)
         }
@@ -755,9 +834,7 @@ export default function MessagesTab() {
     // Sent / Announcements
     return pageSlice.map(m => {
       const recipStu = students.find(s => s.id === m.to)
-      const recipientName = m.to === 'all' ? 'All Students'
-        : m.to.startsWith('class:') ? 'Class Broadcast'
-        : (recipStu?.name || m.to)
+      const recipientName = recipientDisplay(m.to, students)
       const initials = activeTab === 'announce' ? <Megaphone size={18} /> : getInitials(recipientName)
       const preview = m.body.slice(0, 60) + (m.body.length > 60 ? '…' : '')
       const isActive = activeConv?.type === 'message' && activeConv.msgId === m.id
