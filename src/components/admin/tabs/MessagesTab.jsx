@@ -24,6 +24,32 @@ function studentsInClasses(students, classIds) {
   return students.filter(s => ids.some(id => s.classId === id || s.classIds?.includes(id)))
 }
 
+// A group chat = an admin announcement targeting all / a class / a subject.
+function isGroupMessage(m) {
+  return m?.from === 'admin' && m?.type === 'announcement'
+}
+
+// Auto-generated group-chat name from the subject + course/year (or class/section).
+function autoGroupName(m, classes) {
+  if (m.to === 'all') return 'All Students'
+  if (typeof m.to === 'string' && m.to.startsWith('class:')) {
+    const c = classes.find(x => x.id === m.to.slice(6))
+    return c ? `${c.name}${c.section ? ' ' + c.section : ''}` : 'Class group'
+  }
+  if (typeof m.to === 'string' && m.to.startsWith('subject:')) {
+    const sub = m.targetSubject || m.to.slice(8)
+    const c = classes.find(x => (m.classIds || []).includes(x.id))
+    const cy = c ? [c.course, c.year].filter(Boolean).join(' ') : ''
+    return cy ? `${sub} · ${cy}` : sub
+  }
+  return 'Group chat'
+}
+
+// The displayed group name: a teacher override if set, else the auto name.
+function groupName(m, classes) {
+  return (m.groupName && m.groupName.trim()) ? m.groupName.trim() : autoGroupName(m, classes)
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────
 function msgId() {
   return 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7)
@@ -350,7 +376,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
 }
 
 // ── Thread Panel ──────────────────────────────────────────────────────
-function ThreadPanel({ thread, onReply, onClose, onDelete }) {
+function ThreadPanel({ thread, onReply, onClose, onDelete, onRename }) {
   const messagesEndRef = useRef(null)
 
   useEffect(() => {
@@ -374,6 +400,9 @@ function ThreadPanel({ thread, onReply, onClose, onDelete }) {
           <div className="text-xs text-ink2">{thread.headerSub}</div>
         </div>
         <div className="flex items-center gap-1">
+          {onRename && (
+            <button className="msg-thread-del" style={{ color: 'var(--ink3)' }} onClick={onRename} title="Rename group chat"><Pencil size={16} /></button>
+          )}
           {onDelete && (
             <button className="msg-thread-del" onClick={onDelete} title="Delete this conversation"><Trash2 size={17} /></button>
           )}
@@ -459,7 +488,7 @@ function ReplyBox({ onSend }) {
 }
 
 // ── Conversation Item ─────────────────────────────────────────────────
-function ConvItem({ isActive, isUnread, avatarChar, photo, isAnnounce, name, preview, time, onClick, selectMode, selected, onToggleSelect, onDelete }) {
+function ConvItem({ isActive, isUnread, avatarChar, photo, isAnnounce, name, preview, time, onClick, selectMode, selected, onToggleSelect, menuItems }) {
   return (
     <div
       className={`msg-conv-item ${isUnread ? 'unread' : ''} ${isActive ? 'active' : ''} ${selected ? 'selected' : ''}`}
@@ -480,10 +509,35 @@ function ConvItem({ isActive, isUnread, avatarChar, photo, isAnnounce, name, pre
         <div className="msg-conv-time">{time}</div>
         {isUnread && <div className="msg-unread-badge">●</div>}
       </div>
-      {!selectMode && onDelete && (
-        <KebabMenu items={[{ label: 'Delete', danger: true, onClick: onDelete }]} />
+      {!selectMode && menuItems && menuItems.length > 0 && (
+        <KebabMenu items={menuItems} />
       )}
     </div>
+  )
+}
+
+// ── Rename group chat ─────────────────────────────────────────────────
+function RenameGroupModal({ current, autoName, onClose, onSave }) {
+  const [name, setName] = useState(current || autoName)
+  return (
+    <Modal onClose={onClose} size="sm">
+      <h3 className="text-lg font-bold text-ink mb-1"><Pencil size={18} /> Rename group chat</h3>
+      <p className="text-xs text-ink2 mb-3">Give this group chat a custom name, or reset to the auto name (subject · course year).</p>
+      <input
+        className="input w-full mb-1"
+        value={name}
+        autoFocus
+        maxLength={120}
+        onChange={e => setName(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') onSave(name.trim()) }}
+        placeholder={autoName}
+      />
+      <div className="text-xs text-ink3 mb-4">Auto name: {autoName}</div>
+      <div className="modal-footer">
+        <button className="btn btn-ghost" onClick={() => onSave('')}>Reset to auto</button>
+        <button className="btn btn-primary" onClick={() => onSave(name.trim())}>Save</button>
+      </div>
+    </Modal>
   )
 }
 
@@ -494,23 +548,14 @@ export default function MessagesTab() {
   const { students, classes, messages, db, fbReady } = useData()
   const { toast, openDialog } = useUI()
 
-  // Class + section label for the student behind a conversation, used to group
-  // the inbox. Unassigned students fall into a trailing "Unassigned" group.
-  function classLabelFor(sid) {
-    const s = students.find(x => x.id === sid)
-    if (!s) return 'Unassigned'
-    const cid = s.classId || (s.classIds && s.classIds[0])
-    const cls = classes.find(c => c.id === cid)
-    return cls ? `${cls.name} ${cls.section}` : 'Unassigned'
-  }
-  const [activeTab, setActiveTab]       = useState('inbox')
   const [search, setSearch]             = useState('')
   const [page, setPage]                 = useState(1)
   const [activeConv, setActiveConv]     = useState(null) // { type, studentId?, msgId? }
   const [showCompose, setShowCompose]   = useState(false)
   const [replyTo, setReplyTo]           = useState(null)
   const [selectMode, setSelectMode]     = useState(false)
-  const [selected, setSelected]         = useState(() => new Set()) // tokens: inbox=sid, sent/announce=msgId
+  const [selected, setSelected]         = useState(() => new Set()) // typed tokens: conv:{sid} | msg:{id}
+  const [renameTargetId, setRenameTargetId] = useState(null)
 
   function exitSelect() { setSelectMode(false); setSelected(new Set()) }
   function toggleSelect(token) {
@@ -521,16 +566,16 @@ export default function MessagesTab() {
     })
   }
 
-  // Map a selection token to the message document id(s) it represents.
-  // Inbox tokens are a student id (a conversation = every doc to/from them);
-  // sent/broadcast tokens are the message id itself.
+  // Typed tokens: conv:{sid} → every doc of that direct conversation; msg:{id} → that doc.
   function resolveDocIds(token) {
-    if (activeTab === 'inbox') {
+    if (token.startsWith('conv:')) {
+      const sid = token.slice(5)
       return messages
-        .filter(m => m.from === token || (m.from === 'admin' && m.to === token && m.type === 'direct'))
+        .filter(m => m.from === sid || (m.from === 'admin' && m.to === sid && m.type === 'direct'))
         .map(m => m.id)
     }
-    return [token]
+    if (token.startsWith('msg:')) return [token.slice(4)]
+    return []
   }
 
   async function deleteTokens(tokens) {
@@ -539,79 +584,86 @@ export default function MessagesTab() {
     const ids = new Set()
     tokens.forEach(t => resolveDocIds(t).forEach(id => ids.add(id)))
     if (!ids.size) return
-    const noun = activeTab === 'inbox' ? 'conversation' : 'message'
     const ok = await openDialog({
-      title: `Delete ${tokens.length} ${noun}${tokens.length > 1 ? 's' : ''}?`,
-      msg: `This permanently removes the selected ${noun}${tokens.length > 1 ? 's' : ''} for everyone (including the student${activeTab === 'inbox' ? '' : '(s)'}). This cannot be undone.`,
+      title: `Delete ${tokens.length} ${tokens.length > 1 ? 'items' : 'item'}?`,
+      msg: `This permanently removes the selected message${tokens.length > 1 ? 's' : ''} for everyone — they are also removed from the students' inboxes. This cannot be undone.`,
       type: 'danger', confirmLabel: 'Delete', showCancel: true,
     })
     if (!ok) return
     try {
       await Promise.all([...ids].map(id => fbDeleteMessage(db.current, id).catch(() => {})))
-      toast(`Deleted ${tokens.length} ${noun}${tokens.length > 1 ? 's' : ''}.`, 'green')
+      toast(`Deleted ${tokens.length} ${tokens.length > 1 ? 'items' : 'item'}.`, 'green')
       // Close the open thread if its document was just deleted.
-      if (activeConv?.type === 'conversation' && tokens.includes(activeConv.studentId)) setActiveConv(null)
-      if (activeConv?.type === 'message' && tokens.includes(activeConv.msgId)) setActiveConv(null)
+      if (activeConv?.type === 'conversation' && tokens.includes('conv:' + activeConv.studentId)) setActiveConv(null)
+      if (activeConv?.type === 'message' && tokens.includes('msg:' + activeConv.msgId)) setActiveConv(null)
       exitSelect()
     } catch (e) {
       toast('Delete failed: ' + e.message, 'red')
     }
   }
 
-  // Categorized message lists
-  const inboxMsgs    = useMemo(() => messages.filter(m => m.from !== 'admin').sort((a, b) => b.ts - a.ts), [messages])
-  const sentMsgs     = useMemo(() => messages.filter(m => m.from === 'admin' && m.type === 'direct').sort((a, b) => b.ts - a.ts), [messages])
-  const announceMsgs = useMemo(() => messages.filter(m => m.from === 'admin' && m.type === 'announcement').sort((a, b) => b.ts - a.ts), [messages])
+  // Persist a group-chat rename (empty → reset to the auto name).
+  async function saveGroupName(id, newName) {
+    setRenameTargetId(null)
+    if (!fbReady || !db.current) { toast('Firebase not connected.', 'red'); return }
+    try {
+      await updateDoc(doc(db.current, 'messages', id), { groupName: newName || '' })
+      toast(newName ? 'Group chat renamed.' : 'Reset to auto name.', 'green')
+    } catch (e) {
+      toast('Rename failed: ' + e.message, 'red')
+    }
+  }
 
-  // Inbox conversations grouped by student
-  const inboxConvs = useMemo(() => {
+  // ── Unified inbox: direct conversations (both directions) + group chats ──
+  // Direct conversations keyed by the student party of each direct message.
+  const directConvs = useMemo(() => {
     const byStudent = {}
-    inboxMsgs.forEach(m => {
-      if (!byStudent[m.from]) byStudent[m.from] = []
-      byStudent[m.from].push(m)
+    messages.forEach(m => {
+      if (m.type === 'announcement') return
+      let sid = null
+      if (m.from && m.from !== 'admin') sid = m.from
+      else if (m.from === 'admin' && m.to && m.to !== 'admin' && m.to !== 'all'
+        && !String(m.to).startsWith('class:') && !String(m.to).startsWith('subject:')) sid = m.to
+      if (!sid) return
+      ;(byStudent[sid] ||= []).push(m)
     })
-    return Object.values(byStudent).map(arr => {
+    return Object.entries(byStudent).map(([sid, arr]) => {
       arr.sort((a, b) => b.ts - a.ts)
       const latest = arr[0]
-      const allReplies = arr.flatMap(m => (m.replies || []).map(r => ({ ...r, msgId: m.id })))
-      const lastActivity = allReplies.length ? Math.max(latest.ts, ...allReplies.map(r => r.ts)) : latest.ts
-      const hasUnread = arr.some(m => !m.adminRead && m.from !== 'admin')
-      const classLabel = classLabelFor(latest.from)
-      return { sid: latest.from, latestMsg: latest, allMsgs: arr, lastActivity, hasUnread, classLabel }
-    }).sort((a, b) => {
-      // Group by class+section (Unassigned last), then most-recent activity.
-      const ua = a.classLabel === 'Unassigned', ub = b.classLabel === 'Unassigned'
-      if (ua !== ub) return ua ? 1 : -1
-      const cmp = a.classLabel.localeCompare(b.classLabel)
-      return cmp !== 0 ? cmp : b.lastActivity - a.lastActivity
+      const allReplies = arr.flatMap(m => m.replies || [])
+      const lastActivity = allReplies.length ? Math.max(latest.ts, ...allReplies.map(r => r.ts || 0)) : latest.ts
+      const hasUnread = arr.some(m => !m.adminRead)
+      return { kind: 'conversation', token: 'conv:' + sid, sid, latestMsg: latest, allMsgs: arr, lastActivity, hasUnread }
     })
-  }, [inboxMsgs, students, classes])
+  }, [messages])
 
-  // Apply search
-  const filteredList = useMemo(() => {
-    const q = search.toLowerCase()
-    if (activeTab === 'inbox') {
-      if (!q) return inboxConvs
-      return inboxConvs.filter(cv => {
-        const s = students.find(x => x.id === cv.sid)
-        const name = (s?.name || cv.sid).toLowerCase()
-        return name.includes(q) ||
-          cv.allMsgs.some(m =>
-            m.subject?.toLowerCase().includes(q) ||
-            m.body?.toLowerCase().includes(q) ||
-            (m.replies || []).some(r => r.body?.toLowerCase().includes(q))
-          )
-      })
-    }
-    const raw = activeTab === 'sent' ? sentMsgs : announceMsgs
-    if (!q) return raw
-    return raw.filter(m => {
-      const recip = (students.find(s => s.id === m.to)?.name || m.to || '').toLowerCase()
-      return m.subject?.toLowerCase().includes(q) ||
-        m.body?.toLowerCase().includes(q) ||
-        recip.includes(q)
+  // Group chats / broadcasts — every admin announcement is its own thread item.
+  const groupItems = useMemo(() => {
+    return messages.filter(isGroupMessage).map(m => {
+      const replies = m.replies || []
+      const lastActivity = replies.length ? Math.max(m.ts, ...replies.map(r => r.ts || 0)) : m.ts
+      return { kind: 'message', token: 'msg:' + m.id, msg: m, lastActivity, hasUnread: !m.adminRead }
     })
-  }, [activeTab, search, inboxConvs, sentMsgs, announceMsgs, students])
+  }, [messages])
+
+  // Merge + search.
+  const filteredList = useMemo(() => {
+    const all = [...directConvs, ...groupItems].sort((a, b) => b.lastActivity - a.lastActivity)
+    const q = search.trim().toLowerCase()
+    if (!q) return all
+    return all.filter(item => {
+      if (item.kind === 'conversation') {
+        const s = students.find(x => x.id === item.sid)
+        const name = (s?.name || item.sid).toLowerCase()
+        return name.includes(q) || item.allMsgs.some(m =>
+          m.subject?.toLowerCase().includes(q) || m.body?.toLowerCase().includes(q) ||
+          (m.replies || []).some(r => r.body?.toLowerCase().includes(q)))
+      }
+      const m = item.msg
+      return groupName(m, classes).toLowerCase().includes(q) ||
+        m.subject?.toLowerCase().includes(q) || m.body?.toLowerCase().includes(q)
+    })
+  }, [directConvs, groupItems, search, students, classes])
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filteredList.length / PER_PAGE))
@@ -619,15 +671,6 @@ export default function MessagesTab() {
     () => filteredList.slice((page - 1) * PER_PAGE, page * PER_PAGE),
     [filteredList, page]
   )
-
-  // Reset page + active conv when tab or search changes
-  function switchTab(tab) {
-    setActiveTab(tab)
-    setPage(1)
-    setSearch('')
-    setActiveConv(null)
-    exitSelect()
-  }
 
   function handleSearch(v) {
     setSearch(v)
@@ -719,19 +762,21 @@ export default function MessagesTab() {
       return {
         type: 'message',
         msgId: m.id,
-        headerName: '→ ' + recipientName,
-        headerSub: m.subject + ' · ' + new Date(m.ts).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }),
+        isGroup: isGroupMessage(m),
+        headerName: isGroupMessage(m) ? groupName(m, classes) : ('→ ' + recipientName),
+        headerSub: (m.subject ? m.subject + ' · ' : '') + new Date(m.ts).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }),
         entries,
       }
     }
 
     return null
-  }, [activeConv, messages, students])
+  }, [activeConv, messages, students, classes])
 
   // ── Open conversation / message ──────────────────────────────────
   async function openConversation(sid) {
-    // Mark unread as read
-    const unread = messages.filter(m => m.from === sid && !m.adminRead)
+    // Mark the whole conversation (both directions) read.
+    const unread = messages.filter(m =>
+      (m.from === sid || (m.from === 'admin' && m.to === sid && m.type === 'direct')) && !m.adminRead)
     if (unread.length && fbReady && db.current) {
       const now = Date.now()
       await Promise.all(unread.map(m =>
@@ -790,82 +835,65 @@ export default function MessagesTab() {
     }
   }
 
-  // ── Render list items ────────────────────────────────────────────
+  // ── Render the unified list (direct conversations + group chats) ──────
   function renderListItems() {
     if (!filteredList.length) {
-      const emptyMsg = search ? 'No messages match your search.'
-        : activeTab === 'inbox' ? 'No messages from students yet.'
-        : activeTab === 'sent' ? 'No direct messages sent yet.'
-        : 'No announcements sent yet.'
-      return <div className="empty" style={{ padding: '32px 20px' }}>{emptyMsg}</div>
+      return <div className="empty" style={{ padding: '32px 20px' }}>{search ? 'No messages match your search.' : 'No messages yet.'}</div>
     }
-
-    if (activeTab === 'inbox') {
-      let lastLabel = null
-      return pageSlice.map(cv => {
-        const s = students.find(x => x.id === cv.sid)
-        const name = s?.name || cv.sid
-        const preview = cv.latestMsg.body.slice(0, 60) + (cv.latestMsg.body.length > 60 ? '…' : '')
-        const isActive = activeConv?.type === 'conversation' && activeConv.studentId === cv.sid
-        // Emit a class+section header at the top of each group (and at the start
-        // of the page so the current group is always labelled).
-        const showHeader = cv.classLabel !== lastLabel
-        lastLabel = cv.classLabel
+    return pageSlice.map(item => {
+      if (item.kind === 'conversation') {
+        const s = students.find(x => x.id === item.sid)
+        const name = s?.name || item.sid
+        const preview = (item.latestMsg.body || '').slice(0, 60) + ((item.latestMsg.body || '').length > 60 ? '…' : '')
+        const isActive = activeConv?.type === 'conversation' && activeConv.studentId === item.sid
         return (
-          <React.Fragment key={cv.sid}>
-            {showHeader && <div className="msg-group-hdr">{cv.classLabel}</div>}
-            <ConvItem
-              isActive={isActive}
-              isUnread={cv.hasUnread}
-              avatarChar={getInitials(name)}
-              photo={s?.photo}
-              isAnnounce={false}
-              name={name}
-              preview={preview}
-              time={relativeTime(cv.lastActivity)}
-              onClick={() => openConversation(cv.sid)}
-              selectMode={selectMode}
-              selected={selected.has(cv.sid)}
-              onToggleSelect={() => toggleSelect(cv.sid)}
-              onDelete={() => deleteTokens([cv.sid])}
-            />
-          </React.Fragment>
+          <ConvItem
+            key={item.token}
+            isActive={isActive}
+            isUnread={item.hasUnread}
+            avatarChar={getInitials(name)}
+            photo={s?.photo}
+            isAnnounce={false}
+            name={name}
+            preview={preview}
+            time={relativeTime(item.lastActivity)}
+            onClick={() => openConversation(item.sid)}
+            selectMode={selectMode}
+            selected={selected.has(item.token)}
+            onToggleSelect={() => toggleSelect(item.token)}
+            menuItems={[{ label: 'Delete', danger: true, onClick: () => deleteTokens([item.token]) }]}
+          />
         )
-      })
-    }
-
-    // Sent / Announcements
-    return pageSlice.map(m => {
-      const recipStu = students.find(s => s.id === m.to)
-      const recipientName = recipientDisplay(m.to, students)
-      const initials = activeTab === 'announce' ? <Megaphone size={18} /> : getInitials(recipientName)
-      const preview = m.body.slice(0, 60) + (m.body.length > 60 ? '…' : '')
+      }
+      // Group chat / broadcast
+      const m = item.msg
+      const isSubject = typeof m.to === 'string' && m.to.startsWith('subject:')
+      const preview = (m.subject ? m.subject + ' — ' : '') + (m.body || '').slice(0, 60) + ((m.body || '').length > 60 ? '…' : '')
       const isActive = activeConv?.type === 'message' && activeConv.msgId === m.id
       return (
         <ConvItem
-          key={m.id}
+          key={item.token}
           isActive={isActive}
-          isUnread={false}
-          avatarChar={initials}
-          photo={activeTab === 'sent' ? recipStu?.photo : undefined}
-          isAnnounce={activeTab === 'announce'}
-          name={'→ ' + recipientName}
-          preview={m.subject + ' — ' + preview}
-          time={relativeTime(m.ts)}
+          isUnread={item.hasUnread}
+          avatarChar={isSubject ? <BookOpen size={16} /> : <Megaphone size={18} />}
+          isAnnounce
+          name={groupName(m, classes)}
+          preview={preview}
+          time={relativeTime(item.lastActivity)}
           onClick={() => openMessage(m.id)}
           selectMode={selectMode}
-          selected={selected.has(m.id)}
-          onToggleSelect={() => toggleSelect(m.id)}
-          onDelete={() => deleteTokens([m.id])}
+          selected={selected.has(item.token)}
+          onToggleSelect={() => toggleSelect(item.token)}
+          menuItems={[
+            { label: 'Rename', onClick: () => setRenameTargetId(m.id) },
+            { label: 'Delete', danger: true, onClick: () => deleteTokens([item.token]) },
+          ]}
         />
       )
     })
   }
 
-  const inboxUnread    = inboxMsgs.filter(m => !m.adminRead).length
-  const inboxConvCount = inboxConvs.length
-  const sentCount      = sentMsgs.length
-  const announceCount  = announceMsgs.length
+  const totalUnread = filteredList.filter(it => it.hasUnread).length
 
   return (
     <div className="flex flex-col" style={{ height: 'calc(100vh - 130px)', minHeight: 480 }}>
@@ -880,27 +908,11 @@ export default function MessagesTab() {
 
         {/* Left: conversation list */}
         <div className="msg-list-pane flex flex-col border-r border-border" style={{ width: 300, minWidth: 260, flexShrink: 0 }}>
-          {/* Tabs */}
-          <div className="flex border-b border-border px-2 pt-2 gap-1 flex-shrink-0">
-            <button
-              className={`msg-conv-tab ${activeTab === 'inbox' ? 'active-tab' : ''}`}
-              onClick={() => switchTab('inbox')}
-            >
-              Inbox {inboxConvCount > 0 && <span className="msg-tab-count">({inboxConvCount})</span>}
-              {inboxUnread > 0 && <span className="msg-unread-badge ml-1" style={{ fontSize: 8, verticalAlign: 'middle' }}>●</span>}
-            </button>
-            <button
-              className={`msg-conv-tab ${activeTab === 'sent' ? 'active-tab' : ''}`}
-              onClick={() => switchTab('sent')}
-            >
-              Sent {sentCount > 0 && <span className="msg-tab-count">({sentCount})</span>}
-            </button>
-            <button
-              className={`msg-conv-tab ${activeTab === 'announce' ? 'active-tab' : ''}`}
-              onClick={() => switchTab('announce')}
-            >
-              Broadcast {announceCount > 0 && <span className="msg-tab-count">({announceCount})</span>}
-            </button>
+          {/* Inbox header (single unified inbox) */}
+          <div className="flex items-center gap-2 border-b border-border px-3 py-2 flex-shrink-0">
+            <span className="msg-conv-tab active-tab" style={{ cursor: 'default' }}>Inbox</span>
+            {totalUnread > 0 && <span className="msg-unread-badge" style={{ fontSize: 8 }}>●</span>}
+            <span className="text-xs text-ink3 ml-auto">{filteredList.length} thread{filteredList.length !== 1 ? 's' : ''}</span>
           </div>
 
           {/* Search */}
@@ -964,7 +976,8 @@ export default function MessagesTab() {
               thread={thread}
               onReply={handleReply}
               onClose={() => setActiveConv(null)}
-              onDelete={() => deleteTokens([thread.type === 'conversation' ? thread.studentId : thread.msgId])}
+              onDelete={() => deleteTokens([thread.type === 'conversation' ? 'conv:' + thread.studentId : 'msg:' + thread.msgId])}
+              onRename={thread.isGroup ? () => setRenameTargetId(thread.msgId) : null}
             />
           ) : (
             <div id="admin-conv-empty" className="flex-1 flex items-center justify-center text-ink3 text-sm">
@@ -980,6 +993,19 @@ export default function MessagesTab() {
           onClose={() => { setShowCompose(false); setReplyTo(null) }}
         />
       )}
+
+      {renameTargetId && (() => {
+        const m = messages.find(x => x.id === renameTargetId)
+        if (!m) return null
+        return (
+          <RenameGroupModal
+            current={m.groupName}
+            autoName={autoGroupName(m, classes)}
+            onClose={() => setRenameTargetId(null)}
+            onSave={name => saveGroupName(m.id, name)}
+          />
+        )
+      })()}
     </div>
   )
 }
