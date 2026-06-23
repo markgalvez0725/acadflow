@@ -50,7 +50,11 @@ export function autoGroupName(m, classes = []) {
   if (m.to === 'all') return 'All Students'
   if (typeof m.to === 'string' && m.to.startsWith('class:')) {
     const c = classes.find(x => x.id === m.to.slice(6))
-    return classTag(c) || 'Class group'
+    if (!c) return 'Class group'
+    const tag = classTag(c)
+    const subs = (c.subjects || []).filter(Boolean).join(', ')
+    if (subs && tag) return `${subs} · ${tag}`
+    return subs || tag || 'Class group'
   }
   if (typeof m.to === 'string' && m.to.startsWith('subject:')) {
     const sub = m.targetSubject || m.to.slice(8)
