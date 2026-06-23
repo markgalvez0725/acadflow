@@ -14,7 +14,8 @@ import ConnectionStatus from '@/components/primitives/ConnectionStatus'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { useReminders } from '@/hooks/useReminders'
-import { activeClasses, activeClassIds } from '@/utils/active'
+import { activeClasses, activeClassIds, activeSubjects } from '@/utils/active'
+import { computePassedSubjects } from '@/utils/passedSubjects'
 import { isNotifAllowed } from '@/utils/notifPrefs'
 import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare, Library, ListChecks } from 'lucide-react'
 
@@ -41,6 +42,7 @@ const NotifPrefsModal          = lazy(() => import('./modals/NotifPrefsModal'))
 const SetQuickPinModal         = lazy(() => import('./modals/SetQuickPinModal'))
 const NotifyPrompt             = lazy(() => import('./NotifyPrompt'))
 const OnboardingTour           = lazy(() => import('./OnboardingTour'))
+const SubjectPassedModal       = lazy(() => import('./modals/SubjectPassedModal'))
 
 const TAB_TITLES = {
   overview:      ['Home',           'Your academic overview'],
@@ -77,7 +79,7 @@ const MORE_NAV = [
 
 export default function StudentLayout() {
   const { studentTab, setStudentTab, toastQueue, dismissToast, dialog, resolveDialog, toast } = useUI()
-  const { students, classes, messages, activities, quizzes, db, fbReady, semester, studentCheckIn, attendanceSessions } = useData()
+  const { students, classes, messages, activities, quizzes, db, fbReady, semester, studentCheckIn, attendanceSessions, eqScale } = useData()
   const { currentStudent, setCurrentStudent, logout, loginTime, lastLogin } = useAuth()
 
   // Resolve pending student (session restore — only id is known until students load)
@@ -145,6 +147,24 @@ export default function StudentLayout() {
   const [actionSheetOpen, setActionSheetOpen] = useState(false)
   const [notifPrefsOpen, setNotifPrefsOpen] = useState(false)
   const [pinModalOpen, setPinModalOpen] = useState(false)
+
+  // Celebrate newly-passed subjects (once each, per device). A queue lets us
+  // show one congrats overlay at a time if several pass together.
+  const [passedQueue, setPassedQueue] = useState([])
+  useEffect(() => {
+    if (!student?.id || !semester) return
+    const subs = activeSubjects(student, classes, semester)
+    const passed = computePassedSubjects(student, subs, eqScale)
+    if (!passed.length) return
+    const key = `passed_celebrated:${student.id}:${semester?.label || semester?.id || 'sem'}`
+    let seen = []
+    try { seen = JSON.parse(localStorage.getItem(key) || '[]') } catch (e) { seen = [] }
+    const fresh = passed.filter(p => !seen.includes(p.subject))
+    if (!fresh.length) return
+    // Mark every currently-passed subject seen so it never re-triggers.
+    try { localStorage.setItem(key, JSON.stringify([...new Set([...seen, ...passed.map(p => p.subject)])])) } catch (e) { /* ignore */ }
+    setPassedQueue(q => [...q, ...fresh])
+  }, [student, classes, semester, eqScale])
 
   // First-run onboarding tour — once per device, never during a forced reset.
   const [tourOpen, setTourOpen] = useState(false)
@@ -488,6 +508,18 @@ export default function StudentLayout() {
       {pinModalOpen && (
         <Suspense fallback={null}>
           <SetQuickPinModal onClose={() => setPinModalOpen(false)} />
+        </Suspense>
+      )}
+
+      {passedQueue.length > 0 && (
+        <Suspense fallback={null}>
+          <SubjectPassedModal
+            subject={passedQueue[0].subject}
+            eq={passedQueue[0].eq}
+            studentName={student.name}
+            remaining={passedQueue.length - 1}
+            onClose={() => setPassedQueue(q => q.slice(1))}
+          />
         </Suspense>
       )}
 
