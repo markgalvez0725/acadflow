@@ -53,6 +53,7 @@ export function fbStartListening(db, callbacks) {
     onExcuseRequestsUpdate,
     onAuditLogUpdate,
     onResourcesUpdate,
+    onLiveSessionsUpdate,
   } = callbacks;
 
   // Stop any previous listeners
@@ -264,6 +265,23 @@ export function fbStartListening(db, callbacks) {
     _unsub.push(uR);
     getDocs(collection(db, 'resources'))
       .then(s => { const a = []; s.forEach(d => a.push(d.data())); onResourcesUpdate(a); })
+      .catch(() => {});
+  }
+
+  // ── liveQuizSessions collection (Kahoot-style live games) ─────────────
+  if (onLiveSessionsUpdate) {
+    const uL = onSnapshot(
+      collection(db, 'liveQuizSessions'),
+      snap => {
+        const sessions = [];
+        snap.forEach(d => sessions.push(d.data()));
+        onLiveSessionsUpdate(sessions);
+      },
+      e => console.error('[Firebase] liveQuizSessions listener error:', e.message)
+    );
+    _unsub.push(uL);
+    getDocs(collection(db, 'liveQuizSessions'))
+      .then(s => { const a = []; s.forEach(d => a.push(d.data())); onLiveSessionsUpdate(a); })
       .catch(() => {});
   }
 

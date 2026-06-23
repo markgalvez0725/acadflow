@@ -21,6 +21,7 @@ import { activeClassIds, activeSubjects } from '@/utils/active'
 import DOMPurify from 'dompurify'
 
 const SemesterWrapped = lazy(() => import('@/components/student/modals/SemesterWrapped'))
+const LiveQuizPlayer = lazy(() => import('@/components/student/modals/LiveQuizPlayer'))
 
 // Defense-in-depth: announcement HTML is sanitized on save, but sanitize again
 // at render in case a record was written directly to the database.
@@ -357,12 +358,13 @@ function AnnIcon({ type, size = 18 }) {
 }
 
 export default function OverviewTab({ student: s, viewClassId, classes }) {
-  const { activities, students, eqScale, announcements, quizzes, semester, fbReady, liveMeetings } = useData()
+  const { activities, students, eqScale, announcements, quizzes, semester, fbReady, liveMeetings, liveSessions } = useData()
   const { setStudentTab } = useUI()
 
   const [viewAnn, setViewAnn] = useState(null)
   const [chartsOpen, setChartsOpen] = useState(false)
   const [wrappedOpen, setWrappedOpen] = useState(false)
+  const [livePlay, setLivePlay] = useState(false)
 
   // "Semester in Review" — a derived, story-style recap of this student's term.
   const wrapped = useMemo(
@@ -372,6 +374,14 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
 
   // Only current, non-archived classes count — archived/ended/past subjects drop off.
   const enrolledIds = useMemo(() => activeClassIds(s, classes, semester), [s, classes, semester])
+
+  // A live quiz the student can join: not ended, and hosted for one of their classes.
+  const liveQuizForMe = useMemo(
+    () => (liveSessions || []).find(ls =>
+      ls.status !== 'ended' && (ls.classIds || []).some(id => enrolledIds.includes(id))
+    ),
+    [liveSessions, enrolledIds]
+  )
 
   const activeAnnouncements = useMemo(() => {
     const now = Date.now()
@@ -556,6 +566,18 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
         </>}
       />
 
+      {/* Live quiz — join banner (real-time, only while a game is open) */}
+      {liveQuizForMe && (
+        <button type="button" className="lq-join-banner" onClick={() => setLivePlay(liveQuizForMe.id)}>
+          <span className="lq-join-dot" aria-hidden="true" />
+          <span style={{ minWidth: 0 }}>
+            <span className="we-t" style={{ display: 'block' }}>Live quiz in progress{liveQuizForMe.subject ? ` · ${liveQuizForMe.subject}` : ''}</span>
+            <span className="we-s" style={{ display: 'block' }}>{liveQuizForMe.quizTitle} · tap to join</span>
+          </span>
+          <ChevronRight className="we-arrow" size={20} />
+        </button>
+      )}
+
       {/* Semester in Review — story-style recap entry */}
       {wrapped.hasData && (
         <button type="button" className="wrapped-entry" onClick={() => setWrappedOpen(true)}>
@@ -716,6 +738,12 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
       {wrappedOpen && (
         <Suspense fallback={null}>
           <SemesterWrapped data={wrapped} onClose={() => setWrappedOpen(false)} />
+        </Suspense>
+      )}
+
+      {livePlay && (
+        <Suspense fallback={null}>
+          <LiveQuizPlayer sessionId={livePlay} student={s} onClose={() => setLivePlay(false)} />
         </Suspense>
       )}
     </div>

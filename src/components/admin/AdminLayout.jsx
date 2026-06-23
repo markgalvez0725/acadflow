@@ -12,7 +12,7 @@ import SemesterCalendarChip from '@/components/primitives/SemesterCalendarChip'
 import CommandPaletteButton from '@/components/primitives/CommandPaletteButton'
 import ConnectionStatus from '@/components/primitives/ConnectionStatus'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
-import { Rss, LayoutDashboard, School, Users, BookOpen, CalendarCheck, FileQuestion, CalendarDays, Bell, ClipboardList, Video, Settings, LogOut, Menu, MessageSquare, Library } from 'lucide-react'
+import { Rss, LayoutDashboard, School, Users, BookOpen, CalendarCheck, FileQuestion, CalendarDays, Bell, ClipboardList, Video, Settings, LogOut, Menu, MessageSquare, Library, Radio } from 'lucide-react'
 
 // Mobile bottom-nav: 5 primary destinations + "More" (opens a tidy sheet).
 const MOBILE_NAV = [
@@ -32,6 +32,7 @@ const MORE_NAV = [
   { id: 'calendar',      Icon: CalendarDays, label: 'Calendar' },
   { id: 'onlineClasses', Icon: Video,        label: 'Meet' },
   { id: 'resources',     Icon: Library,      label: 'Resources' },
+  { id: 'liveQuiz',      Icon: Radio,        label: 'Live Quiz' },
 ]
 
 // Lazy-load tabs
@@ -49,6 +50,7 @@ const OnlineClassesTab  = lazy(() => import('./tabs/OnlineClassesTab'))
 const MessagesTab       = lazy(() => import('./tabs/MessagesTab'))
 const AuditLogTab       = lazy(() => import('./tabs/AuditLogTab'))
 const ResourcesTab      = lazy(() => import('./tabs/ResourcesTab'))
+const LiveQuizTab       = lazy(() => import('./tabs/LiveQuizTab'))
 
 // Modals (lazy)
 const AdminSettingsModal = lazy(() => import('./modals/AdminSettingsModal'))
@@ -67,6 +69,7 @@ const TAB_TITLES = {
   onlineClasses:  ['Online Classes', 'Schedule and manage Google Meet sessions for your classes'],
   messages:       ['Messages',       'Conversations with your students'],
   resources:      ['Resource Hub',   'Share modules, slides, and links per class and subject'],
+  liveQuiz:       ['Live Quiz',      'Host a real-time, Kahoot-style quiz game'],
 }
 
 export default function AdminLayout() {
@@ -190,6 +193,7 @@ export default function AdminLayout() {
               {adminTab === 'messages'      && <MessagesTab />}
               {adminTab === 'audit'         && <AuditLogTab />}
               {adminTab === 'resources'     && <ResourcesTab />}
+              {adminTab === 'liveQuiz'      && <LiveQuizTab />}
             </Suspense>
           </TabErrorBoundary>
         </main>

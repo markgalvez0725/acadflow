@@ -4679,6 +4679,70 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 .res-open { color: var(--ink3); flex-shrink: 0; }
 .res-item--link:hover .res-open { color: var(--accent); }
 
+/* ── Live Quiz (Kahoot-style) ───────────────────────────────────────────── */
+/* Student join banner */
+.lq-join-banner {
+  display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; cursor: pointer;
+  border: none; padding: 14px 16px; margin-bottom: 16px; border-radius: 14px; color: #fff;
+  background: linear-gradient(120deg, #e21b3c, #a3122a);
+  box-shadow: 0 8px 22px rgba(226,27,60,.3);
+  transition: transform .15s, box-shadow .2s;
+}
+.lq-join-banner:hover { transform: translateY(-1px); box-shadow: 0 12px 28px rgba(226,27,60,.4); }
+.lq-join-banner .we-t { font-weight: 700; font-size: 15px; line-height: 1.2; }
+.lq-join-banner .we-s { font-size: 12.5px; opacity: .9; margin-top: 1px; }
+.lq-join-banner .we-arrow { margin-left: auto; opacity: .9; flex-shrink: 0; }
+.lq-join-dot { width: 12px; height: 12px; border-radius: 50%; background: #fff; flex-shrink: 0; animation: lq-pulse 1.2s ease-in-out infinite; }
+@keyframes lq-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .4; transform: scale(.7); } }
+
+/* Host stage */
+.lq-host { max-width: 720px; margin: 0 auto; }
+.lq-stage { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 14px; padding: 8px 0; }
+.lq-eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--ink2); display: inline-flex; align-items: center; gap: 6px; }
+.lq-pin-wrap { background: var(--grad-brand); color: #fff; border-radius: 18px; padding: 22px 30px; width: 100%; }
+.lq-pin-label { font-size: 12px; opacity: .9; margin-bottom: 6px; }
+.lq-pin { font-size: 48px; font-weight: 800; letter-spacing: .15em; line-height: 1; }
+.lq-players-count { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--ink2); }
+.lq-players { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.lq-chip { font-size: 12px; font-weight: 600; background: var(--accent-l); color: var(--accent); padding: 6px 12px; border-radius: 999px; }
+.lq-controls { display: flex; gap: 10px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }
+.lq-qmeta { display: flex; align-items: center; gap: 16px; font-size: 13px; color: var(--ink2); font-weight: 600; flex-wrap: wrap; justify-content: center; }
+.lq-qmeta > span { display: inline-flex; align-items: center; gap: 5px; }
+.lq-timer { color: var(--accent); font-weight: 800; }
+.lq-question { font-size: 24px; font-weight: 700; line-height: 1.3; color: var(--ink); }
+.lq-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+@media (max-width: 520px) { .lq-options { grid-template-columns: 1fr; } }
+.lq-opt { display: flex; align-items: center; gap: 10px; padding: 16px; border-radius: 12px; color: #fff; font-size: 15px; font-weight: 700; border: none; text-align: left; }
+.lq-opt-letter { width: 26px; height: 26px; border-radius: 7px; background: rgba(255,255,255,.25); display: inline-flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+.lq-opt--tap { cursor: pointer; transition: transform .1s, filter .15s; }
+.lq-opt--tap:hover { filter: brightness(1.06); }
+.lq-opt--tap:active { transform: scale(.98); }
+.lq-opt--reveal { opacity: .92; }
+.lq-tally { display: flex; align-items: center; gap: 6px; width: 96px; flex-shrink: 0; font-size: 13px; font-weight: 700; }
+.lq-tally-bar { height: 8px; border-radius: 4px; background: currentColor; opacity: .4; min-width: 2px; }
+.lq-board { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.lq-row { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; background: var(--surface2); border: 1px solid var(--border); }
+.lq-row.is-first { background: var(--accent-l); border-color: var(--accent); }
+.lq-rank { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.lq-name { flex: 1; font-weight: 600; font-size: 14px; text-align: left; min-width: 0; }
+.lq-correct { font-size: 12px; color: var(--ink3); }
+.lq-score { font-weight: 800; font-size: 16px; color: var(--accent); min-width: 50px; text-align: right; }
+.lq-secs { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border2); background: var(--surface2); color: var(--ink); font-size: 13px; }
+
+/* Player overlay (renders inside .wrapped-overlay backdrop) */
+.lq-player { position: relative; width: 100%; max-width: 440px; min-height: min(70vh, 560px); background: var(--surface); border-radius: 24px; padding: 28px; display: flex; flex-direction: column; box-shadow: 0 30px 80px rgba(0,0,0,.45); }
+.lq-player--msg { align-items: center; justify-content: center; text-align: center; gap: 14px; color: var(--ink); }
+.lq-player-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 12px; width: 100%; }
+.lq-player-ic { width: 72px; height: 72px; border-radius: 22px; background: var(--accent-l); color: var(--accent); display: flex; align-items: center; justify-content: center; }
+.lq-player-ic.is-correct { background: var(--green); color: #fff; }
+.lq-player-ic.is-wrong { background: var(--red); color: #fff; }
+.lq-player-title { font-size: 26px; font-weight: 800; color: var(--ink); }
+.lq-player-sub { font-size: 15px; color: var(--ink2); }
+.lq-player-msg { font-size: 14px; color: var(--ink3); }
+.lq-player-rank { margin-top: 6px; font-size: 14px; font-weight: 700; color: var(--accent); }
+.lq-locked { display: flex; align-items: center; gap: 10px; justify-content: center; font-size: 15px; font-weight: 700; color: var(--green); padding: 20px; }
+.lq-locked--out { color: var(--ink3); }
+
 /* — Pill badges — */
 #student-portal .badge {
   border-radius: 999px; padding: 3px 10px; font-weight: 600; font-size: 11px;
