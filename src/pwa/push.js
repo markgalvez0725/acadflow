@@ -125,7 +125,22 @@ export async function enablePush() {
       return token || null
     } catch (e4) {
       _lastError = friendlyPushError(e4 || e)
-      console.warn('[push] getToken failed after retry:', e4?.message || e?.message)
+      // One-time diagnostic — the VAPID key is PUBLIC, safe to print. Lets you
+      // confirm the deployed key matches Firebase and the context supports push.
+      try {
+        console.warn('[push] registration failed — diagnostics:', {
+          errorName: (e4 || e)?.name,
+          message: (e4 || e)?.message,
+          vapidLen: VAPID_KEY.length,
+          vapidHead: VAPID_KEY.slice(0, 10),
+          vapidTail: VAPID_KEY.slice(-6),
+          secureContext: typeof window !== 'undefined' ? window.isSecureContext : null,
+          host: typeof location !== 'undefined' ? location.hostname : null,
+          swScope: swReg?.scope || null,
+          standalone: typeof window !== 'undefined' && window.matchMedia
+            ? window.matchMedia('(display-mode: standalone)').matches : null,
+        })
+      } catch (e5) { /* ignore */ }
       return null
     }
   }
