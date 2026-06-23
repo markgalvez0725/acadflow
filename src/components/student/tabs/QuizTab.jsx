@@ -7,6 +7,8 @@ import Badge from '@/components/primitives/Badge'
 import Modal from '@/components/primitives/Modal'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 import { activeClassIds } from '@/utils/active'
+import { aiExplainQuiz } from '@/utils/activityAI'
+import { Lightbulb } from 'lucide-react'
 
 // ── Score computation ─────────────────────────────────────────────────────────
 function computeScore(questions, answers) {
@@ -358,6 +360,58 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
 }
 
 // ── Review Modal (post-submission) ────────────────────────────────────────────
+function ReviewRow({ q, index, isCorrect, studentAns, subject }) {
+  // Prefer a teacher-authored explanation; otherwise allow an on-demand AI one.
+  const [exp, setExp] = useState(q.explanation ? String(q.explanation) : '')
+  const [busy, setBusy] = useState(false)
+
+  async function explain() {
+    setBusy(true)
+    try {
+      const text = await aiExplainQuiz({ question: q.question, correctAnswer: q.answer, studentAnswer: studentAns, subject })
+      setExp(text || 'No explanation available.')
+    } catch (e) {
+      setExp(e?.code === 501
+        ? 'Explanations aren’t available right now.'
+        : 'Couldn’t generate an explanation — try again later.')
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <div style={{
+      background: 'var(--surface2)', borderRadius: 8, padding: '12px 14px',
+      borderLeft: `4px solid ${isCorrect ? '#22c55e' : '#ef4444'}`,
+    }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', marginBottom: 4 }}>
+        Q{index + 1} · {q.type.replace(/_/g, ' ')} · {isCorrect ? <><CheckCircle2 size={14} /> Correct</> : <><XCircle size={14} /> Wrong</>}
+      </div>
+      <p style={{ fontSize: 13, color: 'var(--ink)', marginBottom: 6 }}>{q.question}</p>
+      <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
+        Your answer: <span style={{ fontWeight: 600, color: isCorrect ? 'var(--green)' : 'var(--red)' }}>
+          {studentAns || '—'}
+        </span>
+      </div>
+      {!isCorrect && (
+        <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 2 }}>
+          Correct answer: <strong>{q.answer}</strong>
+        </div>
+      )}
+      {exp ? (
+        <div style={{ marginTop: 8, padding: '8px 10px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Lightbulb size={12} /> Explanation
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.55 }}>{exp}</div>
+        </div>
+      ) : !isCorrect && (
+        <button className="btn btn-ghost btn-sm" style={{ marginTop: 8, fontSize: 11 }} onClick={explain} disabled={busy}>
+          <Lightbulb size={13} style={{ marginRight: 4 }} />{busy ? 'Thinking…' : 'Explain this'}
+        </button>
+      )}
+    </div>
+  )
+}
+
 function QuizReviewModal({ quiz, submission, onClose }) {
   return (
     <Modal onClose={onClose} size="lg">
@@ -376,27 +430,8 @@ function QuizReviewModal({ quiz, submission, onClose }) {
           } else {
             isCorrect = correct && (given.includes(correct) || (correct.includes(given) && given.length >= 3))
           }
-
           return (
-            <div key={i} style={{
-              background: 'var(--surface2)', borderRadius: 8, padding: '12px 14px',
-              borderLeft: `4px solid ${isCorrect ? '#22c55e' : '#ef4444'}`,
-            }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', marginBottom: 4 }}>
-                Q{i + 1} · {q.type.replace(/_/g, ' ')} · {isCorrect ? <><CheckCircle2 size={14} /> Correct</> : <><XCircle size={14} /> Wrong</>}
-              </div>
-              <p style={{ fontSize: 13, color: 'var(--ink)', marginBottom: 6 }}>{q.question}</p>
-              <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
-                Your answer: <span style={{ fontWeight: 600, color: isCorrect ? 'var(--green)' : 'var(--red)' }}>
-                  {studentAns || '—'}
-                </span>
-              </div>
-              {!isCorrect && (
-                <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 2 }}>
-                  Correct answer: <strong>{q.answer}</strong>
-                </div>
-              )}
-            </div>
+            <ReviewRow key={i} q={q} index={i} isCorrect={isCorrect} studentAns={studentAns} subject={quiz.subject} />
           )
         })}
       </div>

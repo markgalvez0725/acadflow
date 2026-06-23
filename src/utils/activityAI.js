@@ -70,6 +70,18 @@ export async function aiInstructions(title, subject) {
   return (text || '').trim()
 }
 
+// Explain a quiz question for a student reviewing their result. Throws with
+// code 501 when AI is unconfigured so the caller can fall back gracefully.
+export async function aiExplainQuiz({ question, correctAnswer, studentAnswer, subject }) {
+  const prompt = `A student is reviewing a quiz question they got wrong${subject ? ` in ${subject}` : ''}.
+Question: ${question}
+Correct answer: ${correctAnswer}
+Student's answer: ${studentAnswer || '(left blank)'}
+In 2-3 short sentences, kindly explain why the correct answer is right and where the student likely went wrong. Output only the explanation, no preamble.`
+  const { text } = await callAI(prompt, false)
+  return (text || '').trim()
+}
+
 export async function aiRubric(title, subject, instructions) {
   const prompt = `Create a grading rubric for the student activity "${title}"${subject ? ` in ${subject}` : ''}.${instructions ? ` Instructions: ${instructions}.` : ''}
 Return ONLY a JSON array of 3-5 criteria. Each item: {"name":"...","points":NN}. The points must be whole numbers that sum to exactly 100.`
