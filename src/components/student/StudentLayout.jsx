@@ -15,6 +15,7 @@ import ThemeToggle from '@/components/primitives/ThemeToggle'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { useReminders } from '@/hooks/useReminders'
 import { activeClasses, activeClassIds, activeSubjects } from '@/utils/active'
+import { studentSeesMessage } from '@/utils/studentMessages'
 import { computePassedSubjects } from '@/utils/passedSubjects'
 import { isNotifAllowed } from '@/utils/notifPrefs'
 import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare, Library, ListChecks } from 'lucide-react'
@@ -279,14 +280,7 @@ export default function StudentLayout() {
   const unreadMsgCount = messages.filter(m => {
     if (!student) return false
     const id = student.id
-    const enrolledClassIds = activeClassIds(student, classes, semester)
-    const isVisible = (
-      m.to === 'all' ||
-      m.to === id ||
-      (m.from === id && m.to === 'admin') ||
-      (m.type === 'announcement' && m.classId && enrolledClassIds.includes(m.classId))
-    )
-    if (!isVisible) return false
+    if (!studentSeesMessage(m, student, classes, semester)) return false
     const lastReadAt = m.readAt?.[id] || 0
     if (m.from !== id) {
       const studentRead = Array.isArray(m.read) && m.read.includes(id)

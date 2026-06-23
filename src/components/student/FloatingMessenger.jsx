@@ -3,25 +3,14 @@ import { doc, updateDoc, setDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { relativeTime } from '@/utils/format'
+import { getStudentMessages } from '@/utils/studentMessages'
 import { notifyAdminMessage } from '@/firebase/messageNotify'
 import { fbAddMessageReply, fbMarkMessageRead } from '@/firebase/persistence'
 import { MessageSquare, GraduationCap, CheckCheck, X, Send } from 'lucide-react'
 
-function getStudentMessages(messages, s) {
-  const id = s.id
-  const enrolledClassIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
-  return messages.filter(m =>
-    m.to === 'all' ||
-    m.to === id ||
-    (m.from === id && m.to === 'admin') ||
-    (m.type === 'announcement' && m.classId && enrolledClassIds.includes(m.classId)) ||
-    (m.type === 'announcement' && Array.isArray(m.classIds) && m.classIds.some(cid => enrolledClassIds.includes(cid)))
-  ).sort((a, b) => b.ts - a.ts)
-}
-
 
 export default function FloatingStudentMessenger({ student: s, messages, unreadCount, open: openProp, onOpenChange }) {
-  const { db, fbReady } = useData()
+  const { db, fbReady, classes, semester } = useData()
   const { toast } = useUI()
   const [openLocal, setOpenLocal] = useState(false)
   const open = openProp !== undefined ? openProp : openLocal
@@ -38,7 +27,7 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
   const [sending, setSending]       = useState(false)
   const threadRef = useRef(null)
 
-  const allMsgs = useMemo(() => getStudentMessages(messages, s), [messages, s])
+  const allMsgs = useMemo(() => getStudentMessages(messages, s, classes, semester), [messages, s, classes, semester])
 
   // Thread entries are derived live from messages so new teacher messages and
   // replies appear in real time while the thread is open (no stale snapshot).

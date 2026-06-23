@@ -3,6 +3,7 @@ import { doc, setDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { relativeTime } from '@/utils/format'
+import { getStudentMessages } from '@/utils/studentMessages'
 import { notifyAdminMessage } from '@/firebase/messageNotify'
 import { fbAddMessageReply, fbMarkMessageRead } from '@/firebase/persistence'
 import Pagination from '@/components/primitives/Pagination'
@@ -25,21 +26,8 @@ function loadHidden(sid) {
 }
 function saveHidden(sid, h) { try { localStorage.setItem(hiddenKey(sid), JSON.stringify(h)) } catch (e) {} }
 
-function getStudentMessages(messages, s) {
-  const id = s.id
-  const enrolledClassIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
-  return messages.filter(m =>
-    m.to === 'all' ||
-    m.to === id ||
-    (m.from === id && m.to === 'admin') ||
-    (m.type === 'announcement' && m.classId && enrolledClassIds.includes(m.classId)) ||
-    // Subject group messages fan out to a list of current-semester class ids.
-    (m.type === 'announcement' && Array.isArray(m.classIds) && m.classIds.some(cid => enrolledClassIds.includes(cid)))
-  ).sort((a, b) => b.ts - a.ts)
-}
-
 export default function MessagesTab({ student: s, messages }) {
-  const { db, fbReady } = useData()
+  const { db, fbReady, classes, semester } = useData()
   const { toast, openDialog } = useUI()
 
   const [search, setSearch]     = useState('')
@@ -84,7 +72,7 @@ export default function MessagesTab({ student: s, messages }) {
   const threadRef = useRef(null)
 
   // Build conversation items
-  const allMsgs = useMemo(() => getStudentMessages(messages, s), [messages, s])
+  const allMsgs = useMemo(() => getStudentMessages(messages, s, classes, semester), [messages, s, classes, semester])
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
