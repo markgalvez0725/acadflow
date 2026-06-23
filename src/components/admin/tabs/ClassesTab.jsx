@@ -5,7 +5,8 @@ import { deserializeStudents } from '@/utils/attendance'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
-import { Plus, Pencil, School, Archive, ArchiveRestore, CalendarDays, Users, LockOpen, Lock, CheckCircle2, Copy, FileText } from 'lucide-react'
+import KebabMenu from '@/components/primitives/KebabMenu'
+import { Plus, Pencil, School, Archive, ArchiveRestore, CalendarDays, Users, LockOpen, Lock, CheckCircle2, Copy, FileText, Trash2 } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { buildClassReportCards } from '@/export/reportCard'
 import { courseOptions } from '@/constants/courses'
@@ -648,15 +649,21 @@ export default function ClassesTab() {
                         </span>
                       </td>
                       <td>
-                        <div className="flex gap-1.5 flex-wrap">
-                          {!cls.archived && <button className="btn btn-ghost btn-sm" onClick={() => setEditClass(cls)}><Pencil size={13} className="inline-block mr-1" />Edit</button>}
-                          {!cls.archived && <button className="btn btn-ghost btn-sm" onClick={() => duplicateClass(cls)} title="Create another section with the same subjects"><Copy size={13} className="inline-block mr-1" />Duplicate</button>}
-                          <button className="btn btn-ghost btn-sm" onClick={() => buildClassReportCards(cls, { classes, students, eqScale, semester })} title="Download a PDF with one report card per enrolled student"><FileText size={13} className="inline-block mr-1" />Report cards</button>
-                          <button className="btn btn-ghost btn-sm" onClick={() => handleArchive(cls)}>
-                            {cls.archived ? <><ArchiveRestore size={13} className="inline-block mr-1" />Unarchive</> : <><Archive size={13} className="inline-block mr-1" />Archive</>}
-                          </button>
-                          <button className="btn btn-danger btn-sm" onClick={() => handleDelete(cls)}>Delete</button>
-                        </div>
+                        <KebabMenu
+                          label={`Actions for ${cls.name} ${cls.section}`}
+                          items={[
+                            !cls.archived && { label: <><Pencil size={13} className="inline-block mr-2 align-text-bottom" />Edit</>, onClick: () => setEditClass(cls) },
+                            !cls.archived && { label: <><Copy size={13} className="inline-block mr-2 align-text-bottom" />Duplicate</>, onClick: () => duplicateClass(cls) },
+                            { label: <><FileText size={13} className="inline-block mr-2 align-text-bottom" />Report cards</>, onClick: () => buildClassReportCards(cls, { classes, students, eqScale, semester }) },
+                            {
+                              label: cls.archived
+                                ? <><ArchiveRestore size={13} className="inline-block mr-2 align-text-bottom" />Unarchive</>
+                                : <><Archive size={13} className="inline-block mr-2 align-text-bottom" />Archive</>,
+                              onClick: () => handleArchive(cls),
+                            },
+                            { label: <><Trash2 size={13} className="inline-block mr-2 align-text-bottom" />Delete</>, onClick: () => handleDelete(cls), danger: true },
+                          ]}
+                        />
                       </td>
                     </tr>
                   )
