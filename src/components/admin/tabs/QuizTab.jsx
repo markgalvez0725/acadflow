@@ -381,6 +381,7 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
         {classes.length === 0 ? (
           <p className="text-xs text-ink3">No classes available.</p>
         ) : (
+          <>
           <div className="flex flex-wrap gap-2">
             {classes.filter(c => !c.archived).map(c => {
               const subs = (c.subjects || []).join(' · ')
@@ -396,6 +397,7 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
             })}
           </div>
           <p className="text-xs text-ink3 mt-2">Each chip is a class section and the subject(s) it offers — pick the one that matches the subject below.</p>
+          </>
         )}
       </div>
 
