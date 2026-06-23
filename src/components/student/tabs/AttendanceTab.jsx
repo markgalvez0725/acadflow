@@ -68,6 +68,28 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
   const globalRate = totalExpected > 0 ? totalPresent / totalExpected * 100 : 0
   const rateColor = globalRate >= 90 ? 'var(--green)' : globalRate >= 80 ? 'var(--yellow)' : 'var(--red)'
 
+  // All-subjects term heatmap: per date, tally the student's status across every
+  // subject that held a session that day. Absent-in-any wins (surfaces problems).
+  const heatmap = useMemo(() => {
+    const map = {} // dateStr -> { present, excused, absent }
+    subs.forEach(sub => {
+      const held = new Set()
+      ;[...classMates, s].forEach(x => {
+        ;(x.attendance?.[sub] || new Set()).forEach(d => held.add(d))
+        ;(x.excuse?.[sub] || new Set()).forEach(d => held.add(d))
+      })
+      const pres = s.attendance?.[sub] || new Set()
+      const exc  = s.excuse?.[sub] || new Set()
+      held.forEach(d => {
+        const rec = map[d] || (map[d] = { present: 0, excused: 0, absent: 0 })
+        if (pres.has(d)) rec.present++
+        else if (exc.has(d)) rec.excused++
+        else rec.absent++
+      })
+    })
+    return map
+  }, [subs, classMates, s])
+
   const openSessionForMe = attendanceSessions?.find(se =>
     se.status === 'open' && enrolledIds.includes(se.classId) && !se.checkedIn?.[s.id]
   ) || null
@@ -130,6 +152,9 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
           <div className="sa-stat-lbl">Rate</div>
         </div>
       </div>
+
+      {/* All-subjects term heatmap */}
+      <TermHeatmap map={heatmap} />
 
       {/* Self check-in */}
       <div className="card" style={{ padding: 14, marginBottom: 12, borderLeft: `3px solid ${openSessionForMe ? 'var(--green)' : 'var(--border2)'}` }}>
@@ -242,6 +267,81 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
           students={students}
         />
       )}
+    </div>
+  )
+}
+
+// Compact GitHub-style term heatmap across all subjects. One square per day;
+// absent-in-any-subject is shown red so problem days stand out at a glance.
+function heatColor(rec) {
+  if (!rec) return 'var(--surface2)'
+  if (rec.absent > 0)  return 'var(--red)'
+  if (rec.present > 0) return 'var(--green)'
+  if (rec.excused > 0) return 'var(--purple)'
+  return 'var(--surface2)'
+}
+
+function TermHeatmap({ map }) {
+  const dates = Object.keys(map).sort()
+  const parse = (str) => { const [y, m, d] = str.split('-').map(Number); return new Date(y, m - 1, d) }
+  const fmt   = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+
+  const weeks = useMemo(() => {
+    if (!dates.length) return []
+    const first = parse(dates[0])
+    const last  = parse(dates[dates.length - 1])
+    const start = new Date(first); start.setDate(first.getDate() - first.getDay())
+    const out = []
+    const cur = new Date(start)
+    while (cur <= last) {
+      const col = []
+      for (let i = 0; i < 7; i++) { col.push(new Date(cur)); cur.setDate(cur.getDate() + 1) }
+      out.push(col)
+    }
+    return out
+  }, [dates.length ? dates[0] : '', dates.length ? dates[dates.length - 1] : ''])
+
+  if (!dates.length) return null
+
+  return (
+    <div className="card" style={{ padding: 14, marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <Calendar size={15} style={{ color: 'var(--ink2)' }} />
+        <span style={{ fontWeight: 700, fontSize: 13 }}>Term overview</span>
+        <span style={{ fontSize: 11, color: 'var(--ink3)' }}>every subject, day by day</span>
+      </div>
+      <div style={{ display: 'flex', gap: 3, overflowX: 'auto', paddingBottom: 4 }}>
+        {weeks.map((col, ci) => (
+          <div key={ci} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {col.map((dt, ri) => {
+              const ds = fmt(dt)
+              const rec = map[ds]
+              const isFuture = dt > new Date()
+              const bg = isFuture ? 'transparent' : heatColor(rec)
+              const tip = rec
+                ? `${ds} — ${rec.present} present, ${rec.excused} excused, ${rec.absent} absent`
+                : ds
+              return (
+                <div
+                  key={ri}
+                  title={tip}
+                  style={{
+                    width: 12, height: 12, borderRadius: 3, background: bg,
+                    border: rec ? 'none' : '1px solid var(--border)',
+                    flexShrink: 0,
+                  }}
+                />
+              )
+            })}
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 12, marginTop: 10, fontSize: 10, fontWeight: 700, flexWrap: 'wrap' }}>
+        <span style={{ color: 'var(--green)' }}>● Present</span>
+        <span style={{ color: 'var(--purple)' }}>● Excused</span>
+        <span style={{ color: 'var(--red)' }}>● Absent</span>
+        <span style={{ color: 'var(--ink3)' }}>● No session</span>
+      </div>
     </div>
   )
 }
