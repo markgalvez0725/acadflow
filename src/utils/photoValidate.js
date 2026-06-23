@@ -32,8 +32,11 @@ function toCanvas(imgEl, max = 256) {
 }
 
 /**
- * Fraction of border pixels that are near-white and uniform.
- * Samples a band around all four edges (where a backdrop should be visible).
+ * Fraction of backdrop pixels that are near-white and uniform.
+ * Only samples where a backdrop is actually visible behind a headshot — the
+ * full-width TOP strip and the UPPER portion of the left/right sides. The
+ * bottom is intentionally skipped: it's filled by the subject's shoulders and
+ * clothing, so sampling it falsely tanks the score for a correct photo.
  */
 function whiteBackgroundScore(imgEl) {
   let data, cw, ch
@@ -44,18 +47,21 @@ function whiteBackgroundScore(imgEl) {
   } catch {
     return { score: null, supported: false } // tainted/cross-origin — skip
   }
-  const bandX = Math.max(2, Math.round(cw * 0.12))
-  const bandY = Math.max(2, Math.round(ch * 0.12))
+  const bandX  = Math.max(2, Math.round(cw * 0.12))
+  const topY   = Math.max(2, Math.round(ch * 0.16)) // full-width top strip
+  const sideY  = Math.round(ch * 0.55)              // sides only above the torso
   let total = 0, white = 0
   for (let y = 0; y < ch; y++) {
     for (let x = 0; x < cw; x++) {
-      const edge = x < bandX || x >= cw - bandX || y < bandY || y >= ch - bandY
-      if (!edge) continue
+      const inTop  = y < topY
+      const inSide = y < sideY && (x < bandX || x >= cw - bandX)
+      if (!inTop && !inSide) continue
       const i = (y * cw + x) * 4
       const r = data[i], g = data[i + 1], b = data[i + 2]
       total++
-      const bright = r > 230 && g > 230 && b > 230
-      const uniform = Math.max(r, g, b) - Math.min(r, g, b) < 24
+      // Slightly tolerant of lighting/JPEG so a real white wall still counts.
+      const bright = r > 220 && g > 220 && b > 220
+      const uniform = Math.max(r, g, b) - Math.min(r, g, b) < 30
       if (bright && uniform) white++
     }
   }
@@ -113,11 +119,15 @@ export async function validateProfilePhoto(imgEl, dataUrl, opts = {}) {
   else passes.push('Resolution is sufficient.')
 
   // ── White background (on-device) ────────────────────────────────────────
+  // The pixel heuristic is approximate, so it only WARNS — it never blocks a
+  // save on its own (it produced false rejections of correct headshots). When
+  // the AI vision check is configured, that is the authority on background and
+  // can still hard-fail a genuinely non-white backdrop (below).
   const bg = whiteBackgroundScore(imgEl)
   if (bg.supported && bg.score != null) {
-    if (bg.score < 0.7) hardFails.push('Background is not plain white. Retake against a white wall.')
-    else if (bg.score < 0.86) warnings.push('Background is only mostly white — a cleaner white is better.')
-    else passes.push('Background looks plain white.')
+    if (bg.score >= 0.82) passes.push('Background looks plain white.')
+    else if (bg.score >= 0.5) warnings.push('Background may not be fully white — a clean white wall is best.')
+    else warnings.push('Background doesn’t look plain white on-device — make sure you’re against a white wall.')
   }
 
   // ── Face detection (on-device, where supported) ─────────────────────────
