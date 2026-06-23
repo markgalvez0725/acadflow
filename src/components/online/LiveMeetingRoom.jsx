@@ -23,10 +23,15 @@ export default function LiveMeetingRoom({ meeting, displayName, email, isHost = 
   const [handRaised, setHandRaised] = useState(false)
   const [count, setCount] = useState(1)
   const [secs, setSecs] = useState(0)
+  // `reveal` uncovers the Jitsi iframe even before we've fully joined, so its
+  // own prejoin / "waiting for host" / sign-in screens are never hidden behind
+  // our loading overlay (which would otherwise trap the user on "Connecting…").
+  const [reveal, setReveal] = useState(false)
 
   useEffect(() => {
     let disposed = false
     let api = null
+    let revealTimer = null
 
     loadJitsi().then((JitsiMeetExternalAPI) => {
       if (disposed || !holderRef.current) return
@@ -35,7 +40,8 @@ export default function LiveMeetingRoom({ meeting, displayName, email, isHost = 
         parentNode: holderRef.current,
         userInfo: { displayName: displayName || 'Guest', email: email || undefined },
         configOverwrite: {
-          prejoinPageEnabled: false,
+          prejoinPageEnabled: false,            // legacy key
+          prejoinConfig: { enabled: false },    // current key — skip the prejoin screen
           disableDeepLinking: true,
           startWithAudioMuted: false,
           startWithVideoMuted: !isHost,
@@ -55,9 +61,13 @@ export default function LiveMeetingRoom({ meeting, displayName, email, isHost = 
       api.addEventListener('videoConferenceJoined', () => {
         if (disposed) return
         setPhase('joined')
+        setReveal(true)
         syncCount()
         timerRef.current = setInterval(() => setSecs(s => s + 1), 1000)
       })
+      // Safety net: if joining stalls (prejoin/lobby/sign-in, or a slow server),
+      // uncover the Jitsi UI after a few seconds so the user can act on it.
+      revealTimer = setTimeout(() => { if (!disposed) setReveal(true) }, 4500)
       api.addEventListener('participantJoined', syncCount)
       api.addEventListener('participantLeft', syncCount)
       api.addEventListener('audioMuteStatusChanged', e => setMicOn(!e.muted))
@@ -77,6 +87,7 @@ export default function LiveMeetingRoom({ meeting, displayName, email, isHost = 
     return () => {
       disposed = true
       if (timerRef.current) clearInterval(timerRef.current)
+      if (revealTimer) clearTimeout(revealTimer)
       try { api?.dispose() } catch (e) { /* ignore */ }
       apiRef.current = null
     }
@@ -109,22 +120,20 @@ export default function LiveMeetingRoom({ meeting, displayName, email, isHost = 
       {/* Video stage (Jitsi iframe mounts here) */}
       <div style={S.stage}>
         <div ref={holderRef} style={{ position: 'absolute', inset: 0 }} />
-        {phase !== 'joined' && (
+        {phase === 'error' ? (
           <div style={S.stageOverlay}>
-            {phase === 'error' ? (
-              <>
-                <AlertTriangle size={34} style={{ color: '#f59e0b' }} />
-                <div style={{ marginTop: 10, fontSize: 14 }}>{error}</div>
-                <button style={{ ...S.ctrlPill, marginTop: 16 }} onClick={() => onLeave?.()}>Close</button>
-              </>
-            ) : (
-              <>
-                <Loader2 size={32} className="animate-spin" />
-                <div style={{ marginTop: 10, fontSize: 14, opacity: .8 }}>Connecting you to the class…</div>
-              </>
-            )}
+            <AlertTriangle size={34} style={{ color: '#f59e0b' }} />
+            <div style={{ marginTop: 10, fontSize: 14 }}>{error}</div>
+            <button style={{ ...S.ctrlPill, marginTop: 16 }} onClick={() => onLeave?.()}>Close</button>
           </div>
-        )}
+        ) : (phase !== 'joined' && !reveal) ? (
+          // Non-blocking: pointer-events none so any prejoin/sign-in button
+          // underneath stays clickable; auto-clears via `reveal`.
+          <div style={{ ...S.stageOverlay, pointerEvents: 'none' }}>
+            <Loader2 size={32} className="animate-spin" />
+            <div style={{ marginTop: 10, fontSize: 14, opacity: .8 }}>Connecting you to the class…</div>
+          </div>
+        ) : null}
       </div>
 
       {/* Joined status banner */}
