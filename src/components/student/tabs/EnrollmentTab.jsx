@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Badge from '@/components/primitives/Badge'
+import { findScheduleConflicts } from '@/utils/schedule'
 import {
   BookOpen, CheckCircle2, XCircle, LockOpen, Lock,
   CalendarDays, Clock, MapPin, GraduationCap, Users, MessageSquare,
@@ -236,7 +237,7 @@ function ArchivedClassCard({ entry }) {
 }
 
 // ── Class Card ────────────────────────────────────────────────────────
-function ClassCard({ cls, student, onEnroll, busy, isCurrentSem, semesterStatus }) {
+function ClassCard({ cls, student, onEnroll, busy, isCurrentSem, semesterStatus, enrolledClasses }) {
   const { classes } = useData()
   const enrolled = (student.classIds?.length
     ? student.classIds
@@ -245,6 +246,9 @@ function ClassCard({ cls, student, onEnroll, busy, isCurrentSem, semesterStatus 
 
   const matches  = eligibleForClass(student, cls, classes)
   const canEnroll  = !enrolled && cls.enrollmentOpen && matches
+
+  // Warn (don't block) when this class's meeting time overlaps one already enrolled.
+  const conflicts = canEnroll ? findScheduleConflicts(cls, enrolledClasses || []) : []
 
   return (
     <div
@@ -310,6 +314,17 @@ function ClassCard({ cls, student, onEnroll, busy, isCurrentSem, semesterStatus 
           <span>
             Requires <strong>{cls.courseReq || cls.name}</strong>.
             Your course is <strong>{student.course || 'not set'}</strong>.
+          </span>
+        </div>
+      )}
+
+      {/* Schedule conflict warning (non-blocking) */}
+      {conflicts.length > 0 && (
+        <div className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/15 px-2.5 py-2 rounded-lg">
+          <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+          <span>
+            Schedule clash with <strong>{conflicts.map(c => c.name).join(', ')}</strong>.
+            {cls.schedule ? <> This class meets <strong>{cls.schedule}</strong>.</> : null}
           </span>
         </div>
       )}
@@ -411,9 +426,13 @@ export default function EnrollmentTab({ student }) {
 
   async function handleEnroll(classId) {
     const cls = classes.find(c => c.id === classId)
+    const conflicts = cls ? findScheduleConflicts(cls, enrolledClasses) : []
+    const conflictNote = conflicts.length
+      ? ` Note: its schedule (${cls.schedule}) overlaps ${conflicts.map(c => c.name).join(', ')}.`
+      : ''
     const ok  = await openDialog({
       title: 'Confirm Enrollment',
-      msg: `You are about to enroll in "${cls?.name} ${cls?.section}". Once enrolled, your enrollment cannot be changed or removed. If you need to make any corrections, you will need to message your teacher directly.`,
+      msg: `You are about to enroll in "${cls?.name} ${cls?.section}".${conflictNote} Once enrolled, your enrollment cannot be changed or removed. If you need to make any corrections, you will need to message your teacher directly.`,
       type: 'warn',
       confirmLabel: 'Enroll Now',
       showCancel: true,
@@ -542,6 +561,7 @@ export default function EnrollmentTab({ student }) {
               student={student}
               onEnroll={handleEnroll}
               busy={busyId === cls.id}
+              enrolledClasses={enrolledClasses}
               isCurrentSem={!!(semLabel && cls.activeSemester === semLabel)}
               semesterStatus={
                 (semLabel && cls.activeSemester === semLabel)

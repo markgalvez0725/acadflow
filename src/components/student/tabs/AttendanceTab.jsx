@@ -140,8 +140,8 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
         </div>
         <div style={{ fontSize: 12, color: 'var(--ink2)', marginBottom: 8 }}>
           {openSessionForMe
-            ? 'Your teacher opened check-in. Enter the code to mark yourself present for today.'
-            : 'When your teacher opens check-in, enter the code here to mark yourself present.'}
+            ? 'Your teacher opened check-in. Scan the QR your teacher shows, or enter the code to mark yourself present for today.'
+            : 'When your teacher opens check-in, scan the QR or enter the code here to mark yourself present.'}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <input

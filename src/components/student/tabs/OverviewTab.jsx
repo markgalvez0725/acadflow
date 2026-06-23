@@ -9,7 +9,8 @@ import { SkeletonDashboard } from '@/components/primitives/SkeletonLoader'
 import { useUI } from '@/context/UIContext'
 import PageHeader from '@/components/ds/PageHeader'
 import MetricCard from '@/components/ds/MetricCard'
-import { Home, CalendarCheck, Award, ClipboardList } from 'lucide-react'
+import { Home, CalendarCheck, Award, ClipboardList, FileQuestion, Radio } from 'lucide-react'
+import { pendingItems, humanLeft } from '@/utils/reminders'
 import BarChart from '@/components/charts/BarChart'
 import SmartInsights from '@/components/primitives/SmartInsights'
 import { generateStudentInsights } from '@/utils/insights'
@@ -353,7 +354,7 @@ function AnnIcon({ type, size = 18 }) {
 }
 
 export default function OverviewTab({ student: s, viewClassId, classes }) {
-  const { activities, students, eqScale, announcements, quizzes, semester, fbReady } = useData()
+  const { activities, students, eqScale, announcements, quizzes, semester, fbReady, liveMeetings } = useData()
   const { setStudentTab } = useUI()
 
   const [viewAnn, setViewAnn] = useState(null)
@@ -441,14 +442,18 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
     return true
   }).length
 
-  // Next few unsubmitted activities that carry a deadline, soonest first
-  // (overdue ones sort to the top so they aren't missed).
+  // "Coming up" agenda: unsubmitted activities AND quizzes with a due date,
+  // merged and sorted soonest-first (overdue floats to the top). This is the
+  // student-facing half of the smart-reminder system.
   const nowTs = Date.now()
-  const upcomingDeadlines = activities
-    .filter(a => enrolledIds.includes(a.classId) && a.deadline)
-    .filter(a => !((a.submissions || {})[s.id]?.link))
-    .sort((a, b) => a.deadline - b.deadline)
-    .slice(0, 5)
+  const WEEK = 7 * 24 * 60 * 60 * 1000
+  const upcomingDeadlines = pendingItems({ student: s, classes, activities, quizzes, semester, now: nowTs })
+    .filter(it => it.when - nowTs <= WEEK)
+    .sort((a, b) => a.when - b.when)
+    .slice(0, 6)
+
+  // Live / imminent online classes for the "Live now" banner.
+  const liveNow = (liveMeetings || []).filter(m => enrolledIds.includes(m.classId))
 
   if (!fbReady) return <SkeletonDashboard />
 
@@ -556,30 +561,64 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
       {/* Study Coach — on-device insights, no external AI */}
       <SmartInsights title="Study Coach" insights={studentInsights} />
 
-      {/* Upcoming deadlines — soonest unsubmitted activities with a due date */}
+      {/* Live now — online classes currently in session */}
+      {liveNow.length > 0 && (
+        <>
+          <div className="sec-hdr" style={{ marginTop: 22, marginBottom: 12 }}>
+            <div className="sec-title sec-title-ic"><Radio /> Live now</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {liveNow.map(m => (
+              <div
+                key={m.id}
+                className="card"
+                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', width: '100%', border: '1px solid rgba(34,197,94,0.4)', background: 'rgba(34,197,94,0.08)' }}
+              >
+                <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {m.title || m.className || 'Online class'}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--ink3)' }}>
+                    {m.subject ? `${m.subject} · ` : ''}In session now
+                  </div>
+                </div>
+                {m.meetLink
+                  ? <a href={m.meetLink} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm" style={{ flexShrink: 0, textDecoration: 'none' }}><Video size={14} style={{ marginRight: 5 }} />Join</a>
+                  : <button type="button" className="btn btn-sm" style={{ flexShrink: 0 }} onClick={() => setStudentTab('onlineClasses')}>View</button>}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Coming up — unsubmitted activities AND quizzes, soonest first */}
       {upcomingDeadlines.length > 0 && (
         <>
           <div className="sec-hdr" style={{ marginTop: 22, marginBottom: 12 }}>
-            <div className="sec-title sec-title-ic"><Clock /> Upcoming deadlines</div>
+            <div className="sec-title sec-title-ic"><Clock /> Coming up</div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {upcomingDeadlines.map(a => {
-              const color = deadlineColor(a.deadline, nowTs)
-              const label = deadlineLabel(a.deadline, nowTs)
+            {upcomingDeadlines.map(it => {
+              const color = deadlineColor(it.when, nowTs)
+              const overdue = it.when <= nowTs
+              const label = overdue ? 'Overdue' : `Due ${humanLeft(it.when - nowTs)}`
+              const Icon = it.kind === 'quiz' ? FileQuestion : ClipboardList
+              const kindLabel = it.kind === 'quiz' ? 'Quiz' : 'Activity'
               return (
                 <button
-                  key={a.id}
+                  key={`${it.kind}_${it.id}`}
                   type="button"
-                  onClick={() => setStudentTab('activities')}
+                  onClick={() => setStudentTab(it.tab)}
                   className="card"
-                  aria-label={`${a.title}${a.subject ? ' — ' + a.subject : ''}, ${label}. Open activities.`}
+                  aria-label={`${it.title}${it.subject ? ' — ' + it.subject : ''}, ${label}. Open ${it.tab}.`}
                   style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', textAlign: 'left', cursor: 'pointer', width: '100%', border: '1px solid var(--border)' }}
                 >
-                  <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                  <span aria-hidden="true" style={{ color, flexShrink: 0, display: 'flex' }}><Icon size={17} /></span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.title}</div>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.title}</div>
                     <div style={{ fontSize: 12, color: 'var(--ink3)' }}>
-                      {(a.subject || 'Activity')} · {new Date(a.deadline).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}
+                      {kindLabel}{it.subject ? ` · ${it.subject}` : ''} · {new Date(it.when).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}
                     </div>
                   </div>
                   <span style={{ fontSize: 12, fontWeight: 700, color, flexShrink: 0 }}>{label}</span>
