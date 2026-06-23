@@ -3,7 +3,7 @@ import { doc, updateDoc, setDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { relativeTime } from '@/utils/format'
-import { getStudentMessages } from '@/utils/studentMessages'
+import { getStudentMessages, announcementTitle } from '@/utils/studentMessages'
 import { notifyAdminMessage } from '@/firebase/messageNotify'
 import { fbAddMessageReply, fbMarkMessageRead } from '@/firebase/persistence'
 import { MessageSquare, GraduationCap, CheckCheck, X, Send } from 'lucide-react'
@@ -136,7 +136,7 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
     setThreadMode('single')
     markRead([msgId])
     setReplyMsgId(msgId)
-    setThreadTitle(m.subject || 'Announcement')
+    setThreadTitle(announcementTitle(m))
     setView('thread')
   }
 
@@ -275,7 +275,7 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
                     <div key={m.id} className={`s-msg-thread-item${item.hasUnread ? ' unread' : ''}`} onClick={() => openMessage(m.id)} style={{ cursor: 'pointer' }}>
                       <div className="s-conv-avatar announce">A</div>
                       <div className="s-conv-body">
-                        <div className="s-conv-name">{item.hasUnread && <span className="unread-dot" />}{m.subject}</div>
+                        <div className="s-conv-name">{item.hasUnread && <span className="unread-dot" />}{announcementTitle(m)}</div>
                         <div className="s-conv-preview">{preview}</div>
                       </div>
                       <div className="s-conv-meta">

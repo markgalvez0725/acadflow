@@ -214,7 +214,6 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
   const { students, classes, messages, semester, db, fbReady } = useData()
   const { toast } = useUI()
   const [to, setTo]           = useState(replyToStudentId || 'all')
-  const [subject, setSubject] = useState('')
   const [body, setBody]       = useState('')
   const [err, setErr]         = useState('')
   const [sending, setSending] = useState(false)
@@ -260,20 +259,19 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
 
   async function handleSend() {
     setErr('')
-    if (!subject.trim()) { setErr('Subject is required.'); return }
-    if (!body.trim())    { setErr('Message body is required.'); return }
-    if (subject.length > 200) { setErr('Subject too long (max 200 characters).'); return }
-    if (body.length > 3000)   { setErr('Message too long (max 3000 characters).'); return }
+    if (!body.trim())       { setErr('Type a message first.'); return }
+    if (body.length > 3000) { setErr('Message too long (max 3000 characters).'); return }
     if (!fbReady || !db.current) { setErr('Firebase is not connected.'); return }
 
     setSending(true)
     const isClassBroadcast   = to.startsWith('class:')
     const isSubjectBroadcast = to.startsWith('subject:')
-    const classId    = isClassBroadcast ? to.slice(6) : null
+    const classId     = isClassBroadcast ? to.slice(6) : null
     const subjectName = isSubjectBroadcast ? to.slice(8) : null
     const subjClassIds = isSubjectBroadcast ? subjectClassIds(subjectName) : null
     const msgType = (to === 'all' || isClassBroadcast || isSubjectBroadcast) ? 'announcement' : 'direct'
     const id = msgId()
+    const snippet = body.trim().slice(0, 80)
 
     if (isSubjectBroadcast && (!subjClassIds || !subjClassIds.length)) {
       setErr('That subject has no current-semester classes.'); setSending(false); return
@@ -283,7 +281,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
       id,
       from:      'admin',
       to,
-      subject:   subject.trim(),
+      subject:   '',            // no subject field — message body stands alone
       body:      body.trim(),
       ts:        Date.now(),
       read:      [],
@@ -301,15 +299,15 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
       await setDoc(doc(db.current, 'messages', id), msg)
       // Notify the recipient(s): in-app badge + best-effort web push.
       if (to === 'all') {
-        notifyStudentsBroadcast(db.current, students.map(s => s.id), subject.trim())
+        notifyStudentsBroadcast(db.current, students.map(s => s.id), snippet)
       } else if (isClassBroadcast) {
         const ids = students
           .filter(s => s.classId === classId || s.classIds?.includes(classId))
           .map(s => s.id)
-        notifyStudentsBroadcast(db.current, ids, subject.trim())
+        notifyStudentsBroadcast(db.current, ids, snippet)
       } else if (isSubjectBroadcast) {
         const ids = studentsInClasses(students, subjClassIds).map(s => s.id)
-        notifyStudentsBroadcast(db.current, ids, subject.trim())
+        notifyStudentsBroadcast(db.current, ids, snippet)
       } else {
         notifyStudentMessage(db.current, to, body.trim())
       }
@@ -322,12 +320,23 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
     }
   }
 
+  // Contextual hint describing where this message goes.
+  const sendHint = (() => {
+    if (to === 'all') return 'Announcement to every student'
+    if (to.startsWith('class:')) return 'Class broadcast group chat'
+    if (to.startsWith('subject:')) return 'Subject group chat — everyone taking it'
+    const s = students.find(x => x.id === to)
+    return s ? `Direct message to ${s.name}` : 'Choose a recipient'
+  })()
+
   return (
     <Modal onClose={onClose} size="md">
-      <h3 className="text-lg font-bold text-ink mb-1"><Pencil size={18} /> New Message</h3>
-      <p className="text-xs text-ink2 mb-4">Send a direct message or announcement to students.</p>
+      <div className="pr-8 mb-4">
+        <h3 className="text-lg font-bold text-ink mb-1"><Pencil size={18} /> New Message</h3>
+        <p className="text-xs text-ink2">Send a direct message or start a group chat — no subject needed.</p>
+      </div>
 
-      <div className="field mb-3">
+      <div className="field mb-1">
         <label className="text-xs font-semibold text-ink2 mb-1 block">To</label>
         <RecipientPicker
           students={students}
@@ -339,36 +348,29 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
           onChange={setTo}
         />
       </div>
+      <div className="text-xs text-ink3 mb-3" style={{ paddingLeft: 2 }}>{sendHint}</div>
 
-      <div className="field mb-3">
-        <label className="text-xs font-semibold text-ink2 mb-1 block">Subject</label>
-        <input
-          className="input w-full"
-          value={subject}
-          onChange={e => setSubject(e.target.value)}
-          placeholder="e.g. Class reminder"
-          maxLength={200}
-        />
-      </div>
-
-      <div className="field mb-3">
+      <div className="field mb-2">
         <label className="text-xs font-semibold text-ink2 mb-1 block">Message</label>
         <textarea
           className="input w-full"
-          rows={5}
+          rows={6}
           value={body}
           onChange={e => setBody(e.target.value)}
-          placeholder="Type your message here…"
+          onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleSend() }}
+          placeholder="Type your message here…  (Ctrl/⌘ + Enter to send)"
           maxLength={3000}
+          autoFocus
         />
+        <div className="text-xs text-ink3 mt-1" style={{ textAlign: 'right' }}>{body.length}/3000</div>
       </div>
 
       {err && <div className="err-msg mb-2">{err}</div>}
 
       <div className="modal-footer">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={handleSend} disabled={sending}>
-          {sending ? 'Sending…' : <><Send size={16} /> Send Message</>}
+        <button className="btn btn-primary" onClick={handleSend} disabled={sending || !body.trim()}>
+          {sending ? 'Sending…' : <><Send size={16} /> Send</>}
         </button>
       </div>
     </Modal>

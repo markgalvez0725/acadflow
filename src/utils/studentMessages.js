@@ -54,3 +54,12 @@ export function getStudentMessages(messages, student, classes = [], semester = n
     .filter(m => studentSeesMessage(m, student, classes, semester))
     .sort((a, b) => b.ts - a.ts)
 }
+
+// Title for an announcement / group chat shown to a student. Messages no longer
+// carry a subject line, so fall back to the subject-group name, then a default.
+export function announcementTitle(m) {
+  const s = (m.subject || '').trim()
+  if (s) return s
+  if (m.targetSubject) return m.targetSubject
+  return 'Announcement'
+}

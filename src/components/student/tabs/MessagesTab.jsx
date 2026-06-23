@@ -3,7 +3,7 @@ import { doc, setDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { relativeTime } from '@/utils/format'
-import { getStudentMessages } from '@/utils/studentMessages'
+import { getStudentMessages, announcementTitle } from '@/utils/studentMessages'
 import { isClassCurrent } from '@/utils/active'
 import { notifyAdminMessage } from '@/firebase/messageNotify'
 import { fbAddMessageReply, fbMarkMessageRead } from '@/firebase/persistence'
@@ -201,7 +201,7 @@ export default function MessagesTab({ student: s, messages }) {
       { from: m.from, body: m.body, ts: m.ts, subject: m.subject, isMain: true },
       ...(m.replies || []).map(r => ({ ...r, isMain: false })),
     ].sort((a, b) => a.ts - b.ts)
-    setThreadTitle(m.subject || 'Announcement')
+    setThreadTitle(announcementTitle(m))
     setThreadEntries(allEntries)
     const active = groupChatActive(m)
     setCanReply(active)
@@ -421,7 +421,7 @@ export default function MessagesTab({ student: s, messages }) {
                     <div className="s-conv-body">
                       <div className="s-conv-name">
                         {item.hasUnread && <span className="unread-dot" />}
-                        {m.subject}
+                        {announcementTitle(m)}
                       </div>
                       <div className="s-conv-preview">{preview}</div>
                       {replyCount > 0 && <div style={{ fontSize: 10, color: 'var(--green)', marginTop: 2 }}>{replyCount} repl{replyCount === 1 ? 'y' : 'ies'}</div>}
