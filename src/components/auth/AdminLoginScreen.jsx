@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react'
-import { Eye, EyeOff, ShieldCheck, BookOpen, Users, CalendarCheck, BarChart2, TrendingUp, Mail, Lock } from 'lucide-react'
+import { Eye, EyeOff, ShieldCheck, BookOpen, Users, CalendarCheck, BarChart2, TrendingUp, Mail, Lock, HelpCircle } from 'lucide-react'
 import AcadFlowLogo from '@/components/primitives/AcadFlowLogo'
 import { useTypingEffect } from '@/hooks/useTypingEffect'
 import { useAuth } from '@/context/AuthContext'
@@ -23,6 +23,7 @@ const ADMIN_PHRASES = [
 ]
 
 const ResetPinModal = lazy(() => import('@/components/auth/ResetPinModal'))
+const FaqModal = lazy(() => import('@/components/auth/FaqModal'))
 
 export default function AdminLoginScreen() {
   const { loginAdmin } = useAuth()
@@ -30,6 +31,7 @@ export default function AdminLoginScreen() {
   const { toast, theme } = useUI()
 
   const [pinResetOpen, setPinResetOpen] = useState(false)
+  const [faqOpen, setFaqOpen]   = useState(false)
   const [loading, setLoading]   = useState(false)
   const [err, setErr]           = useState('')
   const [okMsg, setOkMsg]       = useState('')
@@ -73,6 +75,15 @@ export default function AdminLoginScreen() {
 
   return (
     <div className="min-h-screen flex relative overflow-hidden" id="admin-login-screen">
+      <button
+        type="button"
+        className="theme-btn help-btn"
+        onClick={() => setFaqOpen(true)}
+        title="About AcadFlow / FAQ"
+        aria-label="About AcadFlow / FAQ"
+      >
+        <HelpCircle size={16} />
+      </button>
       <ThemeToggle />
 
       {/* ── Left branding panel (desktop only) ── */}
@@ -181,6 +192,8 @@ export default function AdminLoginScreen() {
 
         <div className="auth-trust"><ShieldCheck size={13} /> Encrypted &amp; secure</div>
         <p className="text-center text-xs text-ink3 mt-3">
+          <button type="button" className="link-btn" onClick={() => setFaqOpen(true)}>Why AcadFlow?</button>
+          {' · '}
           Student?{' '}
           <a href="/" className="text-accent-m underline">Student Login →</a>
         </p>
@@ -189,6 +202,12 @@ export default function AdminLoginScreen() {
       {pinResetOpen && (
         <Suspense fallback={null}>
           <ResetPinModal onClose={() => setPinResetOpen(false)} onReset={() => setPinResetOpen(false)} />
+        </Suspense>
+      )}
+
+      {faqOpen && (
+        <Suspense fallback={null}>
+          <FaqModal onClose={() => setFaqOpen(false)} />
         </Suspense>
       )}
     </div>

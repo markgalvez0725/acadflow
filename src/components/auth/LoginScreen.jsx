@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react'
-import { Eye, EyeOff, BarChart2, CalendarCheck, Rss, MessageSquare, KeyRound, Check, ShieldCheck, TrendingUp, GraduationCap, UserCircle, IdCard, Lock } from 'lucide-react'
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react'
+import { Eye, EyeOff, BarChart2, CalendarCheck, Rss, MessageSquare, KeyRound, Check, ShieldCheck, TrendingUp, GraduationCap, UserCircle, IdCard, Lock, HelpCircle } from 'lucide-react'
 import AcadFlowLogo from '@/components/primitives/AcadFlowLogo'
 import { useTypingEffect } from '@/hooks/useTypingEffect'
 import { useAuth } from '@/context/AuthContext'
@@ -15,6 +15,8 @@ import { SECURITY_QUESTIONS } from '@/utils/securityQuestions'
 import { courseOptions } from '@/constants/courses'
 import LoadingButton from '@/components/primitives/LoadingButton'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
+
+const FaqModal = lazy(() => import('@/components/auth/FaqModal'))
 
 const STUDENT_FEATURES = [
   { Icon: BarChart2,     label: 'Grades' },
@@ -36,6 +38,7 @@ export default function LoginScreen() {
   const { theme, toast } = useUI()
 
   const [mode, setMode]       = useState('student')
+  const [faqOpen, setFaqOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [err, setErr]         = useState('')
   const [okMsg, setOkMsg]     = useState('')
@@ -480,6 +483,15 @@ export default function LoginScreen() {
 
   return (
     <div className="min-h-screen flex relative overflow-hidden" id="login-screen">
+      <button
+        type="button"
+        className="theme-btn help-btn"
+        onClick={() => setFaqOpen(true)}
+        title="About AcadFlow / FAQ"
+        aria-label="About AcadFlow / FAQ"
+      >
+        <HelpCircle size={16} />
+      </button>
       <ThemeToggle />
 
       {/* ── Left branding panel (desktop only) ── */}
@@ -940,12 +952,20 @@ export default function LoginScreen() {
           <>
             <div className="auth-trust"><ShieldCheck size={13} /> Encrypted &amp; secure</div>
             <p className="text-center text-xs text-ink3 mt-3">
+              <button type="button" className="link-btn" onClick={() => setFaqOpen(true)}>Why AcadFlow?</button>
+              {' · '}
               Are you a teacher?{' '}
               <a href="/admin" className="text-accent-m underline">Admin Login →</a>
             </p>
           </>
         )}
       </div>
+
+      {faqOpen && (
+        <Suspense fallback={null}>
+          <FaqModal onClose={() => setFaqOpen(false)} />
+        </Suspense>
+      )}
     </div>
   )
 }

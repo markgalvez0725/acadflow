@@ -4490,6 +4490,54 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 }
 .auth-trust svg { color: var(--green); }
 
+/* Help (FAQ) button — sits to the left of the theme toggle on login screens */
+#login-screen .help-btn, #admin-login-screen .help-btn { right: 60px; }
+
+/* ── FAQ / About modal ──────────────────────────────────────────────────── */
+.faq-intro {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  background: var(--accent-l);
+  border-radius: 12px;
+}
+.faq-intro-ic {
+  flex-shrink: 0;
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+}
+.faq-intro p { font-size: 13px; line-height: 1.55; color: var(--ink2); margin: 0; }
+
+.faq-list { display: flex; flex-direction: column; gap: 8px; }
+.faq-item {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface2);
+  overflow: hidden;
+  transition: border-color .15s;
+}
+.faq-item.open { border-color: var(--accent); }
+.faq-q {
+  width: 100%;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 13px 15px;
+  background: none; border: none; cursor: pointer;
+  font-size: 14px; font-weight: 600; color: var(--ink);
+  text-align: left;
+  transition: color .15s;
+}
+.faq-q:hover { color: var(--accent); }
+.faq-chevron { color: var(--ink3); flex-shrink: 0; transition: transform .2s, color .15s; }
+.faq-item.open .faq-chevron { transform: rotate(180deg); color: var(--accent); }
+.faq-a {
+  padding: 0 15px 14px;
+  font-size: 13px; line-height: 1.65; color: var(--ink2);
+}
+.faq-foot { display: flex; justify-content: flex-end; margin-top: 18px; }
+
 /* — Pill badges — */
 #student-portal .badge {
   border-radius: 999px; padding: 3px 10px; font-weight: 600; font-size: 11px;
