@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react'
-import { Lightbulb, Download, Upload, ShieldCheck } from 'lucide-react'
+import { Lightbulb, Download, Upload, ShieldCheck, CalendarDays, KeyRound, Bell, Scale, Clock, DatabaseBackup, Flame } from 'lucide-react'
 import { doc, setDoc } from 'firebase/firestore'
 import { fbWithTimeout } from '@/firebase/firebaseInit'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
@@ -13,13 +13,13 @@ import { gradeInfo, DEFAULT_EQ_SCALE } from '@/utils/grades'
 import { saveSettingsToFirebase } from '@/firebase/settings'
 
 const TABS = [
-  { id: 'semester', label: 'Semester' },
-  { id: 'cred',     label: 'Credentials' },
-  { id: 'notifs',   label: 'Notifications' },
-  { id: 'eq',       label: 'Equiv Scale' },
-  { id: 'late',     label: 'Late Policy' },
-  { id: 'data',     label: 'Backup' },
-  { id: 'firebase', label: 'Firebase' },
+  { id: 'semester', label: 'Semester',      Icon: CalendarDays },
+  { id: 'cred',     label: 'Credentials',   Icon: KeyRound },
+  { id: 'notifs',   label: 'Notifications', Icon: Bell },
+  { id: 'eq',       label: 'Equiv Scale',   Icon: Scale },
+  { id: 'late',     label: 'Late Policy',   Icon: Clock },
+  { id: 'data',     label: 'Backup',        Icon: DatabaseBackup },
+  { id: 'firebase', label: 'Firebase',      Icon: Flame },
 ]
 
 // ── Notifications Tab ──────────────────────────────────────────────────────────
@@ -784,29 +784,41 @@ export default function AdminSettingsModal({ onClose, push }) {
         <ThemeToggle style={{ position: 'static', width: 38, height: 38, fontSize: 15, flexShrink: 0 }} />
       </div>
 
-      {/* Tab bar */}
-      <div className="flex gap-1 mb-5" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
-        {TABS.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setActiveTab(t.id)}
-            style={{
-              padding: '7px 14px',
-              fontSize: 13,
-              fontWeight: activeTab === t.id ? 700 : 400,
-              color: activeTab === t.id ? 'var(--accent)' : 'var(--ink2)',
-              borderTop: 'none',
-              borderLeft: 'none',
-              borderRight: 'none',
-              borderBottom: activeTab === t.id ? '2px solid var(--accent)' : '2px solid transparent',
-              background: 'none',
-              cursor: 'pointer',
-              marginBottom: -1,
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
+      {/* Section nav — wrapping pills so all sections fit at any width */}
+      <div
+        role="tablist"
+        aria-label="Settings sections"
+        style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20 }}
+      >
+        {TABS.map(t => {
+          const active = activeTab === t.id
+          return (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={active}
+              onClick={() => setActiveTab(t.id)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 12px',
+                fontSize: 12.5,
+                fontWeight: active ? 700 : 500,
+                color: active ? '#fff' : 'var(--ink2)',
+                background: active ? 'var(--accent)' : 'var(--surface2)',
+                border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                borderRadius: 999,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'background .15s ease, color .15s ease, border-color .15s ease',
+              }}
+            >
+              <t.Icon size={14} />
+              {t.label}
+            </button>
+          )
+        })}
       </div>
 
       {activeTab === 'semester'  && <SemesterTab />}
