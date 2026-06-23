@@ -4926,3 +4926,44 @@ html { scroll-behavior: smooth; }
 .today-chip-ic { display: inline-flex; }
 .today-chip-val { font-size: 22px; font-weight: 800; line-height: 1.1; letter-spacing: -.01em; }
 .today-chip-lbl { font-size: 11px; font-weight: 600; color: var(--ink3); text-transform: uppercase; letter-spacing: .03em; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   STUDENT ONBOARDING TOUR — first-run walkthrough overlay
+══════════════════════════════════════════════════════════════════════════ */
+.onb-overlay {
+  position: fixed; inset: 0; z-index: 1300;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, .5);
+  backdrop-filter: blur(2px);
+  animation: onb-fade .2s ease;
+}
+@keyframes onb-fade { from { opacity: 0 } to { opacity: 1 } }
+.onb-card {
+  position: relative;
+  width: min(420px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 16px);
+  box-shadow: var(--shadow-xl, 0 20px 60px rgba(0,0,0,.3));
+  padding: 28px 24px 20px;
+  text-align: center;
+}
+.onb-skip {
+  position: absolute; top: 12px; right: 12px;
+  width: 30px; height: 30px; border-radius: 8px;
+  border: none; background: transparent; color: var(--ink3);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.onb-skip:hover { background: var(--surface2); color: var(--ink); }
+.onb-ic {
+  width: 60px; height: 60px; border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 14px;
+}
+.onb-title { font-size: 18px; font-weight: 800; color: var(--ink); margin-bottom: 8px; }
+.onb-body { font-size: 13px; color: var(--ink2); line-height: 1.6; margin-bottom: 18px; }
+.onb-dots { display: flex; gap: 6px; justify-content: center; margin-bottom: 18px; }
+.onb-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border2, var(--border)); transition: background .15s ease, width .15s ease; }
+.onb-dot.active { width: 20px; border-radius: 4px; background: var(--accent); }
+.onb-actions { display: flex; align-items: center; gap: 8px; }

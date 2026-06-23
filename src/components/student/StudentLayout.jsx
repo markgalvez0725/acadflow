@@ -39,6 +39,7 @@ const ForceChangePasswordModal = lazy(() => import('./modals/ForceChangePassword
 const StudentActionSheet       = lazy(() => import('./modals/StudentActionSheet'))
 const NotifPrefsModal          = lazy(() => import('./modals/NotifPrefsModal'))
 const NotifyPrompt             = lazy(() => import('./NotifyPrompt'))
+const OnboardingTour           = lazy(() => import('./OnboardingTour'))
 
 const TAB_TITLES = {
   overview:      ['Home',           'Your academic overview'],
@@ -143,6 +144,15 @@ export default function StudentLayout() {
   const [actionSheetOpen, setActionSheetOpen] = useState(false)
   const [notifPrefsOpen, setNotifPrefsOpen] = useState(false)
 
+  // First-run onboarding tour — once per device, never during a forced reset.
+  const [tourOpen, setTourOpen] = useState(false)
+  useEffect(() => {
+    if (!student?.id || forcePassOpen) return
+    let seen = true
+    try { seen = !!localStorage.getItem(`onboarding_seen:${student.id}`) } catch (e) { /* ignore */ }
+    if (!seen) setTourOpen(true)
+  }, [student?.id, forcePassOpen])
+
   // Web push (FCM) — opt-in per device, no-op when unsupported/unconfigured
   const push = usePushNotifications({ db, fbReady, ownerId: student?.id, role: 'student', toast })
 
@@ -194,12 +204,12 @@ export default function StudentLayout() {
   useEffect(() => {
     if (!student) return
     if (!push.supported || push.permission !== 'default') return
-    if (forcePassOpen) return
+    if (forcePassOpen || tourOpen) return
     if (notifyShownRef.current === loginTime) return
     notifyShownRef.current = loginTime
     const t = setTimeout(() => setNotifyPromptOpen(true), 1500)
     return () => clearTimeout(t)
-  }, [student, push.supported, push.permission, forcePassOpen, loginTime])
+  }, [student, push.supported, push.permission, forcePassOpen, loginTime, tourOpen])
 
   // Close the popup the moment permission stops being actionable.
   useEffect(() => {
@@ -463,6 +473,12 @@ export default function StudentLayout() {
       {notifyPromptOpen && (
         <Suspense fallback={null}>
           <NotifyPrompt push={push} onClose={() => setNotifyPromptOpen(false)} />
+        </Suspense>
+      )}
+
+      {tourOpen && (
+        <Suspense fallback={null}>
+          <OnboardingTour student={student} onClose={() => setTourOpen(false)} />
         </Suspense>
       )}
 
