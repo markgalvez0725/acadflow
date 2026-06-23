@@ -5065,3 +5065,43 @@ html { scroll-behavior: smooth; }
   10%  { opacity: 1; }
   100% { transform: translateY(105vh) rotate(540deg); opacity: .9; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PANEL / NAV CLEANUP (appended last — wins)
+   • Remove the decorative left accent bar on nav items.
+   • Drop all non-shadow hover motion (no lift / slide / accent reveal).
+   • Panels & cards now respond to hover with ONLY a drop shadow.
+   Semantic left borders that convey meaning (unread message, pinned post,
+   attendance present/absent/excused) are intentionally left untouched.
+══════════════════════════════════════════════════════════════════════════ */
+
+/* Left accent bars on active nav items — gone (active state still reads via
+   the highlighted background + accent text). */
+.sb-nav .nav-item.active::before,
+.student-bottom-nav .nav-item.active::before { display: none !important; }
+
+/* No slide/lift on nav hover. */
+.sb-nav .nav-item:hover,
+.student-bottom-nav .nav-item:hover,
+#student-portal .student-bottom-nav .nav-item:hover { transform: none !important; }
+
+/* Panels & cards: hover = drop shadow only. */
+.card:hover,
+#student-portal .card:hover,
+.stat-card:hover,
+.s-stat-card:hover,
+.metric-card:hover,
+.stream-card:hover,
+.feature-card:hover {
+  transform: none !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+/* Remove decorative accent strips/overlays on cards (top/bottom/edge reveals). */
+.stat-card::after,
+.s-stat-card::after,
+.metric-card::before,
+.metric-card::after,
+.feature-card::before {
+  display: none !important;
+}
