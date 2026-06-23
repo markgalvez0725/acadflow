@@ -104,6 +104,19 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
   const leftCountRef = useRef(0)     // synchronous mirror of leftCount
   const inFlightRef = useRef(false)  // suppress reset during submit/after submit
 
+  // Sequential navigation: students must answer the current question before
+  // moving forward; they can freely go back. `maxReached` is the furthest
+  // question (display index) they've unlocked. Initialise from any restored
+  // answers so a resumed draft stays navigable.
+  const [maxReached, setMaxReached] = useState(() => {
+    let m = 0
+    order.forEach((origIdx, displayIdx) => {
+      const a = answers[origIdx]
+      if (a != null && String(a).trim() !== '') m = Math.max(m, displayIdx)
+    })
+    return m
+  })
+
   // Fixed deadline anchored to the original start, so time keeps elapsing even
   // if the student backgrounds the app or turns the phone off.
   const deadline = startRef.current + totalSecs * 1000
@@ -155,6 +168,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
       setAnswers(Array(quiz.questions.length).fill(''))
       setOrder(shuffleIndices(quiz.questions.length))
       setCurrentQ(0)
+      setMaxReached(0)
       try { localStorage.removeItem(draftKey) } catch (e) { /* ignore */ }
       toast('You left the quiz — answers cleared and questions reshuffled.', 'error', 5000)
     }
@@ -241,6 +255,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
   const qi = order[currentQ] ?? currentQ // original index of the shown question
   const q = quiz.questions[qi]
   const total = quiz.questions.length
+  const currentAnswered = answers[qi] != null && String(answers[qi]).trim() !== ''
 
   // Submitted result screen
   if (submitted && finalScore) {
@@ -315,13 +330,17 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
       <div className="flex flex-wrap gap-1 mb-4">
         {quiz.questions.map((_, i) => {
           const answered = answers[order[i] ?? i]
+          const locked = i > maxReached // can't jump ahead of where you've reached
           return (
           <button
             key={i}
-            onClick={() => setCurrentQ(i)}
+            onClick={() => { if (!locked) setCurrentQ(i) }}
+            disabled={locked}
+            title={locked ? 'Answer the current question first' : `Question ${i + 1}`}
             style={{
               width: 28, height: 28, borderRadius: 6, border: '1.5px solid',
-              fontSize: 11, fontWeight: 700, cursor: 'pointer',
+              fontSize: 11, fontWeight: 700, cursor: locked ? 'not-allowed' : 'pointer',
+              opacity: locked ? 0.4 : 1,
               borderColor: i === currentQ ? 'var(--accent)' : answered ? 'var(--green)' : 'var(--border)',
               background: i === currentQ ? 'var(--accent)' : answered ? 'var(--green-l)' : 'var(--surface)',
               color: i === currentQ ? '#fff' : answered ? 'var(--green)' : 'var(--ink2)',
@@ -438,7 +457,14 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
         {currentQ < total - 1 ? (
           <button
             className="btn btn-primary btn-sm"
-            onClick={() => setCurrentQ(prev => Math.min(total - 1, prev + 1))}
+            disabled={!currentAnswered}
+            title={!currentAnswered ? 'Answer this question to continue' : 'Next question'}
+            onClick={() => {
+              if (!currentAnswered) return
+              const nx = Math.min(total - 1, currentQ + 1)
+              setCurrentQ(nx)
+              setMaxReached(m => Math.max(m, nx))
+            }}
           >
             Next →
           </button>
