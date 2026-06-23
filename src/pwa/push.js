@@ -31,9 +31,29 @@ export function vapidLooksValid(k = VAPID_KEY) {
 
 let _messaging = null
 let _lastError = ''
+let _loggedUnavailable = false
 
 /** Last human-readable push error, for surfacing in the UI. */
 export function lastPushError() { return _lastError }
+
+// Some environments simply can't register for web push (Brave / de-Googled
+// Chromium, OS-level notifications turned off, or a network that blocks the
+// push service). That's expected, not a bug — log it calmly once, and keep
+// real console.warn noise for genuinely unexpected failures.
+function isBenignPushFailure(err) {
+  const msg = (err && err.message) || ''
+  return (err && err.name === 'AbortError') || /push service error|not supported|unsupported|permission/i.test(msg)
+}
+function logPushFailure(err) {
+  if (isBenignPushFailure(err)) {
+    if (!_loggedUnavailable) {
+      _loggedUnavailable = true
+      console.info('[push] Web push isn’t available in this browser/context — in-app notifications still work.')
+    }
+    return
+  }
+  console.warn('[push] registration failed:', (err && err.message) || err)
+}
 
 // Turn a raw FCM/PushManager error into something a student can act on.
 function friendlyPushError(e) {
@@ -107,12 +127,9 @@ export async function enablePush() {
     const token = await getToken(messaging, opts)
     return token || null
   } catch (e) {
-    // The most common failure after rotating/changing the VAPID key (or after a
-    // browser update) is a "push service error": the worker still holds a push
-    // subscription created with the OLD applicationServerKey AND FCM caches the
-    // stale token, so re-subscribing with the new key is refused. Clear BOTH —
-    // FCM's cached token and the browser subscription — then retry once.
-    console.warn('[push] getToken failed, clearing stale registration and retrying:', e?.message)
+    // The first failure is often just a stale registration (old applicationServerKey
+    // after a VAPID/browser change) with FCM's token cached. Clear BOTH and retry
+    // once — quietly, since this attempt frequently succeeds.
     try { await deleteToken(messaging) } catch (e2) { /* no cached token — fine */ }
     try {
       if (swReg?.pushManager) {
@@ -124,23 +141,9 @@ export async function enablePush() {
       const token = await getToken(messaging, opts)
       return token || null
     } catch (e4) {
-      _lastError = friendlyPushError(e4 || e)
-      // One-time diagnostic — the VAPID key is PUBLIC, safe to print. Lets you
-      // confirm the deployed key matches Firebase and the context supports push.
-      try {
-        console.warn('[push] registration failed — diagnostics:', {
-          errorName: (e4 || e)?.name,
-          message: (e4 || e)?.message,
-          vapidLen: VAPID_KEY.length,
-          vapidHead: VAPID_KEY.slice(0, 10),
-          vapidTail: VAPID_KEY.slice(-6),
-          secureContext: typeof window !== 'undefined' ? window.isSecureContext : null,
-          host: typeof location !== 'undefined' ? location.hostname : null,
-          swScope: swReg?.scope || null,
-          standalone: typeof window !== 'undefined' && window.matchMedia
-            ? window.matchMedia('(display-mode: standalone)').matches : null,
-        })
-      } catch (e5) { /* ignore */ }
+      const err = e4 || e
+      _lastError = friendlyPushError(err)
+      logPushFailure(err) // calm info for unsupported environments; warn otherwise
       return null
     }
   }
