@@ -4,7 +4,8 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { relativeTime } from '@/utils/format'
 import { getStudentMessages } from '@/utils/studentMessages'
-import { groupName } from '@/utils/groupChat'
+import { groupName, isGroupMessage, groupMembers } from '@/utils/groupChat'
+import GroupMembers from '@/components/primitives/GroupMembers'
 import { isClassCurrent } from '@/utils/active'
 import { notifyAdminMessage } from '@/firebase/messageNotify'
 import { fbAddMessageReply, fbMarkMessageRead } from '@/firebase/persistence'
@@ -34,7 +35,7 @@ function loadHidden(sid) {
 function saveHidden(sid, h) { try { localStorage.setItem(hiddenKey(sid), JSON.stringify(h)) } catch (e) {} }
 
 export default function MessagesTab({ student: s, messages }) {
-  const { db, fbReady, classes, semester } = useData()
+  const { db, fbReady, classes, semester, students } = useData()
   const { toast, openDialog, pendingMessageId, clearPendingMessage } = useUI()
 
   // A group chat is "open" only while at least one of its classes is still in the
@@ -263,6 +264,9 @@ export default function MessagesTab({ student: s, messages }) {
   }
 
   if (view === 'thread') {
+    // For a group chat, show its members + read receipts (live from messages).
+    const groupMsg = replyMsgId ? messages.find(x => x.id === replyMsgId) : null
+    const showGroup = groupMsg && isGroupMessage(groupMsg)
     return (
       <div className="student-messages thread-view">
         <div className="s-thread-header">
@@ -308,6 +312,14 @@ export default function MessagesTab({ student: s, messages }) {
             )
           })}
         </div>
+
+        {showGroup && (
+          <GroupMembers
+            members={groupMembers(groupMsg, students)}
+            readerIds={Array.isArray(groupMsg.read) ? groupMsg.read : []}
+            readAt={groupMsg.readAt || {}}
+          />
+        )}
 
         {canReply ? (
           <div className="s-thread-reply-wrap">

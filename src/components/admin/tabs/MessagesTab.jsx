@@ -4,7 +4,8 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { sortByLastName } from '@/utils/format'
 import { isClassCurrent } from '@/utils/active'
-import { isGroupMessage, autoGroupName, groupName, studentTag } from '@/utils/groupChat'
+import { isGroupMessage, autoGroupName, groupName, studentTag, groupMembers } from '@/utils/groupChat'
+import GroupMembers from '@/components/primitives/GroupMembers'
 import { notifyStudentMessage, notifyStudentsBroadcast } from '@/firebase/messageNotify'
 import { fbAddMessageReply, fbDeleteMessage } from '@/firebase/persistence'
 import Modal from '@/components/primitives/Modal'
@@ -418,6 +419,11 @@ function ThreadPanel({ thread, onReply, onClose, onDelete, onRename }) {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Group members + read receipts */}
+      {thread.isGroup && (
+        <GroupMembers members={thread.members} readerIds={thread.readerIds} readAt={thread.readAt} />
+      )}
+
       {/* Reply box */}
       <ReplyBox onSend={onReply} />
     </div>
@@ -736,13 +742,17 @@ export default function MessagesTab() {
         })),
       ].sort((a, b) => a.ts - b.ts)
 
+      const group = isGroupMessage(m)
       return {
         type: 'message',
         msgId: m.id,
-        isGroup: isGroupMessage(m),
-        headerName: isGroupMessage(m) ? groupName(m, classes) : ('→ ' + recipientName),
+        isGroup: group,
+        headerName: group ? groupName(m, classes) : ('→ ' + recipientName),
         headerSub: (m.subject ? m.subject + ' · ' : '') + new Date(m.ts).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }),
         entries,
+        members: group ? groupMembers(m, students) : [],
+        readerIds: Array.isArray(m.read) ? m.read : [],
+        readAt: m.readAt || {},
       }
     }
 

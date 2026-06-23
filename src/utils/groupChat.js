@@ -43,6 +43,21 @@ export function isGroupMessage(m) {
   return m?.from === 'admin' && m?.type === 'announcement'
 }
 
+// The student members of a group chat (everyone it's delivered to).
+export function groupMembers(m, students = []) {
+  if (!m || !isGroupMessage(m)) return []
+  if (m.to === 'all') return students
+  if (typeof m.to === 'string' && m.to.startsWith('class:')) {
+    const cid = m.to.slice(6)
+    return students.filter(s => s.classId === cid || s.classIds?.includes(cid))
+  }
+  if (typeof m.to === 'string' && m.to.startsWith('subject:')) {
+    const ids = Array.isArray(m.classIds) ? m.classIds : []
+    return students.filter(s => ids.some(id => s.classId === id || s.classIds?.includes(id)))
+  }
+  return []
+}
+
 // Auto name = subject · class section(s)  (e.g. "EMCP 108 · BSEMC 2A"),
 // or the class section for a plain class broadcast.
 export function autoGroupName(m, classes = []) {

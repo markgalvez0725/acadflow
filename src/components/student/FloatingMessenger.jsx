@@ -4,14 +4,15 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { relativeTime } from '@/utils/format'
 import { getStudentMessages } from '@/utils/studentMessages'
-import { groupName } from '@/utils/groupChat'
+import { groupName, isGroupMessage, groupMembers } from '@/utils/groupChat'
+import GroupMembers from '@/components/primitives/GroupMembers'
 import { notifyAdminMessage } from '@/firebase/messageNotify'
 import { fbAddMessageReply, fbMarkMessageRead } from '@/firebase/persistence'
 import { MessageSquare, GraduationCap, CheckCheck, X, Send } from 'lucide-react'
 
 
 export default function FloatingStudentMessenger({ student: s, messages, unreadCount, open: openProp, onOpenChange }) {
-  const { db, fbReady, classes, semester } = useData()
+  const { db, fbReady, classes, semester, students } = useData()
   const { toast } = useUI()
   const [openLocal, setOpenLocal] = useState(false)
   const open = openProp !== undefined ? openProp : openLocal
@@ -326,6 +327,16 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
                   )
                 })}
               </div>
+              {(() => {
+                const gm = (threadMode === 'single' && replyMsgId) ? messages.find(x => x.id === replyMsgId) : null
+                return gm && isGroupMessage(gm) ? (
+                  <GroupMembers
+                    members={groupMembers(gm, students)}
+                    readerIds={Array.isArray(gm.read) ? gm.read : []}
+                    readAt={gm.readAt || {}}
+                  />
+                ) : null
+              })()}
               <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border)', flexShrink: 0, display: 'flex', gap: 8 }}>
                 <textarea
                   className="input"

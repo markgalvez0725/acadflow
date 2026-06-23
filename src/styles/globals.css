@@ -5200,6 +5200,37 @@ html[data-glass="on"][data-theme="dark"] body::before {
 /* Profile photo inside the round conversation avatar. */
 .msg-conv-avatar-img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 
+/* ── Group-chat members + read receipts ─────────────────────────────────── */
+.gm { border-top: 1px solid var(--border); flex-shrink: 0; }
+.gm-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 14px;
+}
+.gm-members-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: none; border: none; cursor: pointer;
+  font-size: 12px; font-weight: 600; color: var(--ink2); padding: 2px 0;
+}
+.gm-members-btn:hover { color: var(--accent); }
+.gm-seen { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.gm-seen-label { font-size: 11px; color: var(--ink3); }
+.gm-avatars { display: inline-flex; align-items: center; }
+.gm-avatars .gm-av { margin-left: -6px; box-shadow: 0 0 0 2px var(--surface); }
+.gm-avatars .gm-av:first-child { margin-left: 0; }
+.gm-more { font-size: 10px; color: var(--ink3); margin-left: 4px; }
+.gm-av {
+  border-radius: 50%; background: var(--accent-l); color: var(--accent);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700; flex-shrink: 0; overflow: hidden;
+}
+.gm-av img { width: 100%; height: 100%; object-fit: cover; }
+.gm-list { max-height: 190px; overflow-y: auto; padding: 4px 8px 8px; }
+.gm-row { display: flex; align-items: center; gap: 9px; padding: 5px 6px; border-radius: 8px; }
+.gm-row:hover { background: var(--bg2); }
+.gm-name { flex: 1; min-width: 0; font-size: 13px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gm-status { font-size: 11px; color: var(--ink3); display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; }
+.gm-status.seen { color: var(--green); }
+
 /* Selection checkbox shown in multi-select mode. */
 .msg-checkbox {
   width: 18px; height: 18px; flex-shrink: 0;
