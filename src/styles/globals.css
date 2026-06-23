@@ -5135,16 +5135,23 @@ html[data-glass="on"] .card {
 html[data-glass="on"] .glass-panel {
   background: var(--glass-bg-strong) !important;
 }
-/* Chrome (sidebar + top bars + bottom nav): use the near-opaque frost and keep
-   their OWN separating borders untouched, so nav text never washes out against
-   the page — this is what fixed the compromised left-nav in the light theme. */
-html[data-glass="on"] .sidebar,
+/* Top bars + bottom nav: near-opaque frost (short text / icons stay legible). */
 html[data-glass="on"] .admin-topbar,
 html[data-glass="on"] .student-topbar,
 html[data-glass="on"] .student-bottom-nav {
   background: var(--glass-bg-strong) !important;
   -webkit-backdrop-filter: var(--glass-blur) !important;
   backdrop-filter: var(--glass-blur) !important;
+}
+/* Left sidebar stays fully SOLID even in glass mode. Any translucency + blur
+   washed out the light-gray nav labels in the light theme (the base glass rule
+   reads var(--glass-bg), so it must be overridden explicitly here). This keeps
+   the nav identical to the readable flat look across desktop, tablet & the
+   mobile drawer, in both themes. */
+html[data-glass="on"] .sidebar {
+  background: var(--surface) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }
 /* Ambient aurora behind everything so the frosted panels have something to refract. */
 html[data-glass="on"] body::before {
