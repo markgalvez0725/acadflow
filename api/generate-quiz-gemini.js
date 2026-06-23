@@ -9,17 +9,21 @@
 // When unset, this returns 501 and the app falls back to the on-device drafter.
 //
 // Request body: { text: string, count?: number, types?: string[] }
-// Response: { questions: [{type, question, options?, answer}] }
+// Response: { questions: [{type, question, options?, answer, explanation}] }
+//
+// Each question carries an `explanation` generated in this single request, so
+// students reviewing their quiz read the teacher-provided rationale rather than
+// triggering a per-student Gemini call.
 
 import { guard } from './_guard.js'
 import { requireUser } from './_fbadmin.js'
 
 const SHAPES = {
-  multiple_choice: '{"type":"multiple_choice","question":"...","options":["A","B","C","D"],"answer":"A"}',
-  true_false: '{"type":"true_false","question":"...","answer":"True"}',
-  short_answer: '{"type":"short_answer","question":"...","answer":"..."}',
-  fill_in_the_blank: '{"type":"fill_in_the_blank","question":"The ___ is ...","answer":"word"}',
-  identification: '{"type":"identification","question":"What term refers to...?","answer":"Term"}',
+  multiple_choice: '{"type":"multiple_choice","question":"...","options":["A","B","C","D"],"answer":"A","explanation":"why the answer is correct"}',
+  true_false: '{"type":"true_false","question":"...","answer":"True","explanation":"why"}',
+  short_answer: '{"type":"short_answer","question":"...","answer":"...","explanation":"why"}',
+  fill_in_the_blank: '{"type":"fill_in_the_blank","question":"The ___ is ...","answer":"word","explanation":"why"}',
+  identification: '{"type":"identification","question":"What term refers to...?","answer":"Term","explanation":"why"}',
 }
 
 export default async function handler(req, res) {
@@ -48,6 +52,7 @@ Rules:
 - Base every question on the lesson content; do not invent facts.
 - multiple_choice must have exactly 4 options and the answer must be one of them verbatim.
 - true_false answer is exactly "True" or "False".
+- Every question MUST include a concise "explanation" (1–2 sentences) stating why the answer is correct, grounded in the lesson. This is shown to students when they review their results.
 - Output ONLY a JSON array of question objects. No prose, no markdown.
 
 LESSON:

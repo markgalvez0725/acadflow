@@ -7,7 +7,6 @@ import Badge from '@/components/primitives/Badge'
 import Modal from '@/components/primitives/Modal'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 import { activeClassIds } from '@/utils/active'
-import { aiExplainQuiz } from '@/utils/activityAI'
 import { subjectColor } from '@/utils/subjectColor'
 import { Lightbulb } from 'lucide-react'
 
@@ -40,15 +39,22 @@ function shuffleIndices(n) {
 }
 
 // ── Countdown ─────────────────────────────────────────────────────────────────
-function useCountdown(seconds) {
-  const [remaining, setRemaining] = useState(seconds)
-  const expiredRef = useRef(false)
+// Wall-clock based: time remaining is derived from a fixed deadline timestamp,
+// not a per-second decrement. This keeps the timer accurate even when the tab
+// is backgrounded or the phone is asleep (where setTimeout/Interval is paused)
+// — on return it recomputes from the real clock and resyncs immediately.
+function useCountdown(deadlineMs) {
+  const calc = () => Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000))
+  const [remaining, setRemaining] = useState(calc)
 
   useEffect(() => {
-    if (remaining <= 0) { expiredRef.current = true; return }
-    const t = setTimeout(() => setRemaining(r => r - 1), 1000)
-    return () => clearTimeout(t)
-  }, [remaining])
+    const tick = () => setRemaining(Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000)))
+    tick()
+    const id = setInterval(tick, 500)
+    const onVis = () => { if (document.visibilityState === 'visible') tick() }
+    document.addEventListener('visibilitychange', onVis)
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVis) }
+  }, [deadlineMs])
 
   const formatted = useMemo(() => {
     const m = Math.floor(remaining / 60)
@@ -98,9 +104,10 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
   const leftCountRef = useRef(0)     // synchronous mirror of leftCount
   const inFlightRef = useRef(false)  // suppress reset during submit/after submit
 
-  // Resume from the original start so time already spent is not given back.
-  const elapsedSecs = Math.floor((Date.now() - startRef.current) / 1000)
-  const { remaining, formatted, expired } = useCountdown(Math.max(0, totalSecs - elapsedSecs))
+  // Fixed deadline anchored to the original start, so time keeps elapsing even
+  // if the student backgrounds the app or turns the phone off.
+  const deadline = startRef.current + totalSecs * 1000
+  const { remaining, formatted, expired } = useCountdown(deadline)
 
   // Persist the draft on every change until the quiz is submitted.
   useEffect(() => {
@@ -130,36 +137,45 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
   // from the same pool. The timer keeps running from the original start.
   useEffect(() => {
     if (submitted) return
+    // `away` dedupes a single switch (which fires BOTH visibilitychange and
+    // blur) into one event; it clears when the student returns.
+    let away = false
     let blurTimer = null
-    const handleLeave = () => {
-      if (submitted || inFlightRef.current) return
+    const registerLeave = () => {
+      if (away || submitted || inFlightRef.current) return
+      away = true
       const n = leftCountRef.current + 1
       leftCountRef.current = n
       setLeftCount(n)
       if (n === 1) {
         // First slip — warn only, no penalty.
-        toast('Heads up — if you leave the quiz again, your answers reset and the questions reshuffle.', 'warn')
+        toast('Heads up — if you leave the quiz again, your answers reset and the questions reshuffle.', 'warn', 5000)
         return
       }
       setAnswers(Array(quiz.questions.length).fill(''))
       setOrder(shuffleIndices(quiz.questions.length))
       setCurrentQ(0)
       try { localStorage.removeItem(draftKey) } catch (e) { /* ignore */ }
-      toast('You left again — answers cleared and questions reshuffled.', 'error')
+      toast('You left the quiz — answers cleared and questions reshuffled.', 'error', 5000)
     }
-    const onVisibility = () => { if (document.hidden) handleLeave() }
-    // Window blur covers switching to another desktop app; confirm focus is
-    // really gone (a short delay) to avoid tripping on transient blurs.
-    const onBlur = () => { blurTimer = setTimeout(() => { if (!document.hasFocus()) handleLeave() }, 400) }
-    const onFocus = () => { if (blurTimer) { clearTimeout(blurTimer); blurTimer = null } }
+    const back = () => { away = false }
+    // visibilitychange: the reliable signal for tab switch, minimize, and mobile
+    // / PWA app-switch (document becomes hidden).
+    const onVisibility = () => { if (document.hidden) registerLeave(); else back() }
+    // blur: covers desktop alt-tab to another app where the tab stays "visible";
+    // confirm focus is really gone to avoid transient blurs.
+    const onBlur = () => { blurTimer = setTimeout(() => { if (!document.hasFocus()) registerLeave() }, 350) }
+    const onFocus = () => { if (blurTimer) { clearTimeout(blurTimer); blurTimer = null } back() }
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('blur', onBlur)
     window.addEventListener('focus', onFocus)
+    window.addEventListener('pagehide', registerLeave) // PWA / app fully backgrounded
     return () => {
       if (blurTimer) clearTimeout(blurTimer)
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('blur', onBlur)
       window.removeEventListener('focus', onFocus)
+      window.removeEventListener('pagehide', registerLeave)
     }
   }, [submitted, quiz.questions.length, draftKey, toast])
 
@@ -441,22 +457,11 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
 }
 
 // ── Review Modal (post-submission) ────────────────────────────────────────────
-function ReviewRow({ q, index, isCorrect, studentAns, subject }) {
-  // Prefer a teacher-authored explanation; otherwise allow an on-demand AI one.
-  const [exp, setExp] = useState(q.explanation ? String(q.explanation) : '')
-  const [busy, setBusy] = useState(false)
-
-  async function explain() {
-    setBusy(true)
-    try {
-      const text = await aiExplainQuiz({ question: q.question, correctAnswer: q.answer, studentAnswer: studentAns, subject })
-      setExp(text || 'No explanation available.')
-    } catch (e) {
-      setExp(e?.code === 501
-        ? 'Explanations aren’t available right now.'
-        : 'Couldn’t generate an explanation — try again later.')
-    } finally { setBusy(false) }
-  }
+function ReviewRow({ q, index, isCorrect, studentAns }) {
+  // Explanations are authored once when the quiz is generated (see the quiz
+  // generator / Gemini endpoint) and stored on the question — so reviewing
+  // never triggers a per-student AI request.
+  const exp = q.explanation ? String(q.explanation) : ''
 
   return (
     <div style={{
@@ -476,17 +481,13 @@ function ReviewRow({ q, index, isCorrect, studentAns, subject }) {
           Correct answer: <strong>{q.answer}</strong>
         </div>
       )}
-      {exp ? (
+      {exp && (
         <div style={{ marginTop: 8, padding: '8px 10px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
             <Lightbulb size={12} /> Explanation
           </div>
           <div style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.55 }}>{exp}</div>
         </div>
-      ) : !isCorrect && (
-        <button className="btn btn-ghost btn-sm" style={{ marginTop: 8, fontSize: 11 }} onClick={explain} disabled={busy}>
-          <Lightbulb size={13} style={{ marginRight: 4 }} />{busy ? 'Thinking…' : 'Explain this'}
-        </button>
       )}
     </div>
   )
@@ -511,7 +512,7 @@ function QuizReviewModal({ quiz, submission, onClose }) {
             isCorrect = correct && (given.includes(correct) || (correct.includes(given) && given.length >= 3))
           }
           return (
-            <ReviewRow key={i} q={q} index={i} isCorrect={isCorrect} studentAns={studentAns} subject={quiz.subject} />
+            <ReviewRow key={i} q={q} index={i} isCorrect={isCorrect} studentAns={studentAns} />
           )
         })}
       </div>

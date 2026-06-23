@@ -107,7 +107,7 @@ export function generateDraftQuestions(text, { count = 10, types = ['multiple_ch
 
     if (type === 'identification' && defs.length) {
       const d = defs.shift()
-      out.push({ id: qid(), type: 'identification', question: `What term is being described: "${cap(d.def)}"?`, answer: d.term })
+      out.push({ id: qid(), type: 'identification', question: `What term is being described: "${cap(d.def)}"?`, answer: d.term, explanation: `The lesson defines ${d.term} as: ${d.def}.` })
       continue
     }
     if (type === 'fill_in_the_blank') {
@@ -115,7 +115,7 @@ export function generateDraftQuestions(text, { count = 10, types = ['multiple_ch
       if (hit) {
         usedSentences.add(hit.s)
         const re = new RegExp('\\b' + hit.term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i')
-        out.push({ id: qid(), type: 'fill_in_the_blank', question: hit.s.replace(re, '___'), answer: hit.term })
+        out.push({ id: qid(), type: 'fill_in_the_blank', question: hit.s.replace(re, '___'), answer: hit.term, explanation: `From the lesson: "${hit.s}"` })
         continue
       }
     }
@@ -128,7 +128,7 @@ export function generateDraftQuestions(text, { count = 10, types = ['multiple_ch
         const distractors = pickDistractors(hit.term, terms, 3)
         if (distractors.length === 3) {
           const options = shuffle([hit.term, ...distractors])
-          out.push({ id: qid(), type: 'multiple_choice', question: `Fill in the blank: ${stem}`, options, answer: hit.term })
+          out.push({ id: qid(), type: 'multiple_choice', question: `Fill in the blank: ${stem}`, options, answer: hit.term, explanation: `From the lesson: "${hit.s}"` })
           continue
         }
       }
@@ -138,7 +138,7 @@ export function generateDraftQuestions(text, { count = 10, types = ['multiple_ch
         const distractors = pickDistractors(d.term, terms, 3)
         if (distractors.length === 3) {
           const options = shuffle([d.term, ...distractors])
-          out.push({ id: qid(), type: 'multiple_choice', question: `Which term means: "${cap(d.def)}"?`, options, answer: d.term })
+          out.push({ id: qid(), type: 'multiple_choice', question: `Which term means: "${cap(d.def)}"?`, options, answer: d.term, explanation: `The lesson describes ${d.term} as: ${d.def}.` })
           continue
         }
       }
@@ -154,11 +154,11 @@ export function generateDraftQuestions(text, { count = 10, types = ['multiple_ch
           const swap = present ? pickDistractors(present, terms, 1)[0] : null
           if (present && swap) {
             const re = new RegExp('\\b' + present.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i')
-            out.push({ id: qid(), type: 'true_false', question: s.replace(re, swap), answer: 'False' })
+            out.push({ id: qid(), type: 'true_false', question: s.replace(re, swap), answer: 'False', explanation: `False — the lesson refers to "${present}", not "${swap}".` })
             continue
           }
         }
-        out.push({ id: qid(), type: 'true_false', question: s, answer: 'True' })
+        out.push({ id: qid(), type: 'true_false', question: s, answer: 'True', explanation: 'This statement is taken directly from the lesson.' })
         continue
       }
     }
@@ -166,7 +166,7 @@ export function generateDraftQuestions(text, { count = 10, types = ['multiple_ch
       const s = sentences.find(x => !usedSentences.has(x))
       if (s) {
         usedSentences.add(s)
-        out.push({ id: qid(), type: 'short_answer', question: `In your own words, explain: "${cap(s.split(' ').slice(0, 12).join(' '))}…"`, answer: s })
+        out.push({ id: qid(), type: 'short_answer', question: `In your own words, explain: "${cap(s.split(' ').slice(0, 12).join(' '))}…"`, answer: s, explanation: `Model answer from the lesson: "${s}"` })
         continue
       }
     }
@@ -175,12 +175,12 @@ export function generateDraftQuestions(text, { count = 10, types = ['multiple_ch
     if (hit && want('fill_in_the_blank')) {
       usedSentences.add(hit.s)
       const re = new RegExp('\\b' + hit.term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i')
-      out.push({ id: qid(), type: 'fill_in_the_blank', question: hit.s.replace(re, '___'), answer: hit.term })
+      out.push({ id: qid(), type: 'fill_in_the_blank', question: hit.s.replace(re, '___'), answer: hit.term, explanation: `From the lesson: "${hit.s}"` })
     } else {
       const s = sentences.find(x => !usedSentences.has(x))
       if (!s) break
       usedSentences.add(s)
-      out.push({ id: qid(), type: 'true_false', question: s, answer: 'True' })
+      out.push({ id: qid(), type: 'true_false', question: s, answer: 'True', explanation: 'This statement is taken directly from the lesson.' })
     }
   }
 
