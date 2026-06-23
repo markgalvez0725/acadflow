@@ -1,10 +1,33 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { useData } from '@/context/DataContext'
 import { Video, Radio, ExternalLink, Clock, ChevronDown, ChevronUp } from 'lucide-react'
 import { activeClassIds } from '@/utils/active'
 
+const IMMINENT_MS = 15 * 60 * 1000 // a class "starting soon" — show one-tap join
+
+// Re-render on an interval so countdowns stay live while the tab is open.
+function useNow(intervalMs = 30000) {
+  const [now, setNow] = useState(() => Date.now())
+  const ref = useRef(null)
+  useEffect(() => {
+    ref.current = setInterval(() => setNow(Date.now()), intervalMs)
+    return () => clearInterval(ref.current)
+  }, [intervalMs])
+  return now
+}
+
+function untilLabel(ms) {
+  if (ms <= 0) return 'now'
+  const m = Math.floor(ms / 60000), h = Math.floor(m / 60), d = Math.floor(h / 24)
+  if (d > 0) return `in ${d}d ${h % 24}h`
+  if (h > 0) return `in ${h}h ${m % 60}m`
+  if (m > 0) return `in ${m}m`
+  return `in ${Math.max(1, Math.ceil(ms / 1000))}s`
+}
+
 export default function OnlineClassesTab({ student }) {
   const { meetings, classes, semester } = useData()
+  const now = useNow(30000)
 
   const studentClassIds = useMemo(
     () => activeClassIds(student, classes, semester),
@@ -25,6 +48,13 @@ export default function OnlineClassesTab({ student }) {
     myMeetings.filter(m => m.status === 'scheduled')
       .sort((a, b) => a.scheduledAt - b.scheduledAt),
     [myMeetings]
+  )
+
+  // Scheduled classes whose start is within the next 15 minutes (or just past,
+  // before the teacher flips them live) — these get a one-tap Join.
+  const imminent = useMemo(() =>
+    upcoming.filter(m => m.scheduledAt - now <= IMMINENT_MS),
+    [upcoming, now]
   )
 
   const past = useMemo(() =>
@@ -73,12 +103,43 @@ export default function OnlineClassesTab({ student }) {
       </section>
 
       {/* Live Now Banners */}
-      {panel === 'live' && liveMeetings.length === 0 && (
+      {panel === 'live' && liveMeetings.length === 0 && imminent.length === 0 && (
         <div className="empty">
           <div className="empty-icon"><Radio size={36} /></div>
           No live class right now.
         </div>
       )}
+
+      {/* Starting soon — one-tap join for classes about to begin */}
+      {panel === 'live' && imminent.map(m => {
+        const ms = m.scheduledAt - now
+        return (
+          <div key={m.id} style={{
+            background: 'var(--accent-l)',
+            border: '1.5px solid color-mix(in srgb, var(--accent) 45%, transparent)',
+            borderRadius: 12, padding: '16px 20px',
+            display: 'flex', alignItems: 'center', gap: 16,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              <Clock size={20} style={{ color: 'var(--accent)' }} />
+              <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent)', letterSpacing: '0.06em' }}>SOON</span>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 15 }}>{m.title}</div>
+              <div style={{ fontSize: 12, color: 'var(--ink3)' }}>
+                {meetingClassLabel(m, classNameById)} · starts {untilLabel(ms)}
+              </div>
+            </div>
+            {m.meetLink ? (
+              <a href={m.meetLink} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm" style={{ flexShrink: 0 }}>
+                <ExternalLink size={14} style={{ marginRight: 6 }} /> Join
+              </a>
+            ) : (
+              <span style={{ fontSize: 12, color: 'var(--ink3)', flexShrink: 0 }}>Link not set</span>
+            )}
+          </div>
+        )
+      })}
 
       {panel === 'live' && liveMeetings.map(m => (
         <div key={m.id} style={{
@@ -132,12 +193,23 @@ export default function OnlineClassesTab({ student }) {
               const dt = new Date(m.scheduledAt)
               const dateStr = dt.toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
               const timeStr = dt.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })
+              const ms = m.scheduledAt - now
+              const soon = ms <= IMMINENT_MS
               return (
-                <div key={m.id} className="card" style={{ padding: '12px 16px' }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>{m.title}</div>
-                  <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 4 }}>{meetingClassLabel(m, classNameById)}</div>
-                  <div style={{ fontSize: 12, color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Clock size={12} /> {dateStr} at {timeStr}
+                <div key={m.id} className="card" style={{ padding: '12px 16px', border: soon ? '1px solid color-mix(in srgb, var(--accent) 45%, transparent)' : undefined }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>{m.title}</div>
+                      <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 4 }}>{meetingClassLabel(m, classNameById)}</div>
+                      <div style={{ fontSize: 12, color: soon ? 'var(--accent)' : 'var(--ink3)', display: 'flex', alignItems: 'center', gap: 4, fontWeight: soon ? 700 : 400 }}>
+                        <Clock size={12} /> {dateStr} at {timeStr} · starts {untilLabel(ms)}
+                      </div>
+                    </div>
+                    {m.meetLink && (
+                      <a href={m.meetLink} target="_blank" rel="noopener noreferrer" className={`btn btn-sm ${soon ? 'btn-primary' : 'btn-ghost'}`} style={{ flexShrink: 0 }}>
+                        <ExternalLink size={13} style={{ marginRight: 5 }} />Join
+                      </a>
+                    )}
                   </div>
                   {m.description && (
                     <div style={{ fontSize: 12, color: 'var(--ink2)', marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--border)' }}>
