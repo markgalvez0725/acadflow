@@ -3,7 +3,7 @@
 // user denies permission, or no VAPID key is configured, every function here
 // resolves to a harmless no-op. Nothing in the existing app depends on it.
 import { getApp } from 'firebase/app'
-import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging'
+import { getMessaging, getToken, deleteToken, onMessage, isSupported } from 'firebase/messaging'
 import { getSWRegistration } from './registerSW'
 
 // Web Push certificate ("VAPID key") from Firebase Console →
@@ -19,6 +19,16 @@ let _lastError = ''
 
 /** Last human-readable push error, for surfacing in the UI. */
 export function lastPushError() { return _lastError }
+
+// Turn a raw FCM/PushManager error into something a student can act on.
+function friendlyPushError(e) {
+  const m = (e && e.message) || ''
+  if (/push service error|Registration failed|AbortError/i.test(m)) {
+    return 'Your browser couldn’t register for push notifications. Close and reopen AcadFlow and try again — some browsers and in-app/private windows don’t support web push.'
+  }
+  if (/permission/i.test(m)) return 'Notifications are blocked. Enable them in your browser settings.'
+  return m || 'Push registration failed.'
+}
 
 export async function pushSupported() {
   try {
@@ -58,12 +68,14 @@ export async function enablePush() {
   const messaging = getMessagingInstance()
   if (!messaging) return null
 
-  // Reuse the already-registered offline service worker so we don't register
-  // a second worker for the same scope.
-  let swReg = getSWRegistration()
-  if (!swReg && 'serviceWorker' in navigator) {
+  // Reuse the already-registered offline service worker (root scope) so we
+  // don't register a second worker. Prefer the *ready* (activated) registration
+  // — getToken fails if the worker isn't active yet.
+  let swReg
+  if ('serviceWorker' in navigator) {
     try { swReg = await navigator.serviceWorker.ready } catch { swReg = undefined }
   }
+  if (!swReg) swReg = getSWRegistration() || undefined
 
   const opts = {
     vapidKey: VAPID_KEY,
@@ -75,22 +87,25 @@ export async function enablePush() {
     const token = await getToken(messaging, opts)
     return token || null
   } catch (e) {
-    // The most common failure after rotating/changing the VAPID key is a
-    // "push service error": the service worker still holds a push subscription
-    // created with the OLD applicationServerKey, and the push service refuses
-    // to re-subscribe with the new key. Clearing the stale subscription and
-    // retrying once resolves it. (Harmless if there is no subscription.)
-    console.warn('[push] getToken failed, clearing stale subscription and retrying:', e?.message)
+    // The most common failure after rotating/changing the VAPID key (or after a
+    // browser update) is a "push service error": the worker still holds a push
+    // subscription created with the OLD applicationServerKey AND FCM caches the
+    // stale token, so re-subscribing with the new key is refused. Clear BOTH —
+    // FCM's cached token and the browser subscription — then retry once.
+    console.warn('[push] getToken failed, clearing stale registration and retrying:', e?.message)
+    try { await deleteToken(messaging) } catch (e2) { /* no cached token — fine */ }
     try {
       if (swReg?.pushManager) {
         const sub = await swReg.pushManager.getSubscription()
         if (sub) await sub.unsubscribe()
       }
+    } catch (e3) { /* nothing to clear — fine */ }
+    try {
       const token = await getToken(messaging, opts)
       return token || null
-    } catch (e2) {
-      _lastError = e2?.message || e?.message || 'Push registration failed.'
-      console.warn('[push] getToken failed after retry:', _lastError)
+    } catch (e4) {
+      _lastError = friendlyPushError(e4 || e)
+      console.warn('[push] getToken failed after retry:', e4?.message || e?.message)
       return null
     }
   }
