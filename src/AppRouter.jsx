@@ -9,9 +9,10 @@ const AdminLoginScreen = React.lazy(() => import('@/components/auth/AdminLoginSc
 const AdminLayout      = React.lazy(() => import('@/components/admin/AdminLayout'))
 const StudentLayout    = React.lazy(() => import('@/components/student/StudentLayout'))
 const CommandPalette   = React.lazy(() => import('@/components/primitives/CommandPalette'))
+const QuickUnlock      = React.lazy(() => import('@/components/auth/QuickUnlock'))
 
 export default function AppRouter() {
-  const { sessionRole } = useAuth()
+  const { sessionRole, pinLocked } = useAuth()
   const { fbReady }     = useData()
   const { startLoading, stopLoading } = useUI()
   const isAdminPath = window.location.pathname.startsWith('/admin')
@@ -32,6 +33,8 @@ export default function AppRouter() {
       {!sessionRole && (isAdminPath ? <AdminLoginScreen /> : <LoginScreen />)}
       {/* Global Ctrl/⌘-K command palette — only when authenticated */}
       {sessionRole && <CommandPalette />}
+      {/* Quick-unlock lock screen — covers the app when the session is idle-locked */}
+      {sessionRole && pinLocked && <QuickUnlock />}
     </React.Suspense>
   )
 }

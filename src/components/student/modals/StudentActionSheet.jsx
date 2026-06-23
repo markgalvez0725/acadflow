@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Pencil, KeyRound, LogOut, Bell, BellRing, Moon, Sun } from 'lucide-react'
+import { Pencil, KeyRound, LogOut, Bell, BellRing, Moon, Sun, Lock } from 'lucide-react'
 import { useUI } from '@/context/UIContext'
 
 /**
@@ -21,6 +21,7 @@ export default function StudentActionSheet({
   onEditProfile,
   onChangePassword,
   onNotifPrefs,
+  onSetPin,
   onLogout,
   student,
   push,
@@ -62,6 +63,11 @@ export default function StudentActionSheet({
       label: 'Notification Preferences',
       Icon: Bell,
       onClick: () => { onClose(); onNotifPrefs?.() },
+    },
+    {
+      label: 'App Lock PIN',
+      Icon: Lock,
+      onClick: () => { onClose(); onSetPin?.() },
     },
     {
       label: theme === 'dark' ? 'Light mode' : 'Dark mode',

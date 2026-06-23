@@ -38,6 +38,7 @@ const EditProfileModal         = lazy(() => import('./modals/EditProfileModal'))
 const ForceChangePasswordModal = lazy(() => import('./modals/ForceChangePasswordModal'))
 const StudentActionSheet       = lazy(() => import('./modals/StudentActionSheet'))
 const NotifPrefsModal          = lazy(() => import('./modals/NotifPrefsModal'))
+const SetQuickPinModal         = lazy(() => import('./modals/SetQuickPinModal'))
 const NotifyPrompt             = lazy(() => import('./NotifyPrompt'))
 const OnboardingTour           = lazy(() => import('./OnboardingTour'))
 
@@ -143,6 +144,7 @@ export default function StudentLayout() {
   const [profileOpen, setProfileOpen] = useState(false)
   const [actionSheetOpen, setActionSheetOpen] = useState(false)
   const [notifPrefsOpen, setNotifPrefsOpen] = useState(false)
+  const [pinModalOpen, setPinModalOpen] = useState(false)
 
   // First-run onboarding tour — once per device, never during a forced reset.
   const [tourOpen, setTourOpen] = useState(false)
@@ -458,6 +460,7 @@ export default function StudentLayout() {
           onEditProfile={() => setProfileOpen(true)}
           onChangePassword={() => { setForcePassIsForced(false); setForcePassOpen(true) }}
           onNotifPrefs={() => setNotifPrefsOpen(true)}
+          onSetPin={() => setPinModalOpen(true)}
           onLogout={() => logout('manual')}
           student={student}
           push={push}
@@ -479,6 +482,12 @@ export default function StudentLayout() {
       {tourOpen && (
         <Suspense fallback={null}>
           <OnboardingTour student={student} onClose={() => setTourOpen(false)} />
+        </Suspense>
+      )}
+
+      {pinModalOpen && (
+        <Suspense fallback={null}>
+          <SetQuickPinModal onClose={() => setPinModalOpen(false)} />
         </Suspense>
       )}
 

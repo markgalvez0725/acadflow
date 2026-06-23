@@ -4,6 +4,7 @@ import { doc, getDoc } from 'firebase/firestore'
 import { hashPassword } from '@/utils/crypto'
 import { genOTP, verifyOTP, consumeOTP } from '@/utils/otp'
 import { isLockedOut, recordFailedAttempt, clearAttempts } from '@/utils/validate'
+import { hasQuickPin, setQuickPin, verifyQuickPin, clearQuickPin } from '@/utils/quickPin'
 import { getFbAuth, getDb } from '@/firebase/firebaseInit'
 import { ADMIN_EMAIL, studentEmail, studentDocId } from '@/constants/auth'
 
@@ -28,6 +29,7 @@ export function AuthProvider({ children }) {
   const [currentStudent, setCurrentStudent] = useState(null)
   const [loginTime, setLoginTime]           = useState(null) // ms timestamp of current login
   const [lastLogin, setLastLogin]           = useState(null) // ms timestamp of previous login
+  const [pinLocked, setPinLocked]           = useState(false) // quick-unlock gate (session kept, app hidden)
   const sessionTimerRef = useRef(null)
   // OTP sessions: { ctx: { code, expires, email } }
   const otpSessionsRef = useRef({})
@@ -38,8 +40,9 @@ export function AuthProvider({ children }) {
   }, [])
 
   // ── Inactivity timer ────────────────────────────────────────────────────
+  // Skipped while pin-locked: the timer is paused and re-armed on unlock.
   useEffect(() => {
-    if (!sessionRole) return
+    if (!sessionRole || pinLocked) return
     const events = ['click', 'keydown', 'mousemove', 'touchstart']
     const reset = () => _resetTimer()
     events.forEach(e => window.addEventListener(e, reset, { passive: true }))
@@ -49,9 +52,9 @@ export function AuthProvider({ children }) {
       if (document.visibilityState !== 'visible') return
       try {
         const raw = localStorage.getItem(SESSION_KEY)
-        if (!raw) return logout('timeout')
+        if (!raw) return _maybeLockOrLogout('timeout')
         const sess = JSON.parse(raw)
-        if (Date.now() - sess.ts > SESSION_TIMEOUT_MS) logout('timeout')
+        if (Date.now() - sess.ts > SESSION_TIMEOUT_MS) _maybeLockOrLogout('timeout')
       } catch (e) {}
     }
     document.addEventListener('visibilitychange', onVisibility)
@@ -62,7 +65,21 @@ export function AuthProvider({ children }) {
       document.removeEventListener('visibilitychange', onVisibility)
       clearTimeout(sessionTimerRef.current)
     }
-  }, [sessionRole])
+  }, [sessionRole, pinLocked])
+
+  // When the session is idle-expired, prefer a PIN lock (keep the Firebase
+  // session, just hide the app) if the user set a quick-unlock PIN and is still
+  // signed in. Otherwise fall back to a full logout.
+  function _maybeLockOrLogout(reason) {
+    let fbUser = null
+    try { fbUser = getFbAuth()?.currentUser } catch (e) {}
+    if (sessionRole && fbUser && hasQuickPin(sessionRole, currentStudent?.id)) {
+      clearTimeout(sessionTimerRef.current)
+      setPinLocked(true)
+    } else {
+      logout(reason)
+    }
+  }
 
   function _resetTimer() {
     clearTimeout(sessionTimerRef.current)
@@ -75,7 +92,7 @@ export function AuthProvider({ children }) {
         localStorage.setItem(SESSION_KEY, JSON.stringify(sess))
       }
     } catch (e) {}
-    sessionTimerRef.current = setTimeout(() => logout('timeout'), SESSION_TIMEOUT_MS)
+    sessionTimerRef.current = setTimeout(() => _maybeLockOrLogout('timeout'), SESSION_TIMEOUT_MS)
   }
 
   function _startSession(role, studentObj = null) {
@@ -205,6 +222,7 @@ export function AuthProvider({ children }) {
     try { const a = getFbAuth(); if (a) signOut(a) } catch (e) {}
     try { localStorage.removeItem(SESSION_KEY) } catch (e) {}
     otpSessionsRef.current = {}
+    setPinLocked(false)
     setSessionRole(null)
     setCurrentStudent(null)
     setLoginTime(null)
@@ -213,6 +231,29 @@ export function AuthProvider({ children }) {
       console.log('[Auth] Session expired — logged out.')
     }
   }, [])
+
+  // ── Quick-unlock PIN ──────────────────────────────────────────────────────
+  // Verify the PIN to lift the lock (refreshes the session timestamp). Wrong
+  // attempts are rate-limited; "use password instead" is a plain logout().
+  const unlockWithPin = useCallback(async (pin) => {
+    const id = currentStudent?.id
+    const key = 'pin_' + (sessionRole === 'admin' ? 'admin' : (id || 'student'))
+    const lockMsg = isLockedOut(key)
+    if (lockMsg) return { ok: false, msg: lockMsg }
+    const ok = await verifyQuickPin(sessionRole, id, pin)
+    if (!ok) { recordFailedAttempt(key); return { ok: false, msg: 'Incorrect PIN.' } }
+    clearAttempts(key)
+    try {
+      const raw = localStorage.getItem(SESSION_KEY)
+      if (raw) { const s = JSON.parse(raw); s.ts = Date.now(); localStorage.setItem(SESSION_KEY, JSON.stringify(s)) }
+    } catch (e) {}
+    setPinLocked(false)
+    return { ok: true }
+  }, [sessionRole, currentStudent])
+
+  const setSessionPin   = useCallback(async (pin) => { await setQuickPin(sessionRole, currentStudent?.id, pin) }, [sessionRole, currentStudent])
+  const clearSessionPin = useCallback(() => clearQuickPin(sessionRole, currentStudent?.id), [sessionRole, currentStudent])
+  const sessionHasPin   = useCallback(() => hasQuickPin(sessionRole, currentStudent?.id), [sessionRole, currentStudent])
 
   // ── OTP helpers ─────────────────────────────────────────────────────────
   const createOTP = useCallback((ctx, email) => {
@@ -237,6 +278,7 @@ export function AuthProvider({ children }) {
       loginAdmin, loginStudent, logout,
       createOTP, checkOTP, clearOTP,
       hashPassword,
+      pinLocked, unlockWithPin, setSessionPin, clearSessionPin, sessionHasPin,
     }}>
       {children}
     </AuthContext.Provider>
