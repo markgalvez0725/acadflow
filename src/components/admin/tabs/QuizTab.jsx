@@ -9,6 +9,7 @@ import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { extractTextFromFile } from '@/utils/lessonExtract'
 import { generateDraftQuestions } from '@/utils/quizGen'
+import { quizItemAnalysis } from '@/utils/quizStats'
 import { getIdToken } from '@/firebase/firebaseInit'
 
 
@@ -523,8 +524,64 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
   )
 }
 
+// ── Item analysis: per-question performance across all submissions ─────────────
+function QuizItemAnalysis({ quiz }) {
+  const { responseCount, items } = useMemo(() => quizItemAnalysis(quiz), [quiz])
+
+  if (!responseCount) {
+    return <div style={{ fontSize: 12, color: 'var(--ink2)', padding: '8px 0' }}>No submissions yet — analysis appears once students have taken the quiz.</div>
+  }
+
+  const avgPct = Math.round(items.reduce((t, it) => t + it.correctPct, 0) / (items.length || 1))
+  const hardest = [...items].sort((a, b) => a.correctPct - b.correctPct)[0]
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
+        Based on <strong>{responseCount}</strong> submission{responseCount === 1 ? '' : 's'} · class average <strong>{avgPct}%</strong> correct
+        {hardest && hardest.correctPct < 60 && <> · hardest: <strong>Q{hardest.index + 1}</strong> ({hardest.correctPct}%)</>}
+      </div>
+      {items.map(it => {
+        const col = it.correctPct >= 75 ? 'var(--green)' : it.correctPct >= 50 ? 'var(--yellow)' : 'var(--red)'
+        return (
+          <div key={it.index} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <span style={{ fontWeight: 700, fontSize: 12, color: 'var(--ink2)', flexShrink: 0 }}>Q{it.index + 1}</span>
+              <span style={{ fontSize: 13, color: 'var(--ink)', flex: 1, minWidth: 0 }}>{it.question}</span>
+              <span style={{ fontWeight: 700, fontSize: 13, color: col, flexShrink: 0 }}>{it.correctPct}%</span>
+            </div>
+            <div style={{ height: 6, borderRadius: 3, background: 'var(--surface2)', marginTop: 6, overflow: 'hidden' }}>
+              <div style={{ width: `${it.correctPct}%`, height: '100%', background: col }} />
+            </div>
+            {it.options && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {it.options.map((o, oi) => (
+                  <span key={oi} style={{
+                    fontSize: 11, padding: '2px 7px', borderRadius: 6,
+                    background: o.isCorrect ? 'var(--green-l)' : 'var(--surface2)',
+                    color: o.isCorrect ? 'var(--green)' : 'var(--ink2)',
+                    fontWeight: o.isCorrect ? 700 : 500,
+                  }}>
+                    {o.text || '—'} · {o.count}
+                  </span>
+                ))}
+              </div>
+            )}
+            {!it.options && it.topWrong && (
+              <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 6 }}>
+                Most common wrong answer: <strong style={{ color: 'var(--ink2)' }}>{it.topWrong.text}</strong> ({it.topWrong.count})
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ── View Results Modal ────────────────────────────────────────────────────────
 function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
+  const [showAnalysis, setShowAnalysis] = useState(false)
   const { students } = useData()
   const { toast, openDialog } = useUI()
   const { db } = useData()
@@ -638,6 +695,20 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
             })}
           </tbody>
         </table>
+      </div>
+
+      {/* Item analysis — per-question performance */}
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginBottom: 12 }}>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          onClick={() => setShowAnalysis(v => !v)}
+          style={{ marginBottom: showAnalysis ? 10 : 0 }}
+        >
+          <ClipboardList size={13} className="inline-block mr-1" />
+          {showAnalysis ? 'Hide item analysis' : 'Item analysis'}
+        </button>
+        {showAnalysis && <QuizItemAnalysis quiz={quiz} />}
       </div>
 
       <div className="flex gap-2 flex-wrap">
