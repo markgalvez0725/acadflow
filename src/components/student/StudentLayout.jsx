@@ -155,10 +155,20 @@ export default function StudentLayout() {
     if (!student?.id || !semester) return
     const subs = activeSubjects(student, classes, semester)
     const passed = computePassedSubjects(student, subs, eqScale)
-    if (!passed.length) return
     const key = `passed_celebrated:${student.id}:${semester?.label || semester?.id || 'sem'}`
+    const raw = (() => { try { return localStorage.getItem(key) } catch (e) { return null } })()
+
+    // First run for this student+semester: silently baseline whatever is already
+    // passing so historical passes don't celebrate — only NEW passes after this
+    // point trigger the congrats overlay.
+    if (raw === null) {
+      try { localStorage.setItem(key, JSON.stringify(passed.map(p => p.subject))) } catch (e) { /* ignore */ }
+      return
+    }
+
+    if (!passed.length) return
     let seen = []
-    try { seen = JSON.parse(localStorage.getItem(key) || '[]') } catch (e) { seen = [] }
+    try { seen = JSON.parse(raw) || [] } catch (e) { seen = [] }
     const fresh = passed.filter(p => !seen.includes(p.subject))
     if (!fresh.length) return
     // Mark every currently-passed subject seen so it never re-triggers.
