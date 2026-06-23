@@ -16,7 +16,7 @@ import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { useReminders } from '@/hooks/useReminders'
 import { activeClasses, activeClassIds } from '@/utils/active'
 import { isNotifAllowed } from '@/utils/notifPrefs'
-import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare, Library } from 'lucide-react'
+import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare, Library, ListChecks } from 'lucide-react'
 
 // Lazy-load tabs
 const StreamTab        = lazy(() => import('./tabs/StreamTab'))
@@ -24,6 +24,7 @@ const OverviewTab      = lazy(() => import('./tabs/OverviewTab'))
 const GradesTab        = lazy(() => import('./tabs/GradesTab'))
 const AttendanceTab    = lazy(() => import('./tabs/AttendanceTab'))
 const ActivitiesTab    = lazy(() => import('./tabs/ActivitiesTab'))
+const AssignmentsTab   = lazy(() => import('./tabs/AssignmentsTab'))
 const NotificationsTab = lazy(() => import('./tabs/NotificationsTab'))
 const StudentQuizTab   = lazy(() => import('./tabs/QuizTab'))
 const CalendarTab      = lazy(() => import('./tabs/CalendarTab'))
@@ -45,6 +46,7 @@ const TAB_TITLES = {
   grades:        ['Grades',         'Your grades by subject'],
   attendance:    ['Attendance',     'Your attendance record'],
   activities:    ['Activities',     'Submit and track your activities'],
+  assignments:   ['Assignments',    'Every task across your subjects'],
   quizzes:       ['Quizzes',        'Take and review quizzes'],
   notifications: ['Notifications',  'Your alerts'],
   calendar:      ['Calendar',       'Deadlines and events'],
@@ -62,6 +64,7 @@ const MOBILE_NAV = [
   { id: 'quizzes',    Icon: FileQuestion,    label: 'Quizzes', badgeId: 'quiz' },
 ]
 const MORE_NAV = [
+  { id: 'assignments',   Icon: ListChecks,          label: 'Assignments' },
   { id: 'stream',        Icon: Rss,                 label: 'Stream' },
   { id: 'attendance',    Icon: CalendarCheck,       label: 'Attendance' },
   { id: 'calendar',      Icon: CalendarDays,        label: 'Calendar' },
@@ -352,6 +355,7 @@ export default function StudentLayout() {
               {studentTab === 'grades'        && <GradesTab        student={student} viewClassId={effectiveClassId} classes={classes} />}
               {studentTab === 'attendance'    && <AttendanceTab    student={student} viewClassId={effectiveClassId} classes={classes} />}
               {studentTab === 'activities'    && <ActivitiesTab    student={student} viewClassId={effectiveClassId} activities={activities} />}
+              {studentTab === 'assignments'   && <AssignmentsTab   student={student} classes={classes} />}
               {studentTab === 'quizzes'       && <StudentQuizTab   student={student} viewClassId={effectiveClassId} />}
               {studentTab === 'notifications' && <NotificationsTab student={student} notifs={studentNotifs} setNotifs={setStudentNotifs} />}
               {studentTab === 'calendar'      && <CalendarTab      student={student} viewClassId={effectiveClassId} classes={classes} />}
