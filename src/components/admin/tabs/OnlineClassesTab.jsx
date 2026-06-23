@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { Video, CalendarPlus, Clock, VideoOff, Trash2, CheckCircle, Radio, Play } from 'lucide-react'
+import { Video, CalendarPlus, Clock, VideoOff, Trash2, CheckCircle, Radio, Play, Info } from 'lucide-react'
 import LiveMeetingRoom from '@/components/online/LiveMeetingRoom'
 
 export default function OnlineClassesTab() {
@@ -121,9 +121,15 @@ export default function OnlineClassesTab() {
             <Radio size={18} /> Start a live class
           </div>
         </div>
-        <p style={{ fontSize: 13, color: 'var(--ink3)', margin: '0 0 14px' }}>
+        <p style={{ fontSize: 13, color: 'var(--ink3)', margin: '0 0 12px' }}>
           Pick a class to open AcadFlow's built-in meeting room right now. Students in that class are notified and can join in one tap — no links to set up.
         </p>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 14px', marginBottom: 16, background: 'var(--accent-l)', border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)', borderRadius: 10 }}>
+          <Info size={16} style={{ color: 'var(--accent)', flexShrink: 0, marginTop: 1 }} />
+          <div style={{ fontSize: 12.5, color: 'var(--ink2)', lineHeight: 1.5 }}>
+            <strong style={{ color: 'var(--ink)' }}>First time hosting?</strong> The video service (Jitsi) may ask you to sign in with a Google account the first time you start a class — this confirms you as the host. It's a one-time step per browser; do it a minute before class and students can join straight away.
+          </div>
+        </div>
         {activeClasses.length === 0 ? (
           <div className="empty"><div className="empty-icon"><Video size={36} /></div>No classes found. Add classes first.</div>
         ) : (
