@@ -5,6 +5,9 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import Badge from '@/components/primitives/Badge'
+import MentionInput from '@/components/primitives/MentionInput'
+import { resolveMentions } from '@/utils/mentions'
+import { notifyMention } from '@/firebase/messageNotify'
 import { Megaphone, Plus, Trash2, CalendarOff, Video, BookOpen, ToggleLeft, ToggleRight, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered, Clock } from 'lucide-react'
 
 // ── HTML Sanitization Config ──────────────────────────────────────────
@@ -134,8 +137,22 @@ function RichTextEditor({ value, onChange, placeholder, rows = 3 }) {
 
 // ── Comments Section ───────────────────────────────────────────────────
 function CommentsSection({ ann, authorId, authorName, role }) {
-  const { addAnnouncementComment, addCommentReply } = useData()
+  const { addAnnouncementComment, addCommentReply, students, db } = useData()
   const comments = ann.comments || []
+
+  // Students the teacher can @mention — scoped to the announcement's class.
+  const mentionCandidates = useMemo(() => {
+    const all = ann.classId === 'all' || !ann.classId
+    return (students || [])
+      .filter(x => all || (x.classIds || []).includes(ann.classId) || x.classId === ann.classId)
+      .map(x => ({ id: x.id, name: x.name || x.id }))
+  }, [students, ann.classId])
+
+  function fireMentions(body) {
+    const ids = resolveMentions(body, mentionCandidates).filter(id => id !== authorId)
+    if (!ids.length || !db?.current) return
+    ids.forEach(id => notifyMention(db.current, id, { fromName: authorName || 'Your teacher', snippet: body, link: 'stream' }))
+  }
 
   const [text, setText] = useState('')
   const [posting, setPosting] = useState(false)
@@ -162,6 +179,7 @@ function CommentsSection({ ann, authorId, authorName, role }) {
         replies: [],
       }
       await addAnnouncementComment(ann.id, comment)
+      fireMentions(comment.text)
       setText('')
     } finally {
       setPosting(false)
@@ -181,6 +199,7 @@ function CommentsSection({ ann, authorId, authorName, role }) {
         createdAt: Date.now(),
       }
       await addCommentReply(ann.id, commentId, reply)
+      fireMentions(reply.text)
       setReplyText('')
       setReplyTo(null)
     } finally {
@@ -267,14 +286,15 @@ function CommentsSection({ ann, authorId, authorName, role }) {
           {/* Reply input */}
           {replyTo === c.id && (
             <div style={{ marginLeft: 36, marginTop: 6, display: 'flex', gap: 6 }}>
-              <input
-                ref={replyRef}
+              <MentionInput
+                inputRef={replyRef}
                 className="form-input"
-                style={{ flex: 1, fontSize: 12, padding: '6px 10px' }}
-                placeholder={`Reply to ${c.authorName}…`}
+                style={{ fontSize: 12, padding: '6px 10px' }}
+                placeholder={`Reply to ${c.authorName}… (@ to mention)`}
                 value={replyText}
-                onChange={e => setReplyText(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleReply(c.id) } }}
+                onChange={setReplyText}
+                onEnter={() => handleReply(c.id)}
+                candidates={mentionCandidates}
                 disabled={replyPosting}
               />
               <button
@@ -299,13 +319,14 @@ function CommentsSection({ ann, authorId, authorName, role }) {
 
       {/* New comment input */}
       <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-        <input
+        <MentionInput
           className="form-input"
-          style={{ flex: 1, fontSize: 13, padding: '7px 10px' }}
-          placeholder="Write a comment…"
+          style={{ fontSize: 13, padding: '7px 10px' }}
+          placeholder="Write a comment… (@ to mention)"
           value={text}
-          onChange={e => setText(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePost() } }}
+          onChange={setText}
+          onEnter={handlePost}
+          candidates={mentionCandidates}
           disabled={posting}
         />
         <button

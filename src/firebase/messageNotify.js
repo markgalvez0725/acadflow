@@ -65,6 +65,22 @@ export async function notifyStudentsBroadcast(db, studentIds, subject) {
   }, { url: '/', tag: 'message' })
 }
 
+/** Someone mentioned this user in an announcement comment. */
+export async function notifyMention(db, ownerId, { fromName, snippet, link = 'stream' } = {}) {
+  if (!ownerId) return
+  const title = (fromName || 'Someone') + ' mentioned you'
+  await appendNotif(db, ownerId, {
+    type: 'mention',
+    title,
+    body: (snippet || '').slice(0, 80),
+    link,
+  })
+  sendPushToOwners(db, [ownerId], {
+    title,
+    body: (snippet || '').slice(0, 120) || 'Open AcadFlow to see the comment.',
+  }, { url: '/', tag: 'mention' })
+}
+
 /** Student → teacher: in-app admin notif + best-effort web push to admin. */
 export async function notifyAdminMessage(db, studentName, body, kind = 'message') {
   const title = (kind === 'reply' ? 'Reply from ' : 'Message from ') + (studentName || 'a student')

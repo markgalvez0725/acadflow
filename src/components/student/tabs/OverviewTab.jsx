@@ -19,6 +19,9 @@ import { buildStudentReportCard } from '@/export/reportCard'
 import { FileDown } from 'lucide-react'
 import { activeClassIds, activeSubjects } from '@/utils/active'
 import { deadlineColor } from '@/utils/deadlines'
+import MentionInput from '@/components/primitives/MentionInput'
+import { resolveMentions } from '@/utils/mentions'
+import { notifyMention } from '@/firebase/messageNotify'
 import DOMPurify from 'dompurify'
 
 const SemesterWrapped = lazy(() => import('@/components/student/modals/SemesterWrapped'))
@@ -53,8 +56,31 @@ function AnnTypeBadge({ type }) {
 }
 
 function StudentCommentsSection({ ann, student }) {
-  const { addAnnouncementComment, addCommentReply } = useData()
+  const { addAnnouncementComment, addCommentReply, students, db } = useData()
   const comments = ann.comments || []
+
+  // Who can be @mentioned: classmates in this announcement's scope + the teacher.
+  const mentionCandidates = useMemo(() => {
+    const enrolled = student.classIds?.length ? student.classIds : (student.classId ? [student.classId] : [])
+    const scopeIds = ann.classId && ann.classId !== 'all' ? [ann.classId] : enrolled
+    const mates = (students || []).filter(x =>
+      x.id !== student.id &&
+      ((x.classIds || []).some(id => scopeIds.includes(id)) || scopeIds.includes(x.classId))
+    )
+    const list = mates.map(x => ({ id: x.id, name: x.name || x.id }))
+    list.push({ id: 'admin', name: 'Teacher' })
+    return list
+  }, [students, ann.classId, student])
+
+  function fireMentions(body) {
+    const ids = resolveMentions(body, mentionCandidates).filter(id => id !== student.id)
+    if (!ids.length || !db?.current) return
+    ids.forEach(id => notifyMention(db.current, id, {
+      fromName: student.name || 'A classmate',
+      snippet: body,
+      link: 'stream',
+    }))
+  }
 
   const [text, setText] = useState('')
   const [posting, setPosting] = useState(false)
@@ -81,6 +107,7 @@ function StudentCommentsSection({ ann, student }) {
         replies: [],
       }
       await addAnnouncementComment(ann.id, comment)
+      fireMentions(comment.text)
       setText('')
     } finally {
       setPosting(false)
@@ -100,6 +127,7 @@ function StudentCommentsSection({ ann, student }) {
         createdAt: Date.now(),
       }
       await addCommentReply(ann.id, commentId, reply)
+      fireMentions(reply.text)
       setReplyText('')
       setReplyTo(null)
     } finally {
@@ -184,14 +212,15 @@ function StudentCommentsSection({ ann, student }) {
 
           {replyTo === c.id && (
             <div style={{ marginLeft: 36, marginTop: 6, display: 'flex', gap: 6 }}>
-              <input
-                ref={replyRef}
+              <MentionInput
+                inputRef={replyRef}
                 className="form-input"
-                style={{ flex: 1, fontSize: 12, padding: '6px 10px' }}
-                placeholder={`Reply to ${c.authorName}…`}
+                style={{ fontSize: 12, padding: '6px 10px' }}
+                placeholder={`Reply to ${c.authorName}… (@ to mention)`}
                 value={replyText}
-                onChange={e => setReplyText(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleReply(c.id, c.authorName) } }}
+                onChange={setReplyText}
+                onEnter={() => handleReply(c.id, c.authorName)}
+                candidates={mentionCandidates}
                 disabled={replyPosting}
               />
               <button
@@ -215,13 +244,14 @@ function StudentCommentsSection({ ann, student }) {
       ))}
 
       <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-        <input
+        <MentionInput
           className="form-input"
-          style={{ flex: 1, fontSize: 13, padding: '7px 10px' }}
-          placeholder="Write a comment…"
+          style={{ fontSize: 13, padding: '7px 10px' }}
+          placeholder="Write a comment… (@ to mention)"
           value={text}
-          onChange={e => setText(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePost() } }}
+          onChange={setText}
+          onEnter={handlePost}
+          candidates={mentionCandidates}
           disabled={posting}
         />
         <button

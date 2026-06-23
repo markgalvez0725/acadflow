@@ -25,6 +25,7 @@ const TYPE_TO_CATEGORY = {
   act_grade:         'grades',
   msg_in:            'messages',
   msg_out:           'messages',
+  mention:           'messages',
   announce:          'announcements',
   meeting_scheduled: 'meetings',
   meeting_live:      'meetings',
