@@ -337,11 +337,9 @@ export async function fbScheduleMeeting(db, meetingData) {
     id,
     classId: meetingData.classId,
     className: meetingData.className,
-    subject: meetingData.subject || null,
     title: meetingData.title,
     description: meetingData.description || '',
     meetLink: meetingData.meetLink || '',
-    roomName: meetingData.roomName || `AcadFlow-${id}`, // embedded Jitsi room
     scheduledAt: meetingData.scheduledAt, // JS timestamp (ms)
     status: 'scheduled',
     createdAt: Date.now(),
