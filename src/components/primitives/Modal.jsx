@@ -69,42 +69,45 @@ export default function Modal({ isOpen = true, onClose, size = 'md', children, z
     <div
       className="fixed inset-0 flex items-center justify-center p-4"
       style={{ background: 'rgba(10,20,50,.55)', zIndex, backdropFilter: 'blur(4px)' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose?.() }}
     >
+      {/* Backdrop click intentionally does NOT close — use the X (or Esc). */}
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         tabIndex={-1}
         onKeyDown={handleKeyDown}
-        className={`glass-panel bg-surface border border-border rounded-lg w-full ${maxW} max-h-[90vh] overflow-y-auto shadow-lg`}
-        style={{ padding: 28, outline: 'none' }}
+        className={`glass-panel bg-surface border border-border rounded-lg w-full ${maxW} max-h-[90vh] shadow-lg`}
+        style={{ position: 'relative', display: 'flex', flexDirection: 'column', overflow: 'hidden', outline: 'none' }}
       >
-        {children}
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="modal-close-btn"
+          >
+            <X size={18} />
+          </button>
+        )}
+        <div className="modal-scroll" style={{ overflowY: 'auto', padding: 28 }}>
+          {children}
+        </div>
       </div>
     </div>,
     document.body
   )
 }
 
-export function ModalHeader({ title, subtitle, onClose }) {
+// Note: the close (X) button now lives on the Modal panel itself, so every
+// modal gets exactly one consistent control. `onClose` is accepted for
+// backwards-compatibility but no longer renders a second X here. `pr-8`
+// reserves room so a long title doesn't run under the panel's X.
+export function ModalHeader({ title, subtitle }) {
   return (
-    <div className="mb-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-lg font-bold text-ink font-display">{title}</h3>
-          {subtitle && <p className="text-xs text-ink2 mt-1">{subtitle}</p>}
-        </div>
-        {onClose && (
-          <button
-            onClick={onClose}
-            className="text-ink3 hover:text-ink flex-shrink-0 mt-0.5"
-            aria-label="Close"
-          >
-            <X size={18} />
-          </button>
-        )}
-      </div>
+    <div className="mb-5 pr-8">
+      <h3 className="text-lg font-bold text-ink font-display">{title}</h3>
+      {subtitle && <p className="text-xs text-ink2 mt-1">{subtitle}</p>}
     </div>
   )
 }

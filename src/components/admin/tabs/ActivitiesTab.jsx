@@ -634,17 +634,14 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
 
   return (
     <Modal onClose={onClose} size="lg">
-      <div className="flex items-start justify-between gap-3 mb-1">
-        <div>
-          <h3 className="text-lg font-bold text-ink"><ClipboardList size={18} /> {act.title}</h3>
-          <p className="text-xs text-ink2 mt-0.5">
-            {act.subject} · Max {act.maxScore} pts · Deadline: {dlLabel}
-          </p>
-          <p className="text-xs text-ink2">
-            {submitted}/{enrolledStudents.length} submitted · {graded} graded
-          </p>
-        </div>
-        <button className="text-ink3 hover:text-ink" onClick={onClose}><X size={18} /></button>
+      <div className="mb-1 pr-8">
+        <h3 className="text-lg font-bold text-ink"><ClipboardList size={18} /> {act.title}</h3>
+        <p className="text-xs text-ink2 mt-0.5">
+          {act.subject} · Max {act.maxScore} pts · Deadline: {dlLabel}
+        </p>
+        <p className="text-xs text-ink2">
+          {submitted}/{enrolledStudents.length} submitted · {graded} graded
+        </p>
       </div>
 
       {/* Deadline banner */}

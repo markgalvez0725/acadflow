@@ -622,17 +622,14 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
 
   return (
     <Modal onClose={onClose} size="lg">
-      <div className="flex items-start justify-between gap-3 mb-2">
-        <div>
-          <h3 className="text-lg font-bold text-ink"><FileText size={18} className="inline-block mr-1 align-text-bottom" />{quiz.title}</h3>
-          <p className="text-xs text-ink2 mt-0.5">
-            {quiz.subject} · {quiz.questions?.length || 0} questions · {quiz.timeLimit} min time limit
-          </p>
-          <p className="text-xs text-ink2">
-            Opens: {openLabel} · Closes: {closeLabel}
-          </p>
-        </div>
-        <button className="text-ink3 hover:text-ink" onClick={onClose}><X size={18} /></button>
+      <div className="mb-2 pr-8">
+        <h3 className="text-lg font-bold text-ink"><FileText size={18} className="inline-block mr-1 align-text-bottom" />{quiz.title}</h3>
+        <p className="text-xs text-ink2 mt-0.5">
+          {quiz.subject} · {quiz.questions?.length || 0} questions · {quiz.timeLimit} min time limit
+        </p>
+        <p className="text-xs text-ink2">
+          Opens: {openLabel} · Closes: {closeLabel}
+        </p>
       </div>
 
       {isUpcoming && (

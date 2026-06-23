@@ -31,15 +31,14 @@ export default function Dialog() {
     <div
       className="fixed inset-0 flex items-center justify-center p-4"
       style={{ background: 'rgba(10,20,50,.55)', zIndex: 1200, backdropFilter: 'blur(4px)' }}
-      onClick={() => resolveDialog(false)}
     >
+      {/* Backdrop click no longer dismisses — use the Cancel/confirm buttons. */}
       <div
         role="alertdialog"
         aria-modal="true"
         aria-label={title}
         className="bg-surface border border-border w-full max-w-[420px] overflow-hidden"
         style={{ borderRadius: 18, animation: 'dialogPop .22s cubic-bezier(.22,.8,.38,1) both' }}
-        onClick={e => e.stopPropagation()}
       >
         <div className="dlg-body">
           <div className={`dlg-icon-wrap dlg-${type}`} aria-hidden="true">
