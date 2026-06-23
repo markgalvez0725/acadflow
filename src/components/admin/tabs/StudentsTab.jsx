@@ -796,7 +796,7 @@ function MessageSelectedModal({ recipients, onClose }) {
 // ── Students Tab ──────────────────────────────────────────────────────
 export default function StudentsTab() {
   const { classes, students, saveStudents, deleteStudent, restoreStudents, eqScale, semester, fbReady } = useData()
-  const { toast, toastAction, openDialog } = useUI()
+  const { toast, toastAction, openDialog, openStudentProfile } = useUI()
 
   const [search, setSearch]       = useState('')
   const [perPage, setPerPage]     = useState(50)
@@ -1048,13 +1048,19 @@ export default function StudentsTab() {
                         <input type="checkbox" aria-label={`Select ${s.name}`} checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} style={{ width: 'auto', margin: 0, cursor: 'pointer' }} />
                       </td>
                       <td>
-                        <div className="stu-name-cell">
+                        <button
+                          type="button"
+                          className="stu-name-cell"
+                          onClick={() => openStudentProfile(s.id)}
+                          title={`View ${s.name}'s profile`}
+                          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', width: '100%' }}
+                        >
                           <div className="stu-avatar">{initial}</div>
                           <div>
-                            <div className="stu-name-text">{s.name}</div>
+                            <div className="stu-name-text" style={{ color: 'var(--accent)' }}>{s.name}</div>
                             <div className="stu-year-text">{s.year || ''}</div>
                           </div>
-                        </div>
+                        </button>
                       </td>
                       <td><span className="stu-id-pill">{s.id}</span></td>
                       <td><span className="stu-course-cell">{s.course || '—'}</span></td>
@@ -1089,6 +1095,7 @@ export default function StudentsTab() {
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <KebabMenu label={`Actions for ${s.name}`} items={[
+                          { label: 'View profile', onClick: () => openStudentProfile(s.id) },
                           { label: 'Edit', onClick: () => setEditStudent(s) },
                           s.account?.registered && { label: 'Reset password', onClick: () => setResetStudent(s) },
                           { label: 'Export report', onClick: () => setExportStudent(s) },

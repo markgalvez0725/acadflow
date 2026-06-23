@@ -11,6 +11,9 @@ export function UIProvider({ children }) {
   const dialogResolveRef = useRef(null)
   const [isLoading, setIsLoading]   = useState(false)
   const loadingCount = useRef(0)
+  // Globally-shared "view student profile" target — any teacher-side button can
+  // open the same profile modal by id, keeping every entry point in sync.
+  const [viewStudentId, setViewStudentId] = useState(null)
 
   const startLoading = useCallback(() => {
     loadingCount.current += 1
@@ -78,6 +81,10 @@ export function UIProvider({ children }) {
     }
   }, [])
 
+  // ── Student profile (teacher view) ─────────────────────────────────────
+  const openStudentProfile  = useCallback(id => setViewStudentId(id || null), [])
+  const closeStudentProfile = useCallback(() => setViewStudentId(null), [])
+
   return (
     <UIContext.Provider value={{
       theme, toggleTheme,
@@ -86,6 +93,7 @@ export function UIProvider({ children }) {
       toastQueue, toast, toastAction, dismissToast,
       dialog, openDialog, resolveDialog,
       isLoading, startLoading, stopLoading,
+      viewStudentId, openStudentProfile, closeStudentProfile,
     }}>
       {children}
     </UIContext.Provider>

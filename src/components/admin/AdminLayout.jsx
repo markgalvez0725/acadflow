@@ -54,6 +54,7 @@ const LiveQuizTab       = lazy(() => import('./tabs/LiveQuizTab'))
 
 // Modals (lazy)
 const AdminSettingsModal = lazy(() => import('./modals/AdminSettingsModal'))
+const StudentProfileModal = lazy(() => import('./modals/StudentProfileModal'))
 
 const TAB_TITLES = {
   stream:        ['Stream',         'Class activity feed — announcements, grades, activities, quizzes, and attendance'],
@@ -205,6 +206,11 @@ export default function AdminLayout() {
           <AdminSettingsModal onClose={() => setSettingsOpen(false)} push={push} />
         </Suspense>
       )}
+
+      {/* Student profile — globally openable from any teacher-side view (synced) */}
+      <Suspense fallback={null}>
+        <StudentProfileModal />
+      </Suspense>
 
       {/* Floating Messenger — bubble hidden on mobile (opened from the nav) */}
       <FloatingMessenger unreadCount={unreadMsgCount} open={messengerOpen} onOpenChange={setMessengerOpen} />

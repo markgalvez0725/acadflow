@@ -62,7 +62,7 @@ function fuzzyScore(query, text) {
 
 export default function CommandPalette() {
   const { sessionRole, currentStudent } = useAuth()
-  const { theme, toggleTheme, adminTab, setAdminTab, studentTab, setStudentTab, toast } = useUI()
+  const { theme, toggleTheme, adminTab, setAdminTab, studentTab, setStudentTab, toast, openStudentProfile } = useUI()
   const { students = [], classes = [], activities = [], quizzes = [] } = useData()
 
   const [open, setOpen] = useState(false)
@@ -174,7 +174,7 @@ export default function CommandPalette() {
           section: 'Students',
           keywords: `${s.name || ''} ${s.snum || ''} ${s.id} ${s.course || ''}`,
           Icon: User,
-          run: () => { setAdminTab('students'); toast?.(`Open Students → ${s.name || s.id}`, 'info', 2500); setOpen(false) },
+          run: () => { openStudentProfile?.(s.id); setOpen(false) },
         })
       })
       classes.filter((c) => !c.archived).forEach((c) => {
@@ -245,7 +245,7 @@ export default function CommandPalette() {
     }
 
     return [...tabs, ...actions, ...entities]
-  }, [isAdmin, theme, deferredInstall, students, classes, activities, quizzes, currentStudent, go, toggleTheme, setAdminTab, setStudentTab, toast])
+  }, [isAdmin, theme, deferredInstall, students, classes, activities, quizzes, currentStudent, go, toggleTheme, setAdminTab, setStudentTab, toast, openStudentProfile])
 
   const filtered = useMemo(() => {
     if (!query.trim()) {
