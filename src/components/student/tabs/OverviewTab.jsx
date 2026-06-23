@@ -835,7 +835,8 @@ function SubjectCard({ sub, student: s, classes, activities, eqScale }) {
     actContent = '—'
   }
 
-  // Quiz cells
+  // Quiz cells — the student's own per-quiz results cache (with legacy fallback)
+  const myQuizResults = s.quizResults?.[sub]?.length ? s.quizResults[sub] : (Array.isArray(comp.quizzes) ? comp.quizzes : null)
   let qzContent = null
   if (comp.quizScores && Object.keys(comp.quizScores).length) {
     const qzRaw = Object.entries(comp.quizScores)
@@ -853,8 +854,8 @@ function SubjectCard({ sub, student: s, classes, activities, eqScale }) {
         </div>
       )
     })
-  } else if (Array.isArray(comp.quizzes) && comp.quizzes.length) {
-    qzContent = comp.quizzes.map((q, i) => {
+  } else if (myQuizResults && myQuizResults.length) {
+    qzContent = myQuizResults.map((q, i) => {
       const col = q.pct >= 75 ? 'var(--green)' : q.pct >= 60 ? 'var(--yellow)' : 'var(--red)'
       return (
         <div key={q.quizId || i} style={{ fontSize: 11, display: 'flex', gap: 3, alignItems: 'center' }}>

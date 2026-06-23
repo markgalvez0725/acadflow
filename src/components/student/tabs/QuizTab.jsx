@@ -186,30 +186,21 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
         [`${subPath}.submittedAt`]: Date.now(),
       })
 
-      // 2. Write quiz score to student gradeComponents
+      // 2. Cache the student's own per-quiz result for instant display in their
+      // Grades/Overview. This lives in `quizResults` (NOT gradeComponents):
+      // students may not write grade fields, and the authoritative score is the
+      // quiz-doc submission above, which the teacher's grade computation reads.
       const subject = quiz.subject
-      const gradeComponents = student.gradeComponents || {}
-      const subjectGC = gradeComponents[subject] || {}
-      const existingQuizzes = subjectGC.quizzes || []
-
-      // Upsert: replace if quiz already scored, else append
-      const existingIdx = existingQuizzes.findIndex(q => q.quizId === quiz.id)
+      const quizResults = student.quizResults || {}
+      const existing = quizResults[subject] || []
+      const existingIdx = existing.findIndex(q => q.quizId === quiz.id)
       const quizEntry = { quizId: quiz.id, title: quiz.title, score, total, pct, submittedAt: Date.now() }
-      let updatedQuizzes
-      if (existingIdx >= 0) {
-        updatedQuizzes = existingQuizzes.map((q, i) => i === existingIdx ? quizEntry : q)
-      } else {
-        updatedQuizzes = [...existingQuizzes, quizEntry]
-      }
+      const updatedList = existingIdx >= 0
+        ? existing.map((q, i) => i === existingIdx ? quizEntry : q)
+        : [...existing, quizEntry]
 
-      const updatedGC = {
-        ...gradeComponents,
-        [subject]: { ...subjectGC, quizzes: updatedQuizzes },
-      }
-
-      // Update student doc in Firestore
       await updateDoc(doc(db.current, 'students', student.id), {
-        gradeComponents: updatedGC,
+        quizResults: { ...quizResults, [subject]: updatedList },
       })
 
       try { localStorage.removeItem(draftKey) } catch (e) { /* ignore */ }

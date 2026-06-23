@@ -148,7 +148,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
       const qzNums = qzInputs.map(v => toNum(v)).filter(v => v !== null)
       const qzAvg  = qzNums.length > 0
         ? parseFloat((qzNums.reduce((a, b) => a + b, 0) / qzNums.length).toFixed(2))
-        : (comp.quizzes != null ? comp.quizzes : null)
+        : (typeof comp.quizzes === 'number' ? comp.quizzes : null)
 
       // Auto-compute attendance
       const attSet = s.attendance?.[subject] || new Set()
@@ -1026,7 +1026,7 @@ export default function GradesTab() {
         const attSet = s.attendance?.[sub] || new Set()
         const attV   = held > 0 ? Math.min(100, (attSet.size / held) * 100) : null
 
-        const qzV       = comp.quizzes     ?? null
+        const qzV       = typeof comp.quizzes === 'number' ? comp.quizzes : null
         const attitudeV = comp.attitude    ?? null
         const midExamV  = comp.midtermExam ?? null
         const finExamV  = comp.finalsExam  ?? null
@@ -1121,7 +1121,7 @@ export default function GradesTab() {
 
       // Score components — from import file; fall back to existing stored values
       const actV     = entry.actAvg !== null ? clamp(entry.actAvg)  : (comp.activities   ?? null)
-      const qzV      = entry.qzAvg  !== null ? clamp(entry.qzAvg)   : (comp.quizzes      ?? null)
+      const qzV      = entry.qzAvg  !== null ? clamp(entry.qzAvg)   : (typeof comp.quizzes === 'number' ? comp.quizzes : null)
       const midExamV = entry.mtExam !== null ? clamp(entry.mtExam)  : (comp.midtermExam  ?? null)
       const finExamV = entry.ftExam !== null ? clamp(entry.ftExam)  : (comp.finalsExam   ?? null)
 

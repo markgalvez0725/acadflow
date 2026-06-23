@@ -235,8 +235,9 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
   // Attitude / Character grade
   const attitudeVal = comp.attitude ?? null
 
-  // Quiz display
-  const quizzesRaw = comp.quizzes
+  // Quiz display — prefer the student's own per-quiz results cache; fall back
+  // to legacy gradeComponents.quizzes (array) or the teacher's numeric aggregate.
+  const quizzesRaw = (s.quizResults?.[sub]?.length ? s.quizResults[sub] : comp.quizzes)
   const quizzesIsArray = Array.isArray(quizzesRaw)
   const quizzesAvg = quizzesIsArray
     ? (quizzesRaw.length
