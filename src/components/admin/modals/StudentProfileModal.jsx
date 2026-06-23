@@ -7,6 +7,7 @@ import {
 } from '@/utils/grades'
 import { subjectColor } from '@/utils/subjectColor'
 import { activeClassIds, activeSubjects } from '@/utils/active'
+import { accountStatus } from '@/utils/accountStatus'
 import { buildStudentReportCard } from '@/export/reportCard'
 import {
   BarChart3, CalendarCheck, BookOpen, ClipboardList, FileQuestion, FileDown,
@@ -115,7 +116,7 @@ export default function StudentProfileModal() {
   const attRate = getAttRate(student, students, classes)
   const pendingCount = activities.filter(a => enrolledIds.includes(a.classId) && !(a.submissions || {})[student.id]?.link && !(a.deadline && Date.now() > a.deadline)).length
   const initial = (student.name || '?').charAt(0).toUpperCase()
-  const acct = !student.account?.registered ? 'No account' : student.account?.activated ? 'Active' : 'Pending'
+  const acct = accountStatus(student).label
 
   return (
     <Modal onClose={closeStudentProfile} size="lg">

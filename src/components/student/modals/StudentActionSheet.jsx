@@ -2,6 +2,8 @@ import React, { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Pencil, KeyRound, LogOut, Bell, BellRing, Moon, Sun, Lock } from 'lucide-react'
 import { useUI } from '@/context/UIContext'
+import { useData } from '@/context/DataContext'
+import { studentTag } from '@/utils/groupChat'
 
 /**
  * Slide-up action sheet for the student portal.
@@ -28,6 +30,7 @@ export default function StudentActionSheet({
 }) {
   const sheetRef = useRef(null)
   const { theme, toggleTheme } = useUI()
+  const { classes = [] } = useData()
 
   // Trap back-button / Escape key
   useEffect(() => {
@@ -141,7 +144,11 @@ export default function StudentActionSheet({
                 {student.name || 'Student'}
               </div>
               <div style={{ fontSize: 11, color: 'var(--ink3)' }}>
-                {student.snum || student.id}
+                {(() => {
+                  const snum = student.snum || student.id
+                  const tag = studentTag(student, classes)
+                  return tag && tag !== snum ? `${tag} - ${snum}` : snum
+                })()}
               </div>
             </div>
           </div>

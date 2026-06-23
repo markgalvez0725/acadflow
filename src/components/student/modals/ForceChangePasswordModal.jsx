@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useUI } from '@/context/UIContext'
+import { useData } from '@/context/DataContext'
 import { getFbAuth } from '@/firebase/firebaseInit'
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth'
 import { KeyRound, AlertTriangle, Check, X } from 'lucide-react'
@@ -8,6 +9,7 @@ import { KeyRound, AlertTriangle, Check, X } from 'lucide-react'
 // reauthenticate with the current password, then update to the new one.
 export default function ForceChangePasswordModal({ student: s, onClose, forced = false }) {
   const { toast } = useUI()
+  const { markAccountActive } = useData()
 
   const [oldPass, setOldPass] = useState('')
   const [pass,    setPass]    = useState('')
@@ -40,6 +42,9 @@ export default function ForceChangePasswordModal({ student: s, onClose, forced =
         return setError('Your current password is incorrect.')
       }
       await updatePassword(user, pass)
+      // The student now owns their password → promote the account to Active
+      // (clears the teacher-set temporary-password flag). Idempotent & best-effort.
+      try { await markAccountActive?.(s.id) } catch (e) { /* non-fatal */ }
       toast('Password changed successfully!', 'success')
       onClose()
     } catch (e) {

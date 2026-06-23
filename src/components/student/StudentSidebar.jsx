@@ -1,5 +1,7 @@
 import React from 'react'
 import { useUI } from '@/context/UIContext'
+import { useData } from '@/context/DataContext'
+import { studentTag } from '@/utils/groupChat'
 import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, FileQuestion, Rss, CalendarDays, Video, Bell, ClipboardSignature, Settings, LogOut, Library, ListChecks } from 'lucide-react'
 
 const NAV_GROUPS = [
@@ -33,6 +35,7 @@ const NAV_GROUPS = [
 
 export default function StudentSidebar({ student, badges = {}, onSettings, onLogout, onToggle }) {
   const { studentTab, setStudentTab } = useUI()
+  const { classes = [] } = useData()
 
   function getBadge(badgeId) {
     if (badgeId === 'act')   return badges.act || 0
@@ -43,6 +46,9 @@ export default function StudentSidebar({ student, badges = {}, onSettings, onLog
 
   const name = student?.name || 'Student'
   const initial = name.charAt(0).toUpperCase()
+  const snum = student?.snum || student?.id || '—'
+  const tag = studentTag(student, classes)
+  const subText = tag && tag !== snum ? `${tag} - ${snum}` : snum
 
   return (
     <div className="sidebar flex flex-col h-full">
@@ -102,7 +108,7 @@ export default function StudentSidebar({ student, badges = {}, onSettings, onLog
           </div>
           <div className="sb-user-info">
             <strong>{name}</strong>
-            <span>{student?.snum || student?.id || '—'}</span>
+            <span>{subText}</span>
           </div>
         </div>
         <button className="sb-logout" onClick={onSettings} title="Account" aria-label="Account">

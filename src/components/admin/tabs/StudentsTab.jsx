@@ -4,6 +4,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { hashPassword } from '@/utils/crypto'
 import { validateSnum } from '@/utils/validate'
+import { accountStatus, accountStatusKey, accountStatusRank } from '@/utils/accountStatus'
 import { getFbAuth } from '@/firebase/firebaseInit'
 import { notifyStudentsBroadcast } from '@/firebase/messageNotify'
 import Badge from '@/components/primitives/Badge'
@@ -373,11 +374,12 @@ function EditStudentModal({ student, onClose }) {
       <div className="field">
         <label>Account Status</label>
         <div className="py-2">
-          {!student.account?.registered
-            ? <Badge variant="gray">No account yet</Badge>
-            : student.account?.activated
-              ? <Badge variant="green"><CheckCircle2 size={14} /> Active ({student.account.email || '—'})</Badge>
-              : <Badge variant="yellow"><Hourglass size={14} /> Pending — not yet activated</Badge>}
+          {(() => {
+            const k = accountStatusKey(student)
+            if (k === 'none')   return <Badge variant="gray">No account yet</Badge>
+            if (k === 'active') return <Badge variant="green"><CheckCircle2 size={14} /> Active ({student.account.email || '—'})</Badge>
+            return <Badge variant="yellow"><Hourglass size={14} /> Pending — not yet activated</Badge>
+          })()}
           {student.account?.firstLoginAt && (
             <div className="text-xs text-ink3 mt-1">
               First login: {new Date(student.account.firstLoginAt).toLocaleString('en-US', {
@@ -533,7 +535,7 @@ function exportRosterCSV(students, classes) {
   const headers = ['Student No.', 'Full Name', 'Course', 'Year Level', 'Date of Birth', 'Mobile', 'Primary Class', 'Email', 'Account Status']
   const rows = students.map(s => {
     const cls = classes.find(c => c.id === s.classId)
-    return [s.id, (s.name || '').toUpperCase(), s.course || '', s.year || '', s.dob || '', s.mobile || '', cls ? `${cls.name} ${cls.section}` : '', s.account?.email || '', !s.account?.registered ? 'No Account' : s.account?.activated ? 'Active' : 'Pending']
+    return [s.id, (s.name || '').toUpperCase(), s.course || '', s.year || '', s.dob || '', s.mobile || '', cls ? `${cls.name} ${cls.section}` : '', s.account?.email || '', accountStatus(s).label]
   })
   const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
@@ -851,7 +853,7 @@ export default function StudentsTab() {
         }
         case 'email':   va = (a.account?.email || '').toLowerCase(); vb = (b.account?.email || '').toLowerCase(); break
         case 'account': {
-          const rank = s => !s.account?.registered ? 0 : s.account?.activated ? 2 : 1
+          const rank = s => accountStatusRank(s)
           va = String(rank(a)); vb = String(rank(b)); break
         }
         default:        va = a.name?.toLowerCase() || ''; vb = b.name?.toLowerCase() || ''
@@ -1055,7 +1057,11 @@ export default function StudentsTab() {
                           title={`View ${s.name}'s profile`}
                           style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', width: '100%' }}
                         >
-                          <div className="stu-avatar">{initial}</div>
+                          <div className="stu-avatar" style={s.photo ? { overflow: 'hidden', padding: 0 } : undefined}>
+                            {s.photo
+                              ? <img src={s.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                              : initial}
+                          </div>
                           <div>
                             <div className="stu-name-text" style={{ color: 'var(--accent)' }}>{s.name}</div>
                             <div className="stu-year-text">{s.year || ''}</div>
@@ -1087,11 +1093,12 @@ export default function StudentsTab() {
                           : <span style={{ color: 'var(--ink3)', fontSize: 12 }}>—</span>}
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        {!s.account?.registered
-                          ? <Badge variant="gray" style={{ fontSize: 11 }}>No Account</Badge>
-                          : s.account?.activated
-                            ? <Badge variant="green" style={{ fontSize: 11 }}><Check size={12} /> Active</Badge>
-                            : <Badge variant="yellow" style={{ fontSize: 11 }}><Hourglass size={12} /> Pending</Badge>}
+                        {(() => {
+                          const st = accountStatus(s)
+                          if (st.key === 'active')  return <Badge variant="green" style={{ fontSize: 11 }}><Check size={12} /> Active</Badge>
+                          if (st.key === 'pending') return <Badge variant="yellow" style={{ fontSize: 11 }}><Hourglass size={12} /> Pending</Badge>
+                          return <Badge variant="gray" style={{ fontSize: 11 }}>No Account</Badge>
+                        })()}
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <KebabMenu label={`Actions for ${s.name}`} items={[

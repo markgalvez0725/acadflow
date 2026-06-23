@@ -151,13 +151,18 @@ function StudentCommentsSection({ ann, student }) {
         <div key={c.id} style={{ marginBottom: 10 }}>
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{
-              width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+              width: 28, height: 28, borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
               background: c.role === 'teacher' ? 'var(--accent-l)' : 'var(--purple-l)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 11, fontWeight: 700,
               color: c.role === 'teacher' ? 'var(--accent)' : 'var(--purple)',
             }}>
-              {c.authorName?.charAt(0)?.toUpperCase() || '?'}
+              {(() => {
+                const p = c.role === 'student' && students.find(x => x.id === c.authorId)?.photo
+                return p
+                  ? <img src={p} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : (c.authorName?.charAt(0)?.toUpperCase() || '?')
+              })()}
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
@@ -186,13 +191,18 @@ function StudentCommentsSection({ ann, student }) {
               {c.replies.map(r => (
                 <div key={r.id} style={{ display: 'flex', gap: 8 }}>
                   <div style={{
-                    width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                    width: 22, height: 22, borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
                     background: r.role === 'teacher' ? 'var(--accent-l)' : 'var(--purple-l)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 10, fontWeight: 700,
                     color: r.role === 'teacher' ? 'var(--accent)' : 'var(--purple)',
                   }}>
-                    {r.authorName?.charAt(0)?.toUpperCase() || '?'}
+                    {(() => {
+                      const p = r.role === 'student' && students.find(x => x.id === r.authorId)?.photo
+                      return p
+                        ? <img src={p} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : (r.authorName?.charAt(0)?.toUpperCase() || '?')
+                    })()}
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>

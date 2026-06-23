@@ -239,7 +239,7 @@ function RichTextEditor({ value, onChange, placeholder, rows = 3 }) {
 
 // ── Comments Section ───────────────────────────────────────────────────
 function CommentsSection({ ann, authorId, authorName, role }) {
-  const { addAnnouncementComment, addCommentReply } = useData()
+  const { addAnnouncementComment, addCommentReply, students = [] } = useData()
   const comments = ann.comments || []
   const [text, setText] = useState('')
   const [posting, setPosting] = useState(false)
@@ -301,13 +301,18 @@ function CommentsSection({ ann, authorId, authorName, role }) {
         <div key={c.id} style={{ marginBottom: 10 }}>
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{
-              width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+              width: 28, height: 28, borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
               background: c.role === 'teacher' ? 'rgba(59,130,246,0.15)' : 'rgba(168,85,247,0.15)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 11, fontWeight: 700,
               color: c.role === 'teacher' ? 'var(--accent)' : 'var(--purple)',
             }}>
-              {c.authorName?.charAt(0)?.toUpperCase() || '?'}
+              {(() => {
+                const p = c.role === 'student' && students.find(x => x.id === c.authorId)?.photo
+                return p
+                  ? <img src={p} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : (c.authorName?.charAt(0)?.toUpperCase() || '?')
+              })()}
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
@@ -328,13 +333,18 @@ function CommentsSection({ ann, authorId, authorName, role }) {
               {c.replies.map(r => (
                 <div key={r.id} style={{ display: 'flex', gap: 8 }}>
                   <div style={{
-                    width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                    width: 22, height: 22, borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
                     background: r.role === 'teacher' ? 'rgba(59,130,246,0.15)' : 'rgba(168,85,247,0.15)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 10, fontWeight: 700,
                     color: r.role === 'teacher' ? 'var(--accent)' : 'var(--purple)',
                   }}>
-                    {r.authorName?.charAt(0)?.toUpperCase() || '?'}
+                    {(() => {
+                      const p = r.role === 'student' && students.find(x => x.id === r.authorId)?.photo
+                      return p
+                        ? <img src={p} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : (r.authorName?.charAt(0)?.toUpperCase() || '?')
+                    })()}
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>

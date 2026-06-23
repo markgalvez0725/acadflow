@@ -204,6 +204,22 @@ export function DataProvider({ children }) {
     await persistStudentsSync(dbRef.current, updatedStudents, changedIds)
   }, [])
 
+  // Promote a student's account to "Active": they've taken ownership by setting
+  // their own password. Self-registration writes this inline; this covers the
+  // admin-provisioned temp-password path (first forced/voluntary change).
+  // Idempotent — no write if already active.
+  const markAccountActive = useCallback(async (studentId) => {
+    let changed = false
+    const updated = students.map(s => {
+      if (s.id !== studentId) return s
+      const a = s.account || {}
+      if (a.activated && !a._tempPass) return s
+      changed = true
+      return { ...s, account: { ...a, registered: true, activated: true, _tempPass: false } }
+    })
+    if (changed) await saveStudents(updated, [studentId])
+  }, [students, saveStudents])
+
   // Append an entry to the admin audit log. Fire-and-forget — callers should
   // not await this in a way that blocks the primary action.
   const logAudit = useCallback((entry) => {
@@ -862,7 +878,7 @@ export function DataProvider({ children }) {
 
   return (
     <DataContext.Provider value={{
-      students, setStudents, saveStudents, deleteStudent, restoreStudents,
+      students, setStudents, saveStudents, markAccountActive, deleteStudent, restoreStudents,
       classes, setClasses, saveClasses, setSubjectRep, archiveClassWithStudents, unarchiveClassWithStudents, deleteClass,
       enrollInClass, unenrollFromClass,
       messages, setMessages,
