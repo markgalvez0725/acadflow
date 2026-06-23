@@ -11,12 +11,36 @@ import { Camera, Lock, Timer, CheckCircle2, Save, Eye, EyeOff, ShieldCheck, Aler
 const SNUM_CHANGE_DAYS = 30
 const YEAR_OPTIONS = ['1st Year', '2nd Year', '3rd Year', '4th Year']
 
+// Names are stored canonically as "Surname, First Middle". Split a stored name
+// back into parts for editing, and rebuild that exact structure on save.
+function parseStudentName(full) {
+  const raw = (full || '').trim()
+  if (!raw) return { surname: '', first: '', middle: '' }
+  if (raw.includes(',')) {
+    const [sur, rest = ''] = raw.split(/,(.+)/) // split on the FIRST comma only
+    const parts = rest.trim().split(/\s+/).filter(Boolean)
+    return { surname: sur.trim(), first: parts[0] || '', middle: parts.slice(1).join(' ') }
+  }
+  // No comma — structure unknown; seed the first-name field so nothing is lost.
+  return { surname: '', first: raw, middle: '' }
+}
+
+function buildStudentName(surname, first, middle) {
+  const sur = (surname || '').trim()
+  const fm = [(first || '').trim(), (middle || '').trim()].filter(Boolean).join(' ')
+  return sur ? `${sur}, ${fm}`.replace(/,\s*$/, '') : fm
+}
+
 export default function EditProfileModal({ student: s, onClose }) {
   const { students, saveStudents, db } = useData()
   const { setCurrentStudent } = useAuth()
   const { toast } = useUI()
 
-  const [name,   setName]   = useState(s.name   || '')
+  const _parsed = parseStudentName(s.name)
+  const [surname,    setSurname]    = useState(_parsed.surname)
+  const [firstName,  setFirstName]  = useState(_parsed.first)
+  const [middleName, setMiddleName] = useState(_parsed.middle)
+  const composedName = buildStudentName(surname, firstName, middleName)
   const [snum,   setSnum]   = useState(s.id      || '')
   const [course, setCourse] = useState(s.course  || '')
   const [year,   setYear]   = useState(s.year    || '1st Year')
@@ -125,11 +149,12 @@ export default function EditProfileModal({ student: s, onClose }) {
 
   async function handleSave() {
     setError('')
-    const trimName   = name.trim()
+    const trimName   = composedName.trim()
     const trimCourse = course.trim()
     const trimSnum   = snum.trim()
 
-    if (!trimName)   { setError('Full name is required.');           return }
+    if (!surname.trim())   { setError('Surname is required.');    return }
+    if (!firstName.trim()) { setError('First name is required.'); return }
 
     if (photoBlocked) {
       setError('Your profile photo does not meet the requirements. Please replace it (see the photo check below).')
@@ -218,7 +243,7 @@ export default function EditProfileModal({ student: s, onClose }) {
           >
             {photo
               ? <img src={photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-              : <span>{(name || 'S')[0].toUpperCase()}</span>
+              : <span>{((composedName || 'S').trim()[0] || 'S').toUpperCase()}</span>
             }
           </div>
           <div>
@@ -270,9 +295,25 @@ export default function EditProfileModal({ student: s, onClose }) {
           </div>
         )}
 
+        {/* Name — kept structured as "Surname, First Middle" */}
         <div className="form-group">
-          <label className="form-label">Full Name *</label>
-          <input className="input" value={name} onChange={e => setName(e.target.value)} placeholder="Full name" />
+          <label className="form-label">Surname *</label>
+          <input className="input" value={surname} onChange={e => setSurname(e.target.value)} placeholder="e.g. Dela Cruz" />
+        </div>
+        <div className="form-group">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">First Name *</label>
+              <input className="input" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="e.g. Juan" />
+            </div>
+            <div>
+              <label className="form-label">Middle Name <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(optional)</span></label>
+              <input className="input" value={middleName} onChange={e => setMiddleName(e.target.value)} placeholder="e.g. Santos" />
+            </div>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 6 }}>
+            Saved as: <strong style={{ color: 'var(--ink)' }}>{composedName || 'Surname, First Middle'}</strong>
+          </div>
         </div>
 
         {/* Student Number */}
