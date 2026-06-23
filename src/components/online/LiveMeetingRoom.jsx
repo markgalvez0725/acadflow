@@ -40,11 +40,15 @@ export default function LiveMeetingRoom({ meeting, displayName, email, isHost = 
   // our loading overlay (which would otherwise trap the user on "Connecting…").
   const [reveal, setReveal] = useState(false)
   const [confirmEnd, setConfirmEnd] = useState(false) // host Leave/End chooser
+  // A non-blocking status message when something looks off (stall, sign-in,
+  // device/permission, server error) so the user knows it isn't working.
+  const [notice, setNotice] = useState(null) // { kind: 'warn'|'error', text } | null
 
   useEffect(() => {
     let disposed = false
     let api = null
     let revealTimer = null
+    let stallTimer = null
 
     loadJitsi().then((JitsiMeetExternalAPI) => {
       if (disposed || !holderRef.current) return
@@ -75,12 +79,20 @@ export default function LiveMeetingRoom({ meeting, displayName, email, isHost = 
         if (disposed) return
         setPhase('joined')
         setReveal(true)
+        setNotice(null) // connected — clear any "connecting" warning
+        if (stallTimer) clearTimeout(stallTimer)
         syncCount()
         timerRef.current = setInterval(() => setSecs(s => s + 1), 1000)
       })
       // Safety net: if joining stalls (prejoin/lobby/sign-in, or a slow server),
       // uncover the Jitsi UI after a few seconds so the user can act on it.
       revealTimer = setTimeout(() => { if (!disposed) setReveal(true) }, 4500)
+      // If we still haven't joined after a while, say so plainly.
+      stallTimer = setTimeout(() => {
+        if (disposed) return
+        setReveal(true)
+        setNotice(n => n || { kind: 'warn', text: "Still connecting. If a sign-in or “waiting for host” screen is showing, finish it. Otherwise check your internet, or tap Leave and Start again." })
+      }, 9000)
       api.addEventListener('participantJoined', syncCount)
       api.addEventListener('participantLeft', syncCount)
       api.addEventListener('audioMuteStatusChanged', e => setMicOn(!e.muted))
@@ -90,6 +102,13 @@ export default function LiveMeetingRoom({ meeting, displayName, email, isHost = 
         // Fires for every participant; only reflect our own hand state.
         try { if (e.id === api._myUserID || e.id === api.getMyUserId?.()) setHandRaised(!!e.handRaised) } catch (err) { /* ignore */ }
       })
+      // Surface real problems instead of an endless spinner.
+      api.addEventListener('errorOccurred', e => {
+        if (disposed) return
+        setNotice({ kind: 'error', text: 'Connection problem: ' + (e?.error?.message || e?.message || 'the meeting service reported an error. Try Leave and Start again.') })
+      })
+      api.addEventListener('cameraError', () => { if (!disposed) setNotice({ kind: 'warn', text: "Camera unavailable — check this site's camera permission in your browser." }) })
+      api.addEventListener('micError', () => { if (!disposed) setNotice({ kind: 'warn', text: "Microphone unavailable — check this site's mic permission in your browser." }) })
       api.addEventListener('readyToClose', () => { if (!disposed) finish(false) })
     }).catch(err => {
       if (disposed) return
@@ -101,6 +120,7 @@ export default function LiveMeetingRoom({ meeting, displayName, email, isHost = 
       disposed = true
       if (timerRef.current) clearInterval(timerRef.current)
       if (revealTimer) clearTimeout(revealTimer)
+      if (stallTimer) clearTimeout(stallTimer)
       try { api?.dispose() } catch (e) { /* ignore */ }
       apiRef.current = null
     }
@@ -130,7 +150,11 @@ export default function LiveMeetingRoom({ meeting, displayName, email, isHost = 
           <div style={S.subtitle}>{sub}{meeting?.subject ? ` · ${meeting.subject}` : ''} · {count} in call</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <span style={S.livePill}><Radio size={12} /> LIVE</span>
+          {phase === 'joined'
+            ? <span style={S.livePill}><Radio size={12} /> LIVE</span>
+            : phase === 'error'
+              ? <span style={S.errPill}><AlertTriangle size={12} /> Offline</span>
+              : <span style={S.connPill}><Loader2 size={12} className="animate-spin" /> Connecting…</span>}
           <span style={S.timer}><Clock size={14} /> {elapsed}</span>
         </div>
       </div>
@@ -138,6 +162,15 @@ export default function LiveMeetingRoom({ meeting, displayName, email, isHost = 
       {/* Video stage (Jitsi iframe mounts here) */}
       <div style={S.stage}>
         <div ref={holderRef} style={{ position: 'absolute', inset: 0 }} />
+
+        {/* Non-blocking status banner (stall / sign-in / device / server error) */}
+        {notice && phase !== 'error' && (
+          <div style={{ ...S.noticeBar, ...(notice.kind === 'error' ? S.noticeError : S.noticeWarn) }} role="status">
+            <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+            <span style={{ flex: 1 }}>{notice.text}</span>
+            <button onClick={() => setNotice(null)} aria-label="Dismiss" style={S.noticeClose}>✕</button>
+          </div>
+        )}
         {phase === 'error' ? (
           <div style={S.stageOverlay}>
             <AlertTriangle size={34} style={{ color: '#f59e0b' }} />
@@ -238,7 +271,13 @@ const S = {
   title: { fontSize: 15, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   subtitle: { fontSize: 12, color: '#9aa6b6', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   livePill: { display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(239,68,68,.16)', color: '#fca5a5', fontSize: 12, fontWeight: 700, letterSpacing: '.05em', padding: '4px 10px', borderRadius: 999 },
+  connPill: { display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(245,158,11,.16)', color: '#fcd34d', fontSize: 12, fontWeight: 700, letterSpacing: '.03em', padding: '4px 10px', borderRadius: 999 },
+  errPill: { display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(239,68,68,.16)', color: '#fca5a5', fontSize: 12, fontWeight: 700, letterSpacing: '.03em', padding: '4px 10px', borderRadius: 999 },
   timer: { display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#9aa6b6' },
+  noticeBar: { position: 'absolute', top: 10, left: 10, right: 10, zIndex: 4, display: 'flex', alignItems: 'flex-start', gap: 8, padding: '9px 12px', borderRadius: 10, fontSize: 12.5, lineHeight: 1.45, backdropFilter: 'blur(2px)' },
+  noticeWarn: { background: 'rgba(245,158,11,.16)', color: '#fde68a', border: '1px solid rgba(245,158,11,.4)' },
+  noticeError: { background: 'rgba(239,68,68,.18)', color: '#fecaca', border: '1px solid rgba(239,68,68,.5)' },
+  noticeClose: { background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 2, flexShrink: 0, opacity: .8 },
   stage: { position: 'relative', flex: 1, minHeight: 0, background: '#000' },
   stageOverlay: { position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#e8edf4', background: '#0d1117' },
   banner: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '8px 14px', fontSize: 12, color: '#86efac', background: 'rgba(34,197,94,.10)', borderTop: '1px solid rgba(34,197,94,.18)', flexShrink: 0 },
