@@ -90,6 +90,14 @@ export function UIProvider({ children }) {
   const openEditGradesForStudent = useCallback(id => setEditGradesStudentId(id || null), [])
   const closeEditGrades          = useCallback(() => setEditGradesStudentId(null), [])
 
+  // ── Deep-link a student into a specific message thread (e.g. from a toast) ──
+  const [pendingMessageId, setPendingMessageId] = useState(null)
+  const openStudentMessageThread = useCallback(id => {
+    setPendingMessageId(id || null)
+    setStudentTab('messages')
+  }, [])
+  const clearPendingMessage = useCallback(() => setPendingMessageId(null), [])
+
   return (
     <UIContext.Provider value={{
       theme, toggleTheme,
@@ -100,6 +108,7 @@ export function UIProvider({ children }) {
       isLoading, startLoading, stopLoading,
       viewStudentId, openStudentProfile, closeStudentProfile,
       editGradesStudentId, openEditGradesForStudent, closeEditGrades,
+      pendingMessageId, openStudentMessageThread, clearPendingMessage,
     }}>
       {children}
     </UIContext.Provider>

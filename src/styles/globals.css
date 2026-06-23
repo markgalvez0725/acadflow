@@ -2567,6 +2567,20 @@ textarea.input { resize: vertical; }
   margin-top: 8px;
   flex-shrink: 0;
 }
+/* Shown instead of the reply box once a group chat's class/semester has ended. */
+.s-thread-ended {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
+  color: var(--ink3);
+  text-align: center;
+  flex-shrink: 0;
+}
 .s-reply-input {
   width: 100%;
   padding: 9px 12px;

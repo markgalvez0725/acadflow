@@ -79,7 +79,7 @@ const MORE_NAV = [
 ]
 
 export default function StudentLayout() {
-  const { studentTab, setStudentTab, toastQueue, dismissToast, dialog, resolveDialog, toast } = useUI()
+  const { studentTab, setStudentTab, toastQueue, dismissToast, dialog, resolveDialog, toast, toastAction, openStudentMessageThread } = useUI()
   const { students, classes, messages, activities, quizzes, db, fbReady, semester, studentCheckIn, attendanceSessions, eqScale } = useData()
   const { currentStudent, setCurrentStudent, logout, loginTime, lastLogin } = useAuth()
 
@@ -289,6 +289,46 @@ export default function StudentLayout() {
     const lastAdminReply = (m.replies || []).filter(r => r.from === 'admin').reduce((max, r) => Math.max(max, r.ts || 0), 0)
     return lastAdminReply > lastReadAt
   }).length
+
+  // One-time per-session login toast: if the student returns to unread class /
+  // subject group-chat messages, surface a toast that deep-links into that chat.
+  const groupToastRef = useRef(false)
+  useEffect(() => {
+    if (groupToastRef.current) return
+    if (!student || !messages.length) return
+    const id = student.id
+    const flagKey = 'grpchat_login_toast_' + id
+    try { if (sessionStorage.getItem(flagKey)) { groupToastRef.current = true; return } } catch (e) {}
+
+    const isUnread = m => {
+      if (m.from === id) return false
+      const studentRead = Array.isArray(m.read) && m.read.includes(id)
+      if (!studentRead) return true
+      const lastReadAt = m.readAt?.[id] || 0
+      const lastAdminReply = (m.replies || []).filter(r => r.from === 'admin').reduce((mx, r) => Math.max(mx, r.ts || 0), 0)
+      return lastAdminReply > lastReadAt
+    }
+    const groupUnread = messages.filter(m =>
+      m.type === 'announcement' &&
+      (m.classId || (Array.isArray(m.classIds) && m.classIds.length)) &&
+      studentSeesMessage(m, student, classes, semester) &&
+      isUnread(m)
+    )
+    groupToastRef.current = true
+    try { sessionStorage.setItem(flagKey, '1') } catch (e) {}
+    if (!groupUnread.length) return
+
+    // Deep-link into the most recently active group chat.
+    const lastActivity = m => (m.replies?.length ? Math.max(m.ts || 0, ...m.replies.map(r => r.ts || 0)) : (m.ts || 0))
+    const latest = groupUnread.reduce((a, b) => (lastActivity(b) > lastActivity(a) ? b : a))
+    const n = groupUnread.length
+    toastAction(`You have ${n} new message${n !== 1 ? 's' : ''} in your class group chat${n !== 1 ? 's' : ''}.`, {
+      label: 'View messages',
+      onAction: () => openStudentMessageThread(latest.id),
+      type: 'dark',
+      duration: 9000,
+    })
+  }, [student, messages, classes, semester]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Toast on any genuinely new notification.
   const lastNotifTs = useRef(0)

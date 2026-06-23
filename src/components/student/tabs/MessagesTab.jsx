@@ -4,13 +4,19 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { relativeTime } from '@/utils/format'
 import { getStudentMessages } from '@/utils/studentMessages'
+import { isClassCurrent } from '@/utils/active'
 import { notifyAdminMessage } from '@/firebase/messageNotify'
 import { fbAddMessageReply, fbMarkMessageRead } from '@/firebase/persistence'
 import Pagination from '@/components/primitives/Pagination'
 import KebabMenu from '@/components/primitives/KebabMenu'
-import { MessageSquare, GraduationCap, CheckCheck, Trash2, Check } from 'lucide-react'
+import { MessageSquare, GraduationCap, CheckCheck, Trash2, Check, Lock } from 'lucide-react'
 
 const PER_PAGE = 10
+
+// A class/section or subject group chat — teacher-owned, students may not delete it.
+function isGroupChat(m) {
+  return m?.type === 'announcement' && (!!m.classId || (Array.isArray(m.classIds) && m.classIds.length > 0))
+}
 
 // Student-side "delete" hides items from this device's inbox only — it must NOT
 // delete the shared Firestore docs (announcements/direct threads belong to the
@@ -28,7 +34,15 @@ function saveHidden(sid, h) { try { localStorage.setItem(hiddenKey(sid), JSON.st
 
 export default function MessagesTab({ student: s, messages }) {
   const { db, fbReady, classes, semester } = useData()
-  const { toast, openDialog } = useUI()
+  const { toast, openDialog, pendingMessageId, clearPendingMessage } = useUI()
+
+  // A group chat is "open" only while at least one of its classes is still in the
+  // current semester. Once the semester/class ends, students can no longer reply.
+  function groupChatActive(m) {
+    const ids = m.classId ? [m.classId] : (Array.isArray(m.classIds) ? m.classIds : [])
+    if (!ids.length) return true // not a class/subject group (e.g. all-students)
+    return ids.some(cid => { const c = classes.find(x => x.id === cid); return c && isClassCurrent(c, semester) })
+  }
 
   const [search, setSearch]     = useState('')
   const [page, setPage]         = useState(1)
@@ -67,6 +81,7 @@ export default function MessagesTab({ student: s, messages }) {
   const [threadEntries, setThreadEntries] = useState([])
   const [replyMsgId, setReplyMsgId] = useState(null) // null = new msg to admin
   const [canReply, setCanReply]  = useState(true)
+  const [endedNotice, setEndedNotice] = useState('') // shown when a group chat is closed
   const [replyText, setReplyText] = useState('')
   const [sending, setSending]    = useState(false)
   const threadRef = useRef(null)
@@ -147,6 +162,7 @@ export default function MessagesTab({ student: s, messages }) {
   }
 
   function openConversation() {
+    setEndedNotice('')
     const directMsgs = allMsgs.filter(m => m.type !== 'announcement').sort((a, b) => a.ts - b.ts)
     if (!directMsgs.length) {
       // New conversation — open thread with empty, allow compose
@@ -187,13 +203,30 @@ export default function MessagesTab({ student: s, messages }) {
     ].sort((a, b) => a.ts - b.ts)
     setThreadTitle(m.subject || 'Announcement')
     setThreadEntries(allEntries)
-    setCanReply(true)
+    const active = groupChatActive(m)
+    setCanReply(active)
+    setEndedNotice(active ? '' : 'This class has ended — you can no longer send messages to this group chat.')
     setView('thread')
   }
+
+  // Deep-link: when a toast (or elsewhere) requests a specific thread, open it
+  // once the messages have loaded, then clear the request.
+  useEffect(() => {
+    if (!pendingMessageId) return
+    const m = messages.find(x => x.id === pendingMessageId)
+    if (m) { openMessage(pendingMessageId); clearPendingMessage() }
+  }, [pendingMessageId, messages]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function sendReply() {
     const text = replyText.trim()
     if (!text) return
+    // Block replies to a group chat whose class/semester has ended.
+    if (replyMsgId) {
+      const target = messages.find(x => x.id === replyMsgId)
+      if (target && !groupChatActive(target)) {
+        toast('This class has ended — you can no longer message this group chat.', 'warn'); return
+      }
+    }
     if (text.length > 2000) { toast('Reply too long — maximum 2000 characters.', 'warn'); return }
     if (!fbReady || !db.current) { toast('Messages require Firebase to be connected.', 'warn'); return }
     setSending(true)
@@ -274,7 +307,7 @@ export default function MessagesTab({ student: s, messages }) {
           })}
         </div>
 
-        {canReply && (
+        {canReply ? (
           <div className="s-thread-reply-wrap">
             <textarea
               className="s-reply-input"
@@ -291,7 +324,11 @@ export default function MessagesTab({ student: s, messages }) {
               </button>
             </div>
           </div>
-        )}
+        ) : endedNotice ? (
+          <div className="s-thread-ended">
+            <Lock size={14} /> {endedNotice}
+          </div>
+        ) : null}
       </div>
     )
   }
@@ -372,10 +409,14 @@ export default function MessagesTab({ student: s, messages }) {
                 const m = item.msg
                 const preview = m.body.slice(0, 60) + (m.body.length > 60 ? '…' : '')
                 const replyCount = (m.replies || []).length
+                // Class/subject group chats are teacher-owned: students can't
+                // delete them (only hide-by-teacher), and they aren't selectable.
+                const locked = isGroupChat(m)
                 const sel = selected.has(m.id)
+                const onItemClick = (selectMode && !locked) ? () => toggleSelect(m.id) : () => openMessage(m.id)
                 return (
-                  <div key={m.id} className={`s-msg-thread-item${item.hasUnread ? ' unread' : ''}${sel ? ' selected' : ''}`} onClick={selectMode ? () => toggleSelect(m.id) : () => openMessage(m.id)} style={{ cursor: 'pointer' }}>
-                    {selectMode && <span className={`msg-checkbox ${sel ? 'checked' : ''}`} aria-hidden="true">{sel && <Check size={13} />}</span>}
+                  <div key={m.id} className={`s-msg-thread-item${item.hasUnread ? ' unread' : ''}${sel ? ' selected' : ''}`} onClick={onItemClick} style={{ cursor: 'pointer' }}>
+                    {selectMode && !locked && <span className={`msg-checkbox ${sel ? 'checked' : ''}`} aria-hidden="true">{sel && <Check size={13} />}</span>}
                     <div className="s-conv-avatar announce">A</div>
                     <div className="s-conv-body">
                       <div className="s-conv-name">
@@ -389,7 +430,7 @@ export default function MessagesTab({ student: s, messages }) {
                       <div className="s-conv-time">{relativeTime(item.lastActivity)}</div>
                       {item.hasUnread && <div className="msg-unread-badge">●</div>}
                     </div>
-                    {!selectMode && <KebabMenu items={[{ label: 'Delete', danger: true, onClick: () => deleteSelected([m.id]) }]} />}
+                    {!selectMode && !locked && <KebabMenu items={[{ label: 'Delete', danger: true, onClick: () => deleteSelected([m.id]) }]} />}
                   </div>
                 )
               }
