@@ -3,6 +3,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Modal from '@/components/primitives/Modal'
 import { gradeInfo, combineEquiv, computeTerms, round2, getHeldDays } from '@/utils/grades'
+import { activeClassIds, activeSubjects } from '@/utils/active'
 import { subjectColor } from '@/utils/subjectColor'
 import { GraduationCap } from 'lucide-react'
 
@@ -104,26 +105,14 @@ function SubjectRow({ sub, meta, eqScale, row, onChange }) {
 
 export default function StudentGradeEditModal() {
   const { editGradesStudentId, closeEditGrades, toast } = useUI()
-  const { students, classes, saveStudents, eqScale, db, fbReady, logAudit } = useData()
+  const { students, classes, saveStudents, eqScale, semester, db, fbReady, logAudit } = useData()
 
   const student = useMemo(() => students.find(s => s.id === editGradesStudentId) || null, [students, editGradesStudentId])
 
-  const enrolledIds = useMemo(() => {
-    if (!student) return []
-    return student.classIds?.length ? student.classIds : (student.classId ? [student.classId] : [])
-  }, [student])
-
-  const subjects = useMemo(() => {
-    if (!student) return []
-    const enrolledClasses = enrolledIds.map(id => classes.find(c => c.id === id)).filter(Boolean)
-    // Union enrolled-class subjects with any already-graded subjects, so an
-    // unassigned student (or one whose class was archived/removed) is editable.
-    return [...new Set([
-      ...enrolledClasses.flatMap(c => c.subjects || []),
-      ...Object.keys(student.grades || {}),
-      ...Object.keys(student.gradeComponents || {}),
-    ])]
-  }, [student, enrolledIds, classes])
+  // Current-semester only. Past/archived subjects are finalized and not editable
+  // here, so they are excluded from the list entirely.
+  const enrolledIds = useMemo(() => activeClassIds(student, classes, semester), [student, classes, semester])
+  const subjects   = useMemo(() => activeSubjects(student, classes, semester), [student, classes, semester])
 
   // Per-subject derived context: stored components + LIVE attendance + CS.
   // Attendance is recomputed here (never persisted) exactly like GradesTab, so
@@ -292,7 +281,7 @@ export default function StudentGradeEditModal() {
       </p>
 
       {!subjects.length ? (
-        <div className="empty" style={{ padding: 32 }}>No enrolled subjects to edit.</div>
+        <div className="empty" style={{ padding: 32 }}>No current-semester subjects to edit. Previous grades are finalized.</div>
       ) : (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 84px 84px 56px 64px auto', gap: 8, padding: '0 0 6px', borderBottom: '2px solid var(--border)' }}>

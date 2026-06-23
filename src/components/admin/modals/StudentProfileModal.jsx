@@ -6,6 +6,7 @@ import {
   gradeInfo, combineEquiv, computeFinalGradeFromTerms, getGWA, getAttRate,
 } from '@/utils/grades'
 import { subjectColor } from '@/utils/subjectColor'
+import { activeClassIds, activeSubjects } from '@/utils/active'
 import { buildStudentReportCard } from '@/export/reportCard'
 import {
   BarChart3, CalendarCheck, BookOpen, ClipboardList, FileQuestion, FileDown,
@@ -104,16 +105,11 @@ export default function StudentProfileModal() {
     )
   }
 
-  const enrolledIds = student.classIds?.length ? student.classIds : (student.classId ? [student.classId] : [])
+  // Current-semester only: exclude archived AND past/other-semester classes
+  // (whatever their status). Previous, finalized subjects are not shown here.
+  const enrolledIds = activeClassIds(student, classes, semester)
   const enrolledClasses = enrolledIds.map(id => classes.find(c => c.id === id)).filter(Boolean)
-  // Include subjects that already have grades/components even when the student is
-  // unassigned or their class was archived/removed (mirrors getGWA's fallback),
-  // so a student with a GWA never shows "No enrolled subjects".
-  const subjects = [...new Set([
-    ...enrolledClasses.flatMap(c => c.subjects || []),
-    ...Object.keys(student.grades || {}),
-    ...Object.keys(student.gradeComponents || {}),
-  ])]
+  const subjects = activeSubjects(student, classes, semester)
 
   const gwa = getGWA(student, classes)
   const attRate = getAttRate(student, students, classes)
@@ -170,7 +166,7 @@ export default function StudentProfileModal() {
         <div className="sec-title sec-title-ic"><BookOpen /> Subjects, grades, activities & quizzes</div>
       </div>
       {!subjects.length ? (
-        <div className="empty"><div className="empty-icon"><BookOpen size={36} /></div>No enrolled subjects.</div>
+        <div className="empty"><div className="empty-icon"><BookOpen size={36} /></div>No subjects this semester.</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {subjects.map(sub => (
