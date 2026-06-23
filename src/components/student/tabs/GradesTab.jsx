@@ -3,9 +3,10 @@ import {
   gradeInfo, combineEquiv, computeFinalGradeFromTerms,
 } from '@/utils/grades'
 import { useData } from '@/context/DataContext'
-import { BookOpen, Clock, ChevronDown, ChevronUp, Award, Check, RefreshCw } from 'lucide-react'
+import { BookOpen, Clock, ChevronDown, ChevronUp, Award, Check, RefreshCw, Target } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { activeClassIds, activeSubjects } from '@/utils/active'
+import { neededFinalsForRemarks } from '@/utils/whatIf'
 import RegradeRequestModal from '@/components/student/modals/RegradeRequestModal'
 
 export default function GradesTab({ student: s, viewClassId, classes }) {
@@ -95,6 +96,59 @@ function Bar({ val, label, weight }) {
       </div>
       <div className="sg-bar-track">
         <div className="sg-bar-fill" style={{ width: `${pct}%`, background: color }} />
+      </div>
+    </div>
+  )
+}
+
+// ── What-if calculator: shown when the midterm is in but finals isn't yet ─────
+function WhatIfPanel({ midTerm, eqScale }) {
+  const [val, setVal] = useState('')
+  const needs = useMemo(() => neededFinalsForRemarks(midTerm, eqScale), [midTerm, eqScale])
+
+  const f = val === '' ? null : Math.max(0, Math.min(100, parseFloat(val)))
+  let proj = null
+  if (f != null && !isNaN(f)) {
+    const finalPct = computeFinalGradeFromTerms(midTerm, f)
+    const c = combineEquiv(gradeInfo(midTerm, eqScale).eq, gradeInfo(f, eqScale).eq)
+    proj = { finalPct, eq: c.eq, rem: c.rem }
+  }
+
+  const passNeed = needs?.Passed
+  const condNeed = needs?.Conditional
+  const fmtNeed = n => (n == null ? null : (n <= 0 ? 0 : Math.round(n * 10) / 10))
+
+  return (
+    <div style={{ border: '1px dashed var(--border2)', borderRadius: 10, padding: '12px 14px', marginTop: 12, background: 'var(--surface2)' }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink2)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <Target size={13} /> What do I need on Finals?
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.7 }}>
+        {passNeed == null
+          ? <div>A passing grade isn't reachable from your midterm alone — talk to your teacher about your options.</div>
+          : passNeed <= 0
+            ? <div style={{ color: 'var(--green)' }}>You've already secured a passing final grade.</div>
+            : <div>Score at least <strong style={{ color: 'var(--green)' }}>{fmtNeed(passNeed)}%</strong> on your Finals term to <strong>pass</strong>.</div>}
+        {condNeed != null && condNeed > 0 && passNeed > 0 && (
+          <div>At least <strong style={{ color: 'var(--yellow)' }}>{fmtNeed(condNeed)}%</strong> to avoid failing.</div>
+        )}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12, color: 'var(--ink2)' }}>Try a finals score:</span>
+        <input
+          className="input" type="number" min="0" max="100" value={val}
+          onChange={e => setVal(e.target.value)} placeholder="0–100"
+          style={{ width: 90, fontSize: 13 }}
+        />
+        {proj && (
+          <span style={{ fontSize: 12, color: 'var(--ink)' }}>
+            → final <strong>{proj.finalPct}%</strong> · <strong>{proj.eq}</strong>{' '}
+            <span className={`badge ${proj.rem === 'Passed' ? 'badge-green' : proj.rem === 'Conditional' ? 'badge-yellow' : 'badge-red'}`}>{proj.rem}</span>
+          </span>
+        )}
+      </div>
+      <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 8 }}>
+        Final grade = average of your Midterm and Finals term grades. Estimate only.
       </div>
     </div>
   )
@@ -312,6 +366,11 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
           <Bar val={attRate}     label="Attendance"          weight="CS" />
           <Bar val={attitudeVal} label="Attitude / Character" weight="CS" />
         </div>
+      )}
+
+      {/* ── What-if calculator (midterm in, finals still pending) ── */}
+      {midG != null && finG == null && (
+        <WhatIfPanel midTerm={midG} eqScale={eqScale} />
       )}
 
       {/* ── Grade Computation Trail (Best Feature) ── */}

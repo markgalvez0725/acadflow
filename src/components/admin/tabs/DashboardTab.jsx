@@ -1,7 +1,10 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect, useRef } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { getGWA, getAttRate } from '@/utils/grades'
+import { findAbsenceAlerts } from '@/utils/attendanceRisk'
+import { fbPushReminderNotif } from '@/firebase/reminders'
+import { sendPushToOwners } from '@/firebase/pushTokens'
 import { computeAssessmentStats } from '@/utils/assessmentStats'
 import { sortByLastName } from '@/utils/format'
 import Badge from '@/components/primitives/Badge'
@@ -19,11 +22,41 @@ import EmptyState from '@/components/ds/EmptyState'
 const PER_PAGE = 10
 
 export default function DashboardTab() {
-  const { students, classes, activities = [], fbReady, admin } = useData()
+  const { students, classes, activities = [], fbReady, admin, semester, db } = useData()
   const { setAdminTab } = useUI()
   const [riskPage, setRiskPage]     = useState(1)
   const [lowAttPage, setLowAttPage] = useState(1)
+  const [absPage, setAbsPage]       = useState(1)
   const [allPage, setAllPage]       = useState(1)
+
+  // Consecutive-absence early warning (3+ missed sessions in a row).
+  const ABSENCE_THRESHOLD = 3
+  const absenceAlerts = useMemo(
+    () => findAbsenceAlerts(students, classes, semester, ABSENCE_THRESHOLD),
+    [students, classes, semester]
+  )
+
+  // Notify each flagged student once per new streak milestone (idempotent via
+  // remKey). Best-effort; runs when the teacher's dashboard sees the alerts.
+  const notifiedRef = useRef(false)
+  useEffect(() => {
+    if (notifiedRef.current || !fbReady || !db?.current || !absenceAlerts.length) return
+    notifiedRef.current = true
+    absenceAlerts.forEach(a => {
+      const rem = {
+        remKey: `absent_${a.classId}_${a.subject}_${a.lastDate}_${a.streak}`,
+        type: 'att_alert',
+        title: 'Attendance check-in',
+        body: `You've missed ${a.streak} ${a.subject} sessions in a row. Please reach out to your teacher.`,
+        link: 'attendance',
+      }
+      fbPushReminderNotif(db.current, a.student.id, rem).then(created => {
+        if (created) sendPushToOwners(db.current, [a.student.id], { title: rem.title, body: rem.body }, { url: '/', tag: rem.remKey })
+      })
+    })
+  }, [absenceAlerts, fbReady])
+
+  const absSlice = absenceAlerts.slice((absPage - 1) * PER_PAGE, absPage * PER_PAGE)
 
   const stats = useMemo(() => {
     const gwas = [], atts = []
@@ -251,6 +284,31 @@ export default function DashboardTab() {
           )}
         </div>
       </div>
+
+      {/* Consecutive-absence early warning */}
+      {absenceAlerts.length > 0 && (
+        <div className="card card-pad mb-4">
+          <div className="sec-hdr">
+            <div className="sec-title sec-title-ic"><AlertTriangle /> Consecutive Absences ({ABSENCE_THRESHOLD}+ in a row)</div>
+            <button className="sec-link" onClick={() => setAdminTab('attendance')}>Go to Attendance <ArrowRight /></button>
+          </div>
+          <div className="tbl-wrap">
+            <table className="tbl">
+              <thead><tr><th>Name</th><th>Subject</th><th>Missed in a row</th></tr></thead>
+              <tbody>
+                {absSlice.map(a => (
+                  <tr key={`${a.student.id}_${a.classId}_${a.subject}`}>
+                    <td>{a.student.name}<br/><small className="text-ink2">{a.student.id}</small></td>
+                    <td>{a.subject}</td>
+                    <td><Badge variant="red">{a.streak} sessions</Badge></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Pagination total={absenceAlerts.length} perPage={PER_PAGE} page={absPage} onChange={setAbsPage} />
+        </div>
+      )}
 
       {/* Assessment completion analytics */}
       <div className="card card-pad mb-4">
