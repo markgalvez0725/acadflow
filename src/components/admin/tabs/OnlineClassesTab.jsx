@@ -253,7 +253,13 @@ export default function OnlineClassesTab() {
           email={admin?.email}
           isHost
           subtitle={room.className || 'Online class'}
-          onLeave={() => setRoom(null)}
+          onLeave={() => {
+            const m = room
+            setRoom(null)
+            // The host leaving ends the class for everyone — flip it out of
+            // "live" so students stop seeing it as ongoing.
+            if (m && m.status !== 'ended') endMeeting(m).catch(() => {})
+          }}
         />
       )}
     </div>

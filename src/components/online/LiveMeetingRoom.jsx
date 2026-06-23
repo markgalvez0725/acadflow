@@ -14,6 +14,12 @@ export default function LiveMeetingRoom({ meeting, displayName, email, isHost = 
   const holderRef = useRef(null)
   const apiRef = useRef(null)
   const timerRef = useRef(null)
+  // Leaving can be signalled twice (our hangup fallback + Jitsi's readyToClose);
+  // fire onLeave exactly once. onLeave is read through a ref so the latest
+  // closure (e.g. the host's "end the meeting" handler) always runs.
+  const onLeaveRef = useRef(onLeave); onLeaveRef.current = onLeave
+  const leftRef = useRef(false)
+  const finishLeave = () => { if (leftRef.current) return; leftRef.current = true; onLeaveRef.current?.() }
 
   const [phase, setPhase] = useState('loading') // loading | joined | error
   const [error, setError] = useState('')
@@ -77,7 +83,7 @@ export default function LiveMeetingRoom({ meeting, displayName, email, isHost = 
         // Fires for every participant; only reflect our own hand state.
         try { if (e.id === api._myUserID || e.id === api.getMyUserId?.()) setHandRaised(!!e.handRaised) } catch (err) { /* ignore */ }
       })
-      api.addEventListener('readyToClose', () => { if (!disposed) onLeave?.() })
+      api.addEventListener('readyToClose', () => { if (!disposed) finishLeave() })
     }).catch(err => {
       if (disposed) return
       setError(err?.message || 'Could not start the video room.')
@@ -96,8 +102,8 @@ export default function LiveMeetingRoom({ meeting, displayName, email, isHost = 
   function cmd(name) { try { apiRef.current?.executeCommand(name) } catch (e) { /* ignore */ } }
   function leave() {
     cmd('hangup')
-    // hangup → readyToClose handles onLeave, but close promptly as a fallback.
-    setTimeout(() => onLeave?.(), 250)
+    // hangup → readyToClose handles the leave, but close promptly as a fallback.
+    setTimeout(finishLeave, 250)
   }
 
   const elapsed = `${String(Math.floor(secs / 60)).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}`

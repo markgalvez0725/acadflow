@@ -68,6 +68,14 @@ export default function OnlineClassesTab({ student }) {
   const [panel, setPanel] = useState('live')
   const [room, setRoom] = useState(null) // meeting currently open in the embedded room
 
+  // If the teacher ends (or cancels) the class while a student is in the room,
+  // close their view automatically — the meeting is no longer live.
+  useEffect(() => {
+    if (!room) return
+    const current = meetings.find(m => m.id === room.id)
+    if (!current || current.status === 'ended') setRoom(null)
+  }, [meetings, room])
+
   const classNameById = useMemo(() => {
     const map = {}
     classes.forEach(c => {
