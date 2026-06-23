@@ -9,10 +9,25 @@ import { getSWRegistration } from './registerSW'
 // Web Push certificate ("VAPID key") from Firebase Console →
 // Project settings → Cloud Messaging → Web Push certificates.
 // Set VITE_FB_VAPID_KEY in your .env, or window.__ACADFLOW_VAPID__ at runtime.
-export const VAPID_KEY =
+// Sanitize: env vars and copy/paste often carry surrounding quotes or trailing
+// whitespace/newlines, which corrupt the applicationServerKey and make the push
+// service reject the subscription with a "push service error".
+function cleanVapid(v) {
+  return String(v || '').trim().replace(/^["']+|["']+$/g, '').replace(/\s+/g, '')
+}
+
+export const VAPID_KEY = cleanVapid(
   (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_FB_VAPID_KEY) ||
   (typeof window !== 'undefined' && window.__ACADFLOW_VAPID__) ||
   ''
+)
+
+// A valid VAPID public key is base64url and decodes to 65 bytes (~87–88 chars).
+// This catches obvious mistakes — pasting the Server key / Sender ID, or a
+// truncated key — before we attempt (and fail) a subscription.
+export function vapidLooksValid(k = VAPID_KEY) {
+  return /^[A-Za-z0-9_-]{80,100}$/.test(k)
+}
 
 let _messaging = null
 let _lastError = ''
@@ -60,6 +75,11 @@ export async function enablePush() {
   if (!(await pushSupported())) return null
   if (!VAPID_KEY) {
     console.warn('[push] No VAPID key configured — set VITE_FB_VAPID_KEY to enable web push.')
+    return null
+  }
+  if (!vapidLooksValid()) {
+    _lastError = 'The push key (VAPID) looks invalid. Copy the Web Push certificate "Key pair" from Firebase Console → Cloud Messaging into VITE_FB_VAPID_KEY (no quotes/spaces).'
+    console.warn('[push]', _lastError, `(got ${VAPID_KEY.length} chars)`)
     return null
   }
   const permission = await Notification.requestPermission()
