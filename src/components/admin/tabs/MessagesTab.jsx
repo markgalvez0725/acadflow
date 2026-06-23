@@ -4,9 +4,10 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { sortByLastName } from '@/utils/format'
 import { notifyStudentMessage, notifyStudentsBroadcast } from '@/firebase/messageNotify'
-import { fbAddMessageReply } from '@/firebase/persistence'
+import { fbAddMessageReply, fbDeleteMessage } from '@/firebase/persistence'
 import Modal from '@/components/primitives/Modal'
-import { X, Pencil, Send, CheckCheck, Megaphone } from 'lucide-react'
+import KebabMenu from '@/components/primitives/KebabMenu'
+import { X, Pencil, Send, CheckCheck, Megaphone, Trash2, Search, ChevronDown, Check } from 'lucide-react'
 
 // ── Helpers ───────────────────────────────────────────────────────────
 function msgId() {
@@ -27,6 +28,121 @@ function relativeTime(ts) {
 
 function getInitials(name) {
   return (name || '').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+}
+
+// Round avatar that prefers a profile photo, falling back to initials/icon.
+function Avatar({ photo, char, announce = false, size = 38 }) {
+  return (
+    <div className={`msg-conv-avatar ${announce ? 'announce-avatar' : ''}`} style={{ width: size, height: size, fontSize: Math.round(size / 2.9) }}>
+      {photo ? <img src={photo} alt="" className="msg-conv-avatar-img" /> : char}
+    </div>
+  )
+}
+
+// ── Recipient Picker ──────────────────────────────────────────────────
+// Searchable dropdown replacing the native <select> that dumped every student
+// at once. Shows All-Students + per-class broadcasts + individual students with
+// their profile photos, filtered by a search box.
+function RecipientPicker({ students, classes, classGroups, value, onChange }) {
+  const [open, setOpen] = useState(false)
+  const [q, setQ] = useState('')
+  const wrapRef = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = e => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false) }
+    const onKey = e => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey) }
+  }, [open])
+
+  // Resolve the label/avatar for the current selection.
+  const selected = useMemo(() => {
+    if (value === 'all') return { label: 'All Students', sub: 'Announcement', announce: true }
+    if (typeof value === 'string' && value.startsWith('class:')) {
+      const cid = value.slice(6)
+      const cls = classes.find(c => c.id === cid)
+      return { label: cls ? `All in ${cls.name} ${cls.section}` : 'Class broadcast', sub: 'Announcement', announce: true }
+    }
+    const s = students.find(x => x.id === value)
+    return s ? { label: s.name, sub: s.id, photo: s.photo, char: getInitials(s.name) } : { label: 'Select recipient…', sub: '' }
+  }, [value, students, classes])
+
+  const ql = q.trim().toLowerCase()
+  const matchStudent = s => !ql || s.name.toLowerCase().includes(ql) || String(s.id).toLowerCase().includes(ql)
+
+  function pick(v) { onChange(v); setOpen(false); setQ('') }
+
+  return (
+    <div className="recipient-picker" ref={wrapRef}>
+      <button type="button" className="recipient-trigger input w-full" onClick={() => setOpen(o => !o)}>
+        <Avatar photo={selected.photo} char={selected.char || <Megaphone size={15} />} announce={selected.announce} size={26} />
+        <span className="recipient-trigger-label">
+          <span className="recipient-trigger-name">{selected.label}</span>
+          {selected.sub && <span className="recipient-trigger-sub">{selected.sub}</span>}
+        </span>
+        <ChevronDown size={16} className="recipient-chevron" />
+      </button>
+
+      {open && (
+        <div className="recipient-menu">
+          <div className="recipient-search">
+            <Search size={14} />
+            <input
+              autoFocus
+              value={q}
+              onChange={e => setQ(e.target.value)}
+              placeholder="Search students…"
+              aria-label="Search recipients"
+            />
+          </div>
+          <div className="recipient-list">
+            {/* Broadcast options */}
+            {!ql && (
+              <>
+                <button type="button" className="recipient-opt" onClick={() => pick('all')}>
+                  <Avatar char={<Megaphone size={15} />} announce size={30} />
+                  <span className="recipient-opt-text"><span className="recipient-opt-name">All Students</span><span className="recipient-opt-sub">Announcement to everyone</span></span>
+                  {value === 'all' && <Check size={15} className="recipient-check" />}
+                </button>
+                {Object.keys(classGroups).sort().map(label => {
+                  const grp = classGroups[label]
+                  const cls = classes.find(c => c.id === grp[0]?.classId)
+                  if (!cls) return null
+                  const v = 'class:' + cls.id
+                  return (
+                    <button type="button" key={v} className="recipient-opt" onClick={() => pick(v)}>
+                      <Avatar char={<Megaphone size={15} />} announce size={30} />
+                      <span className="recipient-opt-text"><span className="recipient-opt-name">All in {label}</span><span className="recipient-opt-sub">Class broadcast</span></span>
+                      {value === v && <Check size={15} className="recipient-check" />}
+                    </button>
+                  )
+                })}
+                <div className="recipient-divider">Individual students</div>
+              </>
+            )}
+            {/* Individual students */}
+            {Object.keys(classGroups).sort().flatMap(label =>
+              sortByLastName(classGroups[label]).filter(matchStudent).map(s => (
+                <button type="button" key={s.id} className="recipient-opt" onClick={() => pick(s.id)}>
+                  <Avatar photo={s.photo} char={getInitials(s.name)} size={30} />
+                  <span className="recipient-opt-text">
+                    <span className="recipient-opt-name">{s.name}{s.account?.registered ? '' : ' · no account'}</span>
+                    <span className="recipient-opt-sub">{s.id} · {label}</span>
+                  </span>
+                  {value === s.id && <Check size={15} className="recipient-check" />}
+                </button>
+              ))
+            )}
+            {ql && !students.some(matchStudent) && (
+              <div className="recipient-empty">No students match “{q}”.</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── Compose Modal ─────────────────────────────────────────────────────
@@ -108,31 +224,13 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
 
       <div className="field mb-3">
         <label className="text-xs font-semibold text-ink2 mb-1 block">To</label>
-        <select
-          className="input w-full"
+        <RecipientPicker
+          students={students}
+          classes={classes}
+          classGroups={classGroups}
           value={to}
-          onChange={e => setTo(e.target.value)}
-        >
-          <option value="all">All Students (Announcement)</option>
-          {Object.keys(classGroups).sort().map(label => {
-            const grp = classGroups[label]
-            const cls = classes.find(c => c.id === grp[0]?.classId)
-            if (cls) {
-              return <option key={'class:' + cls.id} value={'class:' + cls.id}>All in {label}</option>
-            }
-            return null
-          })}
-          <option disabled>── Individual Students ──</option>
-          {Object.keys(classGroups).sort().map(label => (
-            <optgroup key={label} label={label}>
-              {sortByLastName(classGroups[label]).map(s => (
-                <option key={s.id} value={s.id}>
-                  {s.name} · {s.id}{s.account?.registered ? '' : ' (no account)'}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+          onChange={setTo}
+        />
       </div>
 
       <div className="field mb-3">
@@ -171,7 +269,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
 }
 
 // ── Thread Panel ──────────────────────────────────────────────────────
-function ThreadPanel({ thread, onReply, onClose }) {
+function ThreadPanel({ thread, onReply, onClose, onDelete }) {
   const messagesEndRef = useRef(null)
 
   useEffect(() => {
@@ -194,9 +292,14 @@ function ThreadPanel({ thread, onReply, onClose }) {
           <div className="font-semibold text-ink text-sm">{thread.headerName}</div>
           <div className="text-xs text-ink2">{thread.headerSub}</div>
         </div>
-        {onClose && (
-          <button className="text-ink3 hover:text-ink" onClick={onClose}><X size={18} /></button>
-        )}
+        <div className="flex items-center gap-1">
+          {onDelete && (
+            <button className="msg-thread-del" onClick={onDelete} title="Delete this conversation"><Trash2 size={17} /></button>
+          )}
+          {onClose && (
+            <button className="text-ink3 hover:text-ink" onClick={onClose}><X size={18} /></button>
+          )}
+        </div>
       </div>
 
       {/* Messages */}
@@ -275,14 +378,19 @@ function ReplyBox({ onSend }) {
 }
 
 // ── Conversation Item ─────────────────────────────────────────────────
-function ConvItem({ isActive, isUnread, avatarChar, isAnnounce, name, preview, time, onClick }) {
+function ConvItem({ isActive, isUnread, avatarChar, photo, isAnnounce, name, preview, time, onClick, selectMode, selected, onToggleSelect, onDelete }) {
   return (
     <div
-      className={`msg-conv-item ${isUnread ? 'unread' : ''} ${isActive ? 'active' : ''}`}
-      onClick={onClick}
+      className={`msg-conv-item ${isUnread ? 'unread' : ''} ${isActive ? 'active' : ''} ${selected ? 'selected' : ''}`}
+      onClick={selectMode ? onToggleSelect : onClick}
       style={{ cursor: 'pointer' }}
     >
-      <div className={`msg-conv-avatar ${isAnnounce ? 'announce-avatar' : ''}`}>{avatarChar}</div>
+      {selectMode && (
+        <span className={`msg-checkbox ${selected ? 'checked' : ''}`} aria-hidden="true">
+          {selected && <Check size={13} />}
+        </span>
+      )}
+      <Avatar photo={photo} char={avatarChar} announce={isAnnounce} />
       <div className="msg-conv-body">
         <div className="msg-conv-name">{name}</div>
         <div className="msg-conv-preview">{preview}</div>
@@ -291,6 +399,9 @@ function ConvItem({ isActive, isUnread, avatarChar, isAnnounce, name, preview, t
         <div className="msg-conv-time">{time}</div>
         {isUnread && <div className="msg-unread-badge">●</div>}
       </div>
+      {!selectMode && onDelete && (
+        <KebabMenu items={[{ label: 'Delete', danger: true, onClick: onDelete }]} />
+      )}
     </div>
   )
 }
@@ -300,7 +411,7 @@ const PER_PAGE = 10
 
 export default function MessagesTab() {
   const { students, classes, messages, db, fbReady } = useData()
-  const { toast } = useUI()
+  const { toast, openDialog } = useUI()
 
   // Class + section label for the student behind a conversation, used to group
   // the inbox. Unassigned students fall into a trailing "Unassigned" group.
@@ -317,6 +428,54 @@ export default function MessagesTab() {
   const [activeConv, setActiveConv]     = useState(null) // { type, studentId?, msgId? }
   const [showCompose, setShowCompose]   = useState(false)
   const [replyTo, setReplyTo]           = useState(null)
+  const [selectMode, setSelectMode]     = useState(false)
+  const [selected, setSelected]         = useState(() => new Set()) // tokens: inbox=sid, sent/announce=msgId
+
+  function exitSelect() { setSelectMode(false); setSelected(new Set()) }
+  function toggleSelect(token) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(token) ? next.delete(token) : next.add(token)
+      return next
+    })
+  }
+
+  // Map a selection token to the message document id(s) it represents.
+  // Inbox tokens are a student id (a conversation = every doc to/from them);
+  // sent/broadcast tokens are the message id itself.
+  function resolveDocIds(token) {
+    if (activeTab === 'inbox') {
+      return messages
+        .filter(m => m.from === token || (m.from === 'admin' && m.to === token && m.type === 'direct'))
+        .map(m => m.id)
+    }
+    return [token]
+  }
+
+  async function deleteTokens(tokens) {
+    if (!tokens.length) return
+    if (!fbReady || !db.current) { toast('Firebase not connected.', 'red'); return }
+    const ids = new Set()
+    tokens.forEach(t => resolveDocIds(t).forEach(id => ids.add(id)))
+    if (!ids.size) return
+    const noun = activeTab === 'inbox' ? 'conversation' : 'message'
+    const ok = await openDialog({
+      title: `Delete ${tokens.length} ${noun}${tokens.length > 1 ? 's' : ''}?`,
+      msg: `This permanently removes the selected ${noun}${tokens.length > 1 ? 's' : ''} for everyone (including the student${activeTab === 'inbox' ? '' : '(s)'}). This cannot be undone.`,
+      type: 'danger', confirmLabel: 'Delete', showCancel: true,
+    })
+    if (!ok) return
+    try {
+      await Promise.all([...ids].map(id => fbDeleteMessage(db.current, id).catch(() => {})))
+      toast(`Deleted ${tokens.length} ${noun}${tokens.length > 1 ? 's' : ''}.`, 'green')
+      // Close the open thread if its document was just deleted.
+      if (activeConv?.type === 'conversation' && tokens.includes(activeConv.studentId)) setActiveConv(null)
+      if (activeConv?.type === 'message' && tokens.includes(activeConv.msgId)) setActiveConv(null)
+      exitSelect()
+    } catch (e) {
+      toast('Delete failed: ' + e.message, 'red')
+    }
+  }
 
   // Categorized message lists
   const inboxMsgs    = useMemo(() => messages.filter(m => m.from !== 'admin').sort((a, b) => b.ts - a.ts), [messages])
@@ -386,6 +545,7 @@ export default function MessagesTab() {
     setPage(1)
     setSearch('')
     setActiveConv(null)
+    exitSelect()
   }
 
   function handleSearch(v) {
@@ -576,11 +736,16 @@ export default function MessagesTab() {
               isActive={isActive}
               isUnread={cv.hasUnread}
               avatarChar={getInitials(name)}
+              photo={s?.photo}
               isAnnounce={false}
               name={name}
               preview={preview}
               time={relativeTime(cv.lastActivity)}
               onClick={() => openConversation(cv.sid)}
+              selectMode={selectMode}
+              selected={selected.has(cv.sid)}
+              onToggleSelect={() => toggleSelect(cv.sid)}
+              onDelete={() => deleteTokens([cv.sid])}
             />
           </React.Fragment>
         )
@@ -589,9 +754,10 @@ export default function MessagesTab() {
 
     // Sent / Announcements
     return pageSlice.map(m => {
+      const recipStu = students.find(s => s.id === m.to)
       const recipientName = m.to === 'all' ? 'All Students'
         : m.to.startsWith('class:') ? 'Class Broadcast'
-        : (students.find(s => s.id === m.to)?.name || m.to)
+        : (recipStu?.name || m.to)
       const initials = activeTab === 'announce' ? <Megaphone size={18} /> : getInitials(recipientName)
       const preview = m.body.slice(0, 60) + (m.body.length > 60 ? '…' : '')
       const isActive = activeConv?.type === 'message' && activeConv.msgId === m.id
@@ -601,11 +767,16 @@ export default function MessagesTab() {
           isActive={isActive}
           isUnread={false}
           avatarChar={initials}
+          photo={activeTab === 'sent' ? recipStu?.photo : undefined}
           isAnnounce={activeTab === 'announce'}
           name={'→ ' + recipientName}
           preview={m.subject + ' — ' + preview}
           time={relativeTime(m.ts)}
           onClick={() => openMessage(m.id)}
+          selectMode={selectMode}
+          selected={selected.has(m.id)}
+          onToggleSelect={() => toggleSelect(m.id)}
+          onDelete={() => deleteTokens([m.id])}
         />
       )
     })
@@ -664,6 +835,25 @@ export default function MessagesTab() {
             />
           </div>
 
+          {/* Select / delete toolbar */}
+          {filteredList.length > 0 && (
+            <div className="msg-select-bar">
+              {selectMode ? (
+                <>
+                  <span className="msg-select-count">{selected.size} selected</span>
+                  <div className="flex items-center gap-1">
+                    <button className="btn btn-ghost btn-sm" onClick={exitSelect}>Cancel</button>
+                    <button className="btn btn-danger btn-sm" disabled={!selected.size} onClick={() => deleteTokens([...selected])}>
+                      <Trash2 size={14} /> Delete
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <button className="msg-select-toggle" onClick={() => setSelectMode(true)}>Select</button>
+              )}
+            </div>
+          )}
+
           {/* List */}
           <div id="admin-conv-list" className="flex-1 overflow-y-auto">
             {renderListItems()}
@@ -694,6 +884,7 @@ export default function MessagesTab() {
               thread={thread}
               onReply={handleReply}
               onClose={() => setActiveConv(null)}
+              onDelete={() => deleteTokens([thread.type === 'conversation' ? thread.studentId : thread.msgId])}
             />
           ) : (
             <div id="admin-conv-empty" className="flex-1 flex items-center justify-center text-ink3 text-sm">

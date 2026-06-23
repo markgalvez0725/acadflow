@@ -158,6 +158,15 @@ export async function fbDeleteResource(db, id) {
   return fbWithTimeout(deleteDoc(fbDoc(db, 'resources', id)))
 }
 
+// ── Message delete (teacher-side hard delete of a message document) ───────────
+// Removes the whole message doc (and its nested replies). Used by the admin
+// Messages tab. Student-side "delete" hides locally instead — students must not
+// destroy shared/announcement docs for everyone.
+export async function fbDeleteMessage(db, id) {
+  const { doc: fbDoc, deleteDoc } = await import('firebase/firestore')
+  return fbWithTimeout(deleteDoc(fbDoc(db, 'messages', id)))
+}
+
 export async function fbAddAnnouncementComment(db, announcementId, comment) {
   if (!db || !announcementId || !comment) return
   const { doc: fbDoc } = await import('firebase/firestore')

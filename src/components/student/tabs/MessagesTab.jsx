@@ -6,9 +6,24 @@ import { relativeTime } from '@/utils/format'
 import { notifyAdminMessage } from '@/firebase/messageNotify'
 import { fbAddMessageReply, fbMarkMessageRead } from '@/firebase/persistence'
 import Pagination from '@/components/primitives/Pagination'
-import { MessageSquare, GraduationCap, CheckCheck } from 'lucide-react'
+import KebabMenu from '@/components/primitives/KebabMenu'
+import { MessageSquare, GraduationCap, CheckCheck, Trash2, Check } from 'lucide-react'
 
 const PER_PAGE = 10
+
+// Student-side "delete" hides items from this device's inbox only — it must NOT
+// delete the shared Firestore docs (announcements/direct threads belong to the
+// teacher too). Stored per student: { announce: [msgId…], directUpTo: ts }.
+// The direct conversation is hidden only up to a timestamp, so any newer message
+// or reply brings it back automatically.
+function hiddenKey(sid) { return `acadflow_hidden_msgs_${sid}` }
+function loadHidden(sid) {
+  try {
+    const o = JSON.parse(localStorage.getItem(hiddenKey(sid)) || '{}')
+    return { announce: Array.isArray(o.announce) ? o.announce : [], directUpTo: Number(o.directUpTo) || 0 }
+  } catch (e) { return { announce: [], directUpTo: 0 } }
+}
+function saveHidden(sid, h) { try { localStorage.setItem(hiddenKey(sid), JSON.stringify(h)) } catch (e) {} }
 
 function getStudentMessages(messages, s) {
   const id = s.id
@@ -23,10 +38,40 @@ function getStudentMessages(messages, s) {
 
 export default function MessagesTab({ student: s, messages }) {
   const { db, fbReady } = useData()
-  const { toast } = useUI()
+  const { toast, openDialog } = useUI()
 
   const [search, setSearch]     = useState('')
   const [page, setPage]         = useState(1)
+  const [hidden, setHidden]     = useState(() => loadHidden(s.id))
+  const [selectMode, setSelectMode] = useState(false)
+  const [selected, setSelected] = useState(() => new Set()) // tokens: 'direct' or announcement msgId
+
+  // Reload the per-student hidden set when the signed-in student changes.
+  useEffect(() => { setHidden(loadHidden(s.id)); setSelectMode(false); setSelected(new Set()) }, [s.id])
+
+  function exitSelect() { setSelectMode(false); setSelected(new Set()) }
+  function toggleSelect(token) {
+    setSelected(prev => { const n = new Set(prev); n.has(token) ? n.delete(token) : n.add(token); return n })
+  }
+
+  async function deleteSelected(tokens) {
+    if (!tokens.length) return
+    const ok = await openDialog({
+      title: `Remove ${tokens.length} item${tokens.length > 1 ? 's' : ''}?`,
+      msg: 'This hides the selected message(s) from your inbox on this device. Your teacher keeps their copy, and any new reply brings the conversation back.',
+      type: 'danger', confirmLabel: 'Delete', showCancel: true,
+    })
+    if (!ok) return
+    const next = { announce: [...hidden.announce], directUpTo: hidden.directUpTo }
+    tokens.forEach(tok => {
+      if (tok === 'direct') next.directUpTo = Date.now()
+      else if (!next.announce.includes(tok)) next.announce.push(tok)
+    })
+    setHidden(next)
+    saveHidden(s.id, next)
+    toast(`Removed ${tokens.length} item${tokens.length > 1 ? 's' : ''}.`, 'green')
+    exitSelect()
+  }
   const [view, setView]         = useState('list') // 'list' | 'thread'
   const [threadTitle, setThreadTitle] = useState('')
   const [threadEntries, setThreadEntries] = useState([])
@@ -82,8 +127,14 @@ export default function MessagesTab({ student: s, messages }) {
       const lastAct = (m.replies || []).length ? Math.max(m.ts, ...(m.replies || []).map(r => r.ts)) : m.ts
       result.push({ type: 'announcement', msg: m, lastActivity: lastAct, hasUnread: !isRead })
     })
-    return result.sort((a, b) => b.lastActivity - a.lastActivity)
-  }, [filtered, s.id])
+    // Drop items the student hid on this device (announcements by id; the direct
+    // conversation only while no newer activity has arrived since the hide).
+    return result
+      .filter(it => it.type === 'announcement'
+        ? !hidden.announce.includes(it.msg.id)
+        : it.lastActivity > hidden.directUpTo)
+      .sort((a, b) => b.lastActivity - a.lastActivity)
+  }, [filtered, s.id, hidden])
 
   const slice = items.slice((page - 1) * PER_PAGE, page * PER_PAGE)
 
@@ -270,6 +321,24 @@ export default function MessagesTab({ student: s, messages }) {
         onChange={e => { setSearch(e.target.value); setPage(1) }}
       />
 
+      {items.length > 0 && (
+        <div className="msg-select-bar mb-2">
+          {selectMode ? (
+            <>
+              <span className="msg-select-count">{selected.size} selected</span>
+              <div className="flex items-center gap-1">
+                <button className="btn btn-ghost btn-sm" onClick={exitSelect}>Cancel</button>
+                <button className="btn btn-danger btn-sm" disabled={!selected.size} onClick={() => deleteSelected([...selected])}>
+                  <Trash2 size={14} /> Delete
+                </button>
+              </div>
+            </>
+          ) : (
+            <button className="msg-select-toggle" onClick={() => setSelectMode(true)}>Select</button>
+          )}
+        </div>
+      )}
+
       {!items.length ? (
         <div className="rounded-xl border border-border bg-surface" style={{ overflow: 'hidden' }}>
           <div className="empty">
@@ -289,8 +358,10 @@ export default function MessagesTab({ student: s, messages }) {
                 const replyHint = item.msgCount > 1
                   ? `${item.msgCount} messages · ${item.replyCount} repl${item.replyCount === 1 ? 'y' : 'ies'}`
                   : item.replyCount ? `${item.replyCount} repl${item.replyCount === 1 ? 'y' : 'ies'}` : ''
+                const sel = selected.has('direct')
                 return (
-                  <div key="direct" className={`s-msg-thread-item${item.hasUnread ? ' unread' : ''}`} onClick={openConversation} style={{ cursor: 'pointer' }}>
+                  <div key="direct" className={`s-msg-thread-item${item.hasUnread ? ' unread' : ''}${sel ? ' selected' : ''}`} onClick={selectMode ? () => toggleSelect('direct') : openConversation} style={{ cursor: 'pointer' }}>
+                    {selectMode && <span className={`msg-checkbox ${sel ? 'checked' : ''}`} aria-hidden="true">{sel && <Check size={13} />}</span>}
                     <div className="s-conv-avatar">T</div>
                     <div className="s-conv-body">
                       <div className="s-conv-name">
@@ -304,14 +375,17 @@ export default function MessagesTab({ student: s, messages }) {
                       <div className="s-conv-time">{relativeTime(item.lastActivity)}</div>
                       {item.hasUnread && <div className="msg-unread-badge">●</div>}
                     </div>
+                    {!selectMode && <KebabMenu items={[{ label: 'Delete', danger: true, onClick: () => deleteSelected(['direct']) }]} />}
                   </div>
                 )
               } else {
                 const m = item.msg
                 const preview = m.body.slice(0, 60) + (m.body.length > 60 ? '…' : '')
                 const replyCount = (m.replies || []).length
+                const sel = selected.has(m.id)
                 return (
-                  <div key={m.id} className={`s-msg-thread-item${item.hasUnread ? ' unread' : ''}`} onClick={() => openMessage(m.id)} style={{ cursor: 'pointer' }}>
+                  <div key={m.id} className={`s-msg-thread-item${item.hasUnread ? ' unread' : ''}${sel ? ' selected' : ''}`} onClick={selectMode ? () => toggleSelect(m.id) : () => openMessage(m.id)} style={{ cursor: 'pointer' }}>
+                    {selectMode && <span className={`msg-checkbox ${sel ? 'checked' : ''}`} aria-hidden="true">{sel && <Check size={13} />}</span>}
                     <div className="s-conv-avatar announce">A</div>
                     <div className="s-conv-body">
                       <div className="s-conv-name">
@@ -325,6 +399,7 @@ export default function MessagesTab({ student: s, messages }) {
                       <div className="s-conv-time">{relativeTime(item.lastActivity)}</div>
                       {item.hasUnread && <div className="msg-unread-badge">●</div>}
                     </div>
+                    {!selectMode && <KebabMenu items={[{ label: 'Delete', danger: true, onClick: () => deleteSelected([m.id]) }]} />}
                   </div>
                 )
               }
