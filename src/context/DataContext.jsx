@@ -6,6 +6,7 @@ import {
   persistStudentsSync, persistClassesSync, persistAdmin, loadAdminFromStorage,
   fbDeleteStudent, fbSaveAnnouncement, fbDeleteAnnouncement, fbPushAnnouncementNotifs,
   fbAddAnnouncementComment, fbAddCommentReply,
+  fbSaveResource, fbDeleteResource,
   fbSaveMeetLink, fbScheduleMeeting, fbStartMeeting, fbEndMeeting, fbCancelMeeting, fbPushMeetingNotifs,
   fbSetSubjectRep, fbDeleteClassRelatedData, fbAddAuditLog, fbRestoreFromBackup,
 } from '@/firebase/persistence'
@@ -45,6 +46,7 @@ export function DataProvider({ children }) {
   const [attendanceSessions, setAttendanceSessions] = useState([])
   const [excuseRequests, setExcuseRequests]         = useState([])
   const [auditLog, setAuditLog]                     = useState([])
+  const [resources, setResources]                   = useState([])
   const [fbReady, setFbReady]           = useState(false)
   const [fbConfig, setFbConfig]         = useState(null) // decrypted config object
   const [semester, setSemester]         = useState(null)
@@ -118,6 +120,7 @@ export function DataProvider({ children }) {
         onAttendanceSessionsUpdate: setAttendanceSessions,
         onExcuseRequestsUpdate: setExcuseRequests,
         onAuditLogUpdate: isAdminUser() ? setAuditLog : undefined,
+        onResourcesUpdate: setResources,
         onConfigUpdate: ({ ejsConfig }) => {
           if (ejsConfig) {
             setEjs({ ...ejsConfig, configured: true })
@@ -172,6 +175,7 @@ export function DataProvider({ children }) {
       onAttendanceSessionsUpdate: setAttendanceSessions,
       onExcuseRequestsUpdate: setExcuseRequests,
       onAuditLogUpdate: isAdminUser() ? setAuditLog : undefined,
+      onResourcesUpdate: setResources,
       onConfigUpdate: ({ ejsConfig }) => {
         if (ejsConfig) {
           setEjs({ ...ejsConfig, configured: true })
@@ -557,6 +561,21 @@ export function DataProvider({ children }) {
     await fbDeleteAnnouncement(dbRef.current, id)
   }, [])
 
+  // ── Resource Hub (per class + subject learning materials) ──────────────
+  const saveResource = useCallback(async (resource) => {
+    setResources(prev => {
+      const idx = prev.findIndex(r => r.id === resource.id)
+      if (idx >= 0) { const next = [...prev]; next[idx] = resource; return next }
+      return [resource, ...prev]
+    })
+    await fbSaveResource(dbRef.current, resource)
+  }, [])
+
+  const deleteResource = useCallback(async (id) => {
+    setResources(prev => prev.filter(r => r.id !== id))
+    await fbDeleteResource(dbRef.current, id)
+  }, [])
+
   // Save a Meet link for a class. When `subject` is given, the link is stored
   // per-subject in meetLinks[subject]; otherwise it sets the class-wide link.
   const saveMeetLink = useCallback(async (classId, meetLink, subject) => {
@@ -837,6 +856,7 @@ export function DataProvider({ children }) {
       adminNotifs, setAdminNotifs,
       quizzes, setQuizzes,
       announcements, setAnnouncements, saveAnnouncement, deleteAnnouncement, pushAnnouncementNotifs, addAnnouncementComment, addCommentReply,
+      resources, setResources, saveResource, deleteResource,
       meetings, setMeetings,
       liveMeetings: meetings.filter(m => m.status === 'live'),
       saveMeetLink, scheduleMeeting, startMeeting, endMeeting, cancelMeeting,

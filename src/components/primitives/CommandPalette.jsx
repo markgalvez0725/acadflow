@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext'
 import {
   Search, LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell,
   FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Users, GraduationCap,
-  Sun, Moon, Download, CornerDownLeft, ArrowUp, ArrowDown, User, Building2, Sparkles, History,
+  Sun, Moon, Download, CornerDownLeft, ArrowUp, ArrowDown, User, Building2, Sparkles, History, Library,
 } from 'lucide-react'
 
 // Tab catalogs mirror AdminLayout / StudentLayout nav (kept in sync manually).
@@ -22,6 +22,7 @@ const ADMIN_TABS = [
   { id: 'notifications', label: 'Notifications',  Icon: Bell },
   { id: 'calendar',      label: 'Calendar',       Icon: CalendarDays },
   { id: 'onlineClasses', label: 'Online Classes', Icon: Video },
+  { id: 'resources',     label: 'Resource Hub',   Icon: Library },
   { id: 'audit',         label: 'Audit Log',      Icon: History },
 ]
 
@@ -36,6 +37,7 @@ const STUDENT_TABS = [
   { id: 'calendar',      label: 'Calendar',       Icon: CalendarDays },
   { id: 'onlineClasses', label: 'Online Classes', Icon: Video },
   { id: 'enrollment',    label: 'Enrollment',     Icon: ClipboardSignature },
+  { id: 'resources',     label: 'Resource Hub',   Icon: Library },
 ]
 
 // Subsequence fuzzy match → score (lower is better); null if no match.

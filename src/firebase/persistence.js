@@ -147,6 +147,17 @@ export async function fbDeleteAnnouncement(db, id) {
   return fbWithTimeout(deleteDoc(fbDoc(db, 'announcements', id)))
 }
 
+// ── Resource Hub writes (per class + subject learning materials) ─────────────
+export async function fbSaveResource(db, resource) {
+  const { doc: fbDoc, setDoc } = await import('firebase/firestore')
+  return fbWithTimeout(setDoc(fbDoc(db, 'resources', resource.id), resource))
+}
+
+export async function fbDeleteResource(db, id) {
+  const { doc: fbDoc, deleteDoc } = await import('firebase/firestore')
+  return fbWithTimeout(deleteDoc(fbDoc(db, 'resources', id)))
+}
+
 export async function fbAddAnnouncementComment(db, announcementId, comment) {
   if (!db || !announcementId || !comment) return
   const { doc: fbDoc } = await import('firebase/firestore')

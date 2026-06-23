@@ -16,7 +16,7 @@ import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { useReminders } from '@/hooks/useReminders'
 import { activeClasses, activeClassIds } from '@/utils/active'
 import { isNotifAllowed } from '@/utils/notifPrefs'
-import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare } from 'lucide-react'
+import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare, Library } from 'lucide-react'
 
 // Lazy-load tabs
 const StreamTab        = lazy(() => import('./tabs/StreamTab'))
@@ -30,6 +30,7 @@ const CalendarTab      = lazy(() => import('./tabs/CalendarTab'))
 const OnlineClassesTab = lazy(() => import('./tabs/OnlineClassesTab'))
 const EnrollmentTab    = lazy(() => import('./tabs/EnrollmentTab'))
 const MessagesTab      = lazy(() => import('./tabs/MessagesTab'))
+const ResourcesTab     = lazy(() => import('./tabs/ResourcesTab'))
 
 // Lazy-load modals
 const EditProfileModal         = lazy(() => import('./modals/EditProfileModal'))
@@ -50,6 +51,7 @@ const TAB_TITLES = {
   onlineClasses: ['Online Classes', 'Join your Google Meet sessions'],
   enrollment:    ['Enrollment',     'Your enrolled subjects'],
   messages:      ['Messages',       'Chat with your teacher'],
+  resources:     ['Resource Hub',   'Modules, slides, and links by subject'],
 }
 
 // Mobile bottom-nav: 4 primary + More (opens a sheet)
@@ -65,6 +67,7 @@ const MORE_NAV = [
   { id: 'calendar',      Icon: CalendarDays,        label: 'Calendar' },
   { id: 'enrollment',    Icon: ClipboardSignature,  label: 'Enrollment' },
   { id: 'onlineClasses', Icon: Video,               label: 'Meet' },
+  { id: 'resources',     Icon: Library,             label: 'Resources' },
 ]
 
 export default function StudentLayout() {
@@ -355,6 +358,7 @@ export default function StudentLayout() {
               {studentTab === 'onlineClasses' && <OnlineClassesTab student={student} />}
               {studentTab === 'enrollment'    && <EnrollmentTab    student={student} />}
               {studentTab === 'messages'      && <MessagesTab      student={student} messages={messages} />}
+              {studentTab === 'resources'     && <ResourcesTab     student={student} viewClassId={effectiveClassId} classes={classes} />}
             </Suspense>
           </TabErrorBoundary>
         </main>

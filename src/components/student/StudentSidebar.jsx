@@ -1,6 +1,6 @@
 import React from 'react'
 import { useUI } from '@/context/UIContext'
-import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, FileQuestion, Rss, CalendarDays, Video, Bell, ClipboardSignature, Settings, LogOut } from 'lucide-react'
+import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, FileQuestion, Rss, CalendarDays, Video, Bell, ClipboardSignature, Settings, LogOut, Library } from 'lucide-react'
 
 const NAV_GROUPS = [
   {
@@ -17,6 +17,7 @@ const NAV_GROUPS = [
       { id: 'attendance', label: 'Attendance', Icon: CalendarCheck },
       { id: 'activities', label: 'Activities', badgeId: 'act',  Icon: ClipboardList },
       { id: 'quizzes',    label: 'Quizzes',    badgeId: 'quiz', Icon: FileQuestion },
+      { id: 'resources',  label: 'Resources', Icon: Library },
     ],
   },
   {

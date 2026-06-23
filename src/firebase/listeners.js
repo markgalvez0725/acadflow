@@ -52,6 +52,7 @@ export function fbStartListening(db, callbacks) {
     onAttendanceSessionsUpdate,
     onExcuseRequestsUpdate,
     onAuditLogUpdate,
+    onResourcesUpdate,
   } = callbacks;
 
   // Stop any previous listeners
@@ -246,6 +247,23 @@ export function fbStartListening(db, callbacks) {
     _unsub.push(uAudit);
     getDocs(auditQ)
       .then(s => { const a = []; s.forEach(d => a.push(d.data())); onAuditLogUpdate(a); })
+      .catch(() => {});
+  }
+
+  // ── resources collection (per class+subject learning materials) ───────
+  if (onResourcesUpdate) {
+    const uR = onSnapshot(
+      collection(db, 'resources'),
+      snap => {
+        const resources = [];
+        snap.forEach(d => resources.push(d.data()));
+        onResourcesUpdate(resources);
+      },
+      e => console.error('[Firebase] resources listener error:', e.message)
+    );
+    _unsub.push(uR);
+    getDocs(collection(db, 'resources'))
+      .then(s => { const a = []; s.forEach(d => a.push(d.data())); onResourcesUpdate(a); })
       .catch(() => {});
   }
 
