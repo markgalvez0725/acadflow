@@ -7,7 +7,6 @@ import { SkeletonRows, TabErrorBoundary } from '@/components/primitives/Skeleton
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 import ToastManager from '@/components/primitives/ToastManager'
 import Dialog from '@/components/primitives/Dialog'
-import FloatingMessenger from './FloatingMessenger'
 import SemesterCalendarChip from '@/components/primitives/SemesterCalendarChip'
 import CommandPaletteButton from '@/components/primitives/CommandPaletteButton'
 import ConnectionStatus from '@/components/primitives/ConnectionStatus'
@@ -93,7 +92,6 @@ export default function AdminLayout() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
-  const [messengerOpen, setMessengerOpen] = useState(false)
   const [clock, setClock] = useState('')
 
   // Clock
@@ -217,9 +215,6 @@ export default function AdminLayout() {
       <Suspense fallback={null}>
         <StudentGradeEditModal />
       </Suspense>
-
-      {/* Floating Messenger — bubble hidden on mobile (opened from the nav) */}
-      <FloatingMessenger unreadCount={unreadMsgCount} open={messengerOpen} onOpenChange={setMessengerOpen} />
 
       {/* Mobile bottom nav — 5 primary destinations + More (opens drawer) */}
       <nav className="admin-bottom-nav" aria-label="Sections">

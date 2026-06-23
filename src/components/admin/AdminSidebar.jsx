@@ -2,7 +2,7 @@ import React from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { LayoutDashboard, School, Users, BookOpen, CalendarCheck, Bell, ClipboardList, Settings, LogOut, FileQuestion, Rss, CalendarDays, Video, History, Library, Radio } from 'lucide-react'
+import { LayoutDashboard, School, Users, BookOpen, CalendarCheck, Bell, ClipboardList, Settings, LogOut, FileQuestion, Rss, CalendarDays, Video, History, Library, Radio, MessageSquare } from 'lucide-react'
 
 const NAV_GROUPS = [
   {
@@ -34,6 +34,7 @@ const NAV_GROUPS = [
   {
     label: 'Communication',
     items: [
+      { id: 'messages',       label: 'Messages',       badgeId: 'msg',   Icon: MessageSquare },
       { id: 'notifications',  label: 'Notifications',  badgeId: 'notif', Icon: Bell },
       { id: 'activities',     label: 'Activities',     badgeId: 'act',   Icon: ClipboardList },
       { id: 'onlineClasses',  label: 'Online Classes', Icon: Video },
@@ -43,10 +44,11 @@ const NAV_GROUPS = [
 
 export default function AdminSidebar({ onSettingsOpen, onToggle }) {
   const { logout } = useAuth()
-  const { admin, adminNotifs, activities } = useData()
+  const { admin, adminNotifs, activities, messages } = useData()
   const { adminTab, setAdminTab } = useUI()
 
   const unreadNotifs = adminNotifs.filter(n => !n.read).length
+  const unreadMsgs   = (messages || []).filter(m => m.from !== 'admin' && !m.adminRead).length
   const pendingActs  = activities.filter(a => {
     if (!a.submissions) return false
     return Object.values(a.submissions).some(s => s.status === 'pending')
@@ -55,6 +57,7 @@ export default function AdminSidebar({ onSettingsOpen, onToggle }) {
   function getBadge(badgeId) {
     if (badgeId === 'notif') return unreadNotifs
     if (badgeId === 'act')   return pendingActs
+    if (badgeId === 'msg')   return unreadMsgs
     return 0
   }
 
