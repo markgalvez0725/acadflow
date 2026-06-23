@@ -10,6 +10,7 @@ import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { extractTextFromFile } from '@/utils/lessonExtract'
 import { generateDraftQuestions } from '@/utils/quizGen'
 import { quizItemAnalysis } from '@/utils/quizStats'
+import { classTag } from '@/utils/groupChat'
 import { aiRequest } from '@/utils/aiGateway'
 
 
@@ -381,14 +382,20 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
           <p className="text-xs text-ink3">No classes available.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
-            {classes.filter(c => !c.archived).map(c => (
-              <button key={c.id} type="button" onClick={() => toggleClass(c.id)}
-                className={`btn btn-sm ${classIds.includes(c.id) ? 'btn-primary' : 'btn-ghost'}`}
-                style={{ fontSize: 12 }}>
-                {c.name} {c.section}
-              </button>
-            ))}
+            {classes.filter(c => !c.archived).map(c => {
+              const subs = (c.subjects || []).join(' · ')
+              return (
+                <button key={c.id} type="button" onClick={() => toggleClass(c.id)}
+                  title={`${c.name} ${c.section}${subs ? ' — ' + subs : ''}`}
+                  className={`btn btn-sm ${classIds.includes(c.id) ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{ fontSize: 12, height: 'auto', padding: '6px 11px', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.3, gap: 1 }}>
+                  <span style={{ fontWeight: 700 }}>{classTag(c) || `${c.name} ${c.section}`}</span>
+                  <span style={{ fontSize: 10.5, fontWeight: 500, opacity: 0.85 }}>{subs || 'No subjects'}</span>
+                </button>
+              )
+            })}
           </div>
+          <p className="text-xs text-ink3 mt-2">Each chip is a class section and the subject(s) it offers — pick the one that matches the subject below.</p>
         )}
       </div>
 
