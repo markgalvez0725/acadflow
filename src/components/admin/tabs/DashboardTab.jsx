@@ -3,6 +3,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { getGWA, getAttRate } from '@/utils/grades'
 import { findAbsenceAlerts } from '@/utils/attendanceRisk'
+import { computeRiskScores } from '@/utils/riskScore'
 import { fbPushReminderNotif } from '@/firebase/reminders'
 import { sendPushToOwners } from '@/firebase/pushTokens'
 import { computeAssessmentStats } from '@/utils/assessmentStats'
@@ -13,7 +14,7 @@ import BarChart from '@/components/charts/BarChart'
 import DonutChart from '@/components/charts/DonutChart'
 import SmartInsights from '@/components/primitives/SmartInsights'
 import { generateClassInsights } from '@/utils/insights'
-import { Users, School, BookOpen, CalendarCheck, ShieldCheck, AlertTriangle, BarChart2, Activity, ArrowRight, Plus, Download, Home } from 'lucide-react'
+import { Users, School, BookOpen, CalendarCheck, ShieldCheck, AlertTriangle, BarChart2, Activity, ArrowRight, Plus, Download, Home, Radar, Bell, ChevronRight } from 'lucide-react'
 import { SkeletonDashboard } from '@/components/primitives/SkeletonLoader'
 import PageHeader from '@/components/ds/PageHeader'
 import MetricCard from '@/components/ds/MetricCard'
@@ -22,8 +23,9 @@ import EmptyState from '@/components/ds/EmptyState'
 const PER_PAGE = 10
 
 export default function DashboardTab() {
-  const { students, classes, activities = [], fbReady, admin, semester, db } = useData()
-  const { setAdminTab } = useUI()
+  const { students, classes, activities = [], quizzes = [], fbReady, admin, semester, db } = useData()
+  const { setAdminTab, toast } = useUI()
+  const [nudged, setNudged] = useState({})
   const [riskPage, setRiskPage]     = useState(1)
   const [lowAttPage, setLowAttPage] = useState(1)
   const [absPage, setAbsPage]       = useState(1)
@@ -57,6 +59,34 @@ export default function DashboardTab() {
   }, [absenceAlerts, fbReady])
 
   const absSlice = absenceAlerts.slice((absPage - 1) * PER_PAGE, absPage * PER_PAGE)
+
+  // ── At-risk radar: one fused risk score per student ─────────────────────────
+  const risk = useMemo(
+    () => computeRiskScores(students, { classes, students, activities, quizzes, semester }),
+    [students, classes, activities, quizzes, semester]
+  )
+  const [riskRadarPage, setRiskRadarPage] = useState(1)
+  const radarSlice = risk.list.slice((riskRadarPage - 1) * PER_PAGE, riskRadarPage * PER_PAGE)
+
+  // Send a one-tap check-in nudge (in-app notif + best-effort push). Unlike the
+  // automatic absence alert, a manual nudge is repeatable — the remKey carries a
+  // timestamp so a teacher can re-send if needed.
+  const nudgeStudent = (r) => {
+    if (!db?.current) return
+    const top = r.reasons[0]?.text || 'your recent activity'
+    const rem = {
+      remKey: `nudge_${r.student.id}_${Date.now()}`,
+      type: 'att_alert',
+      title: 'A message from your teacher',
+      body: `Checking in — let's talk about ${top.toLowerCase()}. Reach out if you need help.`,
+      link: 'overview',
+    }
+    fbPushReminderNotif(db.current, r.student.id, rem).then(created => {
+      if (created) sendPushToOwners(db.current, [r.student.id], { title: rem.title, body: rem.body }, { url: '/', tag: rem.remKey })
+    })
+    setNudged(n => ({ ...n, [r.student.id]: true }))
+    toast?.(`Nudge sent to ${r.student.name}`, 'success')
+  }
 
   const stats = useMemo(() => {
     const gwas = [], atts = []
@@ -173,6 +203,58 @@ export default function DashboardTab() {
           trend={isNaN(attNum) ? null : { dir: attNum >= 80 ? 'up' : 'down', text: attNum >= 80 ? 'On track' : 'Watch' }} />
         <MetricCard Icon={AlertTriangle} color="red" value={atRisk.length} label="Need Attention"
           trend={atRisk.length ? { dir: 'down', text: 'Needs review' } : { dir: 'up', text: 'All clear' }} />
+      </div>
+
+      {/* At-risk radar — fused early-intervention watchlist */}
+      <div className="card card-pad mb-4">
+        <div className="sec-hdr">
+          <div className="sec-title sec-title-ic"><Radar /> At-risk radar</div>
+          <span className="text-xs text-ink2">
+            {risk.counts.high} high · {risk.counts.watch} watch · updated live
+          </span>
+        </div>
+        {!risk.list.length ? (
+          <EmptyState Icon={Radar} title="No students at risk" text="No combined grade, attendance, or missing-work signals are firing right now." />
+        ) : (
+          <>
+            <div className="risk-radar-list">
+              {radarSlice.map(r => {
+                const lvlVar = r.level === 'high' ? 'red' : r.level === 'watch' ? 'orange' : 'gray'
+                const cls = classes.find(c => c.id === (r.student.classId || r.student.classIds?.[0]))
+                return (
+                  <div className={`risk-row risk-${r.level}`} key={r.student.id}>
+                    <div className="ds-la">{initials(r.student.name)}</div>
+                    <div className="risk-main">
+                      <div className="risk-name">
+                        {r.student.name}
+                        <small className="text-ink2"> · {r.student.id}{cls ? ` · ${cls.name} ${cls.section}` : ''}</small>
+                      </div>
+                      <div className="risk-reasons">
+                        {r.reasons.map((rs, i) => (
+                          <Badge key={i} variant={rs.sev === 'danger' ? 'red' : 'orange'}>{rs.text}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="risk-actions">
+                      <Badge variant={lvlVar}>Risk {r.score}</Badge>
+                      <button
+                        className="btn btn-sm"
+                        disabled={nudged[r.student.id]}
+                        onClick={() => nudgeStudent(r)}
+                      >
+                        <Bell size={14} /> {nudged[r.student.id] ? 'Sent' : 'Nudge'}
+                      </button>
+                      <button className="btn btn-sm" onClick={() => setAdminTab('students')}>
+                        View <ChevronRight size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <Pagination total={risk.list.length} perPage={PER_PAGE} page={riskRadarPage} onChange={setRiskRadarPage} />
+          </>
+        )}
       </div>
 
       {/* Recent students + At a glance */}
