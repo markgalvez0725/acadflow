@@ -1,10 +1,11 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react'
+import React, { useState, useMemo, useRef, useEffect, lazy, Suspense } from 'react'
 import {
   gradeInfo, combineEquiv, getGWA, getAttRate, computeFinalGradeFromTerms,
 } from '@/utils/grades'
+import { computeSemesterWrapped } from '@/utils/semesterWrapped'
 import { useData } from '@/context/DataContext'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
-import { BookOpen, Clock, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, BarChart3, ChevronDown, ChevronRight } from 'lucide-react'
+import { BookOpen, Clock, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, BarChart3, ChevronDown, ChevronRight, Sparkles } from 'lucide-react'
 import { SkeletonDashboard } from '@/components/primitives/SkeletonLoader'
 import { useUI } from '@/context/UIContext'
 import PageHeader from '@/components/ds/PageHeader'
@@ -18,6 +19,8 @@ import { buildStudentReportCard } from '@/export/reportCard'
 import { FileDown } from 'lucide-react'
 import { activeClassIds, activeSubjects } from '@/utils/active'
 import DOMPurify from 'dompurify'
+
+const SemesterWrapped = lazy(() => import('@/components/student/modals/SemesterWrapped'))
 
 // Defense-in-depth: announcement HTML is sanitized on save, but sanitize again
 // at render in case a record was written directly to the database.
@@ -359,6 +362,13 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
 
   const [viewAnn, setViewAnn] = useState(null)
   const [chartsOpen, setChartsOpen] = useState(false)
+  const [wrappedOpen, setWrappedOpen] = useState(false)
+
+  // "Semester in Review" — a derived, story-style recap of this student's term.
+  const wrapped = useMemo(
+    () => computeSemesterWrapped(s, { classes, students, activities, quizzes, semester }),
+    [s, classes, students, activities, quizzes, semester]
+  )
 
   // Only current, non-archived classes count — archived/ended/past subjects drop off.
   const enrolledIds = useMemo(() => activeClassIds(s, classes, semester), [s, classes, semester])
@@ -546,6 +556,20 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
         </>}
       />
 
+      {/* Semester in Review — story-style recap entry */}
+      {wrapped.hasData && (
+        <button type="button" className="wrapped-entry" onClick={() => setWrappedOpen(true)}>
+          <span className="we-ic"><Sparkles size={20} /></span>
+          <span style={{ minWidth: 0 }}>
+            <span className="we-t" style={{ display: 'block' }}>Your semester, wrapped</span>
+            <span className="we-s" style={{ display: 'block' }}>
+              {wrapped.persona.title} · tap to see your story
+            </span>
+          </span>
+          <ChevronRight className="we-arrow" size={20} />
+        </button>
+      )}
+
       {/* Metric cards */}
       <div className="stat-grid mb-4">
         <MetricCard Icon={BarChart3} color="blue" value={gwa !== null ? gwa.toFixed(1) : '—'} label="Current GWA"
@@ -687,6 +711,12 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
           student={s}
           onClose={() => setViewAnn(null)}
         />
+      )}
+
+      {wrappedOpen && (
+        <Suspense fallback={null}>
+          <SemesterWrapped data={wrapped} onClose={() => setWrappedOpen(false)} />
+        </Suspense>
       )}
     </div>
   )
