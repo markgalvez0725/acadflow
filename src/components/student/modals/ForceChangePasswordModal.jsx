@@ -62,7 +62,7 @@ export default function ForceChangePasswordModal({ student: s, onClose, forced =
         </div>
 
         {error && (
-          <div role="alert" style={{ color: 'var(--red)', fontSize: 12, marginBottom: 10, padding: '8px 12px', background: 'var(--red-l)', borderRadius: 8, borderLeft: '3px solid var(--red)' }}>
+          <div role="alert" style={{ color: 'var(--red)', fontSize: 12, marginBottom: 10, padding: '8px 12px', background: 'var(--red-l)', borderRadius: 8 }}>
             {error}
           </div>
         )}

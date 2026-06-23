@@ -416,7 +416,7 @@ export default function EditProfileModal({ student: s, onClose }) {
         </div>
 
         {error && (
-          <div style={{ color: 'var(--red)', fontSize: 13, background: 'var(--red-l)', borderLeft: '3px solid var(--red)', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
+          <div style={{ color: 'var(--red)', fontSize: 13, background: 'var(--red-l)', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
             {error}
           </div>
         )}

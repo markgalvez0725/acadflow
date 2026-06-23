@@ -381,7 +381,6 @@ function ReviewRow({ q, index, isCorrect, studentAns, subject }) {
   return (
     <div style={{
       background: 'var(--surface2)', borderRadius: 8, padding: '12px 14px',
-      borderLeft: `4px solid ${isCorrect ? '#22c55e' : '#ef4444'}`,
     }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', marginBottom: 4 }}>
         Q{index + 1} · {q.type.replace(/_/g, ' ')} · {isCorrect ? <><CheckCircle2 size={14} /> Correct</> : <><XCircle size={14} /> Wrong</>}

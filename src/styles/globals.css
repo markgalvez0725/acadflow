@@ -2659,12 +2659,10 @@ textarea.input { resize: vertical; }
 .notif-item:last-child { border-bottom: none; }
 .notif-item.unread {
   background: var(--accent-l);
-  border-left: 3px solid var(--accent);
 }
 .notif-item.notif-msg:hover { background: var(--bg2); }
 [data-theme="dark"] .notif-item.unread {
   background: rgba(124,114,248,.08);
-  border-left-color: var(--accent);
 }
 
 .ni-icon {
@@ -2943,9 +2941,9 @@ textarea.input { resize: vertical; }
   font-weight: 500;
   background: var(--surface);
 }
-.sa-record-item.is-present { border-left: 3px solid var(--green); }
-.sa-record-item.is-excuse  { border-left: 3px solid var(--purple); }
-.sa-record-item.is-absent  { border-left: 3px solid var(--red); }
+.sa-record-item.is-present { }
+.sa-record-item.is-excuse  { }
+.sa-record-item.is-absent  { }
 
 .student-grades { }
 
@@ -3043,7 +3041,6 @@ textarea.input { resize: vertical; }
   border-color: var(--border2);
 }
 .stream-card--pinned {
-  border-left: 3px solid var(--accent);
 }
 /* Three-dots overflow menu */
 .kebab { position: relative; flex-shrink: 0; }
@@ -5071,8 +5068,9 @@ html { scroll-behavior: smooth; }
    • Remove the decorative left accent bar on nav items.
    • Drop all non-shadow hover motion (no lift / slide / accent reveal).
    • Panels & cards now respond to hover with ONLY a drop shadow.
-   Semantic left borders that convey meaning (unread message, pinned post,
-   attendance present/absent/excused) are intentionally left untouched.
+   • Left accent bars are removed everywhere — including the formerly
+   "semantic" ones (unread message, pinned post, attendance state, at-risk
+   rows, quiz review): those rules were stripped at their source definitions.
 ══════════════════════════════════════════════════════════════════════════ */
 
 /* Left accent bars on active nav items — gone (active state still reads via

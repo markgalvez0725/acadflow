@@ -157,7 +157,7 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
       <TermHeatmap map={heatmap} />
 
       {/* Self check-in */}
-      <div className="card" style={{ padding: 14, marginBottom: 12, borderLeft: `3px solid ${openSessionForMe ? 'var(--green)' : 'var(--border2)'}` }}>
+      <div className="card" style={{ padding: 14, marginBottom: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <Radio size={15} style={{ color: openSessionForMe ? 'var(--green)' : 'var(--ink3)' }} />
           <span style={{ fontWeight: 700, fontSize: 13 }}>Attendance check-in</span>

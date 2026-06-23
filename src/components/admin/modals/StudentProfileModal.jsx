@@ -90,7 +90,7 @@ function SubjectBlock({ sub, student, classes, eqScale, activities, quizzes, enr
 }
 
 export default function StudentProfileModal() {
-  const { viewStudentId, closeStudentProfile, setAdminTab } = useUI()
+  const { viewStudentId, closeStudentProfile, setAdminTab, openEditGradesForStudent } = useUI()
   const { students, classes, activities, quizzes, eqScale, semester } = useData()
 
   const student = useMemo(() => students.find(s => s.id === viewStudentId) || null, [students, viewStudentId])
@@ -106,7 +106,14 @@ export default function StudentProfileModal() {
 
   const enrolledIds = student.classIds?.length ? student.classIds : (student.classId ? [student.classId] : [])
   const enrolledClasses = enrolledIds.map(id => classes.find(c => c.id === id)).filter(Boolean)
-  const subjects = [...new Set(enrolledClasses.flatMap(c => c.subjects || []))]
+  // Include subjects that already have grades/components even when the student is
+  // unassigned or their class was archived/removed (mirrors getGWA's fallback),
+  // so a student with a GWA never shows "No enrolled subjects".
+  const subjects = [...new Set([
+    ...enrolledClasses.flatMap(c => c.subjects || []),
+    ...Object.keys(student.grades || {}),
+    ...Object.keys(student.gradeComponents || {}),
+  ])]
 
   const gwa = getGWA(student, classes)
   const attRate = getAttRate(student, students, classes)
@@ -153,7 +160,7 @@ export default function StudentProfileModal() {
         <button className="btn btn-ghost btn-sm" onClick={() => buildStudentReportCard(student, { classes, students, eqScale, semester })}>
           <FileDown size={14} /> Report card
         </button>
-        <button className="btn btn-ghost btn-sm" onClick={() => { closeStudentProfile(); setAdminTab('grades') }}>
+        <button className="btn btn-ghost btn-sm" onClick={() => { closeStudentProfile(); setAdminTab('grades'); openEditGradesForStudent(student.id) }}>
           <GraduationCap size={14} /> Open Grades
         </button>
       </div>

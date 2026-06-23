@@ -10,13 +10,6 @@ const TYPE_STYLE = {
   info:     { color: 'var(--accent)', Icon: Info },
 }
 
-const TONE_ACCENT = {
-  good: 'var(--green)',
-  warn: 'var(--yellow)',
-  bad:  'var(--red)',
-  info: 'var(--accent)',
-}
-
 export default function SmartInsights({
   title = 'Smart Insights',
   insights,
@@ -25,11 +18,10 @@ export default function SmartInsights({
 }) {
   const [open, setOpen] = useState(defaultOpen)
   if (!insights) return null
-  const { tone = 'info', headline, summary, items = [] } = insights
-  const accent = TONE_ACCENT[tone] || 'var(--accent)'
+  const { headline, summary, items = [] } = insights
 
   return (
-    <div className="card" style={{ padding: 16, marginBottom: 16, borderLeft: `3px solid ${accent}` }}>
+    <div className="card" style={{ padding: 16, marginBottom: 16 }}>
       <button
         onClick={() => collapsible && setOpen(o => !o)}
         style={{

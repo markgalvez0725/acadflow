@@ -187,7 +187,7 @@ export default function CalendarTab() {
             <div
               key={type}
               className="card flex items-center gap-3"
-              style={{ padding: 14, borderLeft: `3px solid ${color.dot}` }}
+              style={{ padding: 14 }}
             >
               <div
                 className="flex items-center justify-center"
@@ -373,7 +373,7 @@ export default function CalendarTab() {
                   <div
                     key={ev.id + idx}
                     className="flex items-center gap-3 p-3 rounded-lg"
-                    style={{ border: '1px solid var(--border)', borderLeftWidth: 3, borderLeftColor: color.dot }}
+                    style={{ border: '1px solid var(--border)' }}
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -423,7 +423,7 @@ export default function CalendarTab() {
                 <div
                   key={ev.id + idx}
                   className="flex items-center gap-3 p-3 rounded-lg"
-                  style={{ border: '1px solid var(--border)', borderLeftWidth: 3, borderLeftColor: color.dot }}
+                  style={{ border: '1px solid var(--border)' }}
                 >
                   <div
                     className="flex items-center justify-center"

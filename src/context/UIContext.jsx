@@ -85,6 +85,11 @@ export function UIProvider({ children }) {
   const openStudentProfile  = useCallback(id => setViewStudentId(id || null), [])
   const closeStudentProfile = useCallback(() => setViewStudentId(null), [])
 
+  // ── Grade edit (per-student, opens alongside Grades tab) ───────────────
+  const [editGradesStudentId, setEditGradesStudentId] = useState(null)
+  const openEditGradesForStudent = useCallback(id => setEditGradesStudentId(id || null), [])
+  const closeEditGrades          = useCallback(() => setEditGradesStudentId(null), [])
+
   return (
     <UIContext.Provider value={{
       theme, toggleTheme,
@@ -94,6 +99,7 @@ export function UIProvider({ children }) {
       dialog, openDialog, resolveDialog,
       isLoading, startLoading, stopLoading,
       viewStudentId, openStudentProfile, closeStudentProfile,
+      editGradesStudentId, openEditGradesForStudent, closeEditGrades,
     }}>
       {children}
     </UIContext.Provider>

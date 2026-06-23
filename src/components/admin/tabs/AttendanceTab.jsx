@@ -1047,7 +1047,7 @@ export default function AttendanceTab() {
 
       {/* Excuse requests (pending) for this class */}
       {effectiveId && pendingExcuses.length > 0 && (
-        <div className="card card-pad mb-3" style={{ borderLeft: '3px solid var(--yellow)' }}>
+        <div className="card card-pad mb-3">
           <div className="sec-hdr mb-2">
             <div className="sec-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <ClipboardList size={15} /> Excuse Requests

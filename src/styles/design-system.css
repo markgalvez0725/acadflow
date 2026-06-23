@@ -286,13 +286,12 @@ html[data-glass="off"] .sidebar { background: var(--navy) !important; }
   display: flex; align-items: flex-start; gap: 12px;
   padding: 12px 14px;
   border: 1px solid var(--border);
-  border-left: 3px solid var(--border);
   border-radius: 12px;
   background: var(--surface);
 }
-.risk-row.risk-high  { border-left-color: var(--red); }
-.risk-row.risk-watch { border-left-color: var(--yellow); }
-.risk-row.risk-stable { border-left-color: var(--ink3); }
+.risk-row.risk-high  { }
+.risk-row.risk-watch { }
+.risk-row.risk-stable { }
 .risk-main { flex: 1; min-width: 0; }
 .risk-name { font-weight: 600; font-size: 14px; color: var(--ink); }
 .risk-reasons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
