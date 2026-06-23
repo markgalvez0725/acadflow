@@ -633,6 +633,18 @@ export function DataProvider({ children }) {
     await fbPushMeetingNotifs(dbRef.current, meeting, students, 'meeting_live')
   }, [students])
 
+  // Create a meeting and bring it live in one step (the "Start now" flow).
+  // Returns the live meeting so the caller can open the embedded room.
+  const startInstantMeeting = useCallback(async (meetingData) => {
+    const meeting = await fbScheduleMeeting(dbRef.current, { ...meetingData, scheduledAt: Date.now() })
+    if (!meeting) return null
+    await fbStartMeeting(dbRef.current, meeting.id)
+    const live = { ...meeting, status: 'live' }
+    setMeetings(prev => [live, ...prev])
+    await fbPushMeetingNotifs(dbRef.current, live, students, 'meeting_live')
+    return live
+  }, [students])
+
   const endMeeting = useCallback(async (meeting) => {
     await fbEndMeeting(dbRef.current, meeting.id)
     await fbPushMeetingNotifs(dbRef.current, meeting, students, 'meeting_ended')
@@ -890,7 +902,7 @@ export function DataProvider({ children }) {
       liveSessions, createLiveSession, joinLiveSession, setLiveState, submitLiveAnswer, deleteLiveSession,
       meetings, setMeetings,
       liveMeetings: meetings.filter(m => m.status === 'live'),
-      saveMeetLink, scheduleMeeting, startMeeting, endMeeting, cancelMeeting,
+      saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting,
       attendanceSessions, openCheckIn, closeCheckIn, studentCheckIn,
       excuseRequests, submitExcuseRequest, decideExcuseRequest,
       auditLog, logAudit,

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { useData } from '@/context/DataContext'
-import { Video, Radio, ExternalLink, Clock, ChevronDown, ChevronUp } from 'lucide-react'
+import { Video, Radio, Clock, ChevronDown, ChevronUp } from 'lucide-react'
 import { activeClassIds } from '@/utils/active'
 import LiveMeetingRoom from '@/components/online/LiveMeetingRoom'
 
@@ -193,10 +193,10 @@ export default function OnlineClassesTab({ student }) {
                         <Clock size={12} /> {dateStr} at {timeStr} · starts {untilLabel(ms)}
                       </div>
                     </div>
-                    {m.meetLink && (
-                      <a href={m.meetLink} target="_blank" rel="noopener noreferrer" className={`btn btn-sm ${soon ? 'btn-primary' : 'btn-ghost'}`} style={{ flexShrink: 0 }}>
-                        <ExternalLink size={13} style={{ marginRight: 5 }} />Join
-                      </a>
+                    {soon && (
+                      <button className="btn btn-sm btn-primary" style={{ flexShrink: 0 }} onClick={() => setRoom(m)}>
+                        <Video size={13} style={{ marginRight: 5 }} />Join
+                      </button>
                     )}
                   </div>
                   {m.description && (

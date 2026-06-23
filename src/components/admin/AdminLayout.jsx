@@ -67,7 +67,7 @@ const TAB_TITLES = {
   quizzes:       ['Quizzes',       'AI-generated quizzes with auto-grading'],
   notifications:  ['Notifications',  'Real-time alerts for messages and activity submissions'],
   calendar:       ['Calendar',       'Monthly view of activities, quizzes, and announcements'],
-  onlineClasses:  ['Online Classes', 'Schedule and manage Google Meet sessions for your classes'],
+  onlineClasses:  ['Online Classes', 'Start or schedule live classes in the built-in meeting room'],
   messages:       ['Messages',       'Conversations with your students'],
   resources:      ['Resource Hub',   'Share modules, slides, and links per class and subject'],
   liveQuiz:       ['Live Quiz',      'Host a real-time, Kahoot-style quiz game'],

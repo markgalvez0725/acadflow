@@ -1,36 +1,40 @@
 import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio } from 'lucide-react'
+import { Video, CalendarPlus, Clock, VideoOff, Trash2, CheckCircle, Radio, Play } from 'lucide-react'
 import LiveMeetingRoom from '@/components/online/LiveMeetingRoom'
 
 export default function OnlineClassesTab() {
-  const { classes, meetings, admin, saveMeetLink, scheduleMeeting, startMeeting, endMeeting, cancelMeeting } = useData()
+  const { classes, meetings, admin, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting } = useData()
   const { toast } = useUI()
-  const [panel, setPanel] = useState('links')
+  const [panel, setPanel] = useState('start')
   const [room, setRoom] = useState(null) // meeting the teacher is hosting in the embedded room
+  const [starting, setStarting] = useState('') // key of the class/subject currently spinning up
 
-  // ── Section 1: Meet Links ─────────────────────────────────────────────
-  const [linkDrafts, setLinkDrafts] = useState({})
+  const activeClasses = useMemo(() => classes.filter(c => !c.archived), [classes])
 
-  function linkKey(classId, subject) { return subject ? `${classId}::${subject}` : classId }
-  function getLinkDraft(classId, subject, fallback) {
-    const k = linkKey(classId, subject)
-    return linkDrafts[k] !== undefined ? linkDrafts[k] : (fallback || '')
-  }
-
-  async function handleSaveLink(cls, subject, fallback) {
-    const url = getLinkDraft(cls.id, subject, fallback)
-    if (!url.trim()) return
+  // ── Start now — spin up a live room immediately ───────────────────────
+  async function handleInstant(cls, subject) {
+    const key = subject ? `${cls.id}::${subject}` : cls.id
+    setStarting(key)
     try {
-      await saveMeetLink(cls.id, url.trim(), subject || undefined)
-      toast(subject ? `Meet link saved for ${subject}.` : 'Meet link saved.', 'success')
+      const m = await startInstantMeeting({
+        classId: cls.id,
+        className: classLabel(cls),
+        subject: null, // the title already carries the subject for instant rooms
+        title: subject || `${cls.name} — live class`,
+        description: '',
+      })
+      if (m) setRoom(m)
+      else toast('Failed to start the meeting.', 'error')
     } catch (e) {
-      toast('Failed to save Meet link.', 'error')
+      toast('Failed to start the meeting.', 'error')
+    } finally {
+      setStarting('')
     }
   }
 
-  // ── Section 2: Schedule Form ──────────────────────────────────────────
+  // ── Schedule a meeting for later ──────────────────────────────────────
   const [form, setForm] = useState({ classId: '', subject: '', title: '', scheduledAt: '', description: '' })
   const [scheduling, setScheduling] = useState(false)
   const scheduleClass = classes.find(c => c.id === form.classId)
@@ -42,14 +46,12 @@ export default function OnlineClassesTab() {
     if (!cls) return
     setScheduling(true)
     try {
-      const meetLink = (form.subject && cls.meetLinks?.[form.subject]) || cls.meetLink || ''
       await scheduleMeeting({
         classId: cls.id,
         className: classLabel(cls),
         subject: form.subject || null,
         title: form.title.trim(),
         description: form.description.trim(),
-        meetLink,
         scheduledAt: new Date(form.scheduledAt).getTime(),
       })
       toast('Meeting scheduled. Students have been notified.', 'success')
@@ -61,7 +63,7 @@ export default function OnlineClassesTab() {
     }
   }
 
-  // ── Section 3: Meetings List ──────────────────────────────────────────
+  // ── Meetings list ─────────────────────────────────────────────────────
   const [listTab, setListTab] = useState('upcoming')
   const upcoming = useMemo(() =>
     meetings.filter(m => m.status === 'scheduled' || m.status === 'live')
@@ -77,146 +79,107 @@ export default function OnlineClassesTab() {
   async function handleStart(m) {
     try {
       await startMeeting(m)
-      setRoom({ ...m, status: 'live' }) // host the embedded room immediately
+      setRoom({ ...m, status: 'live' })
       toast('Meeting is now live. Students have been notified.', 'success')
     } catch (e) {
       toast('Failed to start meeting.', 'error')
     }
   }
-
   function handleJoin(m) { setRoom(m) }
-
   async function handleEnd(m) {
-    try {
-      await endMeeting(m)
-      toast('Meeting ended.', 'success')
-    } catch (e) {
-      toast('Failed to end meeting.', 'error')
-    }
+    try { await endMeeting(m); toast('Meeting ended.', 'success') }
+    catch (e) { toast('Failed to end meeting.', 'error') }
   }
-
   async function handleCancel(m) {
-    try {
-      await cancelMeeting(m)
-      toast('Meeting cancelled. Students have been notified.', 'success')
-    } catch (e) {
-      toast('Failed to cancel meeting.', 'error')
-    }
+    try { await cancelMeeting(m); toast('Meeting cancelled. Students have been notified.', 'success') }
+    catch (e) { toast('Failed to cancel meeting.', 'error') }
   }
 
-  const activeClasses = useMemo(() => classes.filter(c => !c.archived), [classes])
+  const liveCount = useMemo(() => meetings.filter(m => m.status === 'live').length, [meetings])
 
   return (
     <div className="online-classes-tab" style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
 
       <section className="card" style={{ padding: 12, background: 'var(--surface2)' }}>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button
-            className={`btn btn-sm ${panel === 'links' ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => setPanel('links')}
-          >
-            <Video size={14} /> Meet Links
+          <button className={`btn btn-sm ${panel === 'start' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setPanel('start')}>
+            <Radio size={14} /> Start now
           </button>
-          <button
-            className={`btn btn-sm ${panel === 'schedule' ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => setPanel('schedule')}
-          >
+          <button className={`btn btn-sm ${panel === 'schedule' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setPanel('schedule')}>
             <CalendarPlus size={14} /> Schedule
           </button>
-          <button
-            className={`btn btn-sm ${panel === 'meetings' ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => setPanel('meetings')}
-          >
-            <Clock size={14} /> Meetings
+          <button className={`btn btn-sm ${panel === 'meetings' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setPanel('meetings')}>
+            <Clock size={14} /> Meetings{liveCount > 0 ? ` · ${liveCount} live` : ''}
           </button>
         </div>
       </section>
 
-      {/* Section 1 — Class Meet Links */}
-      {panel === 'links' && <section>
+      {/* Panel 1 — Start an instant class in the built-in room */}
+      {panel === 'start' && <section>
         <div className="sec-hdr mb-3">
           <div className="sec-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Video size={18} /> Class Meet Links
+            <Radio size={18} /> Start a live class
           </div>
         </div>
-        {activeClasses.length === 0 && (
+        <p style={{ fontSize: 13, color: 'var(--ink3)', margin: '0 0 14px' }}>
+          Pick a class to open AcadFlow's built-in meeting room right now. Students in that class are notified and can join in one tap — no links to set up.
+        </p>
+        {activeClasses.length === 0 ? (
           <div className="empty"><div className="empty-icon"><Video size={36} /></div>No classes found. Add classes first.</div>
-        )}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))', gap: 14 }}>
-          {activeClasses.map(cls => {
-            const subjects = cls.subjects?.length ? cls.subjects : null
-            return (
-              <div key={cls.id} className="card" style={{ padding: 16 }}>
-                {/* Card header */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                  <span style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--accent-l)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Video size={17} />
-                  </span>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cls.name}</div>
-                    <div style={{ fontSize: 11, color: 'var(--ink3)' }}>{subjects ? `${subjects.length} subject${subjects.length !== 1 ? 's' : ''}` : 'No subjects yet'}</div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
+            {activeClasses.map(cls => {
+              const subjects = cls.subjects?.length ? cls.subjects : null
+              return (
+                <div key={cls.id} className="card" style={{ padding: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                    <span style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--accent-l)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Video size={17} />
+                    </span>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cls.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--ink3)' }}>{subjects ? `${subjects.length} subject${subjects.length !== 1 ? 's' : ''}` : 'No subjects yet'}</div>
+                    </div>
+                    {cls.section && (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-l)', borderRadius: 999, padding: '3px 9px', flexShrink: 0 }}>{cls.section}</span>
+                    )}
                   </div>
-                  {cls.section && (
-                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-l)', borderRadius: 999, padding: '3px 9px', flexShrink: 0 }}>{cls.section}</span>
-                  )}
-                </div>
 
-                {/* Per-subject Meet links */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {(subjects || [null]).map(sub => {
-                    const saved = sub ? (cls.meetLinks?.[sub] || '') : (cls.meetLink || '')
-                    const val = getLinkDraft(cls.id, sub, saved)
-                    return (
-                      <div key={sub || '_general'}>
-                        {sub && (
-                          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink2)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                            {sub}{saved && <CheckCircle size={12} style={{ color: 'var(--green)' }} />}
-                          </div>
-                        )}
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <input
-                            className="input"
-                            style={{ flex: 1, fontSize: 12 }}
-                            placeholder="Paste Google Meet URL…"
-                            value={val}
-                            onChange={e => setLinkDrafts(prev => ({ ...prev, [linkKey(cls.id, sub)]: e.target.value }))}
-                          />
-                          {saved && (
-                            <a href={saved} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm" title="Open link">
-                              <ExternalLink size={14} />
-                            </a>
-                          )}
-                          <button className="btn btn-primary btn-sm" onClick={() => handleSaveLink(cls, sub, saved)} title="Save Meet link">
-                            <Save size={14} />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {(subjects || [null]).map(sub => {
+                      const key = sub ? `${cls.id}::${sub}` : cls.id
+                      const busy = starting === key
+                      return (
+                        <div key={sub || '_general'} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: 'var(--ink2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {sub || 'Class session'}
+                          </span>
+                          <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }} disabled={!!starting} onClick={() => handleInstant(cls, sub)}>
+                            <Play size={13} style={{ marginRight: 5 }} />{busy ? 'Starting…' : 'Start'}
                           </button>
                         </div>
-                      </div>
-                    )
-                  })}
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
-            )
-          })}
-        </div>
+              )
+            })}
+          </div>
+        )}
       </section>}
 
-      {/* Section 2 — Schedule Meeting Form */}
+      {/* Panel 2 — Schedule a meeting for later */}
       {panel === 'schedule' && <section>
         <div className="sec-hdr mb-3">
           <div className="sec-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <CalendarPlus size={18} /> Schedule a Meeting
+            <CalendarPlus size={18} /> Schedule a meeting
           </div>
         </div>
         <form onSubmit={handleSchedule} style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 520 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
               <label className="label">Class</label>
-              <select
-                className="input"
-                value={form.classId}
-                onChange={e => setForm(f => ({ ...f, classId: e.target.value, subject: '' }))}
-                required
-              >
+              <select className="input" value={form.classId} onChange={e => setForm(f => ({ ...f, classId: e.target.value, subject: '' }))} required>
                 <option value="">Select class...</option>
                 {activeClasses.map(cls => (
                   <option key={cls.id} value={cls.id}>{classLabel(cls)}</option>
@@ -225,50 +188,27 @@ export default function OnlineClassesTab() {
             </div>
             <div>
               <label className="label">Date & Time</label>
-              <input
-                className="input"
-                type="datetime-local"
-                value={form.scheduledAt}
-                onChange={e => setForm(f => ({ ...f, scheduledAt: e.target.value }))}
-                required
-              />
+              <input className="input" type="datetime-local" value={form.scheduledAt} onChange={e => setForm(f => ({ ...f, scheduledAt: e.target.value }))} required />
             </div>
           </div>
           {scheduleClass?.subjects?.length > 0 && (
             <div>
-              <label className="label">Subject <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(picks that subject's saved Meet link)</span></label>
-              <select
-                className="input"
-                value={form.subject}
-                onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}
-              >
-                <option value="">Use class default link</option>
+              <label className="label">Subject <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(optional — names the session)</span></label>
+              <select className="input" value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}>
+                <option value="">No specific subject</option>
                 {scheduleClass.subjects.map(s => (
-                  <option key={s} value={s}>{s}{scheduleClass.meetLinks?.[s] ? '' : ' (no link set)'}</option>
+                  <option key={s} value={s}>{s}</option>
                 ))}
               </select>
             </div>
           )}
           <div>
             <label className="label">Meeting Title</label>
-            <input
-              className="input"
-              placeholder="e.g. Chapter 5 Review"
-              value={form.title}
-              onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-              required
-            />
+            <input className="input" placeholder="e.g. Chapter 5 Review" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} required />
           </div>
           <div>
             <label className="label">Description (optional)</label>
-            <textarea
-              className="input"
-              placeholder="Topics to be covered..."
-              rows={2}
-              value={form.description}
-              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-              style={{ resize: 'vertical' }}
-            />
+            <textarea className="input" placeholder="Topics to be covered..." rows={2} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} style={{ resize: 'vertical' }} />
           </div>
           <div>
             <button className="btn btn-primary" type="submit" disabled={scheduling}>
@@ -279,19 +219,13 @@ export default function OnlineClassesTab() {
         </form>
       </section>}
 
-      {/* Section 3 — Meetings List */}
+      {/* Panel 3 — Meetings list */}
       {panel === 'meetings' && <section>
         <div className="sec-hdr mb-3">
           <div className="sec-title">Meetings</div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              className={`btn btn-sm ${listTab === 'upcoming' ? 'btn-primary' : 'btn-ghost'}`}
-              onClick={() => setListTab('upcoming')}
-            >Upcoming</button>
-            <button
-              className={`btn btn-sm ${listTab === 'past' ? 'btn-primary' : 'btn-ghost'}`}
-              onClick={() => setListTab('past')}
-            >Past</button>
+            <button className={`btn btn-sm ${listTab === 'upcoming' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setListTab('upcoming')}>Upcoming</button>
+            <button className={`btn btn-sm ${listTab === 'past' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setListTab('past')}>Past</button>
           </div>
         </div>
 
