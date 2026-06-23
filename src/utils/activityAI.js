@@ -3,7 +3,7 @@
 // AI calls go through /api/ai-generate (gated by a free Gemini key); every
 // function has an on-device fallback so the app works with no key.
 
-import { getIdToken } from '@/firebase/firebaseInit'
+import { aiRequest } from '@/utils/aiGateway'
 
 // ── On-device rubric templates by activity type ───────────────────────────
 const RUBRIC_TEMPLATES = [
@@ -47,21 +47,12 @@ export function deviceInstructions(title = '', subject = '') {
   ].join(' ')
 }
 
-// ── AI wrappers (call /api/ai-generate) ───────────────────────────────────
-async function callAI(prompt, json) {
-  const idToken = await getIdToken()
-  const r = await fetch('/api/ai-generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt, json: !!json, idToken }),
-  })
-  if (r.status === 501) { const e = new Error('not-configured'); e.code = 501; throw e }
-  if (!r.ok) {
-    let msg = 'AI request failed'
-    try { const d = await r.json(); if (d?.error) msg = d.error } catch {}
-    throw new Error(msg)
-  }
-  return r.json()
+// ── AI wrappers (call /api/ai-generate via the serialized gateway) ─────────
+async function callAI(prompt, json, opts = {}) {
+  const { ok, status, data, error } = await aiRequest('/api/ai-generate', { prompt, json: !!json }, opts)
+  if (status === 501) { const e = new Error('not-configured'); e.code = 501; throw e }
+  if (!ok) throw new Error(error || 'AI request failed')
+  return data
 }
 
 export async function aiInstructions(title, subject) {
@@ -78,7 +69,8 @@ Question: ${question}
 Correct answer: ${correctAnswer}
 Student's answer: ${studentAnswer || '(left blank)'}
 In 2-3 short sentences, kindly explain why the correct answer is right and where the student likely went wrong. Output only the explanation, no preamble.`
-  const { text } = await callAI(prompt, false)
+  // Same question → same explanation: cache so repeated "Explain" taps don't re-call.
+  const { text } = await callAI(prompt, false, { cache: true })
   return (text || '').trim()
 }
 

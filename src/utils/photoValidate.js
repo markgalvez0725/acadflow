@@ -15,7 +15,7 @@
 //
 // Returns a single verdict object the UI can render directly.
 
-import { getIdToken } from '@/firebase/firebaseInit'
+import { aiRequest } from '@/utils/aiGateway'
 
 /** Draw an image onto an offscreen canvas no larger than `max` px. */
 function toCanvas(imgEl, max = 256) {
@@ -79,21 +79,15 @@ async function detectFaces(imgEl) {
 
 /** POST the (downscaled) image to the AI vision endpoint. Null when off/failed. */
 async function runAIValidation(dataUrl, signal) {
-  try {
-    const idToken = await getIdToken()
-    const r = await fetch('/api/validate-photo', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageBase64: dataUrl, mimeType: 'image/jpeg', idToken }),
-      signal,
-    })
-    if (r.status === 501) return { configured: false }   // no key — expected
-    const j = await r.json()
-    if (!r.ok) return { configured: true, error: j?.error || 'AI error' }
-    return { configured: true, result: j.result || null }
-  } catch (e) {
-    return { configured: true, error: e?.name === 'AbortError' ? 'timeout' : (e?.message || 'AI error') }
-  }
+  // Serialized + de-duped via the gateway so a double-tap can't fire two calls.
+  const { ok, status, data, error } = await aiRequest(
+    '/api/validate-photo',
+    { imageBase64: dataUrl, mimeType: 'image/jpeg' },
+    { signal },
+  )
+  if (status === 501) return { configured: false }   // no key — expected
+  if (!ok) return { configured: true, error: error === 'aborted' ? 'timeout' : (error || 'AI error') }
+  return { configured: true, result: data?.result || null }
 }
 
 /**

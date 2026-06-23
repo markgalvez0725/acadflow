@@ -10,7 +10,7 @@ import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { extractTextFromFile } from '@/utils/lessonExtract'
 import { generateDraftQuestions } from '@/utils/quizGen'
 import { quizItemAnalysis } from '@/utils/quizStats'
-import { getIdToken } from '@/firebase/firebaseInit'
+import { aiRequest } from '@/utils/aiGateway'
 
 
 function quizId() {
@@ -763,27 +763,19 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
     setBusy(true)
     try {
       if (method === 'ai') {
-        try {
-          const idToken = await getIdToken()
-          const r = await fetch('/api/generate-quiz-gemini', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text, count, types: qTypes, idToken }),
-          })
-          if (r.ok) {
-            const data = await r.json()
-            const qs = (data.questions || []).map(q => ({ id: 'q_' + Date.now() + Math.random().toString(36).slice(2, 6), ...q }))
-            if (qs.length) { onGenerated(qs); return }
-            toast('AI returned no questions. Using on-device drafts instead.', 'warn', 5000)
-          } else if (r.status === 501) {
-            toast('AI is not set up yet (no free key). Using on-device drafts instead.', 'info', 6000)
-          } else {
-            let msg = 'AI request failed'
-            try { const d = await r.json(); if (d?.error) msg = 'AI: ' + d.error } catch {}
-            toast(msg + '. Using on-device drafts instead.', 'warn', 8000)
-          }
-        } catch {
+        // Routed through the serialized gateway so rapid re-clicks can't fan out
+        // multiple Gemini calls against the free-tier quota.
+        const { ok, status, data, error } = await aiRequest('/api/generate-quiz-gemini', { text, count, types: qTypes })
+        if (ok) {
+          const qs = (data?.questions || []).map(q => ({ id: 'q_' + Date.now() + Math.random().toString(36).slice(2, 6), ...q }))
+          if (qs.length) { onGenerated(qs); return }
+          toast('AI returned no questions. Using on-device drafts instead.', 'warn', 5000)
+        } else if (status === 501) {
+          toast('AI is not set up yet (no free key). Using on-device drafts instead.', 'info', 6000)
+        } else if (error === 'aborted' || status === 0) {
           toast('Could not reach the AI service. Using on-device drafts instead.', 'warn', 5000)
+        } else {
+          toast('AI: ' + (error || 'request failed') + '. Using on-device drafts instead.', 'warn', 8000)
         }
       }
       // On-device (default, or AI fallback)
