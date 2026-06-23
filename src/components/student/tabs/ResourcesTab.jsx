@@ -4,6 +4,7 @@ import PageHeader from '@/components/ds/PageHeader'
 import { Library, ExternalLink, BookOpen } from 'lucide-react'
 import { resourceType } from '@/utils/resourceTypes'
 import { activeClassIds, activeSubjects } from '@/utils/active'
+import { subjectColor } from '@/utils/subjectColor'
 
 export default function ResourcesTab({ student: s, viewClassId, classes }) {
   const { resources, semester, fbReady } = useData()
@@ -50,7 +51,7 @@ export default function ResourcesTab({ student: s, viewClassId, classes }) {
         subjectsWithResources.map(subject => (
           <div key={subject} style={{ marginBottom: 22 }}>
             <div className="sec-hdr" style={{ marginBottom: 12 }}>
-              <div className="sec-title sec-title-ic"><BookOpen /> {subject}</div>
+              <div className="sec-title sec-title-ic" style={{ color: subjectColor(subject).color }}><BookOpen /> {subject}</div>
             </div>
             <div className="res-list">
               {grouped[subject].map(r => {

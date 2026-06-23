@@ -3,6 +3,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { activeClassIds } from '@/utils/active'
 import { deadlineLabel, deadlineColor } from '@/utils/deadlines'
+import { subjectColor } from '@/utils/subjectColor'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 import { ClipboardList, ChevronRight } from 'lucide-react'
 
@@ -145,9 +146,10 @@ export default function AssignmentsTab({ student: s, classes }) {
                     <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--ink)' }}>{act.title}</span>
                     <span className={`badge ${status.badgeCls}`}>{status.label}</span>
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 2 }}>
-                    {act.subject || 'General'}
-                    {act.deadline && <> · Due {new Date(act.deadline).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}</>}
+                  <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: subjectColor(act.subject).color, flexShrink: 0 }} />
+                    <span>{act.subject || 'General'}
+                    {act.deadline && <> · Due {new Date(act.deadline).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}</>}</span>
                   </div>
                 </div>
                 {showDue && (

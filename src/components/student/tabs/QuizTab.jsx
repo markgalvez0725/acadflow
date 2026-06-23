@@ -8,6 +8,7 @@ import Modal from '@/components/primitives/Modal'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 import { activeClassIds } from '@/utils/active'
 import { aiExplainQuiz } from '@/utils/activityAI'
+import { subjectColor } from '@/utils/subjectColor'
 import { Lightbulb } from 'lucide-react'
 
 // ── Score computation ─────────────────────────────────────────────────────────
@@ -518,7 +519,7 @@ export default function StudentQuizTab({ student, viewClassId }) {
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <strong style={{ fontSize: 14 }}>{q.title}</strong>
                     <Badge variant={status.variant}>{status.label}</Badge>
-                    <Badge variant="blue">{q.subject}</Badge>
+                    <span className="badge" style={{ background: subjectColor(q.subject).soft, color: subjectColor(q.subject).color }}>{q.subject}</span>
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--ink2)', marginBottom: 2 }}>
                     {q.questions?.length || 0} questions · {q.timeLimit} min time limit
