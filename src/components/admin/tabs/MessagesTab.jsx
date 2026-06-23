@@ -4,7 +4,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { sortByLastName } from '@/utils/format'
 import { isClassCurrent } from '@/utils/active'
-import { isGroupMessage, autoGroupName, groupName } from '@/utils/groupChat'
+import { isGroupMessage, autoGroupName, groupName, studentTag } from '@/utils/groupChat'
 import { notifyStudentMessage, notifyStudentsBroadcast } from '@/firebase/messageNotify'
 import { fbAddMessageReply, fbDeleteMessage } from '@/firebase/persistence'
 import Modal from '@/components/primitives/Modal'
@@ -87,7 +87,7 @@ function RecipientPicker({ students, classes, classGroups, classBroadcasts, subj
       return { label: name, sub: g ? `Subject group · ${g.count} student${g.count !== 1 ? 's' : ''}` : 'Subject group', subjectIcon: true }
     }
     const s = students.find(x => x.id === value)
-    return s ? { label: s.name, sub: s.id, photo: s.photo, char: getInitials(s.name) } : { label: 'Select recipient…', sub: '' }
+    return s ? { label: s.name, sub: studentTag(s, classes), photo: s.photo, char: getInitials(s.name) } : { label: 'Select recipient…', sub: '' }
   }, [value, students, classes, subjectGroups])
 
   const ql = q.trim().toLowerCase()
@@ -168,7 +168,7 @@ function RecipientPicker({ students, classes, classGroups, classBroadcasts, subj
                   <Avatar photo={s.photo} char={getInitials(s.name)} size={30} />
                   <span className="recipient-opt-text">
                     <span className="recipient-opt-name">{s.name}{s.account?.registered ? '' : ' · no account'}</span>
-                    <span className="recipient-opt-sub">{s.id} · {label}</span>
+                    <span className="recipient-opt-sub">{studentTag(s, classes) || label}</span>
                   </span>
                   {value === s.id && <Check size={15} className="recipient-check" />}
                 </button>
@@ -701,7 +701,7 @@ export default function MessagesTab() {
         studentId: sid,
         latestMsgId: studentMsgs.length ? studentMsgs[studentMsgs.length - 1].id : null,
         headerName: name,
-        headerSub: sid + (s?.course ? ' · ' + s.course : ''),
+        headerSub: studentTag(s, classes) || sid,
         entries,
       }
     }

@@ -1,25 +1,61 @@
-// ── Group-chat naming (shared by teacher inbox + student views) ───────────
+// ── Group-chat naming + course tags (shared by teacher inbox + student views) ──
 // A group chat is an admin announcement targeting all / a class / a subject.
 // Both sides resolve the SAME display name so a teacher rename (or the auto
-// name from subject · course year) shows identically to students.
+// name) shows identically to students.
+
+const COURSE_SHORTS = ['BSEMC', 'BSIS', 'BSCS', 'BSIT']
+
+// Map a course (full name or code) to its short code: BSEMC / BSIS / BSCS / BSIT.
+export function courseShort(course) {
+  const raw = String(course || '').trim()
+  if (!raw) return ''
+  const compact = raw.toUpperCase().replace(/[^A-Z]/g, '')
+  for (const code of COURSE_SHORTS) if (compact.includes(code)) return code
+  const c = raw.toLowerCase()
+  if (c.includes('entertainment') || c.includes('multimedia')) return 'BSEMC'
+  if (c.includes('information system')) return 'BSIS'
+  if (c.includes('computer science')) return 'BSCS'
+  if (c.includes('information technology')) return 'BSIT'
+  return raw
+}
+
+// "BSEMC 2A" — course short + year digit + section, for a class.
+export function classTag(cls) {
+  if (!cls) return ''
+  const cs = courseShort(cls.course || cls.name)
+  const yr = (String(cls.year || '').match(/\d+/) || [''])[0]
+  const sec = cls.section || ''
+  return `${cs} ${yr}${sec}`.trim()
+}
+
+// "BSEMC 2A" for a student — course + year + their (primary) class section.
+export function studentTag(student, classes = []) {
+  if (!student) return ''
+  const cs = courseShort(student.course)
+  const yr = (String(student.year || '').match(/\d+/) || [''])[0]
+  const cid = student.classId || (student.classIds && student.classIds[0])
+  const sec = (classes.find(c => c.id === cid) || {}).section || ''
+  const tag = `${cs} ${yr}${sec}`.trim()
+  return tag || student.id || ''
+}
 
 export function isGroupMessage(m) {
   return m?.from === 'admin' && m?.type === 'announcement'
 }
 
-// Auto name from the subject + course/year (or class + section).
+// Auto name = subject · class section(s)  (e.g. "EMCP 108 · BSEMC 2A"),
+// or the class section for a plain class broadcast.
 export function autoGroupName(m, classes = []) {
   if (!m) return 'Group chat'
   if (m.to === 'all') return 'All Students'
   if (typeof m.to === 'string' && m.to.startsWith('class:')) {
     const c = classes.find(x => x.id === m.to.slice(6))
-    return c ? `${c.name}${c.section ? ' ' + c.section : ''}` : 'Class group'
+    return classTag(c) || 'Class group'
   }
   if (typeof m.to === 'string' && m.to.startsWith('subject:')) {
     const sub = m.targetSubject || m.to.slice(8)
-    const c = classes.find(x => (m.classIds || []).includes(x.id))
-    const cy = c ? [c.course, c.year].filter(Boolean).join(' ') : ''
-    return cy ? `${sub} · ${cy}` : sub
+    const tags = [...new Set((m.classIds || []).map(id => classTag(classes.find(c => c.id === id))).filter(Boolean))]
+    return tags.length ? `${sub} · ${tags.join(', ')}` : sub
   }
   return 'Group chat'
 }
