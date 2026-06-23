@@ -10,7 +10,7 @@ import { SkeletonDashboard } from '@/components/primitives/SkeletonLoader'
 import { useUI } from '@/context/UIContext'
 import PageHeader from '@/components/ds/PageHeader'
 import MetricCard from '@/components/ds/MetricCard'
-import { Home, CalendarCheck, Award, ClipboardList, FileQuestion, Radio } from 'lucide-react'
+import { Home, CalendarCheck, Award, ClipboardList, FileQuestion, Radio, QrCode } from 'lucide-react'
 import { pendingItems, humanLeft } from '@/utils/reminders'
 import BarChart from '@/components/charts/BarChart'
 import SmartInsights from '@/components/primitives/SmartInsights'
@@ -26,6 +26,7 @@ import DOMPurify from 'dompurify'
 
 const SemesterWrapped = lazy(() => import('@/components/student/modals/SemesterWrapped'))
 const LiveQuizPlayer = lazy(() => import('@/components/student/modals/LiveQuizPlayer'))
+const QrScanner = lazy(() => import('@/components/student/QrScanner'))
 
 // Defense-in-depth: announcement HTML is sanitized on save, but sanitize again
 // at render in case a record was written directly to the database.
@@ -368,12 +369,22 @@ function AnnIcon({ type, size = 18 }) {
 
 export default function OverviewTab({ student: s, viewClassId, classes }) {
   const { activities, students, eqScale, announcements, quizzes, semester, fbReady, liveMeetings, liveSessions, meetings } = useData()
-  const { setStudentTab } = useUI()
+  const { setStudentTab, toast } = useUI()
 
   const [viewAnn, setViewAnn] = useState(null)
   const [chartsOpen, setChartsOpen] = useState(false)
   const [wrappedOpen, setWrappedOpen] = useState(false)
   const [livePlay, setLivePlay] = useState(false)
+  const [scanOpen, setScanOpen] = useState(false)
+
+  // Resolve a scanned/typed live-quiz PIN to a joinable session.
+  function handleScan(code) {
+    setScanOpen(false)
+    const pin = (code || '').replace(/\D/g, '').slice(0, 6) || code
+    const target = (liveSessions || []).find(ls => String(ls.pin) === String(pin) && ls.status !== 'ended')
+    if (target) setLivePlay(target.id)
+    else toast('No live game found for that code.', 'warn')
+  }
 
   // "Semester in Review" — a derived, story-style recap of this student's term.
   const wrapped = useMemo(
@@ -629,6 +640,17 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
         </button>
       )}
 
+      {/* Scan-to-join: surfaced whenever a live game is running for any class. */}
+      {(liveSessions || []).some(ls => ls.status !== 'ended') && (
+        <button
+          type="button"
+          onClick={() => setScanOpen(true)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start', margin: '0 0 12px', padding: '6px 12px', borderRadius: 999, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--accent)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+        >
+          <QrCode size={15} /> Scan QR to join a live quiz
+        </button>
+      )}
+
       {/* Semester in Review — story-style recap entry */}
       {wrapped.hasData && (
         <button type="button" className="wrapped-entry" onClick={() => setWrappedOpen(true)}>
@@ -795,6 +817,12 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
       {livePlay && (
         <Suspense fallback={null}>
           <LiveQuizPlayer sessionId={livePlay} student={s} onClose={() => setLivePlay(false)} />
+        </Suspense>
+      )}
+
+      {scanOpen && (
+        <Suspense fallback={null}>
+          <QrScanner onResult={handleScan} onClose={() => setScanOpen(false)} />
         </Suspense>
       )}
     </div>

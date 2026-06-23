@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import PageHeader from '@/components/ds/PageHeader'
@@ -8,6 +8,20 @@ import {
 } from '@/utils/liveQuiz'
 
 const OPTION_COLORS = ['#e21b3c', '#1368ce', '#d89e00', '#26890c', '#8b5cf6', '#0ea5a4']
+
+// Renders the join PIN as a QR via the qrcodejs CDN global. Students scan it to
+// join hands-free; the printed PIN below remains the fallback.
+function LiveQR({ pin }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!ref.current || !window.QRCode || !pin) return
+    ref.current.innerHTML = ''
+    try {
+      new window.QRCode(ref.current, { text: String(pin), width: 132, height: 132, colorDark: '#0b1220', colorLight: '#ffffff' })
+    } catch (e) { /* QR optional — PIN is the fallback */ }
+  }, [pin])
+  return <div ref={ref} className="lq-qr" aria-label="Join QR code" />
+}
 
 function useNow(active) {
   const [now, setNow] = useState(Date.now())
@@ -130,7 +144,8 @@ function HostView({ session, setLiveState, deleteLiveSession, toast }) {
         <div className="lq-stage">
           <div className="lq-eyebrow">{session.quizTitle}{session.subject ? ` · ${session.subject}` : ''}</div>
           <div className="lq-pin-wrap">
-            <div className="lq-pin-label">Join at this device's screen — enter PIN</div>
+            <div className="lq-pin-label">Scan to join — or enter the PIN</div>
+            <LiveQR pin={session.pin} />
             <div className="lq-pin">{session.pin}</div>
           </div>
           <div className="lq-players-count"><Users size={16} /> {players.length} joined</div>
