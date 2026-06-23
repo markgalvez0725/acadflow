@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react'
-import { Eye, EyeOff, ShieldCheck, BookOpen, Users, CalendarCheck, BarChart2 } from 'lucide-react'
+import { Eye, EyeOff, ShieldCheck, BookOpen, Users, CalendarCheck, BarChart2, TrendingUp, Mail, Lock } from 'lucide-react'
 import AcadFlowLogo from '@/components/primitives/AcadFlowLogo'
 import { useTypingEffect } from '@/hooks/useTypingEffect'
 import { useAuth } from '@/context/AuthContext'
@@ -77,13 +77,15 @@ export default function AdminLoginScreen() {
 
       {/* ── Left branding panel (desktop only) ── */}
       <div className="auth-brand hidden lg:flex flex-col justify-between flex-1 relative z-10 p-10 pointer-events-none select-none">
+        {/* Depth layers */}
+        <div className="auth-orb auth-orb-1" aria-hidden="true" />
+        <div className="auth-orb auth-orb-2" aria-hidden="true" />
+        <div className="auth-grid" aria-hidden="true" />
+
         <AcadFlowLogo size="sm" />
         <div>
-          <div className="flex items-center gap-2 mb-4">
-            <div className="flex items-center justify-center w-9 h-9 rounded-xl" style={{ background: 'var(--accent-l)', color: 'var(--accent)' }}>
-              <ShieldCheck size={18} />
-            </div>
-            <span className="text-xs font-bold uppercase tracking-widest text-ink3">Teacher Portal</span>
+          <div className="auth-eyebrow">
+            <ShieldCheck size={13} /> Teacher portal
           </div>
           <p className="text-4xl font-display font-bold text-ink leading-tight mb-4" style={{ letterSpacing: '-.03em' }}>
             {typedLine1}
@@ -105,14 +107,18 @@ export default function AdminLoginScreen() {
           <p className="text-sm text-ink2 max-w-xs leading-relaxed">
             Full control over grades, attendance, quizzes, announcements and student records — all from one dashboard.
           </p>
-          <div className="flex gap-6 mt-8">
+
+          <div className="auth-highlight">
+            <div className="auth-highlight-ic"><TrendingUp size={18} /></div>
+            <div>
+              <div className="auth-highlight-t">Your classroom, in command</div>
+              <div className="auth-highlight-s">Grades, attendance &amp; quizzes, live</div>
+            </div>
+          </div>
+
+          <div className="auth-chips">
             {ADMIN_FEATURES.map(({ Icon, label }) => (
-              <div key={label} className="flex flex-col items-center gap-1">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--accent-l)', color: 'var(--accent)' }}>
-                  <Icon size={18} />
-                </div>
-                <span className="text-xs font-semibold text-ink3">{label}</span>
-              </div>
+              <span key={label} className="auth-chip"><Icon size={13} /> {label}</span>
             ))}
           </div>
         </div>
@@ -129,6 +135,7 @@ export default function AdminLoginScreen() {
 
         {/* Desktop welcome text */}
         <div className="hidden lg:block mb-7">
+          <div className="auth-form-badge"><ShieldCheck size={22} /></div>
           <h2 className="text-2xl font-bold text-ink mb-1" style={{ letterSpacing: '-.02em' }}>{modeTitle}</h2>
           <p className="text-sm text-ink3">{modeSub}</p>
         </div>
@@ -138,7 +145,8 @@ export default function AdminLoginScreen() {
 
           {/* ── Login ──────────────────────────────────────────────────── */}
             <form onSubmit={handleLogin}>
-              <div className="field-float">
+              <div className="field-float field-float--icon">
+                <span className="ff-icon" aria-hidden="true"><Mail size={16} /></span>
                 <input
                   type="email"
                   value={ADMIN_EMAIL}
@@ -148,7 +156,8 @@ export default function AdminLoginScreen() {
                 />
                 <label>Admin email</label>
               </div>
-              <div className="field-float">
+              <div className="field-float field-float--icon">
+                <span className="ff-icon" aria-hidden="true"><Lock size={16} /></span>
                 <input
                   type={showPass ? 'text' : 'password'}
                   placeholder=" "
@@ -170,7 +179,8 @@ export default function AdminLoginScreen() {
               </button>
             </form>
 
-        <p className="text-center text-xs text-ink3 mt-4">
+        <div className="auth-trust"><ShieldCheck size={13} /> Encrypted &amp; secure</div>
+        <p className="text-center text-xs text-ink3 mt-3">
           Student?{' '}
           <a href="/" className="text-accent-m underline">Student Login →</a>
         </p>

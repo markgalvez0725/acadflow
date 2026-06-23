@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Eye, EyeOff, BarChart2, CalendarCheck, Rss, MessageSquare, KeyRound, Check } from 'lucide-react'
+import { Eye, EyeOff, BarChart2, CalendarCheck, Rss, MessageSquare, KeyRound, Check, ShieldCheck, TrendingUp, GraduationCap, UserCircle, IdCard, Lock } from 'lucide-react'
 import AcadFlowLogo from '@/components/primitives/AcadFlowLogo'
 import { useTypingEffect } from '@/hooks/useTypingEffect'
 import { useAuth } from '@/context/AuthContext'
@@ -484,8 +484,16 @@ export default function LoginScreen() {
 
       {/* ── Left branding panel (desktop only) ── */}
       <div className="auth-brand hidden lg:flex flex-col justify-between flex-1 relative z-10 p-10 pointer-events-none select-none">
+        {/* Depth layers */}
+        <div className="auth-orb auth-orb-1" aria-hidden="true" />
+        <div className="auth-orb auth-orb-2" aria-hidden="true" />
+        <div className="auth-grid" aria-hidden="true" />
+
         <AcadFlowLogo size="sm" />
         <div>
+          <div className="auth-eyebrow">
+            <GraduationCap size={13} /> Student portal
+          </div>
           <p className="text-4xl font-display font-bold text-ink leading-tight mb-4" style={{ letterSpacing: '-.03em' }}>
             {typedLine1}
             {!typed[1] && (
@@ -504,16 +512,20 @@ export default function LoginScreen() {
             )}
           </p>
           <p className="text-sm text-ink2 max-w-xs leading-relaxed">
-            Grades, attendance, announcements, and messages — all in one modern academic platform built for students and educators.
+            Grades, attendance, announcements, and messages — one calm place for your whole semester.
           </p>
-          <div className="flex gap-6 mt-8">
+
+          <div className="auth-highlight">
+            <div className="auth-highlight-ic"><TrendingUp size={18} /></div>
+            <div>
+              <div className="auth-highlight-t">Everything in one portal</div>
+              <div className="auth-highlight-s">Grades, attendance &amp; messages, live</div>
+            </div>
+          </div>
+
+          <div className="auth-chips">
             {STUDENT_FEATURES.map(({ Icon, label }) => (
-              <div key={label} className="flex flex-col items-center gap-1">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--accent-l)', color: 'var(--accent)' }}>
-                  <Icon size={18} />
-                </div>
-                <span className="text-xs font-semibold text-ink3">{label}</span>
-              </div>
+              <span key={label} className="auth-chip"><Icon size={13} /> {label}</span>
             ))}
           </div>
         </div>
@@ -530,6 +542,7 @@ export default function LoginScreen() {
 
         {/* Desktop welcome text */}
         <div className="hidden lg:block mb-7">
+          <div className="auth-form-badge"><UserCircle size={22} /></div>
           <h2 className="text-2xl font-bold text-ink mb-1" style={{ letterSpacing: '-.02em' }}>
             {mode === 'student' ? 'Welcome back' : mode === 'register' ? 'Create account' : 'Account recovery'}
           </h2>
@@ -559,7 +572,8 @@ export default function LoginScreen() {
           {/* ── Student Login ─────────────────────────────────────────── */}
           {mode === 'student' && (
             <form onSubmit={handleStudentLogin}>
-              <div className="field-float">
+              <div className="field-float field-float--icon">
+                <span className="ff-icon" aria-hidden="true"><IdCard size={16} /></span>
                 <input
                   type="text"
                   placeholder=" "
@@ -569,7 +583,8 @@ export default function LoginScreen() {
                 />
                 <label>Student Number</label>
               </div>
-              <div className="field-float">
+              <div className="field-float field-float--icon">
+                <span className="ff-icon" aria-hidden="true"><Lock size={16} /></span>
                 <input
                   type={showPass ? 'text' : 'password'}
                   placeholder=" "
@@ -922,10 +937,13 @@ export default function LoginScreen() {
           })()}
 
         {(mode === 'student' || mode === 'register') && (
-          <p className="text-center text-xs text-ink3 mt-4">
-            Are you a teacher?{' '}
-            <a href="/admin" className="text-accent-m underline">Admin Login →</a>
-          </p>
+          <>
+            <div className="auth-trust"><ShieldCheck size={13} /> Encrypted &amp; secure</div>
+            <p className="text-center text-xs text-ink3 mt-3">
+              Are you a teacher?{' '}
+              <a href="/admin" className="text-accent-m underline">Admin Login →</a>
+            </p>
+          </>
         )}
       </div>
     </div>

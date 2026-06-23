@@ -1432,6 +1432,25 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 }
 .field-float--select select { padding-top: 20px; padding-bottom: 6px; }
 
+/* Leading icon inside a floating field (sign-in fields) */
+.field-float--icon input { padding-left: 38px; }
+.field-float--icon label { left: 38px; }
+.field-float .ff-icon {
+  position: absolute;
+  left: 12px;
+  top: 0; bottom: 0;
+  margin: auto 0;
+  width: 18px; height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink3);
+  pointer-events: none;
+  z-index: 1;
+  transition: color .15s;
+}
+.field-float--icon input:focus ~ .ff-icon { color: var(--accent); }
+
 /* Auth form section divider label */
 .auth-section-label {
   font-size: 10px;
@@ -4386,6 +4405,90 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
   margin: 4px 0 18px;
   box-shadow: var(--shadow-lg);
 }
+
+/* ── Plan A: brand-panel depth + enrichments ────────────────────────────── */
+#login-screen .auth-brand, #admin-login-screen .auth-brand { overflow: hidden; }
+/* Keep all real content above the decorative orbs/grid */
+.auth-brand > *:not(.auth-orb):not(.auth-grid) { position: relative; z-index: 1; }
+
+.auth-orb {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(6px);
+  z-index: 0;
+}
+.auth-orb-1 { top: -80px; right: -60px; width: 260px; height: 260px;
+  background: radial-gradient(circle, rgba(120,160,255,.45), transparent 68%); }
+.auth-orb-2 { bottom: -70px; left: -50px; width: 200px; height: 200px;
+  background: radial-gradient(circle, rgba(60,200,180,.28), transparent 70%); }
+.auth-grid {
+  position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background-image: radial-gradient(rgba(255,255,255,.14) 1px, transparent 1px);
+  background-size: 24px 24px;
+  opacity: .35;
+}
+
+.auth-eyebrow {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+  color: rgba(255,255,255,.72);
+  margin-bottom: 14px;
+}
+
+.auth-highlight {
+  display: flex; align-items: center; gap: 12px;
+  max-width: 320px;
+  margin-top: 20px;
+  padding: 12px 14px;
+  background: rgba(255,255,255,.09);
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 14px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.auth-highlight-ic {
+  flex-shrink: 0;
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: rgba(255,255,255,.16);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+}
+.auth-highlight-t { font-size: 13px; font-weight: 600; color: #fff; line-height: 1.3; }
+.auth-highlight-s { font-size: 11px; color: rgba(255,255,255,.70); }
+
+.auth-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.auth-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 600;
+  color: rgba(255,255,255,.85);
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.12);
+  padding: 5px 10px;
+  border-radius: 9px;
+}
+
+/* Welcome badge above the form heading (right panel) */
+.auth-form-badge {
+  width: 40px; height: 40px;
+  border-radius: 12px;
+  background: var(--accent-l);
+  color: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 12px;
+}
+
+/* Encrypted/trust footer */
+.auth-trust {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  font-size: 11px; font-weight: 500;
+  color: var(--ink3);
+  border-top: 1px solid var(--border);
+  margin-top: 16px;
+  padding-top: 13px;
+}
+.auth-trust svg { color: var(--green); }
 
 /* — Pill badges — */
 #student-portal .badge {
