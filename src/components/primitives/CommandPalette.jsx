@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext'
 import {
   Search, LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell,
   FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Users, GraduationCap,
-  Sun, Moon, Download, CornerDownLeft, ArrowUp, ArrowDown, User, Building2, Sparkles, History, Library, Radio, ListChecks, MessageSquare,
+  Sun, Moon, Download, CornerDownLeft, ArrowUp, ArrowDown, User, Building2, Sparkles, History, Library, ListChecks, MessageSquare,
 } from 'lucide-react'
 
 // Tab catalogs mirror AdminLayout / StudentLayout nav (kept in sync manually).
@@ -24,7 +24,6 @@ const ADMIN_TABS = [
   { id: 'calendar',      label: 'Calendar',       Icon: CalendarDays },
   { id: 'onlineClasses', label: 'Online Classes', Icon: Video },
   { id: 'resources',     label: 'Resource Hub',   Icon: Library },
-  { id: 'liveQuiz',      label: 'Live Quiz',      Icon: Radio },
   { id: 'audit',         label: 'Audit Log',      Icon: History },
 ]
 

@@ -78,11 +78,6 @@ service cloud.firestore {
     // Learning materials: everyone signed in reads; only the teacher posts/edits.
     match /resources/{docId}          { allow read: if signedIn(); allow write: if isAdmin(); }
 
-    // Live quiz (Kahoot-style) sessions: the teacher hosts (create/state/delete)
-    // and students write only their own player entry (join + answers) via
-    // field-level merges, so writes stay open to any signed-in user.
-    match /liveQuizSessions/{docId}   { allow read, write: if signedIn(); }
-
     // resetSessions/* is intentionally NOT matched here — it is written and read
     // only by the server (service account), which bypasses these rules. Leaving
     // it unmatched denies all direct client access, which is what we want.

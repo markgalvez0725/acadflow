@@ -18,9 +18,6 @@ import {
   fbOpenAttendanceSession, fbCloseAttendanceSession, fbMarkCheckedIn,
   fbSubmitExcuseRequest, fbDecideExcuseRequest, fbNotifyAdmin, fbNotifyStudent,
 } from '@/firebase/attendanceExtras'
-import {
-  fbCreateLiveSession, fbJoinLiveSession, fbSetLiveState, fbSubmitLiveAnswer, fbDeleteLiveSession,
-} from '@/firebase/liveQuiz'
 import { loadFbConfigFromStorage, readStoredEJS } from '@/utils/crypto'
 import { DEFAULT_EQ_SCALE } from '@/utils/grades'
 import { ADMIN_EMAIL } from '@/constants/auth'
@@ -50,7 +47,6 @@ export function DataProvider({ children }) {
   const [excuseRequests, setExcuseRequests]         = useState([])
   const [auditLog, setAuditLog]                     = useState([])
   const [resources, setResources]                   = useState([])
-  const [liveSessions, setLiveSessions]             = useState([])
   const [fbReady, setFbReady]           = useState(false)
   const [fbConfig, setFbConfig]         = useState(null) // decrypted config object
   const [semester, setSemester]         = useState(null)
@@ -125,7 +121,6 @@ export function DataProvider({ children }) {
         onExcuseRequestsUpdate: setExcuseRequests,
         onAuditLogUpdate: isAdminUser() ? setAuditLog : undefined,
         onResourcesUpdate: setResources,
-        onLiveSessionsUpdate: setLiveSessions,
         onConfigUpdate: ({ ejsConfig }) => {
           if (ejsConfig) {
             setEjs({ ...ejsConfig, configured: true })
@@ -181,7 +176,6 @@ export function DataProvider({ children }) {
       onExcuseRequestsUpdate: setExcuseRequests,
       onAuditLogUpdate: isAdminUser() ? setAuditLog : undefined,
       onResourcesUpdate: setResources,
-      onLiveSessionsUpdate: setLiveSessions,
       onConfigUpdate: ({ ejsConfig }) => {
         if (ejsConfig) {
           setEjs({ ...ejsConfig, configured: true })
@@ -598,14 +592,6 @@ export function DataProvider({ children }) {
     await fbDeleteResource(dbRef.current, id)
   }, [])
 
-  // ── Live Quiz (Kahoot-style) — real-time, so no optimistic local writes;
-  // the liveQuizSessions listener is the single source of truth. ───────────
-  const createLiveSession = useCallback((args) => fbCreateLiveSession(dbRef.current, args), [])
-  const joinLiveSession   = useCallback((id, pid, name) => fbJoinLiveSession(dbRef.current, id, pid, name), [])
-  const setLiveState      = useCallback((id, state) => fbSetLiveState(dbRef.current, id, state), [])
-  const submitLiveAnswer  = useCallback((id, pid, qIndex, answer) => fbSubmitLiveAnswer(dbRef.current, id, pid, qIndex, answer), [])
-  const deleteLiveSession = useCallback((id) => fbDeleteLiveSession(dbRef.current, id), [])
-
   // Save a Meet link for a class. When `subject` is given, the link is stored
   // per-subject in meetLinks[subject]; otherwise it sets the class-wide link.
   const saveMeetLink = useCallback(async (classId, meetLink, subject) => {
@@ -900,7 +886,6 @@ export function DataProvider({ children }) {
       quizzes, setQuizzes,
       announcements, setAnnouncements, saveAnnouncement, deleteAnnouncement, pushAnnouncementNotifs, addAnnouncementComment, addCommentReply,
       resources, setResources, saveResource, deleteResource,
-      liveSessions, createLiveSession, joinLiveSession, setLiveState, submitLiveAnswer, deleteLiveSession,
       meetings, setMeetings,
       liveMeetings: meetings.filter(m => m.status === 'live'),
       saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting,
