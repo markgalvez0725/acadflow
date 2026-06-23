@@ -24,7 +24,7 @@ const PER_PAGE = 10
 
 export default function DashboardTab() {
   const { students, classes, activities = [], quizzes = [], fbReady, admin, semester, db } = useData()
-  const { setAdminTab, toast } = useUI()
+  const { setAdminTab, toast, openStudentProfile } = useUI()
   const [nudged, setNudged] = useState({})
   const [riskPage, setRiskPage]     = useState(1)
   const [lowAttPage, setLowAttPage] = useState(1)
@@ -244,7 +244,7 @@ export default function DashboardTab() {
                       >
                         <Bell size={14} /> {nudged[r.student.id] ? 'Sent' : 'Nudge'}
                       </button>
-                      <button className="btn btn-sm" onClick={() => setAdminTab('students')}>
+                      <button className="btn btn-sm" onClick={() => openStudentProfile(r.student.id)}>
                         View <ChevronRight size={14} />
                       </button>
                     </div>
