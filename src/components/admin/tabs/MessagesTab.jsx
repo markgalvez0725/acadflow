@@ -58,7 +58,7 @@ function Avatar({ photo, char, announce = false, size = 38 }) {
 // Searchable dropdown replacing the native <select> that dumped every student
 // at once. Shows All-Students + per-class broadcasts + individual students with
 // their profile photos, filtered by a search box.
-function RecipientPicker({ students, classes, classGroups, subjectGroups, value, onChange }) {
+function RecipientPicker({ students, classes, classGroups, classBroadcasts, subjectGroups, value, onChange }) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const wrapRef = useRef(null)
@@ -127,11 +127,9 @@ function RecipientPicker({ students, classes, classGroups, subjectGroups, value,
                   <span className="recipient-opt-text"><span className="recipient-opt-name">All Students</span><span className="recipient-opt-sub">Announcement to everyone</span></span>
                   {value === 'all' && <Check size={15} className="recipient-check" />}
                 </button>
-                {Object.keys(classGroups).sort().map(label => {
-                  const grp = classGroups[label]
-                  const cls = classes.find(c => c.id === grp[0]?.classId)
-                  if (!cls) return null
+                {(classBroadcasts || []).map(cls => {
                   const v = 'class:' + cls.id
+                  const label = `${cls.name}${cls.section ? ' ' + cls.section : ''}`
                   return (
                     <button type="button" key={v} className="recipient-opt" onClick={() => pick(v)}>
                       <Avatar char={<Megaphone size={15} />} announce size={30} />
@@ -207,10 +205,14 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
     return groups
   }, [students, classes])
 
+  // Current-semester (non-archived) classes — broadcast + subject targets.
+  const currentClasses = useMemo(() => classes.filter(c => isClassCurrent(c, semester)), [classes, semester])
+
   // Open subjects for the CURRENT semester → a group message reaches every
   // student enrolled in a current-semester class that teaches that subject.
+  // Listed even with 0 students enrolled yet: the teacher can create the group
+  // chat now, and students auto-join when they're added to the class.
   const subjectGroups = useMemo(() => {
-    const currentClasses = classes.filter(c => isClassCurrent(c, semester))
     const bySubject = {}
     currentClasses.forEach(c => {
       (c.subjects || []).forEach(sub => {
@@ -222,8 +224,8 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
       const classIds = [...bySubject[sub]]
       const count = studentsInClasses(students, classIds).length
       return { subject: sub, classIds, count }
-    }).filter(g => g.count > 0)
-  }, [classes, semester, students])
+    })
+  }, [currentClasses, students])
 
   // Resolve the target class ids for the chosen subject (used at send time).
   function subjectClassIds(name) {
@@ -305,6 +307,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
           students={students}
           classes={classes}
           classGroups={classGroups}
+          classBroadcasts={currentClasses}
           subjectGroups={subjectGroups}
           value={to}
           onChange={setTo}
