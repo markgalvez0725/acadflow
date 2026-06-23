@@ -6,6 +6,8 @@ import { relativeTime } from '@/utils/format'
 import { getStudentMessages } from '@/utils/studentMessages'
 import { groupName, isGroupMessage, groupMembers } from '@/utils/groupChat'
 import GroupMembers from '@/components/primitives/GroupMembers'
+import TypingIndicator from '@/components/primitives/TypingIndicator'
+import { useTyping } from '@/hooks/useTyping'
 import { isClassCurrent } from '@/utils/active'
 import { notifyAdminMessage } from '@/firebase/messageNotify'
 import { fbAddMessageReply, fbMarkMessageRead } from '@/firebase/persistence'
@@ -232,6 +234,7 @@ export default function MessagesTab({ student: s, messages }) {
     }
     if (text.length > 2000) { toast('Reply too long — maximum 2000 characters.', 'warn'); return }
     if (!fbReady || !db.current) { toast('Messages require Firebase to be connected.', 'warn'); return }
+    stopTyping()
     setSending(true)
     try {
       if (replyMsgId) {
@@ -262,6 +265,13 @@ export default function MessagesTab({ student: s, messages }) {
       setSending(false)
     }
   }
+
+  // Live typing presence for the open thread (group_ for a group chat, else direct_).
+  const openTypingMsg = (view === 'thread' && replyMsgId) ? messages.find(x => x.id === replyMsgId) : null
+  const typingKey = view === 'thread'
+    ? ((openTypingMsg && isGroupMessage(openTypingMsg)) ? 'group_' + openTypingMsg.id : 'direct_' + s.id)
+    : null
+  const { typers, notifyTyping, stopTyping } = useTyping(typingKey, { id: s.id, name: s.name || s.id })
 
   if (view === 'thread') {
     // For a group chat, show its members + read receipts (live from messages).
@@ -321,13 +331,16 @@ export default function MessagesTab({ student: s, messages }) {
           />
         )}
 
+        <TypingIndicator typers={typers} />
+
         {canReply ? (
           <div className="s-thread-reply-wrap">
             <textarea
               className="s-reply-input"
               placeholder="Type your reply…"
               value={replyText}
-              onChange={e => setReplyText(e.target.value)}
+              onChange={e => { setReplyText(e.target.value); notifyTyping() }}
+              onBlur={() => stopTyping()}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply() } }}
               rows={3}
             />

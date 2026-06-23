@@ -6,6 +6,8 @@ import { sortByLastName } from '@/utils/format'
 import { isClassCurrent } from '@/utils/active'
 import { isGroupMessage, autoGroupName, groupName, studentTag, groupMembers } from '@/utils/groupChat'
 import GroupMembers from '@/components/primitives/GroupMembers'
+import TypingIndicator from '@/components/primitives/TypingIndicator'
+import { useTyping } from '@/hooks/useTyping'
 import { notifyStudentMessage, notifyStudentsBroadcast } from '@/firebase/messageNotify'
 import { fbAddMessageReply, fbDeleteMessage } from '@/firebase/persistence'
 import Modal from '@/components/primitives/Modal'
@@ -356,6 +358,8 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
 // ── Thread Panel ──────────────────────────────────────────────────────
 function ThreadPanel({ thread, onReply, onClose, onDelete, onRename }) {
   const messagesEndRef = useRef(null)
+  const chatKey = thread ? (thread.type === 'conversation' ? 'direct_' + thread.studentId : 'group_' + thread.msgId) : null
+  const { typers, notifyTyping, stopTyping } = useTyping(chatKey, { id: 'admin', name: 'Teacher' })
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -424,14 +428,17 @@ function ThreadPanel({ thread, onReply, onClose, onDelete, onRename }) {
         <GroupMembers members={thread.members} readerIds={thread.readerIds} readAt={thread.readAt} />
       )}
 
+      {/* Live typing indicator */}
+      <TypingIndicator typers={typers} />
+
       {/* Reply box */}
-      <ReplyBox onSend={onReply} />
+      <ReplyBox onSend={onReply} onType={notifyTyping} onStop={stopTyping} />
     </div>
   )
 }
 
 // ── Reply Box ─────────────────────────────────────────────────────────
-function ReplyBox({ onSend }) {
+function ReplyBox({ onSend, onType, onStop }) {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
 
@@ -439,6 +446,7 @@ function ReplyBox({ onSend }) {
     const t = text.trim()
     if (!t) return
     setSending(true)
+    onStop?.()
     await onSend(t)
     setText('')
     setSending(false)
@@ -454,7 +462,8 @@ function ReplyBox({ onSend }) {
         className="input flex-1 resize-none"
         rows={2}
         value={text}
-        onChange={e => setText(e.target.value)}
+        onChange={e => { setText(e.target.value); onType?.() }}
+        onBlur={() => onStop?.()}
         onKeyDown={handleKeyDown}
         placeholder="Type a reply… (Ctrl+Enter to send)"
         disabled={sending}

@@ -6,6 +6,8 @@ import { relativeTime } from '@/utils/format'
 import { getStudentMessages } from '@/utils/studentMessages'
 import { groupName, isGroupMessage, groupMembers } from '@/utils/groupChat'
 import GroupMembers from '@/components/primitives/GroupMembers'
+import TypingIndicator from '@/components/primitives/TypingIndicator'
+import { useTyping } from '@/hooks/useTyping'
 import { notifyAdminMessage } from '@/firebase/messageNotify'
 import { fbAddMessageReply, fbMarkMessageRead } from '@/firebase/persistence'
 import { MessageSquare, GraduationCap, CheckCheck, X, Send } from 'lucide-react'
@@ -46,6 +48,13 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
     })
     return entries.sort((a, b) => a.ts - b.ts)
   }, [allMsgs, view, threadMode, replyMsgId])
+
+  // Live typing presence for the open thread.
+  const ftOpenMsg = (view === 'thread' && threadMode === 'single' && replyMsgId) ? messages.find(x => x.id === replyMsgId) : null
+  const typingKey = view === 'thread'
+    ? ((ftOpenMsg && isGroupMessage(ftOpenMsg)) ? 'group_' + ftOpenMsg.id : 'direct_' + s.id)
+    : null
+  const { typers, notifyTyping, stopTyping } = useTyping(typingKey, { id: s.id, name: s.name || s.id })
 
   // Keep the open thread marked read as new teacher messages arrive (clears the
   // unread badge). Only writes when something actually needs marking — no loop.
@@ -147,6 +156,7 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
     if (!text) return
     if (text.length > 2000) { toast('Reply too long — maximum 2000 characters.', 'warn'); return }
     if (!fbReady || !db.current) { toast('Firebase not connected.', 'warn'); return }
+    stopTyping()
     setSending(true)
     try {
       if (replyMsgId) {
@@ -327,23 +337,22 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
                   )
                 })}
               </div>
-              {(() => {
-                const gm = (threadMode === 'single' && replyMsgId) ? messages.find(x => x.id === replyMsgId) : null
-                return gm && isGroupMessage(gm) ? (
-                  <GroupMembers
-                    members={groupMembers(gm, students)}
-                    readerIds={Array.isArray(gm.read) ? gm.read : []}
-                    readAt={gm.readAt || {}}
-                  />
-                ) : null
-              })()}
+              {ftOpenMsg && isGroupMessage(ftOpenMsg) && (
+                <GroupMembers
+                  members={groupMembers(ftOpenMsg, students)}
+                  readerIds={Array.isArray(ftOpenMsg.read) ? ftOpenMsg.read : []}
+                  readAt={ftOpenMsg.readAt || {}}
+                />
+              )}
+              <TypingIndicator typers={typers} />
               <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border)', flexShrink: 0, display: 'flex', gap: 8 }}>
                 <textarea
                   className="input"
                   style={{ flex: 1, resize: 'none', fontSize: 12 }}
                   placeholder="Type a message… (Enter to send)"
                   value={replyText}
-                  onChange={e => setReplyText(e.target.value)}
+                  onChange={e => { setReplyText(e.target.value); notifyTyping() }}
+                  onBlur={() => stopTyping()}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply() } }}
                   rows={2}
                   disabled={sending}
