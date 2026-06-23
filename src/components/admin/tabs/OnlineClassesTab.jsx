@@ -1,12 +1,14 @@
 import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save } from 'lucide-react'
+import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio } from 'lucide-react'
+import LiveMeetingRoom from '@/components/online/LiveMeetingRoom'
 
 export default function OnlineClassesTab() {
-  const { classes, meetings, saveMeetLink, scheduleMeeting, startMeeting, endMeeting, cancelMeeting } = useData()
+  const { classes, meetings, admin, saveMeetLink, scheduleMeeting, startMeeting, endMeeting, cancelMeeting } = useData()
   const { toast } = useUI()
   const [panel, setPanel] = useState('links')
+  const [room, setRoom] = useState(null) // meeting the teacher is hosting in the embedded room
 
   // ── Section 1: Meet Links ─────────────────────────────────────────────
   const [linkDrafts, setLinkDrafts] = useState({})
@@ -73,18 +75,16 @@ export default function OnlineClassesTab() {
   )
 
   async function handleStart(m) {
-    if (!m.meetLink?.trim()) {
-      toast('No Meet link set for this class. Add one in the Meet Links panel first.', 'error')
-      return
-    }
     try {
       await startMeeting(m)
-      window.open(m.meetLink, '_blank', 'noopener,noreferrer')
+      setRoom({ ...m, status: 'live' }) // host the embedded room immediately
       toast('Meeting is now live. Students have been notified.', 'success')
     } catch (e) {
       toast('Failed to start meeting.', 'error')
     }
   }
+
+  function handleJoin(m) { setRoom(m) }
 
   async function handleEnd(m) {
     try {
@@ -299,7 +299,7 @@ export default function OnlineClassesTab() {
           upcoming.length === 0
             ? <div className="empty"><div className="empty-icon"><CalendarPlus size={36} /></div>No upcoming meetings.</div>
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {upcoming.map(m => <MeetingRow key={m.id} m={m} onStart={handleStart} onEnd={handleEnd} onCancel={handleCancel} />)}
+                {upcoming.map(m => <MeetingRow key={m.id} m={m} onStart={handleStart} onJoin={handleJoin} onEnd={handleEnd} onCancel={handleCancel} />)}
               </div>
         )}
 
@@ -311,6 +311,17 @@ export default function OnlineClassesTab() {
               </div>
         )}
       </section>}
+
+      {room && (
+        <LiveMeetingRoom
+          meeting={room}
+          displayName={admin?.name || admin?.displayName || 'Teacher'}
+          email={admin?.email}
+          isHost
+          subtitle={room.className || 'Online class'}
+          onLeave={() => setRoom(null)}
+        />
+      )}
     </div>
   )
 }
@@ -319,7 +330,7 @@ function classLabel(cls) {
   return cls?.section ? `${cls.name} - ${cls.section}` : cls?.name || 'Class'
 }
 
-function MeetingRow({ m, onStart, onEnd, onCancel }) {
+function MeetingRow({ m, onStart, onJoin, onEnd, onCancel }) {
   const dt = new Date(m.scheduledAt)
   const dateStr = dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
   const timeStr = dt.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })
@@ -338,12 +349,17 @@ function MeetingRow({ m, onStart, onEnd, onCancel }) {
         <StatusBadge status={m.status} />
         {m.status === 'scheduled' && onStart && (
           <button className="btn btn-primary btn-sm" onClick={() => onStart(m)} title="Start meeting">
-            <ExternalLink size={14} style={{ marginRight: 4 }} /> Start
+            <Video size={14} style={{ marginRight: 4 }} /> Start
           </button>
         )}
         {m.status === 'scheduled' && onCancel && (
           <button className="btn btn-ghost btn-sm" onClick={() => onCancel(m)} title="Cancel meeting">
             <Trash2 size={14} />
+          </button>
+        )}
+        {m.status === 'live' && onJoin && (
+          <button className="btn btn-primary btn-sm" onClick={() => onJoin(m)} title="Rejoin meeting">
+            <Radio size={14} style={{ marginRight: 4 }} /> Join
           </button>
         )}
         {m.status === 'live' && onEnd && (

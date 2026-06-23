@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { useData } from '@/context/DataContext'
 import { Video, Radio, ExternalLink, Clock, ChevronDown, ChevronUp } from 'lucide-react'
 import { activeClassIds } from '@/utils/active'
+import LiveMeetingRoom from '@/components/online/LiveMeetingRoom'
 
 const IMMINENT_MS = 15 * 60 * 1000 // a class "starting soon" — show one-tap join
 
@@ -65,6 +66,7 @@ export default function OnlineClassesTab({ student }) {
 
   const [pastOpen, setPastOpen] = useState(false)
   const [panel, setPanel] = useState('live')
+  const [room, setRoom] = useState(null) // meeting currently open in the embedded room
 
   const classNameById = useMemo(() => {
     const map = {}
@@ -130,13 +132,9 @@ export default function OnlineClassesTab({ student }) {
                 {meetingClassLabel(m, classNameById)} · starts {untilLabel(ms)}
               </div>
             </div>
-            {m.meetLink ? (
-              <a href={m.meetLink} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm" style={{ flexShrink: 0 }}>
-                <ExternalLink size={14} style={{ marginRight: 6 }} /> Join
-              </a>
-            ) : (
-              <span style={{ fontSize: 12, color: 'var(--ink3)', flexShrink: 0 }}>Link not set</span>
-            )}
+            <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }} onClick={() => setRoom(m)}>
+              <Video size={14} style={{ marginRight: 6 }} /> Join
+            </button>
           </div>
         )
       })}
@@ -159,19 +157,9 @@ export default function OnlineClassesTab({ student }) {
             <div style={{ fontWeight: 700, fontSize: 15 }}>{m.title}</div>
             <div style={{ fontSize: 12, color: 'var(--ink3)' }}>{meetingClassLabel(m, classNameById)}</div>
           </div>
-          {m.meetLink ? (
-            <a
-              href={m.meetLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-primary btn-sm"
-              style={{ flexShrink: 0 }}
-            >
-              <ExternalLink size={14} style={{ marginRight: 6 }} /> Join Meeting
-            </a>
-          ) : (
-            <span style={{ fontSize: 12, color: 'var(--ink3)', flexShrink: 0 }}>Link not set</span>
-          )}
+          <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }} onClick={() => setRoom(m)}>
+            <Video size={14} style={{ marginRight: 6 }} /> Join Meeting
+          </button>
         </div>
       ))}
 
@@ -255,6 +243,16 @@ export default function OnlineClassesTab({ student }) {
             </div>
           )}
         </section>
+      )}
+
+      {room && (
+        <LiveMeetingRoom
+          meeting={room}
+          displayName={student.name || 'Student'}
+          isHost={false}
+          subtitle={room.className || classNameById[room.classId] || 'Online class'}
+          onLeave={() => setRoom(null)}
+        />
       )}
     </div>
   )

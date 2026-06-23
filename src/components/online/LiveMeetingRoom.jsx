@@ -1,0 +1,202 @@
+import React, { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import {
+  Mic, MicOff, Video, VideoOff, MonitorUp, Hand, MessageSquare,
+  Users, PhoneOff, Radio, Clock, Loader2, AlertTriangle,
+} from 'lucide-react'
+import { loadJitsi, meetingRoomName, JITSI_DOMAIN } from '@/utils/jitsi'
+
+// Immersive, embedded video room for an online class. The middle video grid is
+// a Jitsi Meet iframe (real audio/video/screen-share); the surrounding chrome —
+// header, joined banner and control bar — is ours, mirroring the app's preview
+// design. Native Jitsi toolbar is hidden so every control routes through here.
+export default function LiveMeetingRoom({ meeting, displayName, email, isHost = false, subtitle, onLeave }) {
+  const holderRef = useRef(null)
+  const apiRef = useRef(null)
+  const timerRef = useRef(null)
+
+  const [phase, setPhase] = useState('loading') // loading | joined | error
+  const [error, setError] = useState('')
+  const [micOn, setMicOn] = useState(true)
+  const [camOn, setCamOn] = useState(isHost)
+  const [sharing, setSharing] = useState(false)
+  const [handRaised, setHandRaised] = useState(false)
+  const [count, setCount] = useState(1)
+  const [secs, setSecs] = useState(0)
+
+  useEffect(() => {
+    let disposed = false
+    let api = null
+
+    loadJitsi().then((JitsiMeetExternalAPI) => {
+      if (disposed || !holderRef.current) return
+      api = new JitsiMeetExternalAPI(JITSI_DOMAIN, {
+        roomName: meetingRoomName(meeting),
+        parentNode: holderRef.current,
+        userInfo: { displayName: displayName || 'Guest', email: email || undefined },
+        configOverwrite: {
+          prejoinPageEnabled: false,
+          disableDeepLinking: true,
+          startWithAudioMuted: false,
+          startWithVideoMuted: !isHost,
+          toolbarButtons: [], // hide Jitsi's own toolbar — we render our own
+        },
+        interfaceConfigOverwrite: {
+          SHOW_JITSI_WATERMARK: false,
+          SHOW_WATERMARK_FOR_GUESTS: false,
+          DISABLE_JOIN_LEAVE_NOTIFICATIONS: false,
+          MOBILE_APP_PROMO: false,
+        },
+      })
+      apiRef.current = api
+
+      const syncCount = () => { try { setCount(api.getNumberOfParticipants() || 1) } catch (e) { /* ignore */ } }
+
+      api.addEventListener('videoConferenceJoined', () => {
+        if (disposed) return
+        setPhase('joined')
+        syncCount()
+        timerRef.current = setInterval(() => setSecs(s => s + 1), 1000)
+      })
+      api.addEventListener('participantJoined', syncCount)
+      api.addEventListener('participantLeft', syncCount)
+      api.addEventListener('audioMuteStatusChanged', e => setMicOn(!e.muted))
+      api.addEventListener('videoMuteStatusChanged', e => setCamOn(!e.muted))
+      api.addEventListener('screenSharingStatusChanged', e => setSharing(!!e.on))
+      api.addEventListener('raiseHandUpdated', e => {
+        // Fires for every participant; only reflect our own hand state.
+        try { if (e.id === api._myUserID || e.id === api.getMyUserId?.()) setHandRaised(!!e.handRaised) } catch (err) { /* ignore */ }
+      })
+      api.addEventListener('readyToClose', () => { if (!disposed) onLeave?.() })
+    }).catch(err => {
+      if (disposed) return
+      setError(err?.message || 'Could not start the video room.')
+      setPhase('error')
+    })
+
+    return () => {
+      disposed = true
+      if (timerRef.current) clearInterval(timerRef.current)
+      try { api?.dispose() } catch (e) { /* ignore */ }
+      apiRef.current = null
+    }
+  }, [meeting?.id])
+
+  function cmd(name) { try { apiRef.current?.executeCommand(name) } catch (e) { /* ignore */ } }
+  function leave() {
+    cmd('hangup')
+    // hangup → readyToClose handles onLeave, but close promptly as a fallback.
+    setTimeout(() => onLeave?.(), 250)
+  }
+
+  const elapsed = `${String(Math.floor(secs / 60)).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}`
+  const sub = subtitle || meeting?.className || 'Online class'
+
+  return createPortal(
+    <div style={S.overlay} role="dialog" aria-modal="true" aria-label={`Live class: ${meeting?.title || ''}`}>
+      {/* Header */}
+      <div style={S.header}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={S.title}>{meeting?.title || 'Online class'}</div>
+          <div style={S.subtitle}>{sub}{meeting?.subject ? ` · ${meeting.subject}` : ''} · {count} in call</div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <span style={S.livePill}><Radio size={12} /> LIVE</span>
+          <span style={S.timer}><Clock size={14} /> {elapsed}</span>
+        </div>
+      </div>
+
+      {/* Video stage (Jitsi iframe mounts here) */}
+      <div style={S.stage}>
+        <div ref={holderRef} style={{ position: 'absolute', inset: 0 }} />
+        {phase !== 'joined' && (
+          <div style={S.stageOverlay}>
+            {phase === 'error' ? (
+              <>
+                <AlertTriangle size={34} style={{ color: '#f59e0b' }} />
+                <div style={{ marginTop: 10, fontSize: 14 }}>{error}</div>
+                <button style={{ ...S.ctrlPill, marginTop: 16 }} onClick={() => onLeave?.()}>Close</button>
+              </>
+            ) : (
+              <>
+                <Loader2 size={32} className="animate-spin" />
+                <div style={{ marginTop: 10, fontSize: 14, opacity: .8 }}>Connecting you to the class…</div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Joined status banner */}
+      {phase === 'joined' && (
+        <div style={S.banner}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
+          You joined the meeting · mic is {micOn ? 'on' : 'off'}, camera is {camOn ? 'on' : 'off'}{sharing ? ' · sharing your screen' : ''}
+        </div>
+      )}
+
+      {/* Control bar */}
+      <div style={S.controls}>
+        <Ctrl on={micOn} danger={!micOn} onClick={() => cmd('toggleAudio')} label={micOn ? 'Mute microphone' : 'Unmute microphone'}>
+          {micOn ? <Mic size={19} /> : <MicOff size={19} />}
+        </Ctrl>
+        <Ctrl on={camOn} danger={!camOn} onClick={() => cmd('toggleVideo')} label={camOn ? 'Turn off camera' : 'Turn on camera'}>
+          {camOn ? <Video size={19} /> : <VideoOff size={19} />}
+        </Ctrl>
+        <Ctrl on={sharing} active={sharing} onClick={() => cmd('toggleShareScreen')} label={sharing ? 'Stop sharing screen' : 'Share your screen'}>
+          <MonitorUp size={19} />
+        </Ctrl>
+        <Ctrl active={handRaised} onClick={() => cmd('toggleRaiseHand')} label="Raise hand">
+          <Hand size={19} />
+        </Ctrl>
+        <Ctrl onClick={() => cmd('toggleChat')} label="Open chat">
+          <MessageSquare size={19} />
+        </Ctrl>
+        <Ctrl onClick={() => cmd('toggleParticipantsPane')} label="Participants">
+          <Users size={19} />
+        </Ctrl>
+        <button style={S.leave} onClick={leave} aria-label="Leave meeting">
+          <PhoneOff size={18} /> Leave
+        </button>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+function Ctrl({ children, onClick, label, on, active, danger }) {
+  const bg = danger ? 'rgba(239,68,68,.18)' : active ? 'rgba(59,130,246,.22)' : 'rgba(255,255,255,.08)'
+  const color = danger ? '#fca5a5' : active ? '#93c5fd' : '#e8edf4'
+  const border = danger ? '1px solid rgba(239,68,68,.5)' : active ? '1px solid rgba(59,130,246,.55)' : '1px solid rgba(255,255,255,.14)'
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      style={{ width: 46, height: 46, borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: bg, color, border }}
+    >
+      {children}
+    </button>
+  )
+}
+
+const S = {
+  overlay: {
+    position: 'fixed', inset: 0, zIndex: 1000, background: '#0d1117',
+    display: 'flex', flexDirection: 'column', color: '#e8edf4',
+  },
+  header: {
+    display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px',
+    borderBottom: '1px solid rgba(255,255,255,.08)', flexShrink: 0,
+  },
+  title: { fontSize: 15, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  subtitle: { fontSize: 12, color: '#9aa6b6', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  livePill: { display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(239,68,68,.16)', color: '#fca5a5', fontSize: 12, fontWeight: 700, letterSpacing: '.05em', padding: '4px 10px', borderRadius: 999 },
+  timer: { display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#9aa6b6' },
+  stage: { position: 'relative', flex: 1, minHeight: 0, background: '#000' },
+  stageOverlay: { position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#e8edf4', background: '#0d1117' },
+  banner: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '8px 14px', fontSize: 12, color: '#86efac', background: 'rgba(34,197,94,.10)', borderTop: '1px solid rgba(34,197,94,.18)', flexShrink: 0 },
+  controls: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '12px 14px calc(env(safe-area-inset-bottom) + 12px)', borderTop: '1px solid rgba(255,255,255,.08)', flexShrink: 0, flexWrap: 'wrap' },
+  ctrlPill: { padding: '8px 16px', borderRadius: 999, background: 'rgba(255,255,255,.1)', color: '#e8edf4', border: '1px solid rgba(255,255,255,.2)', cursor: 'pointer' },
+  leave: { height: 46, padding: '0 20px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 8, background: '#ef4444', color: '#fff', border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
+}
