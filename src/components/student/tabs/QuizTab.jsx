@@ -95,7 +95,8 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
   // (switching tabs / apps) clears answers and reshuffles — see the effect below.
   const [order, setOrder] = useState(() => shuffleIndices(quiz.questions.length))
   const [leftCount, setLeftCount] = useState(0)
-  const inFlightRef = useRef(false) // suppress reset during submit/after submit
+  const leftCountRef = useRef(0)     // synchronous mirror of leftCount
+  const inFlightRef = useRef(false)  // suppress reset during submit/after submit
 
   // Resume from the original start so time already spent is not given back.
   const elapsedSecs = Math.floor((Date.now() - startRef.current) / 1000)
@@ -118,30 +119,38 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
   useEffect(() => {
     if (!ruleNotedRef.current) {
       ruleNotedRef.current = true
-      toast('Stay on this screen — leaving resets your answers and reshuffles the questions.', 'warn')
+      toast('Stay on this screen — your first slip is a warning, then leaving resets your answers and reshuffles the questions.', 'warn')
     }
   }, [toast])
 
-  // ── Anti-cheat: leaving the quiz resets progress + reshuffles ──────────────
-  // Switching browser tabs, minimizing, or switching apps (phone) clears all
-  // answers and re-randomizes the question order from the same question pool.
-  // The timer keeps running from the original start, so leaving costs time too.
+  // ── Anti-cheat: leaving the quiz warns once, then resets + reshuffles ──────
+  // Switching browser tabs, minimizing, or switching apps (phone) is detected.
+  // The FIRST time is a free warning (so an accidental switch isn't punished);
+  // the second time on clears all answers and re-randomizes the question order
+  // from the same pool. The timer keeps running from the original start.
   useEffect(() => {
     if (submitted) return
     let blurTimer = null
-    const resetForLeaving = () => {
+    const handleLeave = () => {
       if (submitted || inFlightRef.current) return
+      const n = leftCountRef.current + 1
+      leftCountRef.current = n
+      setLeftCount(n)
+      if (n === 1) {
+        // First slip — warn only, no penalty.
+        toast('Heads up — if you leave the quiz again, your answers reset and the questions reshuffle.', 'warn')
+        return
+      }
       setAnswers(Array(quiz.questions.length).fill(''))
       setOrder(shuffleIndices(quiz.questions.length))
       setCurrentQ(0)
       try { localStorage.removeItem(draftKey) } catch (e) { /* ignore */ }
-      setLeftCount(n => n + 1)
-      toast('You left the quiz — answers cleared and questions reshuffled.', 'error')
+      toast('You left again — answers cleared and questions reshuffled.', 'error')
     }
-    const onVisibility = () => { if (document.hidden) resetForLeaving() }
+    const onVisibility = () => { if (document.hidden) handleLeave() }
     // Window blur covers switching to another desktop app; confirm focus is
     // really gone (a short delay) to avoid tripping on transient blurs.
-    const onBlur = () => { blurTimer = setTimeout(() => { if (!document.hasFocus()) resetForLeaving() }, 400) }
+    const onBlur = () => { blurTimer = setTimeout(() => { if (!document.hasFocus()) handleLeave() }, 400) }
     const onFocus = () => { if (blurTimer) { clearTimeout(blurTimer); blurTimer = null } }
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('blur', onBlur)
@@ -269,18 +278,21 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
         </div>
       </div>
 
-      {/* Anti-cheat notice */}
+      {/* Anti-cheat notice — neutral → amber warning (1st) → red (reset) */}
       <div style={{
         display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 14,
         padding: '8px 12px', borderRadius: 8, fontSize: 12, lineHeight: 1.45,
-        background: leftCount > 0 ? 'var(--red-l)' : 'var(--surface2)',
-        color: leftCount > 0 ? 'var(--red)' : 'var(--ink2)',
-        border: `1px solid ${leftCount > 0 ? 'color-mix(in srgb, var(--red) 40%, transparent)' : 'var(--border)'}`,
+        background: leftCount >= 2 ? 'var(--red-l)' : leftCount === 1 ? 'color-mix(in srgb, #f59e0b 14%, transparent)' : 'var(--surface2)',
+        color: leftCount >= 2 ? 'var(--red)' : leftCount === 1 ? '#f59e0b' : 'var(--ink2)',
+        border: `1px solid ${leftCount >= 2 ? 'color-mix(in srgb, var(--red) 40%, transparent)' : leftCount === 1 ? 'color-mix(in srgb, #f59e0b 45%, transparent)' : 'var(--border)'}`,
       }}>
         <ShieldAlert size={15} style={{ flexShrink: 0, marginTop: 1 }} />
         <span>
-          Stay on this screen until you submit. Switching tabs or apps clears your answers and reshuffles the questions.
-          {leftCount > 0 && <strong> You’ve left {leftCount} time{leftCount > 1 ? 's' : ''} — progress was reset.</strong>}
+          {leftCount >= 2
+            ? <>You’ve left {leftCount} times — your answers were cleared and the questions reshuffled. Stay on this screen until you submit.</>
+            : leftCount === 1
+              ? <><strong>Warning:</strong> you left the quiz. If you leave again, your answers reset and the questions reshuffle.</>
+              : <>Stay on this screen until you submit. Your first slip is just a warning — after that, leaving clears your answers and reshuffles the questions.</>}
         </span>
       </div>
 
