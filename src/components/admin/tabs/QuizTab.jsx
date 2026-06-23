@@ -26,7 +26,7 @@ const TYPE_LABELS = {
   identification: 'Identification',
 }
 
-function buildTemplate(topic, count, types, generalPrompt) {
+function buildTemplate(topic, count, types, generalPrompt, lesson) {
   const extraContext = generalPrompt?.trim()
     ? `\nAdditional instructions from the teacher: ${generalPrompt.trim()}\n`
     : ''
@@ -49,8 +49,14 @@ function buildTemplate(topic, count, types, generalPrompt) {
   const rules = types.map(t => allRules[t]).join('\n')
   const examples = types.map(t => allExamples[t]).join(',\n')
 
+  const hasLesson = !!(lesson && lesson.trim())
+  const source = hasLesson
+    ? `Base every question STRICTLY on the lesson material in the "lesson" field below; do not invent facts or use outside knowledge.${topic?.trim() ? ` Focus on: ${topic.trim()}.` : ''}`
+    : `Generate questions about this topic: ${topic?.trim() || '(none provided)'}.`
+
   const instructions = `INSTRUCTIONS FOR AI:
-Generate exactly ${count} quiz questions about the topic below.
+Generate exactly ${count} quiz questions.
+${source}
 Use ${typeLabel}. Do NOT generate any other question type.
 ${extraContext}
 Rules:
@@ -65,7 +71,8 @@ ${examples}
 
   return {
     _instructions: instructions,
-    topic,
+    ...(topic?.trim() && { topic: topic.trim() }),
+    ...(hasLesson && { lesson: lesson.slice(0, 18000) }),
     question_count: count,
     question_types: types,
     ...(generalPrompt?.trim() && { general_prompt: generalPrompt.trim() }),
@@ -86,6 +93,21 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
   const [qTypes, setQTypes] = useState(['multiple_choice'])
   const [generalPrompt, setGeneralPrompt] = useState('')
   const [copied, setCopied] = useState(false)
+  const [fileName, setFileName] = useState('')
+  const [lessonText, setLessonText] = useState('')
+  const [extracting, setExtracting] = useState(false)
+
+  async function handleFile(file) {
+    if (!file) return
+    setFileName(file.name); setExtracting(true); setLessonText('')
+    try {
+      const t = await extractTextFromFile(file)
+      if (!t || t.trim().length < 80) toast('Could not read enough text from that file. Try a text-based PDF/Word/PowerPoint.', 'warn', 6000)
+      setLessonText(t || '')
+    } catch (e) {
+      toast(e.message || 'Could not read that file.', 'error', 6000); setFileName('')
+    } finally { setExtracting(false) }
+  }
 
   function handleCopyPrompt() {
     navigator.clipboard.writeText(AI_PROMPT_TEXT).then(() => {
@@ -99,14 +121,15 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
   }
 
   function handleExport() {
-    if (!topic.trim() || !qTypes.length) return
-    const template = buildTemplate(topic.trim(), qCount, qTypes, generalPrompt)
+    if ((!topic.trim() && !lessonText.trim()) || !qTypes.length) return
+    const template = buildTemplate(topic.trim(), qCount, qTypes, generalPrompt, lessonText)
     const json = JSON.stringify(template, null, 2)
     const blob = new Blob([json], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `quiz-template-${topic.trim().slice(0, 30).replace(/\s+/g, '-')}.json`
+    const base = (topic.trim() || fileName.replace(/\.[^.]+$/, '') || 'lesson').slice(0, 30).replace(/\s+/g, '-')
+    a.download = `quiz-template-${base}.json`
     a.click()
     URL.revokeObjectURL(url)
     toast('Template exported! Send it to your AI platform.', 'green')
@@ -116,18 +139,35 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
     <Modal onClose={onClose} size="md">
       <h3 className="text-lg font-bold text-ink mb-1"><Upload size={18} className="inline-block mr-1 align-text-bottom" />Export Quiz Template</h3>
       <p className="modal-sub">
-        Configure your quiz settings, export the template JSON, send it to any AI platform (ChatGPT, Gemini, etc.), then import the AI's response back here.
+        Upload a lesson file (or type a topic), export the template JSON, send it to any AI chat (Perplexity, ChatGPT, Claude…), then import the AI's response back here.
       </p>
 
+      {/* Lesson file — questions are drawn from its content (read on your device) */}
       <div className="field mb-3">
-        <label className="text-xs font-semibold text-ink2 mb-1 block">Topic / Discussion <span className="text-red-500">*</span></label>
+        <label className="text-xs font-semibold text-ink2 mb-1 block">Lesson file <span className="font-normal text-ink3">(questions are drawn from it)</span></label>
+        <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer' }}>
+          <FileUp size={14} className="inline-block mr-1" />{fileName ? 'Change file' : 'Choose file (PDF / Word / PowerPoint)'}
+          <input type="file" hidden accept=".pdf,.docx,.pptx,.txt,.md"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
+        </label>
+        {extracting && <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 6 }}>Reading {fileName}…</div>}
+        {!extracting && fileName && lessonText && (
+          <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 6 }}>
+            <Check size={12} className="inline-block mr-1" />{fileName} · {lessonText.trim().split(/\s+/).length.toLocaleString()} words read
+          </div>
+        )}
+      </div>
+
+      <div className="field mb-3">
+        <label className="text-xs font-semibold text-ink2 mb-1 block">Topic / focus <span className="font-normal text-ink3">{lessonText.trim() ? '(optional — narrows the lesson)' : '(required if no file)'}</span></label>
         <textarea
           className="input w-full"
-          rows={4}
+          rows={3}
           value={topic}
           onChange={e => setTopic(e.target.value)}
-          placeholder="e.g. The human digestive system breaks down food through mechanical and chemical digestion…"
-          autoFocus
+          placeholder={lessonText.trim()
+            ? 'Optional — e.g. focus on Chapter 3, or skip to cover the whole file'
+            : 'e.g. The human digestive system breaks down food through mechanical and chemical digestion…'}
         />
       </div>
 
@@ -196,7 +236,7 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
         <button className="btn btn-ghost" onClick={onSwitchToImport}>
           <Download size={13} className="inline-block mr-1" />Import AI Response
         </button>
-        <button className="btn btn-primary" onClick={handleExport} disabled={!topic.trim() || !qTypes.length}>
+        <button className="btn btn-primary" onClick={handleExport} disabled={(!topic.trim() && !lessonText.trim()) || !qTypes.length || extracting}>
           <Upload size={13} className="inline-block mr-1" />Export Template
         </button>
       </div>
