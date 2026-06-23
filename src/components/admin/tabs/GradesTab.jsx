@@ -10,6 +10,7 @@ import { exportGradingSheet, parseGradingSheetImport, exportCurrentGrades, expor
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
+import KebabMenu from '@/components/primitives/KebabMenu'
 import { Clock, Pencil, BarChart2, Upload, Download, Trash2, BarChart, RefreshCw, Archive, ArchiveRestore, FileSpreadsheet, Plus, ChevronDown, Sparkles } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
@@ -752,13 +753,17 @@ function SubjectCard({ cls, sub, studs, eqScale, readOnly, onEdit, onClear, onEx
               </span>
             : <span className="ml-2 text-xs text-ink3">Not yet uploaded</span>}
         </div>
-        <div className="flex gap-1.5 flex-wrap">
+        <div className="flex gap-1.5 flex-wrap items-center">
           {!readOnly && <button className="btn btn-primary btn-sm" onClick={() => onEdit(sub)}><Pencil size={13} className="inline-block mr-1" />Edit Grades</button>}
-          <button className="btn btn-ghost btn-sm" onClick={() => onExportGrades(sub)} title="Export current grade data"><BarChart2 size={13} className="inline-block mr-1" />Export Grades</button>
-          <button className="btn btn-ghost btn-sm" onClick={() => onExport(sub)} title="Export blank grading sheet template"><Upload size={13} className="inline-block mr-1" />Template</button>
-          {!readOnly && <button className="btn btn-ghost btn-sm" onClick={() => onImport(sub)} title="Import grading sheet"><Download size={13} className="inline-block mr-1" />Import</button>}
-          {!readOnly && <button className="btn btn-warning btn-sm" onClick={() => onClear(sub)}
-            title="Clear all grade data for this subject"><Trash2 size={13} className="inline-block mr-1" />Clear Grades</button>}
+          <KebabMenu
+            label={`Grade actions for ${sub}`}
+            items={[
+              { label: <><BarChart2 size={13} className="inline-block mr-2 align-text-bottom" />Export Grades</>, onClick: () => onExportGrades(sub) },
+              { label: <><Upload size={13} className="inline-block mr-2 align-text-bottom" />Template</>, onClick: () => onExport(sub) },
+              !readOnly && { label: <><Download size={13} className="inline-block mr-2 align-text-bottom" />Import</>, onClick: () => onImport(sub) },
+              !readOnly && { label: <><Trash2 size={13} className="inline-block mr-2 align-text-bottom" />Clear Grades</>, onClick: () => onClear(sub), danger: true },
+            ]}
+          />
         </div>
       </div>
 
