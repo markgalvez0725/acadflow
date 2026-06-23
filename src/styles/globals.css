@@ -5103,3 +5103,70 @@ html { scroll-behavior: smooth; }
 .feature-card::before {
   display: none !important;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   OPT-IN FROSTED GLASS  (command palette: "Turn on frosted glass")
+   The Clean Academic flat look is the default. Setting html[data-glass="on"]
+   layers translucency + backdrop blur + the ambient aurora back on. These
+   rules are appended last and use !important so they win over the flat
+   Clean Academic overrides (which also use !important).
+══════════════════════════════════════════════════════════════════════════ */
+html[data-glass="on"] {
+  --glass-bg:        rgba(255, 255, 255, .72);
+  --glass-bg-strong: rgba(255, 255, 255, .90);
+  --glass-border:    rgba(255, 255, 255, .55);
+  --glass-blur:      blur(16px) saturate(150%);
+}
+html[data-glass="on"][data-theme="dark"] {
+  --glass-bg:        rgba(23, 32, 51, .70);
+  --glass-bg-strong: rgba(23, 32, 51, .90);
+  --glass-border:    rgba(255, 255, 255, .10);
+  --glass-blur:      blur(16px) saturate(150%);
+}
+html[data-glass="on"] .glass-panel,
+html[data-glass="on"] .card,
+html[data-glass="on"] .sidebar,
+html[data-glass="on"] .admin-topbar,
+html[data-glass="on"] .student-topbar,
+html[data-glass="on"] .student-bottom-nav {
+  background: var(--glass-bg) !important;
+  -webkit-backdrop-filter: var(--glass-blur) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  border: 1px solid var(--glass-border);
+}
+html[data-glass="on"] .glass-panel {
+  background: var(--glass-bg-strong) !important;
+}
+/* Ambient aurora behind everything so the frosted panels have something to refract. */
+html[data-glass="on"] body::before {
+  content: '';
+  display: block !important;
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 50% at 12% -5%,  rgba(80,70,228,.10),  transparent 70%),
+    radial-gradient(48% 44% at 102% 8%,  rgba(124,58,237,.08), transparent 70%),
+    radial-gradient(55% 50% at 50% 108%, rgba(20,184,166,.05), transparent 70%);
+}
+html[data-glass="on"][data-theme="dark"] body::before {
+  background:
+    radial-gradient(60% 50% at 12% -5%,  rgba(124,114,248,.18), transparent 70%),
+    radial-gradient(48% 44% at 102% 8%,  rgba(167,139,250,.13), transparent 70%),
+    radial-gradient(55% 50% at 50% 108%, rgba(45,212,191,.08),  transparent 70%);
+}
+/* Respect users who ask the OS to minimize transparency. */
+@media (prefers-reduced-transparency: reduce) {
+  html[data-glass="on"] .glass-panel,
+  html[data-glass="on"] .card,
+  html[data-glass="on"] .sidebar,
+  html[data-glass="on"] .admin-topbar,
+  html[data-glass="on"] .student-topbar,
+  html[data-glass="on"] .student-bottom-nav {
+    background: var(--surface) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  html[data-glass="on"] body::before { display: none !important; }
+}

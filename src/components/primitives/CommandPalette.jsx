@@ -123,7 +123,7 @@ export default function CommandPalette() {
       run: () => go(t.id),
     }))
 
-    const glassOff = typeof document !== 'undefined' && document.documentElement.dataset.glass === 'off'
+    const glassOn = typeof document !== 'undefined' && document.documentElement.dataset.glass === 'on'
     const actions = [
       {
         id: 'theme',
@@ -135,15 +135,14 @@ export default function CommandPalette() {
       },
       {
         id: 'glass',
-        label: glassOff ? 'Turn on frosted glass' : 'Turn off frosted glass',
+        label: glassOn ? 'Turn off frosted glass' : 'Turn on frosted glass',
         section: 'Actions',
         keywords: 'glass frosted blur transparency translucent appearance performance',
         Icon: Sparkles,
         run: () => {
-          const next = glassOff ? '' : 'off'
-          if (next) document.documentElement.dataset.glass = 'off'
-          else delete document.documentElement.dataset.glass
-          try { localStorage.setItem('acadflow_glass', next === 'off' ? 'off' : 'on') } catch (e) {}
+          if (glassOn) delete document.documentElement.dataset.glass
+          else document.documentElement.dataset.glass = 'on'
+          try { localStorage.setItem('acadflow_glass', glassOn ? 'off' : 'on') } catch (e) {}
           setOpen(false)
         },
       },
