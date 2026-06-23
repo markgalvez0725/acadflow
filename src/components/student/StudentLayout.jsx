@@ -9,9 +9,11 @@ import StudentSidebar from './StudentSidebar'
 import { SkeletonRows, SkeletonDashboard, TabErrorBoundary } from '@/components/primitives/SkeletonLoader'
 import SemesterCalendarChip from '@/components/primitives/SemesterCalendarChip'
 import CommandPaletteButton from '@/components/primitives/CommandPaletteButton'
+import InstallPrompt from '@/components/primitives/InstallPrompt'
 import ConnectionStatus from '@/components/primitives/ConnectionStatus'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
+import { useReminders } from '@/hooks/useReminders'
 import { activeClasses, activeClassIds } from '@/utils/active'
 import { isNotifAllowed } from '@/utils/notifPrefs'
 import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare } from 'lucide-react'
@@ -67,7 +69,7 @@ const MORE_NAV = [
 
 export default function StudentLayout() {
   const { studentTab, setStudentTab, toastQueue, dismissToast, dialog, resolveDialog, toast } = useUI()
-  const { students, classes, messages, activities, quizzes, db, fbReady, semester } = useData()
+  const { students, classes, messages, activities, quizzes, db, fbReady, semester, studentCheckIn, attendanceSessions } = useData()
   const { currentStudent, setCurrentStudent, logout, loginTime, lastLogin } = useAuth()
 
   // Resolve pending student (session restore — only id is known until students load)
@@ -137,6 +139,45 @@ export default function StudentLayout() {
 
   // Web push (FCM) — opt-in per device, no-op when unsupported/unconfigured
   const push = usePushNotifications({ db, fbReady, ownerId: student?.id, role: 'student', toast })
+
+  // Smart deadline reminders — fires 24h / 3h before activity & quiz deadlines
+  // while the app is open. Idempotent, so it never double-reminds.
+  useReminders(student)
+
+  // QR check-in deep link: a scanned attendance QR opens AcadFlow at
+  // /?checkin=<code>. Once the student is in and sessions have synced, redeem
+  // the code automatically, then strip it from the URL. Survives the login
+  // transition via sessionStorage.
+  const checkinHandledRef = useRef(false)
+  useEffect(() => {
+    if (!student?.id || !fbReady || checkinHandledRef.current) return
+    let code = null
+    try {
+      const params = new URLSearchParams(window.location.search)
+      code = params.get('checkin')
+      if (code) sessionStorage.setItem('cp_pending_checkin', code)
+      else code = sessionStorage.getItem('cp_pending_checkin')
+    } catch (e) { /* ignore */ }
+    if (!code) return
+    if (!attendanceSessions || attendanceSessions.length === 0) return // wait for the live listener
+    checkinHandledRef.current = true
+    ;(async () => {
+      try {
+        const session = await studentCheckIn(code, student)
+        toast(`Checked in for ${session.subject}. You're marked present.`, 'green')
+        setStudentTab('attendance')
+      } catch (e) {
+        toast(e.message || 'Check-in failed.', 'red')
+      } finally {
+        try { sessionStorage.removeItem('cp_pending_checkin') } catch (e) {}
+        try {
+          const url = new URL(window.location.href)
+          url.searchParams.delete('checkin')
+          window.history.replaceState({}, '', url.pathname + url.search + url.hash)
+        } catch (e) {}
+      }
+    })()
+  }, [student?.id, fbReady, attendanceSessions])
 
   // Persistent "enable notifications" popup. Shows after login whenever push is
   // supported and the student hasn't decided yet (permission === 'default').
@@ -300,6 +341,7 @@ export default function StudentLayout() {
 
         {/* Tab content */}
         <main className="admin-body" id="main-content" tabIndex={-1}>
+          <InstallPrompt />
           <TabErrorBoundary key={studentTab}>
             <Suspense fallback={<SkeletonRows />}>
               {studentTab === 'stream'        && <StreamTab        student={student} viewClassId={effectiveClassId} classes={classes} />}

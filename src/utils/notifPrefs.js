@@ -20,6 +20,8 @@ export const NOTIF_CATEGORIES = [
 const TYPE_TO_CATEGORY = {
   act_new:           'activities',
   act_sub:           'activities',
+  act_reminder:      'activities',
+  quiz_reminder:     'activities',
   act_grade:         'grades',
   msg_in:            'messages',
   msg_out:           'messages',

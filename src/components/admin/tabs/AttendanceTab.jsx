@@ -5,6 +5,7 @@ import { sortByLastName, fmtDateShort } from '@/utils/format'
 import { getHeldDays } from '@/utils/grades'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
+import QRCode from '@/components/primitives/QRCode'
 import { Download, Upload, AlertTriangle, Shuffle, RefreshCw, CalendarDays, Check, ClipboardList, X, Trash2, ClipboardCheck, Archive, ArchiveRestore, UserCheck, UserX, Radio, Copy } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
@@ -854,8 +855,13 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
               <X size={13} className="inline-block mr-1" />Close session
             </button>
           </div>
-          <div style={{ fontSize: 12, color: 'var(--ink2)', marginTop: 8 }}>
-            Students enter this code on their Attendance tab to mark themselves present for today. Closing the session marks everyone who did not check in as absent.
+          {/* Scan-to-check-in QR — opens AcadFlow with the code pre-filled */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
+            <QRCode value={`${window.location.origin}/?checkin=${liveSession.code}`} size={132} />
+            <div style={{ fontSize: 12, color: 'var(--ink2)', flex: 1, minWidth: 180 }}>
+              Students can <strong>scan this QR with their phone camera</strong> to check in instantly — or enter the code
+              <strong> {liveSession.code}</strong> on their Attendance tab. Closing the session marks everyone who did not check in as absent.
+            </div>
           </div>
           {checkedInIds.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
