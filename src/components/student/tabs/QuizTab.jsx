@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import { PartyPopper, FileText, Timer, Check, X, CheckCircle2, ClipboardList, XCircle } from 'lucide-react'
+import { PartyPopper, FileText, Timer, Check, X, CheckCircle2, ClipboardList, XCircle, ShieldAlert } from 'lucide-react'
 import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -27,6 +27,16 @@ function computeScore(questions, answers) {
     }
   })
   return score
+}
+
+// Fisher–Yates shuffle of [0..n-1] — the display order of questions.
+function shuffleIndices(n) {
+  const a = Array.from({ length: n }, (_, i) => i)
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
 }
 
 // ── Countdown ─────────────────────────────────────────────────────────────────
@@ -81,6 +91,12 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
   const [submitted, setSubmitted] = useState(false)
   const [finalScore, setFinalScore] = useState(null)
 
+  // Anti-cheat: questions are shown in a shuffled order, and leaving the quiz
+  // (switching tabs / apps) clears answers and reshuffles — see the effect below.
+  const [order, setOrder] = useState(() => shuffleIndices(quiz.questions.length))
+  const [leftCount, setLeftCount] = useState(0)
+  const inFlightRef = useRef(false) // suppress reset during submit/after submit
+
   // Resume from the original start so time already spent is not given back.
   const elapsedSecs = Math.floor((Date.now() - startRef.current) / 1000)
   const { remaining, formatted, expired } = useCountdown(Math.max(0, totalSecs - elapsedSecs))
@@ -97,9 +113,51 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
     if (draft && !notifiedRef.current) { notifiedRef.current = true; toast('Resumed your in-progress quiz.', 'info') }
   }, [draft])
 
+  // One-time heads-up about the leave-resets-progress rule.
+  const ruleNotedRef = useRef(false)
+  useEffect(() => {
+    if (!ruleNotedRef.current) {
+      ruleNotedRef.current = true
+      toast('Stay on this screen — leaving resets your answers and reshuffles the questions.', 'warn')
+    }
+  }, [toast])
+
+  // ── Anti-cheat: leaving the quiz resets progress + reshuffles ──────────────
+  // Switching browser tabs, minimizing, or switching apps (phone) clears all
+  // answers and re-randomizes the question order from the same question pool.
+  // The timer keeps running from the original start, so leaving costs time too.
+  useEffect(() => {
+    if (submitted) return
+    let blurTimer = null
+    const resetForLeaving = () => {
+      if (submitted || inFlightRef.current) return
+      setAnswers(Array(quiz.questions.length).fill(''))
+      setOrder(shuffleIndices(quiz.questions.length))
+      setCurrentQ(0)
+      try { localStorage.removeItem(draftKey) } catch (e) { /* ignore */ }
+      setLeftCount(n => n + 1)
+      toast('You left the quiz — answers cleared and questions reshuffled.', 'error')
+    }
+    const onVisibility = () => { if (document.hidden) resetForLeaving() }
+    // Window blur covers switching to another desktop app; confirm focus is
+    // really gone (a short delay) to avoid tripping on transient blurs.
+    const onBlur = () => { blurTimer = setTimeout(() => { if (!document.hasFocus()) resetForLeaving() }, 400) }
+    const onFocus = () => { if (blurTimer) { clearTimeout(blurTimer); blurTimer = null } }
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('blur', onBlur)
+    window.addEventListener('focus', onFocus)
+    return () => {
+      if (blurTimer) clearTimeout(blurTimer)
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('blur', onBlur)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [submitted, quiz.questions.length, draftKey, toast])
+
   // Auto-submit when time expires
   const handleSubmit = useCallback(async (isAuto = false) => {
     if (submitting || submitted) return
+    inFlightRef.current = true // don't let a blur during submit wipe answers
     setSubmitting(true)
 
     const timeTaken = Math.round((Date.now() - startRef.current) / 1000)
@@ -164,7 +222,8 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
     }
   }, [expired])
 
-  const q = quiz.questions[currentQ]
+  const qi = order[currentQ] ?? currentQ // original index of the shown question
+  const q = quiz.questions[qi]
   const total = quiz.questions.length
 
   // Submitted result screen
@@ -210,6 +269,21 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
         </div>
       </div>
 
+      {/* Anti-cheat notice */}
+      <div style={{
+        display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 14,
+        padding: '8px 12px', borderRadius: 8, fontSize: 12, lineHeight: 1.45,
+        background: leftCount > 0 ? 'var(--red-l)' : 'var(--surface2)',
+        color: leftCount > 0 ? 'var(--red)' : 'var(--ink2)',
+        border: `1px solid ${leftCount > 0 ? 'color-mix(in srgb, var(--red) 40%, transparent)' : 'var(--border)'}`,
+      }}>
+        <ShieldAlert size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+        <span>
+          Stay on this screen until you submit. Switching tabs or apps clears your answers and reshuffles the questions.
+          {leftCount > 0 && <strong> You’ve left {leftCount} time{leftCount > 1 ? 's' : ''} — progress was reset.</strong>}
+        </span>
+      </div>
+
       {/* Progress bar */}
       <div style={{ height: 4, background: 'var(--border)', borderRadius: 4, marginBottom: 20, overflow: 'hidden' }}>
         <div style={{
@@ -220,21 +294,24 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
 
       {/* Question navigator */}
       <div className="flex flex-wrap gap-1 mb-4">
-        {quiz.questions.map((_, i) => (
+        {quiz.questions.map((_, i) => {
+          const answered = answers[order[i] ?? i]
+          return (
           <button
             key={i}
             onClick={() => setCurrentQ(i)}
             style={{
               width: 28, height: 28, borderRadius: 6, border: '1.5px solid',
               fontSize: 11, fontWeight: 700, cursor: 'pointer',
-              borderColor: i === currentQ ? 'var(--accent)' : answers[i] ? 'var(--green)' : 'var(--border)',
-              background: i === currentQ ? 'var(--accent)' : answers[i] ? 'var(--green-l)' : 'var(--surface)',
-              color: i === currentQ ? '#fff' : answers[i] ? 'var(--green)' : 'var(--ink2)',
+              borderColor: i === currentQ ? 'var(--accent)' : answered ? 'var(--green)' : 'var(--border)',
+              background: i === currentQ ? 'var(--accent)' : answered ? 'var(--green-l)' : 'var(--surface)',
+              color: i === currentQ ? '#fff' : answered ? 'var(--green)' : 'var(--ink2)',
             }}
           >
             {i + 1}
           </button>
-        ))}
+          )
+        })}
       </div>
 
       {/* Current question */}
@@ -254,13 +331,13 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
                 key={oi}
                 onClick={() => {
                   const next = [...answers]
-                  next[currentQ] = opt
+                  next[qi] = opt
                   setAnswers(next)
                 }}
                 style={{
                   textAlign: 'left', padding: '10px 14px', borderRadius: 8,
-                  border: `2px solid ${answers[currentQ] === opt ? 'var(--accent)' : 'var(--border)'}`,
-                  background: answers[currentQ] === opt ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : 'var(--surface)',
+                  border: `2px solid ${answers[qi] === opt ? 'var(--accent)' : 'var(--border)'}`,
+                  background: answers[qi] === opt ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : 'var(--surface)',
                   color: 'var(--ink)', fontSize: 13, cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'flex-start',
                   transition: 'all 0.15s',
                 }}
@@ -268,8 +345,8 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
                 <span style={{
                   width: 22, height: 22, borderRadius: '50%', flexShrink: 0, display: 'flex',
                   alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700,
-                  background: answers[currentQ] === opt ? 'var(--accent)' : 'var(--border)',
-                  color: answers[currentQ] === opt ? '#fff' : 'var(--ink2)',
+                  background: answers[qi] === opt ? 'var(--accent)' : 'var(--border)',
+                  color: answers[qi] === opt ? '#fff' : 'var(--ink2)',
                 }}>
                   {String.fromCharCode(65 + oi)}
                 </span>
@@ -287,14 +364,14 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
                 key={opt}
                 onClick={() => {
                   const next = [...answers]
-                  next[currentQ] = opt
+                  next[qi] = opt
                   setAnswers(next)
                 }}
                 style={{
                   flex: 1, padding: '12px', borderRadius: 8, fontSize: 14, fontWeight: 700,
-                  border: `2px solid ${answers[currentQ] === opt ? (opt === 'True' ? '#22c55e' : '#ef4444') : 'var(--border)'}`,
-                  background: answers[currentQ] === opt ? (opt === 'True' ? 'var(--green-l)' : 'var(--red-l)') : 'var(--surface)',
-                  color: answers[currentQ] === opt ? (opt === 'True' ? 'var(--green)' : 'var(--red)') : 'var(--ink2)',
+                  border: `2px solid ${answers[qi] === opt ? (opt === 'True' ? '#22c55e' : '#ef4444') : 'var(--border)'}`,
+                  background: answers[qi] === opt ? (opt === 'True' ? 'var(--green-l)' : 'var(--red-l)') : 'var(--surface)',
+                  color: answers[qi] === opt ? (opt === 'True' ? 'var(--green)' : 'var(--red)') : 'var(--ink2)',
                   cursor: 'pointer', transition: 'all 0.15s',
                 }}
               >
@@ -314,10 +391,10 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
               : q.type === 'identification' ? 'Identify the term or concept…'
               : 'Write your answer here…'
             }
-            value={answers[currentQ]}
+            value={answers[qi]}
             onChange={e => {
               const next = [...answers]
-              next[currentQ] = e.target.value
+              next[qi] = e.target.value
               setAnswers(next)
             }}
             style={{ marginTop: 4, fontSize: 13 }}
