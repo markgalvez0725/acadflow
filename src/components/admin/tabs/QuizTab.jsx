@@ -39,11 +39,11 @@ function buildTemplate(topic, count, types, generalPrompt) {
     identification: '- identification: ask to identify a term/concept, provide the correct answer',
   }
   const allExamples = {
-    multiple_choice: '  {"type":"multiple_choice","question":"...","options":["A","B","C","D"],"answer":"A"}',
-    true_false: '  {"type":"true_false","question":"...","answer":"True"}',
-    short_answer: '  {"type":"short_answer","question":"...","answer":"..."}',
-    fill_in_the_blank: '  {"type":"fill_in_the_blank","question":"The ___ is ...","answer":"word"}',
-    identification: '  {"type":"identification","question":"What term refers to...?","answer":"Term"}',
+    multiple_choice: '  {"type":"multiple_choice","question":"...","options":["A","B","C","D"],"answer":"A","explanation":"why A is correct"}',
+    true_false: '  {"type":"true_false","question":"...","answer":"True","explanation":"why"}',
+    short_answer: '  {"type":"short_answer","question":"...","answer":"...","explanation":"why"}',
+    fill_in_the_blank: '  {"type":"fill_in_the_blank","question":"The ___ is ...","answer":"word","explanation":"why"}',
+    identification: '  {"type":"identification","question":"What term refers to...?","answer":"Term","explanation":"why"}',
   }
   const typeLabel = types.length === 1 ? `ONLY ${types[0]}` : `these types only (${types.join(', ')})`
   const rules = types.map(t => allRules[t]).join('\n')
@@ -55,8 +55,9 @@ Use ${typeLabel}. Do NOT generate any other question type.
 ${extraContext}
 Rules:
 ${rules}
+- Every question MUST include an "explanation" field: 1–2 sentences stating why the answer is correct (shown to students when they review their results).
 
-IMPORTANT: Respond ONLY with a valid JSON array. No markdown, no explanation.
+IMPORTANT: Respond ONLY with a valid JSON array. No markdown, no commentary.
 Use this exact format:
 [
 ${examples}
@@ -74,7 +75,8 @@ ${examples}
 
 const AI_PROMPT_TEXT = `I have a quiz template JSON file. Please read the _instructions field inside it carefully and generate the quiz questions exactly as described.
 
-Respond ONLY with a valid JSON array — no markdown, no explanation, no code block. Just the raw JSON array starting with [ and ending with ].`
+Each question object must include an "explanation" field (1–2 sentences on why the answer is correct).
+Respond ONLY with a valid JSON array — no markdown, no commentary, no code block. Just the raw JSON array starting with [ and ending with ].`
 
 // ── Export Template Modal ─────────────────────────────────────────────────────
 function ExportTemplateModal({ onClose, onSwitchToImport }) {
