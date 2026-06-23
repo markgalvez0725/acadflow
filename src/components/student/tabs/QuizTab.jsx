@@ -52,14 +52,47 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
   const { toast } = useUI()
 
   const totalSecs = quiz.timeLimit * 60
-  const startRef = useRef(Date.now())
-  const [answers, setAnswers] = useState(() => Array(quiz.questions.length).fill(''))
+
+  // Autosave drafts: persist answers + the original start time to localStorage
+  // so a closed/refreshed quiz can be resumed with the same time budget.
+  const draftKey = `quizdraft:${quiz.id}:${student.id}`
+  const draft = useMemo(() => {
+    try {
+      const raw = localStorage.getItem(draftKey)
+      if (raw) {
+        const d = JSON.parse(raw)
+        if (Array.isArray(d.answers) && typeof d.startedAt === 'number') return d
+      }
+    } catch (e) { /* ignore corrupt draft */ }
+    return null
+  }, [draftKey])
+
+  const startRef = useRef(draft?.startedAt || Date.now())
+  const [answers, setAnswers] = useState(() => {
+    const base = Array(quiz.questions.length).fill('')
+    if (draft?.answers) draft.answers.forEach((a, i) => { if (i < base.length) base[i] = a || '' })
+    return base
+  })
   const [currentQ, setCurrentQ] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [finalScore, setFinalScore] = useState(null)
 
-  const { remaining, formatted, expired } = useCountdown(totalSecs)
+  // Resume from the original start so time already spent is not given back.
+  const elapsedSecs = Math.floor((Date.now() - startRef.current) / 1000)
+  const { remaining, formatted, expired } = useCountdown(Math.max(0, totalSecs - elapsedSecs))
+
+  // Persist the draft on every change until the quiz is submitted.
+  useEffect(() => {
+    if (submitted) return
+    try { localStorage.setItem(draftKey, JSON.stringify({ answers, startedAt: startRef.current })) } catch (e) { /* ignore */ }
+  }, [answers, submitted, draftKey])
+
+  // One-time notice when an in-progress draft is restored.
+  const notifiedRef = useRef(false)
+  useEffect(() => {
+    if (draft && !notifiedRef.current) { notifiedRef.current = true; toast('Resumed your in-progress quiz.', 'info') }
+  }, [draft])
 
   // Auto-submit when time expires
   const handleSubmit = useCallback(async (isAuto = false) => {
@@ -109,6 +142,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
         gradeComponents: updatedGC,
       })
 
+      try { localStorage.removeItem(draftKey) } catch (e) { /* ignore */ }
       setFinalScore({ score, total, pct })
       setSubmitted(true)
       toast(isAuto ? `Time's up! Score: ${score}/${total}` : `Submitted! Score: ${score}/${total}`, 'success')
