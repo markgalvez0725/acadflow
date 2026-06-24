@@ -273,7 +273,7 @@ export default function EditProfileModal({ student: s, onClose }) {
                       : <><ShieldCheck size={15} style={{ color: 'var(--green)' }} /> Looks professional</>)}
             </div>
             {photoCheck.status === 'checking' && (
-              <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>Checking background, framing, and attire.</div>
+              <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>Analyzing face, background, and attire on your device — the first check may take a moment.</div>
             )}
             {photoCheck.status === 'done' && photoCheck.result && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -287,7 +287,7 @@ export default function EditProfileModal({ student: s, onClose }) {
                   <div key={'p' + i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, color: 'var(--ink3)' }}><CheckCircle2 size={13} style={{ flexShrink: 0, marginTop: 1, color: 'var(--green)' }} /> {m}</div>
                 ))}
                 <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 4 }}>
-                  {photoCheck.result.aiUsed ? 'Verified on-device + AI vision.' : 'Verified on-device. Tip: business attire on a plain white wall works best.'}
+                  {photoCheck.result.aiUsed ? 'Verified privately on your device with AI — your photo never leaves this device.' : 'Verified on-device. Tip: business attire on a plain white wall works best.'}
                   {photoBlocked && ' Replace the photo or Remove it to continue.'}
                 </div>
               </div>
