@@ -679,9 +679,12 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
   async function handleApplyDefault() {
     const missed = enrolledStudents.filter(s => !(act.submissions || {})[s.id]?.link)
     if (!missed.length) { toast('All registered students have already submitted.', 'green'); return }
+    // Never exceed the activity's max (rubric totals can be < 50, and a score
+    // above max would push the activity component over 100%).
+    const defScore = Math.min(50, act.maxScore || 100)
     const ok = await openDialog({
       title: 'Apply default score?',
-      msg: `This will give ${missed.length} student${missed.length !== 1 ? 's' : ''} a score of 50.`,
+      msg: `This will give ${missed.length} student${missed.length !== 1 ? 's' : ''} a score of ${defScore}/${act.maxScore}.`,
       type: 'warning',
       confirmLabel: 'Apply Score',
       showCancel: true,
@@ -690,7 +693,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
 
     const updates = {}
     missed.forEach(s => {
-      updates[`submissions.${s.id}.score`]      = 50
+      updates[`submissions.${s.id}.score`]      = defScore
       updates[`submissions.${s.id}.graded`]     = true
       updates[`submissions.${s.id}.autoGraded`] = true
     })
@@ -700,17 +703,17 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
         if (!missed.find(x => x.id === s.id)) return s
         const updatedActs = activities.map(a =>
           a.id === act.id
-            ? { ...a, submissions: { ...a.submissions, [s.id]: { ...(a.submissions || {})[s.id], score: 50, graded: true } } }
+            ? { ...a, submissions: { ...a.submissions, [s.id]: { ...(a.submissions || {})[s.id], score: defScore, graded: true } } }
             : a
         )
         const updated = buildUpdatedStudent(s, act.subject, act.classId, updatedActs, students)
         return updated || s
       })
       await saveStudents(updatedStudents, missed.map(s => s.id))
-      toast(`Applied score of 50 to ${missed.length} student${missed.length !== 1 ? 's' : ''}.`, 'green')
+      toast(`Applied score of ${defScore} to ${missed.length} student${missed.length !== 1 ? 's' : ''}.`, 'green')
       if (fbReady && db.current) {
         for (const s of missed) {
-          pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} — Score: 50/${act.maxScore}`, 'activities')
+          pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} — Score: ${defScore}/${act.maxScore}`, 'activities')
         }
       }
     } catch (e) {

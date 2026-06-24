@@ -185,10 +185,10 @@ export function getAttRate(s, students = [], classes = []) {
         ))
       : [];
     const held = [...classMates, s].reduce((mx, x) => {
-      const sz = (x.attendance[sub] || new Set()).size + (x.excuse[sub] || new Set()).size;
+      const sz = (x.attendance?.[sub] || new Set()).size + (x.excuse?.[sub] || new Set()).size;
       return Math.max(mx, sz);
     }, 0);
-    totalPresent  += (s.attendance[sub] || new Set()).size;
+    totalPresent  += (s.attendance?.[sub] || new Set()).size;
     totalExpected += held;
   });
   if (!totalExpected) return null;
@@ -203,7 +203,7 @@ export function getHeldDays(classId, sub, students = []) {
   const classStudents = students.filter(s => s.classId === classId || s.classIds?.includes(classId));
   if (!classStudents.length) return 0;
   return classStudents.reduce((mx, x) => {
-    const sz = (x.attendance[sub] || new Set()).size + (x.excuse[sub] || new Set()).size;
+    const sz = (x.attendance?.[sub] || new Set()).size + (x.excuse?.[sub] || new Set()).size;
     return Math.max(mx, sz);
   }, 0);
 }

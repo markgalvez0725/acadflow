@@ -1412,7 +1412,9 @@ export default function QuizTab() {
   )
 
   const activeQuizzes = useMemo(
-    () => sorted.filter(q => (q.classIds || []).some(id => !classes.find(c => c.id === id)?.archived)),
+    // A quiz is active if it has any non-archived class — OR no class assignment
+    // at all (orphaned quizzes must stay visible/deletable, not vanish).
+    () => sorted.filter(q => !(q.classIds || []).length || (q.classIds || []).some(id => !classes.find(c => c.id === id)?.archived)),
     [sorted, classes]
   )
   const archivedQuizzes = useMemo(

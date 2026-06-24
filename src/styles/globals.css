@@ -517,7 +517,7 @@
 .dlg-icon-wrap.dlg-info    { background: var(--accent-l); color: var(--accent); }
 .dlg-icon-wrap.dlg-success { background: var(--green-l);  color: var(--green); }
 .dlg-icon-wrap.dlg-danger  { background: var(--red-l);    color: var(--red); }
-.dlg-icon-wrap.dlg-warning { background: #fef9c3;         color: #b45309; }
+.dlg-icon-wrap.dlg-warning { background: var(--yellow-l);  color: var(--yellow); }
 .dlg-body {
   padding: 28px 28px 0;
   display: flex;
@@ -2609,7 +2609,7 @@ textarea.input { resize: vertical; }
 
 /* Messages shell fills the viewport; leaves room for the floating bottom nav
    on phones (dynamic viewport unit accounts for mobile browser chrome). */
-.msg-fill-height { height: calc(100vh - 100px); min-height: 480px; }
+.msg-fill-height { height: calc(100dvh - 100px); min-height: 480px; }
 @media (max-width: 767px) { .msg-fill-height { height: calc(100dvh - 150px); min-height: 0; } }
 
 /* List pane header — title + compose icon (Messenger/IG style) */
@@ -2720,7 +2720,7 @@ textarea.input { resize: vertical; }
 .student-messages.thread-view {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 160px);
+  height: calc(100dvh - 160px);
   min-height: 400px;
 }
 .s-thread-header {

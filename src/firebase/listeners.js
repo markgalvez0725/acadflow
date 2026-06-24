@@ -7,10 +7,16 @@ import {
 import { deserializeStudents } from '@/utils/attendance'
 import { decryptEJS, encryptEJS } from '@/utils/crypto'
 
-// Module-level write-in-flight flag — intentionally NOT React state so it
-// doesn't trigger re-renders and is not reset by the rendering cycle.
-let _fbWriting = false;
-export function setFbWriting(val) { _fbWriting = val; }
+// Module-level write-in-flight depth counter — intentionally NOT React state so
+// it doesn't trigger re-renders and is not reset by the rendering cycle. Using a
+// counter (not a boolean) means two overlapping writes can't clear each other's
+// suppression window early: each write increments on start and decrements after
+// its own settle delay, so echoes stay suppressed until the LAST write drains.
+let _fbWriting = 0;
+export function setFbWriting(val) {
+  if (val) _fbWriting++;
+  else _fbWriting = Math.max(0, _fbWriting - 1);
+}
 
 // Exported setter for settings write-in-flight (replaces window global)
 export function markSettingsWriteInFlight() {

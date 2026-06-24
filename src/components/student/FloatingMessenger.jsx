@@ -231,7 +231,7 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
           width: 'min(340px, calc(100vw - 40px))', height: 'min(500px, calc(100vh - 220px))',
           background: 'var(--surface)', border: '1px solid var(--border)',
           borderRadius: 16, boxShadow: '0 8px 32px rgba(0,0,0,.2)',
-          zIndex: 200, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+          zIndex: 195, display: 'flex', flexDirection: 'column', overflow: 'hidden',
         }}>
 
           {/* Header */}

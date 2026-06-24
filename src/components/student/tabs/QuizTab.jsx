@@ -577,6 +577,10 @@ export default function StudentQuizTab({ student, viewClassId }) {
     // After submission the quiz list will refresh via Firestore listener
   }
 
+  // Wait for the first Firestore snapshot before deciding the list is empty —
+  // otherwise students briefly see "No quizzes assigned yet" during load.
+  if (!fbReady) return <SkeletonRows />
+
   if (!myQuizzes.length) {
     return (
       <div className="empty">
@@ -586,8 +590,6 @@ export default function StudentQuizTab({ student, viewClassId }) {
       </div>
     )
   }
-
-  if (!fbReady) return <SkeletonRows />
 
   return (
     <div>

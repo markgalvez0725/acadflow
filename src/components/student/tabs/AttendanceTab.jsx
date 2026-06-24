@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useData } from '@/context/DataContext'
 import { useAuth } from '@/context/AuthContext'
 import { useUI } from '@/context/UIContext'
@@ -31,6 +31,13 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
 
   const [activeSub, setActiveSub] = useState(() => subs[0] || null)
   const [takeAttModal, setTakeAttModal] = useState(null) // subject string
+
+  // Keep the selected subject valid when the active subject list changes
+  // (semester switch, dropped/added class) — a stale subject renders empty.
+  useEffect(() => {
+    if (activeSub && !subs.includes(activeSub)) setActiveSub(subs[0] || null)
+    else if (!activeSub && subs.length) setActiveSub(subs[0])
+  }, [subs, activeSub])
 
   // Determine which subjects this student is a rep for
   const repSubjects = useMemo(() => {

@@ -170,6 +170,7 @@ function QuizCard({ item, classObj, student }) {
   const totalQ = (quiz.questions || []).length
   const sub = quiz.submissions?.[student?.id]
   const taken = !!sub
+  const subTotal = sub ? (sub.total ?? quiz.totalPoints ?? totalQ) : 0
   return (
     <PostShell
       type="quiz"
@@ -186,7 +187,7 @@ function QuizCard({ item, classObj, student }) {
       <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ fontSize: 12, color: 'var(--ink3)' }}>{totalQ} question{totalQ !== 1 ? 's' : ''}</div>
         {taken ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#10b981', fontWeight: 600 }}><CheckCircle2 size={14} /> Completed{sub.score != null && <span> · {sub.score}%</span>}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#10b981', fontWeight: 600 }}><CheckCircle2 size={14} /> Completed{sub.score != null && <span> · {sub.score}/{subTotal}</span>}</div>
         ) : isOpen ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#f59e0b', fontWeight: 600 }}><AlertCircle size={14} /> Not yet taken</div>
         ) : isClosed ? (

@@ -1528,8 +1528,11 @@ export default function GradesTab() {
         gradeUploadedAt: { ...(s.gradeUploadedAt || {}) },
       }
 
-      // Only touch subjects that already have grade data.
-      const subjects = Object.keys(ns.gradeComponents)
+      // Only touch subjects that already have grade data AND belong to the class
+      // being recomputed — otherwise an unrelated subject's attendance would be
+      // recomputed against the wrong class id (getHeldDays(effectiveId, …)).
+      const classSubs = cls?.subjects || []
+      const subjects = Object.keys(ns.gradeComponents).filter(sub => classSubs.includes(sub))
       let changed = false
       subjects.forEach(sub => {
         const comp = { ...(ns.gradeComponents[sub] || {}) }

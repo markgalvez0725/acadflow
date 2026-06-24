@@ -226,9 +226,13 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
     }
   }
 
-  const panelActAvg = displayActs.filter(a => a.score != null).length
-    ? parseFloat((displayActs.filter(a => a.score != null).reduce((t, a) => t + a.score, 0)
-        / displayActs.filter(a => a.score != null).length).toFixed(2))
+  // Normalize each activity to a percentage (score / its max * 100) before
+  // averaging — otherwise activities graded out of a max other than 100 (rubric
+  // totals) drag the average to raw points and disagree with the per-row %.
+  const scoredActs = displayActs.filter(a => a.score != null)
+  const panelActAvg = scoredActs.length
+    ? parseFloat((scoredActs.reduce((t, a) => t + (a.score / (a.max || 100)) * 100, 0)
+        / scoredActs.length).toFixed(2))
     : null
   const actVal = panelActAvg ?? comp.activities ?? null
 
