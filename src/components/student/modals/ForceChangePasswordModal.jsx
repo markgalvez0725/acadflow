@@ -3,7 +3,7 @@ import { useUI } from '@/context/UIContext'
 import { useData } from '@/context/DataContext'
 import { getFbAuth } from '@/firebase/firebaseInit'
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth'
-import { KeyRound, AlertTriangle, Check, X } from 'lucide-react'
+import { KeyRound, Check, X } from 'lucide-react'
 
 // Voluntary password change for the signed-in student. Uses Firebase Auth:
 // reauthenticate with the current password, then update to the new one.

@@ -17,7 +17,7 @@ import SecureBubble from '@/components/primitives/SecureBubble'
 import SwipeReply from '@/components/primitives/SwipeReply'
 import { useScreenshotGuard } from '@/hooks/useScreenshotGuard'
 import { classifySensitivity, sensitivityLabel } from '@/utils/sensitiveContent'
-import { MessageSquare, GraduationCap, CheckCheck, Trash2, Check, Lock, Send, ChevronLeft, Megaphone, Search, SquarePen, MoreHorizontal, Camera, Reply, X } from 'lucide-react'
+import { MessageSquare, GraduationCap, CheckCheck, Trash2, Check, Lock, Send, ChevronLeft, Megaphone, Search, SquarePen, Camera, Reply, X } from 'lucide-react'
 
 const PER_PAGE = 10
 

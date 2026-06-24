@@ -140,7 +140,6 @@ export default function StudentLayout() {
 
   // Shell state
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [sidebarExpanded, setSidebarExpanded] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024)
   const [moreOpen, setMoreOpen] = useState(false)
 
   // Force change password modal

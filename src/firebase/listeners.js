@@ -18,12 +18,6 @@ export function setFbWriting(val) {
   else _fbWriting = Math.max(0, _fbWriting - 1);
 }
 
-// Exported setter for settings write-in-flight (replaces window global)
-export function markSettingsWriteInFlight() {
-  if (typeof _settingsWriteInFlightRef === 'function') _settingsWriteInFlightRef();
-}
-let _settingsWriteInFlightRef = null;
-
 let _unsub = [];
 
 /**
@@ -293,11 +287,9 @@ export function fbStartListening(db, callbacks) {
   }
 
   // ── portal/settings (equiv scale, grade weights) ──────────────────────
-  let _settingsWriteInFlight = false;
   const u5 = onSnapshot(
     doc(db, 'portal', 'settings'),
     snap => {
-      if (_settingsWriteInFlight) { _settingsWriteInFlight = false; return; }
       if (!snap.exists()) return;
       onSettingsUpdate(snap.data());
     },
@@ -319,12 +311,6 @@ export function fbStartListening(db, callbacks) {
     _unsub.push(uRub);
   }
 
-  // Expose write-in-flight setter for settings saves
-  _settingsWriteInFlightRef = () => {
-    _settingsWriteInFlight = true;
-    setTimeout(() => { _settingsWriteInFlight = false; }, 3000);
-  };
-
   console.log('[Firebase] ✅ All listeners active.');
 
   // Eager fetch — populate all collections immediately without waiting for
@@ -335,20 +321,6 @@ export function fbStartListening(db, callbacks) {
 export function stopListening() {
   _unsub.forEach(u => { try { u(); } catch (e) {} });
   _unsub = [];
-}
-
-// ── Admin notification listener (called separately after auth) ────────────
-export function startAdminNotifListener(db, onAdminNotifUpdate) {
-  const u = onSnapshot(
-    collection(db, 'notifications'),
-    snap => {
-      const notifs = [];
-      snap.forEach(d => notifs.push({ id: d.id, ...d.data() }));
-      onAdminNotifUpdate(notifs);
-    },
-    e => console.error('[Firebase] admin notif listener error:', e.message)
-  );
-  _unsub.push(u);
 }
 
 // ── Eager fetch for all collections on connect ────────────────────────────

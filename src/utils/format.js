@@ -32,11 +32,6 @@ export function dayLabel(ts) {
   });
 }
 
-// Used only for export HTML strings — JSX handles escaping elsewhere.
-export function escHtml(s) {
-  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
 // Returns an array of page numbers/ellipsis strings for a pagination bar.
 // e.g. buildPageRange(5, 20) → [1, '…', 4, 5, 6, '…', 20]
 export function buildPageRange(cur, total) {

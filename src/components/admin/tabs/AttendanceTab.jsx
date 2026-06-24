@@ -9,7 +9,7 @@ import { prewarmEmbeddings } from '@/utils/embeddings'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import QRCode from '@/components/primitives/QRCode'
-import { Download, Upload, AlertTriangle, Shuffle, RefreshCw, CalendarDays, Check, ClipboardList, X, Trash2, ClipboardCheck, Archive, ArchiveRestore, UserCheck, UserX, Radio, Copy, ListFilter } from 'lucide-react'
+import { Download, Upload, AlertTriangle, Shuffle, RefreshCw, CalendarDays, Check, ClipboardList, X, ClipboardCheck, Archive, ArchiveRestore, UserCheck, UserX, Radio, Copy, ListFilter } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))

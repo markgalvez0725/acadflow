@@ -32,10 +32,10 @@ const STUDENT_PHRASES = [
   ['Stay connected',   '\nwith your class.'],
 ]
 
-// Modes: 'student' | 'register' | 'reg-sq' | 'forgot' | 'fp-set-sq' | 'fp-sq'
+// Modes: 'student' | 'register' | 'forgot' | 'fp-set-sq' | 'fp-sq'
 export default function LoginScreen() {
   const { loginStudent } = useAuth()
-  const { students, saveStudents, fbReady, classes } = useData()
+  const { students, saveStudents, fbReady } = useData()
   const { theme, toast } = useUI()
 
   const [mode, setMode]       = useState('student')
@@ -68,11 +68,6 @@ export default function LoginScreen() {
   const [regEmail,   setRegEmail]   = useState('')
   const [regPass,    setRegPass]    = useState('')
   const [regPass2,   setRegPass2]   = useState('')
-
-  // Register secret question step
-  const [regPending,  setRegPending]  = useState(null) // { snum, name, email, pass }
-  const [regSqKey,    setRegSqKey]    = useState('')
-  const [regSqAnswer, setRegSqAnswer] = useState('')
 
   // Forgot form
   const [fpSnum,    setFpSnum]    = useState('')
@@ -346,54 +341,6 @@ export default function LoginScreen() {
     }
   }
 
-  // ── Register Step 2 — save account with secret question ─────────────────
-  async function handleRegSq(e) {
-    e.preventDefault()
-    clearMessages()
-    if (!regSqKey) return setErr('Please select a security question.')
-    if (!regSqAnswer.trim()) return setErr('Please enter your answer.')
-    if (!regPending) return setErr('Session expired. Please start registration again.')
-
-    setLoading(true)
-    try {
-      const hashedPass   = await hashPassword(regPending.pass)
-      const hashedAnswer = await hashPassword(regSqAnswer.trim().toLowerCase())
-
-      const updatedStudents = [...students]
-      const idx = updatedStudents.findIndex(s => s.id === regPending.snum)
-      // Roster gate already guarantees the student exists; never create one here.
-      if (idx < 0) {
-        setLoading(false)
-        return setErr('⛔ Your student record could not be found. Please contact your teacher.')
-      }
-      const existing = updatedStudents[idx]
-      updatedStudents[idx] = {
-        ...existing,
-        // Keep the teacher's roster values; only fill blanks from the verified input.
-        name:    existing.name    || regPending.name,
-        course:  existing.course  || regPending.course,
-        year:    existing.year    || regPending.year,
-        section: existing.section || regPending.section,
-        account: {
-          ...existing.account,
-          registered: true,
-          activated: true,
-          pass: hashedPass,
-          email: regPending.email,
-          securityQuestion: regSqKey,
-          securityAnswer: hashedAnswer,
-        },
-      }
-
-      await saveStudents(updatedStudents, [regPending.snum])
-      setOkMsg('✅ Account created successfully! Redirecting to sign in…')
-      setTimeout(() => { setMode('student'); setOkMsg(''); setRegPending(null) }, 1800)
-    } catch (e) {
-      setErr('Failed to save account: ' + e.message)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   // ── Forgot Step 1 — look up student, display security question ───────────
   async function handleFpStep1(e) {
@@ -744,43 +691,6 @@ export default function LoginScreen() {
               <LoadingButton loading={loading} loadingText="Next…" className="btn btn-primary btn-full mt-2">
                 Next →
               </LoadingButton>
-            </form>
-          )}
-
-          {/* ── Register Step 2 — Secret Question ────────────────────── */}
-          {mode === 'reg-sq' && (
-            <form onSubmit={handleRegSq}>
-              <h3 className="font-display text-lg font-bold text-ink mb-1">Set Security Question</h3>
-              <p className="text-xs text-ink2 mb-4">Choose a question and answer you will remember. This is used to reset your password if you forget it.</p>
-              <div className="field-float">
-                <select
-                  value={regSqKey}
-                  onChange={e => setRegSqKey(e.target.value)}
-                  style={{ paddingTop: 18, paddingBottom: 6 }}
-                >
-                  <option value="" disabled>Select a question…</option>
-                  {SECURITY_QUESTIONS.map(q => (
-                    <option key={q.key} value={q.key}>{q.label}</option>
-                  ))}
-                </select>
-                <label>Security Question</label>
-              </div>
-              <div className="field-float">
-                <input
-                  type="text"
-                  placeholder=" "
-                  value={regSqAnswer}
-                  onChange={e => setRegSqAnswer(e.target.value)}
-                  autoComplete="off"
-                />
-                <label>Your Answer</label>
-              </div>
-              <LoadingButton loading={loading} loadingText="Creating account…" className="btn btn-primary btn-full mt-2">
-                Create Account
-              </LoadingButton>
-              <button type="button" className="link-btn w-full text-center mt-2" onClick={() => { setMode('register'); clearMessages() }}>
-                ← Back
-              </button>
             </form>
           )}
 

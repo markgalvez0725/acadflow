@@ -86,10 +86,6 @@ export function combineEquiv(midEq, finEq) {
   return { eq: combined, ...equivInfo(combined) };
 }
 
-// ── Convenience shorthands ─────────────────────────────────────────────────
-export function midEqStr(g, eqScale)    { return g != null ? gradeInfo(g, eqScale).eq : '—'; }
-export function finRawEqStr(g, eqScale) { return g != null ? gradeInfo(g, eqScale).eq : '—'; }
-
 export function gradeInfoForStudent(s, sub, eqScale = DEFAULT_EQ_SCALE) {
   const comp = s.gradeComponents?.[sub] || {};
   const midG = comp.midterm ?? null;
@@ -137,13 +133,6 @@ export function computeTerms({ activities = null, quizzes = null, attendance = n
   const midterm = midE !== null ? _mean([cs, midE]) : null;
   const finals  = finE !== null ? _mean([cs, finE]) : null;
   return { cs, midterm, finals, final: computeFinalGradeFromTerms(midterm, finals) };
-}
-
-export function computeGrade(actV, qzV, attV, midExamV, finExamV, charV = null) {
-  return computeTerms({
-    activities: actV, quizzes: qzV, attendance: attV,
-    attitude: charV, midtermExam: midExamV, finalsExam: finExamV,
-  }).final;
 }
 
 // ── GWA (General Weighted Average) ────────────────────────────────────────

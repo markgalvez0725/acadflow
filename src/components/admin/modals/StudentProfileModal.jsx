@@ -10,8 +10,8 @@ import { activeClassIds, activeSubjects } from '@/utils/active'
 import { accountStatus } from '@/utils/accountStatus'
 import { buildStudentReportCard } from '@/export/reportCard'
 import {
-  BarChart3, CalendarCheck, BookOpen, ClipboardList, FileQuestion, FileDown,
-  ChevronDown, ChevronRight, Mail, GraduationCap, CheckCircle2, Clock,
+  BarChart3, CalendarCheck, BookOpen, ClipboardList, FileDown,
+  ChevronDown, ChevronRight, GraduationCap, Clock,
 } from 'lucide-react'
 
 function pctColor(p) {

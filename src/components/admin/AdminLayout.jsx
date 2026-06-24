@@ -86,11 +86,7 @@ export default function AdminLayout() {
   const push = usePushNotifications({ db, fbReady, ownerId: 'admin', role: 'admin', toast })
   const unreadMsgCount = messages.filter(m => m.from !== 'admin' && !m.adminRead).length
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  // Expanded full sidebar on true desktop (≥1024); on tablet it stays a navy
-  // icon rail (matches the approved design). Users can still toggle it.
-  const [sidebarExpanded, setSidebarExpanded] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [profileOpen, setProfileOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
   const [clock, setClock] = useState('')
 

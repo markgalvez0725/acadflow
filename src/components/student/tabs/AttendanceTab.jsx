@@ -3,7 +3,6 @@ import { useData } from '@/context/DataContext'
 import { useAuth } from '@/context/AuthContext'
 import { useUI } from '@/context/UIContext'
 import { CalendarCheck, Calendar, CheckCircle2, FileCheck, XCircle, Award, UserCheck, Radio, ClipboardList, Send } from 'lucide-react'
-import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import TakeAttendanceModal from '@/components/student/modals/TakeAttendanceModal'
 import { activeClassIds, activeSubjects } from '@/utils/active'
 

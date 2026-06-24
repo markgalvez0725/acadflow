@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { PartyPopper, FileText, Timer, Check, X, CheckCircle2, ClipboardList, XCircle, ShieldAlert } from 'lucide-react'
-import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore'
+import { doc, updateDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Badge from '@/components/primitives/Badge'

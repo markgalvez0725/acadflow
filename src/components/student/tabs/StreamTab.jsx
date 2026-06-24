@@ -60,7 +60,7 @@ function Pagination({ page, total, pageSize, onPrev, onNext }) {
     </div>
   )
 }
-import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, Clock, CheckCircle2, XCircle, AlertCircle, Award, Video, Link } from 'lucide-react'
+import { BookOpen, Clock, CheckCircle2, XCircle, AlertCircle, Award, Video, Link } from 'lucide-react'
 import PostShell from '@/components/primitives/StreamPost'
 
 function timeAgo(ms) {

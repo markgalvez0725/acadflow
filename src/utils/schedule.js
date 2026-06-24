@@ -5,7 +5,6 @@
 // in. Anything we can't confidently parse returns null and is simply skipped —
 // we never raise a false conflict on an unrecognized format.
 
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 // Day codes → 0=Sun … 6=Sat. "Th" and "Su" are checked before single letters
 // so "TTh" reads as Tue+Thu (not Tue+Tue+H).
@@ -89,7 +88,3 @@ export function findScheduleConflicts(targetCls, enrolledClasses = []) {
   return out
 }
 
-// "Mon/Wed/Fri" from [1,3,5].
-export function formatDays(days) {
-  return (days || []).slice().sort((a, b) => a - b).map(d => DAY_NAMES[d]).join('/')
-}

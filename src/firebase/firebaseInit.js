@@ -31,7 +31,6 @@ let _initializing = false;
 
 export function getDb() { return _db; }
 export function getFbAuth() { return _auth; }
-export function isReady() { return !!_db; }
 
 /**
  * Current user's Firebase ID token, or '' when signed-out / unavailable.

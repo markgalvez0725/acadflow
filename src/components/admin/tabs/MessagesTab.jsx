@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
-import { collection, doc, setDoc, updateDoc } from 'firebase/firestore'
+import { doc, setDoc, updateDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { sortByLastName, dayLabel } from '@/utils/format'

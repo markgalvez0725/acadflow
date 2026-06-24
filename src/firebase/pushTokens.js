@@ -35,15 +35,6 @@ export async function fbSavePushToken(db, token, ownerId, role) {
   }
 }
 
-export async function fbDeletePushToken(db, token) {
-  if (!db || !token) return
-  try {
-    await deleteDoc(doc(db, 'pushTokens', token))
-  } catch (e) {
-    console.warn('[push] delete token failed:', e.message)
-  }
-}
-
 /**
  * Fire-and-forget web push to a set of owners via the /api/send-push endpoint.
  * Reads registered tokens, filters to the target owners, and posts them.

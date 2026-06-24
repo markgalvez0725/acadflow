@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { deserializeStudents } from '@/utils/attendance'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'

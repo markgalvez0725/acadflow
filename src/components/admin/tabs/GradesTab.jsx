@@ -10,7 +10,6 @@ import { exportGradingSheet, parseGradingSheetImport, exportCurrentGrades, expor
 import { classTag } from '@/utils/groupChat'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
-import Badge from '@/components/primitives/Badge'
 import KebabMenu from '@/components/primitives/KebabMenu'
 import { Clock, Pencil, BarChart2, Upload, Download, Trash2, BarChart, RefreshCw, Archive, ArchiveRestore, FileSpreadsheet, Plus, ChevronDown, Sparkles, Undo2, Redo2, Check, Maximize2, AlertTriangle } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'

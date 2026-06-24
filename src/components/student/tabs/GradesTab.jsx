@@ -4,7 +4,6 @@ import {
 } from '@/utils/grades'
 import { useData } from '@/context/DataContext'
 import { BookOpen, Clock, ChevronDown, ChevronUp, Award, Check, RefreshCw, Target } from 'lucide-react'
-import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { activeClassIds, activeSubjects } from '@/utils/active'
 import { neededFinalsForRemarks } from '@/utils/whatIf'
 import RegradeRequestModal from '@/components/student/modals/RegradeRequestModal'

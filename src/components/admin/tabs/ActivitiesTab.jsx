@@ -9,7 +9,7 @@ import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
 import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil, ClipboardList, AlarmClock, CircleDot, BarChart3, CheckCircle2, Check, Save, Plus, Copy, Users } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
-import { deviceRubric, deviceInstructions, aiInstructions, aiRubric, aiGrade, aiGradeGroups, autoFormGroups, prewarmActivityAI } from '@/utils/activityAI'
+import { deviceRubric, aiInstructions, aiRubric, aiGrade, aiGradeGroups, autoFormGroups, prewarmActivityAI } from '@/utils/activityAI'
 import { sendPushToOwners } from '@/firebase/pushTokens'
 import { lateInfo, applyLatePenalty } from '@/utils/latePenalty'
 

@@ -2,7 +2,7 @@
 // Two small Firestore collections that coordinate the live check-in code and
 // student excuse requests. Student present/excused marks are still written to
 // the student documents through the existing persistence path (in DataContext).
-import { doc, setDoc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore'
+import { doc, setDoc, updateDoc, getDoc } from 'firebase/firestore'
 import { fbWithTimeout } from './firebaseInit'
 
 // ── Notifications (match the existing notifications/{id}.items shape) ──────
@@ -77,11 +77,6 @@ export async function fbCloseAttendanceSession(db, sessionId) {
     status: 'closed',
     closedAt: Date.now(),
   }))
-}
-
-export async function fbDeleteAttendanceSession(db, sessionId) {
-  if (!db) return
-  try { await deleteDoc(doc(db, 'attendanceSessions', sessionId)) } catch (e) {}
 }
 
 // ── Excuse requests ───────────────────────────────────────────────────────

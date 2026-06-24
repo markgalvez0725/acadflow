@@ -1,16 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useUI } from '@/context/UIContext'
-import { LayoutDashboard, BookOpen, FileQuestion, Library, MessageSquare, X, GraduationCap } from 'lucide-react'
+import { LayoutDashboard, BookOpen, FileQuestion, Library, X, GraduationCap } from 'lucide-react'
 
 // First-run walkthrough for students. Shows once per device (localStorage),
 // explains where the core areas live, and can jump the student to a tab.
 // Respects prefers-reduced-motion (animations are disabled globally for it).
 
-export function seenKey(studentId) { return `onboarding_seen:${studentId}` }
-export function hasSeenOnboarding(studentId) {
-  try { return !!localStorage.getItem(seenKey(studentId)) } catch (e) { return true }
-}
+function seenKey(studentId) { return `onboarding_seen:${studentId}` }
 
 const STEPS = [
   {
