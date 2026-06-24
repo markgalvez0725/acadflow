@@ -12,7 +12,7 @@ import { notifyStudentMessage, notifyStudentsBroadcast } from '@/firebase/messag
 import { fbAddMessageReply, fbDeleteMessage } from '@/firebase/persistence'
 import Modal from '@/components/primitives/Modal'
 import KebabMenu from '@/components/primitives/KebabMenu'
-import { X, Pencil, Send, CheckCheck, Megaphone, Trash2, Search, ChevronDown, Check, BookOpen } from 'lucide-react'
+import { X, Pencil, Send, CheckCheck, Megaphone, Trash2, Search, ChevronDown, ChevronLeft, Check, BookOpen, SquarePen, MoreHorizontal } from 'lucide-react'
 
 // Human-readable recipient label for a message's `to` field.
 function recipientDisplay(to, students) {
@@ -375,36 +375,36 @@ function ThreadPanel({ thread, onReply, onClose, onDelete, onRename }) {
 
   const GROUP_GAP = 5 * 60 * 1000 // 5 min → start a new visual group
   const timeLabel = ts => new Date(ts).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })
+  const isGroup = thread.isGroup
+  const memberCount = (thread.members || []).length
+  const subtitle = isGroup ? `Group · ${memberCount} member${memberCount === 1 ? '' : 's'}` : thread.headerSub
+  let lastSelfIdx = -1
+  thread.entries.forEach((e, i) => { if (e.from === 'admin') lastSelfIdx = i })
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {/* Thread header */}
       <div className="msg-thread-head">
         {onClose && (
-          <button className="msg-back-btn md:hidden text-ink2" onClick={onClose} title="Back" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex' }}>
-            <ChevronDown size={20} style={{ transform: 'rotate(90deg)' }} />
+          <button className="msg-icon-btn md:hidden" onClick={onClose} title="Back" style={{ width: 28, marginLeft: -4 }}>
+            <ChevronLeft size={20} />
           </button>
         )}
-        <div className={`msg-thread-head-av ${thread.isGroup ? 'announce' : ''}`}>
+        <div className={`msg-thread-head-av ${isGroup ? 'announce' : ''}`}>
           {thread.headerPhoto
             ? <img src={thread.headerPhoto} alt="" />
-            : (thread.isGroup ? <Megaphone size={16} /> : getInitials(thread.headerName))}
+            : (isGroup ? <Megaphone size={16} /> : getInitials(thread.headerName))}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="font-semibold text-ink text-sm truncate">{thread.headerName}</div>
-          <div className="text-xs text-ink2 truncate">{thread.headerSub}</div>
+          <div className="text-xs text-ink2 truncate">{subtitle}</div>
         </div>
-        <div className="flex items-center gap-1">
-          {onRename && (
-            <button className="msg-thread-del" style={{ color: 'var(--ink3)' }} onClick={onRename} title="Rename group chat"><Pencil size={16} /></button>
-          )}
-          {onDelete && (
-            <button className="msg-thread-del" onClick={onDelete} title="Delete this conversation"><Trash2 size={17} /></button>
-          )}
-          {onClose && (
-            <button className="text-ink3 hover:text-ink hidden md:flex" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={18} /></button>
-          )}
-        </div>
+        {(onRename || onDelete) && (
+          <KebabMenu icon={<MoreHorizontal size={18} />} label="Conversation actions" items={[
+            onRename && { label: 'Rename group chat', onClick: onRename },
+            onDelete && { label: 'Delete conversation', onClick: onDelete, danger: true },
+          ]} />
+        )}
       </div>
 
       {/* Messages */}
@@ -417,10 +417,12 @@ function ThreadPanel({ thread, onReply, onClose, onDelete, onRename }) {
           const sameAsNext = next && next.from === entry.from && (next.ts - entry.ts) < GROUP_GAP
           const showDay = !prev || new Date(prev.ts).toDateString() !== new Date(entry.ts).toDateString()
           const lastOfGroup = !sameAsNext
+          const firstOfGroup = !sameAsPrev
           return (
             <React.Fragment key={i}>
               {showDay && <div className="msg-day-sep"><span>{dayLabel(entry.ts)}</span></div>}
-              <div className={`msg-bubble-row ${isAdmin ? 'sent' : 'received'}`} style={{ marginTop: sameAsPrev ? 2 : 8 }}>
+              {!isAdmin && isGroup && firstOfGroup && <div className="msg-sender-name">{entry.senderLabel}</div>}
+              <div className={`msg-bubble-row ${isAdmin ? 'sent' : 'received'}`} style={{ marginTop: sameAsPrev ? 2 : 8 }} title={timeLabel(entry.ts)}>
                 {!isAdmin && (
                   <div className="msg-avatar-slot">
                     {lastOfGroup && <div className="msg-avatar-sm">{getInitials(entry.senderLabel)}</div>}
@@ -435,12 +437,9 @@ function ThreadPanel({ thread, onReply, onClose, onDelete, onRename }) {
                   <div style={{ whiteSpace: 'pre-wrap' }}>{entry.body}</div>
                 </div>
               </div>
-              {lastOfGroup && (
-                <div className={`msg-meta ${isAdmin ? 'msg-meta-sent' : 'msg-meta-recv'}`}>
-                  {!isAdmin && <span>{entry.senderLabel} · </span>}{timeLabel(entry.ts)}
-                  {isAdmin && (
-                    <span className={`msg-tick ${entry.studentRead ? 'msg-tick-read' : ''}`} title={entry.readTitle}><CheckCheck size={14} /></span>
-                  )}
+              {isAdmin && i === lastSelfIdx && (
+                <div className={`msg-seen ${entry.studentRead ? 'read' : ''}`} title={entry.readTitle}>
+                  {entry.studentRead ? 'Seen' : 'Sent'} <CheckCheck size={13} />
                 </div>
               )}
             </React.Fragment>
@@ -923,35 +922,22 @@ export default function MessagesTab() {
   const totalUnread = filteredList.filter(it => it.hasUnread).length
 
   return (
-    <div className="flex flex-col" style={{ height: 'calc(100vh - 130px)', minHeight: 480 }}>
-      {/* Header */}
-      <div className="sec-hdr mb-3 flex-shrink-0">
-        <div className="sec-title">Messages</div>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowCompose(true)}><Pencil size={16} /> New</button>
-      </div>
-
+    <div className="flex flex-col msg-fill-height">
       {/* Main layout: list + thread (single-pane on mobile) */}
       <div className={`msg-shell flex flex-1 min-h-0 rounded-lg border border-border overflow-hidden bg-surface${activeConv ? ' has-active' : ''}`}>
 
         {/* Left: conversation list */}
         <div className="msg-list-pane flex flex-col border-r border-border" style={{ width: 300, minWidth: 260, flexShrink: 0 }}>
-          {/* Inbox header (single unified inbox) */}
-          <div className="flex items-center gap-2 border-b border-border px-3 py-2 flex-shrink-0">
-            <span className="msg-conv-tab active-tab" style={{ cursor: 'default' }}>Inbox</span>
-            {totalUnread > 0 && <span className="msg-unread-badge" style={{ fontSize: 8 }}>●</span>}
-            <span className="text-xs text-ink3 ml-auto">{filteredList.length} thread{filteredList.length !== 1 ? 's' : ''}</span>
+          {/* Pane header: title + compose */}
+          <div className="msg-pane-head">
+            <span className="msg-pane-title">Inbox</span>
+            <button className="msg-icon-btn" onClick={() => setShowCompose(true)} title="New message" aria-label="New message"><SquarePen size={18} /></button>
           </div>
 
-          {/* Search */}
-          <div className="px-2 py-2 flex-shrink-0">
-            <input
-              className="input w-full"
-              style={{ fontSize: 12 }}
-              aria-label="Search messages"
-              placeholder="Search messages…"
-              value={search}
-              onChange={e => handleSearch(e.target.value)}
-            />
+          {/* Search pill */}
+          <div className="msg-search-pill">
+            <Search size={15} />
+            <input aria-label="Search messages" placeholder="Search" value={search} onChange={e => handleSearch(e.target.value)} />
           </div>
 
           {/* Select / delete toolbar */}

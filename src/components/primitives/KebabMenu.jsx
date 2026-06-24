@@ -6,7 +6,7 @@ const MENU_WIDTH = 180
 // Three-dots overflow menu. `items` is an array of { label, onClick, danger }
 // (falsy entries are skipped). The dropdown is portaled to <body> with fixed
 // positioning so it is never clipped by scroll/overflow containers (e.g. tables).
-export default function KebabMenu({ items, label = 'Actions', size = 18 }) {
+export default function KebabMenu({ items, label = 'Actions', size = 18, icon = null }) {
   const [open, setOpen] = useState(false)
   const [pos, setPos]   = useState(null)
   const btnRef  = useRef(null)
@@ -54,7 +54,7 @@ export default function KebabMenu({ items, label = 'Actions', size = 18 }) {
         aria-expanded={open}
         style={{ fontSize: size }}
         onClick={e => { e.stopPropagation(); setOpen(o => !o) }}
-      >⋮</button>
+      >{icon || '⋮'}</button>
       {open && pos && createPortal(
         <div
           ref={menuRef}

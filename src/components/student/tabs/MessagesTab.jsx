@@ -13,7 +13,7 @@ import { notifyAdminMessage } from '@/firebase/messageNotify'
 import { fbAddMessageReply, fbMarkMessageRead } from '@/firebase/persistence'
 import Pagination from '@/components/primitives/Pagination'
 import KebabMenu from '@/components/primitives/KebabMenu'
-import { MessageSquare, GraduationCap, CheckCheck, Trash2, Check, Lock, Send, ChevronLeft, Megaphone } from 'lucide-react'
+import { MessageSquare, GraduationCap, CheckCheck, Trash2, Check, Lock, Send, ChevronLeft, Megaphone, Search, SquarePen, MoreHorizontal } from 'lucide-react'
 
 const PER_PAGE = 10
 
@@ -285,10 +285,16 @@ export default function MessagesTab({ student: s, messages }) {
   const groupMsg = (view === 'thread' && replyMsgId) ? messages.find(x => x.id === replyMsgId) : null
   const showGroup = groupMsg && isGroupMessage(groupMsg)
   const headerIsGroup = groupMsg && isGroupChat(groupMsg)
+  const threadMemberCount = (showGroup && groupMsg) ? groupMembers(groupMsg, students).length : 0
+  const threadSubtitle = showGroup
+    ? `Group · ${threadMemberCount} member${threadMemberCount === 1 ? '' : 's'}`
+    : (threadEntries[0] ? '' : 'New conversation')
   const GROUP_GAP = 5 * 60 * 1000 // 5 min → new visual group
   const timeLabel = ts => new Date(ts).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })
   const adminSeen = messages.filter(x => x.from === 'admin' && x.to === s.id).some(x => x.replies?.some(r => r.from === 'admin')) ||
     messages.filter(x => x.from === s.id).some(x => x.adminRead)
+  let lastSelfIdx = -1
+  threadEntries.forEach((e, i) => { if (e.from === s.id) lastSelfIdx = i })
 
   function senderInfo(entry) {
     if (entry.from === s.id)    return { self: true,  name: 'You' }
@@ -363,25 +369,21 @@ export default function MessagesTab({ student: s, messages }) {
   }
 
   return (
-    <div className="student-messages flex flex-col" style={{ height: 'calc(100vh - 150px)', minHeight: 480 }}>
-      <div className="sec-hdr mb-3 flex-shrink-0">
-        <div className="sec-title">Messages</div>
-        <button className="btn btn-primary btn-sm" onClick={openConversation}>+ New Message</button>
-      </div>
-
+    <div className="student-messages flex flex-col msg-fill-height">
       <div className={`msg-shell flex flex-1 min-h-0 rounded-lg border border-border overflow-hidden bg-surface${view === 'thread' ? ' has-active' : ''}`}>
 
         {/* Left: conversation list */}
         <div className="msg-list-pane flex flex-col border-r border-border" style={{ width: 300, minWidth: 260, flexShrink: 0 }}>
-          <div className="px-2 py-2 flex-shrink-0">
-            <input
-              className="input w-full"
-              style={{ fontSize: 12 }}
-              aria-label="Search messages"
-              placeholder="Search messages…"
-              value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1) }}
-            />
+          {/* Pane header: title + compose */}
+          <div className="msg-pane-head">
+            <span className="msg-pane-title">Messages</span>
+            <button className="msg-icon-btn" onClick={openConversation} title="New message" aria-label="New message"><SquarePen size={18} /></button>
+          </div>
+
+          {/* Search pill */}
+          <div className="msg-search-pill">
+            <Search size={15} />
+            <input aria-label="Search messages" placeholder="Search" value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} />
           </div>
 
           {items.length > 0 && (
@@ -424,12 +426,12 @@ export default function MessagesTab({ student: s, messages }) {
                 <button className="md:hidden text-ink2" onClick={() => { setView('list'); setActiveKey(null) }} title="Back" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex' }}>
                   <ChevronLeft size={20} />
                 </button>
-                <div className={`msg-thread-head-av ${headerIsGroup ? 'announce' : ''}`}>
-                  {headerIsGroup ? <Megaphone size={16} /> : <GraduationCap size={16} />}
+                <div className={`msg-thread-head-av ${showGroup ? 'announce' : ''}`}>
+                  {showGroup ? <Megaphone size={16} /> : <GraduationCap size={16} />}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="font-semibold text-ink text-sm truncate">{threadTitle}</div>
-                  <div className="text-xs text-ink2 truncate">{threadEntries[0] ? `Started ${dayLabel(threadEntries[0].ts)}` : 'New conversation'}</div>
+                  {threadSubtitle && <div className="text-xs text-ink2 truncate">{threadSubtitle}</div>}
                 </div>
               </div>
 
@@ -447,10 +449,12 @@ export default function MessagesTab({ student: s, messages }) {
                   const sameAsNext = next && next.from === entry.from && (next.ts - entry.ts) < GROUP_GAP
                   const showDay = !prev || new Date(prev.ts).toDateString() !== new Date(entry.ts).toDateString()
                   const lastOfGroup = !sameAsNext
+                  const firstOfGroup = !sameAsPrev
                   return (
                     <React.Fragment key={i}>
                       {showDay && <div className="msg-day-sep"><span>{dayLabel(entry.ts)}</span></div>}
-                      <div className={`msg-bubble-row ${isSelf ? 'sent' : 'received'}`} style={{ marginTop: sameAsPrev ? 2 : 8 }}>
+                      {!isSelf && showGroup && firstOfGroup && <div className="msg-sender-name">{info.name}</div>}
+                      <div className={`msg-bubble-row ${isSelf ? 'sent' : 'received'}`} style={{ marginTop: sameAsPrev ? 2 : 8 }} title={timeLabel(entry.ts)}>
                         {!isSelf && (
                           <div className="msg-avatar-slot">
                             {lastOfGroup && <div className="msg-avatar-sm">{info.teacher ? <GraduationCap size={13} /> : getInitials(info.name)}</div>}
@@ -463,12 +467,9 @@ export default function MessagesTab({ student: s, messages }) {
                           <div style={{ whiteSpace: 'pre-wrap' }}>{entry.body}</div>
                         </div>
                       </div>
-                      {lastOfGroup && (
-                        <div className={`msg-meta ${isSelf ? 'msg-meta-sent' : 'msg-meta-recv'}`}>
-                          {!isSelf && <span>{info.name} · </span>}{timeLabel(entry.ts)}
-                          {isSelf && (
-                            <span className={`msg-tick ${adminSeen ? 'msg-tick-read' : ''}`} title={adminSeen ? 'Read by teacher' : 'Delivered'} style={{ display: 'inline-flex', alignItems: 'center' }}><CheckCheck size={13} /></span>
-                          )}
+                      {isSelf && i === lastSelfIdx && (
+                        <div className={`msg-seen ${adminSeen ? 'read' : ''}`} title={adminSeen ? 'Read by teacher' : 'Delivered'}>
+                          {adminSeen ? 'Seen' : 'Sent'} <CheckCheck size={13} />
                         </div>
                       )}
                     </React.Fragment>

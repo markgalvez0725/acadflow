@@ -2590,6 +2590,25 @@ textarea.input { resize: vertical; }
 .msg-send-circle:disabled { opacity: .45; cursor: default; }
 .msg-send-circle:not(:disabled):active { transform: scale(.92); }
 
+/* Messages shell fills the viewport; leaves room for the floating bottom nav
+   on phones (dynamic viewport unit accounts for mobile browser chrome). */
+.msg-fill-height { height: calc(100vh - 100px); min-height: 480px; }
+@media (max-width: 767px) { .msg-fill-height { height: calc(100dvh - 150px); min-height: 0; } }
+
+/* List pane header — title + compose icon (Messenger/IG style) */
+.msg-pane-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.msg-pane-title { font-size: 18px; font-weight: 700; color: var(--ink); }
+.msg-icon-btn { background: none; border: none; cursor: pointer; color: var(--ink2); display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; transition: background .15s, color .15s; }
+.msg-icon-btn:hover { background: var(--bg2); color: var(--ink); }
+
+/* Rounded search pill */
+.msg-search-pill { display: flex; align-items: center; gap: 8px; margin: 8px 10px; padding: 8px 13px; background: var(--bg2); border: 1px solid var(--border); border-radius: 999px; color: var(--ink3); flex-shrink: 0; transition: border-color .15s; }
+.msg-search-pill:focus-within { border-color: var(--accent); }
+.msg-search-pill input { flex: 1; border: none; background: transparent; outline: none; font-size: 13px; color: var(--ink); min-width: 0; }
+
+/* Sender name above a received group run */
+.msg-sender-name { font-size: 11px; font-weight: 600; color: var(--ink3); margin: 0 0 2px 30px; }
+
 /* Thread header with avatar */
 .msg-thread-head { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
 .msg-thread-head-av {
