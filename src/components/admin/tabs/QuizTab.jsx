@@ -5,12 +5,13 @@ import { useUI } from '@/context/UIContext'
 import Modal from '@/components/primitives/Modal'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
-import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList, Pencil, Save, Rocket, FileText, X, Lock, Circle, Archive, ArchiveRestore, Sparkles, Wand2, FileUp, Copy, Lightbulb, ScanSearch } from 'lucide-react'
+import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList, Pencil, Save, Rocket, FileText, X, Lock, Circle, Archive, ArchiveRestore, Sparkles, Wand2, FileUp, Copy, Lightbulb, ScanSearch, Fingerprint } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { extractTextFromFile } from '@/utils/lessonExtract'
 import { generateDraftQuestions } from '@/utils/quizGen'
 import { generateQuizAI, prewarmQuizAI, smartAutoKey, splitAnswerAlternates } from '@/utils/quizGenAI'
 import { auditDistractors } from '@/utils/distractorAudit'
+import { compareStyle, collectQuizText } from '@/utils/stylometry'
 import { quizItemAnalysis } from '@/utils/quizStats'
 import { classTag } from '@/utils/groupChat'
 
@@ -810,9 +811,19 @@ function QuizItemAnalysis({ quiz }) {
 // ── View Results Modal ────────────────────────────────────────────────────────
 function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
   const [showAnalysis, setShowAnalysis] = useState(false)
-  const { students, purgeQuizFromStudents } = useData()
+  const { students, purgeQuizFromStudents, quizzes } = useData()
   const { toast, openDialog } = useUI()
   const { db } = useData()
+
+  // ── Impersonation / writing-style check (#39) ───────────────────────────────
+  // On-device stylometry (no model): compares each student's text answers in this
+  // quiz against their text answers across their OTHER quizzes. Advisory flag only.
+  const [styleResults, setStyleResults] = useState(null) // { [sid]: compareStyle result } | null
+  const [styleChecking, setStyleChecking] = useState(false)
+  const hasTextQs = useMemo(
+    () => (quiz.questions || []).some(q => q.type === 'short_answer' || q.type === 'fill_in_the_blank' || q.type === 'identification'),
+    [quiz.questions]
+  )
 
   const now = Date.now()
   const isOpen = now >= quiz.openAt && now <= quiz.closeAt
@@ -832,6 +843,32 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
 
   const openLabel   = new Date(quiz.openAt).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
   const closeLabel  = new Date(quiz.closeAt).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
+
+  function runStyleCheck() {
+    setStyleChecking(true)
+    try {
+      const others = (quizzes || []).filter(q => q.id !== quiz.id)
+      const res = {}
+      let flagged = 0, compared = 0
+      enrolledStudents.forEach(s => {
+        if (!submissions[s.id]) return
+        const cur  = collectQuizText(quiz, s.id)
+        const base = others.map(q => collectQuizText(q, s.id)).filter(Boolean).join('. ')
+        const r = compareStyle(cur, base)
+        res[s.id] = r
+        if (r.enoughData) compared++
+        if (r.flag) flagged++
+      })
+      setStyleResults(res)
+      if (compared === 0) toast('Not enough past writing yet to compare styles.', 'dark')
+      else if (flagged === 0) toast(`Checked ${compared} attempt${compared === 1 ? '' : 's'} — styles look consistent.`, 'green')
+      else toast(`${flagged} attempt${flagged === 1 ? '' : 's'} differ from the student's past writing — worth a look.`, 'dark')
+    } catch {
+      toast('Could not run the style check.', 'red')
+    } finally {
+      setStyleChecking(false)
+    }
+  }
 
   async function handleDelete() {
     const ok = await openDialog({
@@ -907,7 +944,16 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
               <th>Score</th>
               <th>Percentage</th>
               <th>Time Taken</th>
-              <th title="Anti-cheat signals captured while taking the quiz">Flags</th>
+              <th title="Anti-cheat signals captured while taking the quiz">
+                Flags
+                {hasTextQs && (
+                  <button type="button" className="btn btn-ghost btn-sm" style={{ marginLeft: 8, fontSize: 10, padding: '2px 7px', verticalAlign: 'middle' }}
+                    onClick={runStyleCheck} disabled={styleChecking}
+                    title="Compare each student's writing style here against their past quizzes (on-device, advisory)">
+                    <Fingerprint size={11} className="inline-block mr-1 align-text-bottom" />{styleChecking ? 'Checking…' : styleResults ? 'Re-check style' : 'Check style'}
+                  </button>
+                )}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -947,7 +993,19 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
                         {tooFast && <span className="badge badge-yellow" title={`Finished in ${sub.timeTaken}s — under 15% of the ${quiz.timeLimit}-min limit`}>Fast</span>}
                         {leftN >= 2 && <span className="badge badge-red" title={`Left the quiz ${leftN} times — answers were reset & reshuffled`}>Left {leftN}×</span>}
                         {leftN === 1 && <span className="badge badge-gray" title="Left once (first slip is only a warning)">1 slip</span>}
-                        {!tooFast && leftN === 0 && <span style={{ color: 'var(--ink3)', fontSize: 12 }}>—</span>}
+                        {styleResults?.[s.id]?.flag && (
+                          <span className="badge badge-red" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                            title={`Writing style differs from this student's past quizzes (similarity ${(styleResults[s.id].sim * 100).toFixed(0)}%) — a hint to look closer, not a verdict.`}>
+                            <Fingerprint size={11} />Style
+                          </span>
+                        )}
+                        {styleResults?.[s.id] && !styleResults[s.id].flag && styleResults[s.id].enoughData && (
+                          <span className="badge badge-green" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                            title={`Writing style is consistent with this student's past quizzes (similarity ${(styleResults[s.id].sim * 100).toFixed(0)}%).`}>
+                            <Fingerprint size={11} />OK
+                          </span>
+                        )}
+                        {!tooFast && leftN === 0 && !(styleResults?.[s.id]?.enoughData) && <span style={{ color: 'var(--ink3)', fontSize: 12 }}>—</span>}
                       </div>
                     ) : <span style={{ color: 'var(--ink3)', fontSize: 12 }}>—</span>}
                   </td>
