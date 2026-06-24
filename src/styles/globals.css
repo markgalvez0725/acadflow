@@ -685,17 +685,15 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 }
 
 .sb-brand {
-  padding: 18px 14px 14px;
+  padding: 18px 16px 14px;        /* logo pinned at 16px = centre of the 64px rail */
   display: flex;
   align-items: center;
-  justify-content: center;        /* collapsed rail: centre the logo */
+  justify-content: flex-start;
   gap: 0;
   overflow: hidden;
   flex-shrink: 0;
   position: relative;
 }
-.sidebar-wrap.open .sb-brand,
-.sidebar-wrap:hover .sb-brand { justify-content: flex-start; gap: 10px; }
 .sb-brand h2 {
   font-family: var(--font-display);
   font-size: 19px;
@@ -752,9 +750,11 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 .sb-nav .nav-item {
   display: flex;
   align-items: center;
-  justify-content: center;           /* collapsed rail: centre the icon */
-  gap: 0;                            /* no phantom gap to the hidden label when collapsed */
-  padding: 11px;
+  /* Icon is pinned left (margin 8 + padding 12 = 20px → dead-centre of the 64px
+     collapsed rail). It never moves; only the label slides in on hover. */
+  justify-content: flex-start;
+  gap: 14px;
+  padding: 11px 12px;
   margin: 2px 8px;
   width: calc(100% - 16px);
   border: none;
@@ -771,9 +771,6 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
   position: relative;
   letter-spacing: -.01em;
 }
-/* When expanded (hover on desktop, drawer open on mobile) left-align rows */
-.sidebar-wrap.open .sb-nav .nav-item,
-.sidebar-wrap:hover .sb-nav .nav-item { justify-content: flex-start; padding: 11px 12px; gap: 14px; }
 .sb-nav .nav-item:hover { background: var(--bg2); color: var(--ink); }
 .sb-nav .nav-item.active {
   background: var(--bg2);
@@ -925,10 +922,10 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 }
 .sb-logout:hover { background: var(--bg2); color: var(--ink); }
 .sb-logout:last-of-type:hover { background: var(--red-l); color: var(--red); }
-/* Collapsed rail: centre the footer rows (no phantom gap); left-align when expanded */
-.sb-user, .sb-logout { justify-content: center; gap: 0; }
-.sidebar-wrap.open .sb-user, .sidebar-wrap:hover .sb-user,
-.sidebar-wrap.open .sb-logout, .sidebar-wrap:hover .sb-logout { justify-content: flex-start; gap: 8px; }
+/* Footer rows: pin each glyph centred in the rail; only the text slides in on hover */
+.sb-user, .sb-logout { justify-content: flex-start; gap: 8px; }
+.sb-user   { padding-left: 7px; }   /* 34px avatar centred in the 64px rail */
+.sb-logout { padding-left: 16px; }  /* 16px glyph centred in the 64px rail */
 .sb-logout .nav-label {
   opacity: 0;
   max-width: 0;
