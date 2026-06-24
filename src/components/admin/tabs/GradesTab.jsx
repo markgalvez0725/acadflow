@@ -7,6 +7,7 @@ import {
   getHeldDays, gradeInfoForStudent, getGradeScaleLabel,
 } from '@/utils/grades'
 import { exportGradingSheet, parseGradingSheetImport, exportCurrentGrades, exportMasterGradingReport } from '@/export/excelExport'
+import { classTag } from '@/utils/groupChat'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
@@ -1157,6 +1158,7 @@ function SubjectCard({ cls, sub, studs, eqScale, readOnly, onEdit, onClear, onEx
       <div className="sec-hdr mb-2 flex-wrap gap-2">
         <div style={{ minWidth: 0 }}>
           <strong style={{ fontSize: 15 }}>{sub}</strong>
+          {cls && <span className="badge badge-gray ml-2" style={{ fontWeight: 600 }}>{classTag(cls)}</span>}
           {latestTs
             ? <span className="ml-2 text-xs font-semibold" style={{ color: 'var(--green)' }}>
                 Uploaded {new Date(latestTs).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}
@@ -1346,15 +1348,29 @@ export default function GradesTab() {
   const archivedClasses = useMemo(() => classes.filter(c =>  c.archived),  [classes])
   const visibleClasses  = showArchived ? archivedClasses : activeClasses
 
-  const [selClassId, setSelClassId] = useState(() => activeClasses[0]?.id || null)
+  const [selKey,     setSelKey]     = useState(null) // `${classId}|||${subject}`
   const [search,     setSearch]     = useState('')
   const [editModal,  setEditModal]  = useState(null) // subject string
   const [importSub,  setImportSub]  = useState(null) // subject string for import
   const importFileRef = useRef(null)
 
-  // Auto-select first visible class when toggling archived/active or when classes change
-  const cls = visibleClasses.find(c => c.id === selClassId) || visibleClasses[0] || null
+  // One selectable option per (class, subject) pair, labelled
+  // "EMCP 108 - PRINCIPLE OF 3D ANIMATION - BSEMC 3A".
+  const subjectOptions = useMemo(() =>
+    visibleClasses.flatMap(c => (c.subjects || []).map(sub => ({
+      key: `${c.id}|||${sub}`,
+      classId: c.id,
+      sub,
+      label: `${sub} - ${classTag(c)}`,
+    }))),
+    [visibleClasses]
+  )
+
+  // Resolve the current selection, defaulting to the first available subject.
+  const selected = subjectOptions.find(o => o.key === selKey) || subjectOptions[0] || null
+  const cls = selected ? (visibleClasses.find(c => c.id === selected.classId) || null) : null
   const effectiveId = cls?.id || null
+  const selSub = selected?.sub || null
 
   const filteredStuds = useMemo(() => {
     const base = sortByLastName(students.filter(s => s.classId === effectiveId || s.classIds?.includes(effectiveId)))
@@ -1611,7 +1627,7 @@ export default function GradesTab() {
           </button>
           <button
             className="btn btn-ghost btn-sm"
-            onClick={() => { setShowArchived(v => !v); setSelClassId(null); setSearch('') }}
+            onClick={() => { setShowArchived(v => !v); setSelKey(null); setSearch('') }}
           >
             {showArchived
               ? <><ArchiveRestore size={14} className="inline-block mr-1" />Active Classes</>
@@ -1631,12 +1647,12 @@ export default function GradesTab() {
 
       {/* Controls */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <select className="input" style={{ maxWidth: 280 }}
-          value={effectiveId || ''}
-          onChange={e => { setSelClassId(e.target.value); setSearch('') }}>
-          <option value="">— Select a class —</option>
-          {visibleClasses.map(c => (
-            <option key={c.id} value={c.id}>{c.name} · {c.section}</option>
+        <select className="input" style={{ maxWidth: 420 }}
+          value={selected?.key || ''}
+          onChange={e => { setSelKey(e.target.value); setSearch('') }}>
+          <option value="">— Select a subject —</option>
+          {subjectOptions.map(o => (
+            <option key={o.key} value={o.key}>{o.label}</option>
           ))}
         </select>
         <input className="input" style={{ maxWidth: 220 }}
@@ -1652,29 +1668,27 @@ export default function GradesTab() {
         )}
       </div>
 
-      {!effectiveId ? (
+      {!subjectOptions.length ? (
         <div className="empty">
           <div className="empty-icon"><BarChart size={32} /></div>
-          {showArchived ? 'No archived classes.' : 'No classes yet.'}
+          {showArchived ? 'No archived classes with subjects.' : 'No subjects yet — add subjects to a class first.'}
         </div>
-      ) : !cls?.subjects?.length ? (
-        <div className="empty">This class has no subjects.</div>
+      ) : !selected ? (
+        <div className="empty">Select a subject above to view its grades.</div>
       ) : (
-        cls.subjects.map(sub => (
-          <SubjectCard
-            key={sub}
-            cls={cls}
-            sub={sub}
-            studs={filteredStuds}
-            eqScale={eqScale}
-            readOnly={showArchived}
-            onEdit={showArchived ? null : sub => setEditModal(sub)}
-            onClear={showArchived ? null : handleClear}
-            onExport={handleExport}
-            onExportGrades={handleExportGrades}
-            onImport={showArchived ? null : sub => { setImportSub(sub); importFileRef.current?.click() }}
-          />
-        ))
+        <SubjectCard
+          key={selected.key}
+          cls={cls}
+          sub={selSub}
+          studs={filteredStuds}
+          eqScale={eqScale}
+          readOnly={showArchived}
+          onEdit={showArchived ? null : sub => setEditModal(sub)}
+          onClear={showArchived ? null : handleClear}
+          onExport={handleExport}
+          onExportGrades={handleExportGrades}
+          onImport={showArchived ? null : sub => { setImportSub(sub); importFileRef.current?.click() }}
+        />
       )}
 
       {editModal && (
