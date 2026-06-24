@@ -144,6 +144,45 @@ function hueEntropy(hues) {
   return H / Math.log2(12)
 }
 
+/** BlazeFace probability can be a number, an array, or a TypedArray. */
+function faceProb(p) {
+  const pr = p?.probability
+  if (pr == null) return null
+  return (Array.isArray(pr) || ArrayBuffer.isView(pr)) ? pr[0] : pr
+}
+
+/**
+ * Reject non-face detections (logos, patterns) that BlazeFace sometimes returns
+ * with a box but no real facial geometry. A genuine frontal face has the two
+ * eyes separated horizontally, both above the mouth, with the nose between them.
+ * Landmark order: [rightEye, leftEye, nose, mouth, rightEar, leftEar].
+ */
+function landmarksPlausible(lm, box) {
+  if (!lm || lm.length < 4) return false // no landmarks → can't trust it's a face
+  const [rEye, lEye, nose, mouth] = lm
+  const eyeDx = Math.abs(lEye[0] - rEye[0])
+  if (eyeDx < box.w * 0.15) return false             // eyes implausibly close
+  const eyeY = (rEye[1] + lEye[1]) / 2
+  if (!(eyeY < mouth[1])) return false               // eyes must sit above mouth
+  if (!(nose[1] >= eyeY && nose[1] <= mouth[1])) return false // nose between
+  const noseX = nose[0]
+  if (noseX < Math.min(rEye[0], lEye[0]) || noseX > Math.max(rEye[0], lEye[0])) return false
+  return true
+}
+
+/** Is this prediction a real, well-formed face? (confidence + shape + geometry) */
+function isRealFace(p, w, h) {
+  const prob = faceProb(p)
+  if (prob != null && prob < 0.9) return false                  // low confidence
+  const bw = p.bottomRight[0] - p.topLeft[0]
+  const bh = p.bottomRight[1] - p.topLeft[1]
+  if (bw <= 0 || bh <= 0) return false
+  const ar = bw / bh
+  if (ar < 0.5 || ar > 1.7) return false                        // not face-shaped
+  if ((bw * bh) / (w * h) < 0.015) return false                 // too small to be the subject
+  return landmarksPlausible(p.landmarks, { w: bw, h: bh })
+}
+
 /** Frontal-ness from BlazeFace landmarks: nose centered between the eyes ≈ 1. */
 function frontalFromLandmarks(lm) {
   if (!lm || lm.length < 3) return null
@@ -190,10 +229,12 @@ export async function runOnDeviceAI(imgEl) {
   let faces = null, faceBox = null, faceFrac = null, faceCx = null, frontalScore = null
   if (faceModel) try {
     const preds = await faceModel.estimateFaces(canvas, false)
-    faces = preds.length
+    // Keep only real, well-formed faces — drops logo/pattern false positives.
+    const valid = (preds || []).filter(p => isRealFace(p, w, h))
+    faces = valid.length
     if (faces >= 1) {
-      let best = preds[0], bestArea = -1
-      for (const p of preds) {
+      let best = valid[0], bestArea = -1
+      for (const p of valid) {
         const a = (p.bottomRight[0] - p.topLeft[0]) * (p.bottomRight[1] - p.topLeft[1])
         if (a > bestArea) { bestArea = a; best = p }
       }
