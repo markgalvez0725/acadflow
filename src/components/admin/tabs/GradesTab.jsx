@@ -41,6 +41,24 @@ async function pushStudentNotif(db, studentId, title, body, type = 'act_grade', 
   } catch (e) {}
 }
 
+// ── Big numeric field used by the speed-grading view ──────────────────────────
+function BigField({ label, value, onChange, accent }) {
+  return (
+    <label style={{ display: 'block' }}>
+      <span style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--ink2)', marginBottom: 4 }}>{label}</span>
+      <input
+        type="number" min="0" max="100" value={value} placeholder="—"
+        onChange={e => onChange(e.target.value)}
+        style={{
+          width: '100%', fontSize: 26, fontWeight: 700, textAlign: 'center', padding: '12px 8px',
+          borderRadius: 10, border: '1px solid var(--border)',
+          background: accent ? 'var(--accent-l)' : 'var(--surface)', color: 'var(--ink)',
+        }}
+      />
+    </label>
+  )
+}
+
 // ── GradeEntryModal ───────────────────────────────────────────────────────────
 function GradeEntryModal({ classId, subject, onClose }) {
   const { students, classes, activities, quizzes, saveStudents, eqScale, db, fbReady, logAudit } = useData()
@@ -186,6 +204,8 @@ function GradeEntryModal({ classId, subject, onClose }) {
   const [saving, setSaving] = useState(false)
   const [showFormula, setShowFormula] = useState(false)
   const [autoStatus, setAutoStatus] = useState('idle') // idle | saving | saved
+  const [speedMode, setSpeedMode] = useState(false)
+  const [speedIdx, setSpeedIdx]   = useState(0)
 
   // Undo/redo history + debounced auto-save. undoRef/redoRef hold rows snapshots;
   // travelRef suppresses history capture while applying an undo/redo; the rows
@@ -636,6 +656,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
           )}
         </div>
         <div className="flex items-center gap-2 text-xs">
+          <button className={`btn btn-sm ${speedMode ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setSpeedMode(v => !v)} title="Speed-grading mode — one student at a time" style={{ padding: '4px 10px' }}><Maximize2 size={13} className="inline-block mr-1 align-text-bottom" />Speed</button>
           <button className="btn btn-ghost btn-sm" onClick={undo} disabled={!canUndo} title="Undo (Ctrl/Cmd+Z)" style={{ padding: '4px 8px' }}><Undo2 size={14} /></button>
           <button className="btn btn-ghost btn-sm" onClick={redo} disabled={!canRedo} title="Redo (Ctrl/Cmd+Shift+Z)" style={{ padding: '4px 8px' }}><Redo2 size={14} /></button>
           <span style={{ minWidth: 64, color: 'var(--ink3)' }}>
@@ -653,7 +674,70 @@ function GradeEntryModal({ classId, subject, onClose }) {
         </div>
       </div>
 
-      <div className="overflow-x-auto" ref={gridRef} onKeyDown={onGridKey}>
+      {/* Speed-grading view — one student at a time, big inputs */}
+      {speedMode && (() => {
+        const i = Math.min(speedIdx, studs.length - 1)
+        const s = studs[i]; const r = rows[i]
+        if (!s || !r) return null
+        const go = d => setSpeedIdx(p => Math.max(0, Math.min(studs.length - 1, p + d)))
+        const nextUngraded = () => {
+          for (let k = i + 1; k < studs.length; k++) { if (validation.rowFlags[k]?.missing) { setSpeedIdx(k); return } }
+          for (let k = 0; k <= i; k++) { if (validation.rowFlags[k]?.missing) { setSpeedIdx(k); return } }
+          toast('No students without a grade.', 'green')
+        }
+        return (
+          <div style={{ padding: '4px 4px 8px', minHeight: 320 }}>
+            <div className="flex items-center justify-between mb-3">
+              <button className="btn btn-ghost" onClick={() => go(-1)} disabled={i === 0}>← Prev</button>
+              <div className="text-center">
+                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--ink)' }}>{s.name}</div>
+                <div className="text-xs text-ink2">{s.id} · Student {i + 1} of {studs.length}</div>
+              </div>
+              <button className="btn btn-ghost" onClick={() => go(1)} disabled={i === studs.length - 1}>Next →</button>
+            </div>
+
+            <div className="flex items-center justify-center gap-2 flex-wrap mb-4 text-xs">
+              <span className="badge badge-green" title="Activity average (auto)">Act {r.actAvg ?? '—'}</span>
+              <span className="badge badge-gray" title="Quiz average (auto)">Quiz {r.qzAvg ?? '—'}</span>
+              <span className="badge badge-blue" title="Attendance (auto)">Att {r.attRate != null ? `${r.attRate.toFixed(0)}%` : '—'}</span>
+              <span className="badge badge-gray" title="Equivalent">Equiv {r.equivPreview}</span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, maxWidth: 560, margin: '0 auto' }}>
+              <BigField label="Attitude" value={r.attitude} onChange={v => updateRow(i, 'attitude', v)} />
+              <BigField label="Midterm Exam" value={r.midtermExam} onChange={v => updateRow(i, 'midtermExam', v)} />
+              <BigField label="Finals Exam" value={r.finalsExam} onChange={v => updateRow(i, 'finalsExam', v)} />
+              <BigField label="Final Grade" value={r.finalGrade} onChange={v => updateFinalGrade(i, v)} accent />
+            </div>
+
+            {(r.actInputs.length > 0 || r.qzInputs.length > 0) && (
+              <div style={{ maxWidth: 560, margin: '14px auto 0' }}>
+                <div className="text-xs text-ink3 mb-1">Individual scores</div>
+                <div className="flex flex-wrap gap-2">
+                  {r.actInputs.map((val, ai) => (
+                    <label key={`a${ai}`} className="text-xs" style={{ width: 84 }}>
+                      <span className="text-ink3" title={panelActs[ai]?.title || `Activity ${ai + 1}`}>{(panelActs[ai]?.title || `Act ${ai + 1}`).slice(0, 8)}</span>
+                      <input className="grade-input" type="number" min="0" max="100" value={val} placeholder="—" onChange={e => updateActInput(i, ai, e.target.value)} />
+                    </label>
+                  ))}
+                  {r.qzInputs.map((val, qi) => (
+                    <label key={`q${qi}`} className="text-xs" style={{ width: 84 }}>
+                      <span className="text-ink3" title={panelQuizzes[qi]?.title || `Quiz ${qi + 1}`}>{(panelQuizzes[qi]?.title || `Quiz ${qi + 1}`).slice(0, 8)}</span>
+                      <input className="grade-input" type="number" min="0" max="100" value={val} placeholder="—" onChange={e => updateQzInput(i, qi, e.target.value)} />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-center gap-2 mt-5">
+              <button className="btn btn-ghost btn-sm" onClick={nextUngraded}>Next ungraded →</button>
+            </div>
+          </div>
+        )
+      })()}
+
+      <div className="overflow-x-auto" ref={gridRef} onKeyDown={onGridKey} style={{ display: speedMode ? 'none' : undefined }}>
         <table className="tbl" style={{ minWidth: 900 }}>
           <thead>
             {/* Row 1: group headers */}
