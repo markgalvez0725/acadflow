@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -9,7 +9,7 @@ import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
 import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil, ClipboardList, AlarmClock, CircleDot, BarChart3, CheckCircle2, Check, Save, Plus, Copy } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
-import { deviceRubric, deviceInstructions, aiInstructions, aiRubric, aiGrade, isNotConfigured } from '@/utils/activityAI'
+import { deviceRubric, deviceInstructions, aiInstructions, aiRubric, aiGrade, prewarmActivityAI } from '@/utils/activityAI'
 import { sendPushToOwners } from '@/firebase/pushTokens'
 import { lateInfo, applyLatePenalty } from '@/utils/latePenalty'
 
@@ -128,6 +128,11 @@ function ActivityFormModal({ act, onClose }) {
   const [saving,  setSaving]  = useState(false)
   const [aiBusyInstr, setAiBusyInstr] = useState(false)
   const [aiBusyRubric, setAiBusyRubric] = useState(false)
+  const [tab, setTab] = useState('details') // 'details' | 'rubric'
+
+  // Warm the shared on-device AI model when the form opens so the rubric
+  // suggestion isn't a cold wait.
+  useEffect(() => { prewarmActivityAI() }, [])
 
   const selectedClass = classes.find(c => c.id === classId)
 
@@ -140,29 +145,23 @@ function ActivityFormModal({ act, onClose }) {
     setDeadline(fmtLocalInput(d))
   }
 
-  // AI-assist: instructions (Gemini if set up, else on-device template)
+  // Instructions — on-device smart template (instant, no Gemini).
   async function suggestInstructions() {
     if (!title.trim()) { toast('Add a title first.', 'warn'); return }
     setAiBusyInstr(true)
     try {
       const text = await aiInstructions(title, subject)
       if (text) setInstructions(text)
-    } catch (e) {
-      setInstructions(deviceInstructions(title, subject))
-      if (!isNotConfigured(e)) toast('Used a quick template (AI unavailable).', 'info')
     } finally { setAiBusyInstr(false) }
   }
 
-  // Auto-suggest rubric criteria
+  // Rubric — on-device semantic match to the best-fit archetype.
   async function suggestRubric() {
     if (!title.trim()) { toast('Add a title first.', 'warn'); return }
     setAiBusyRubric(true)
     try {
       const r = await aiRubric(title, subject, instructions)
       setRubric(r.length ? r : deviceRubric(title, subject))
-    } catch (e) {
-      setRubric(deviceRubric(title, subject))
-      if (!isNotConfigured(e)) toast('Used a template rubric (AI unavailable).', 'info')
     } finally { setAiBusyRubric(false) }
   }
 
@@ -215,21 +214,21 @@ function ActivityFormModal({ act, onClose }) {
 
   async function handleSave() {
     setErr('')
-    if (!title.trim())   { setErr('Activity title is required.'); return }
-    if (!classId)        { setErr('Please select a class.'); return }
-    if (!subject)        { setErr('Please select a subject.'); return }
-    if (!deadline)       { setErr('Please set a deadline.'); return }
+    if (!title.trim())   { setTab('details'); setErr('Activity title is required.'); return }
+    if (!classId)        { setTab('details'); setErr('Please select a class.'); return }
+    if (!subject)        { setTab('details'); setErr('Please select a subject.'); return }
+    if (!deadline)       { setTab('details'); setErr('Please set a deadline.'); return }
     const dlTs = new Date(deadline).getTime()
-    if (isNaN(dlTs))     { setErr('Invalid deadline date.'); return }
+    if (isNaN(dlTs))     { setTab('details'); setErr('Invalid deadline date.'); return }
 
     // Validate rubric if used
     if (rubric.length) {
       for (const c of rubric) {
-        if (!c.name.trim()) { setErr('Each rubric criterion must have a name.'); return }
+        if (!c.name.trim()) { setTab('rubric'); setErr('Each rubric criterion must have a name.'); return }
         const pts = parseFloat(c.points)
-        if (isNaN(pts) || pts < 1) { setErr('Each criterion must have at least 1 point.'); return }
+        if (isNaN(pts) || pts < 1) { setTab('rubric'); setErr('Each criterion must have at least 1 point.'); return }
       }
-      if (maxScore < 1 || maxScore > 1000) { setErr('Rubric total must be between 1 and 1000.'); return }
+      if (maxScore < 1 || maxScore > 1000) { setTab('rubric'); setErr('Rubric total must be between 1 and 1000.'); return }
     }
 
     if (!fbReady || !db.current) { setErr('Firebase is required to post activities.'); return }
@@ -267,6 +266,27 @@ function ActivityFormModal({ act, onClose }) {
       </h3>
       <p className="modal-sub">{isEdit ? 'Update activity details below.' : 'Fill in the activity details below.'}</p>
 
+      {/* Tabs: Details · Rubric */}
+      <div className="inline-flex bg-[var(--surface2)] border border-[var(--border)] rounded-full p-0.5 mb-3">
+        {[
+          { id: 'details', label: 'Details' },
+          { id: 'rubric', label: `Rubric${rubric.length ? ` · ${rubric.length}` : ''}` },
+        ].map(t => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={`text-xs font-medium px-3.5 py-1.5 rounded-full transition-colors ${
+              tab === t.id ? 'bg-[var(--surface)] text-[var(--accent)] shadow-sm' : 'text-[var(--ink3)] hover:text-[var(--ink2)]'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'details' && (
+      <>
       <div className="field mb-3">
         <label className="text-xs font-semibold text-ink2 mb-1 block">Title <span className="text-red-500">*</span></label>
         <input className="input w-full" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Lab Report 1" autoFocus />
@@ -303,13 +323,16 @@ function ActivityFormModal({ act, onClose }) {
         <div className="flex items-center justify-between mb-1">
           <label className="text-xs font-semibold text-ink2">Instructions <span className="font-normal text-ink3">(optional)</span></label>
           <button type="button" className="btn btn-ghost btn-xs" onClick={suggestInstructions} disabled={aiBusyInstr}>
-            <Sparkles size={12} className="inline-block mr-1" />{aiBusyInstr ? 'Writing…' : 'Suggest'}
+            <Sparkles size={12} className="inline-block mr-1" />{aiBusyInstr ? 'Writing…' : 'Auto-write'}
           </button>
         </div>
         <textarea className="input w-full" rows={3} value={instructions} onChange={e => setInstructions(e.target.value)} placeholder="Brief instructions for students…" />
       </div>
+      </>
+      )}
 
       {/* Rubric builder */}
+      {tab === 'rubric' && (
       <div className="field mb-3">
         <div className="flex items-center justify-between mb-1">
           <label className="text-xs font-semibold text-ink2">
@@ -390,6 +413,7 @@ function ActivityFormModal({ act, onClose }) {
           </>
         )}
       </div>
+      )}
 
       {err && <div className="err-msg mb-2">{err}</div>}
 
@@ -619,10 +643,10 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
         title: act.title, subject: act.subject, instructions: act.instructions,
         rubric: act.rubric, maxScore: act.maxScore, submissionText: aiText,
       })
-      setAiResult(res)
+      if (res) setAiResult(res)
+      else toast('On-device AI is unavailable on this device. Grade manually against the rubric.', 'warn', 7000)
     } catch (e) {
-      if (isNotConfigured(e)) toast('AI grading needs a free Gemini key (set GEMINI_API_KEY in Vercel).', 'warn', 7000)
-      else toast('AI error: ' + e.message, 'error', 7000)
+      toast('AI error: ' + e.message, 'error', 7000)
     } finally { setAiBusy(false) }
   }
 
@@ -920,10 +944,10 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
         const sub = (act.submissions || {})[aiFor] || {}
         return (
           <Modal onClose={() => setAiFor(null)} size="md">
-            <h3 className="text-lg font-bold mb-1"><Sparkles size={16} className="inline-block mr-1 align-text-bottom" />AI Grading Assist</h3>
+            <h3 className="text-lg font-bold mb-1"><Sparkles size={16} className="inline-block mr-1 align-text-bottom" />Grading Assist <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--green)', background: 'var(--green-l)', padding: '2px 8px', borderRadius: 999, marginLeft: 6, verticalAlign: 'middle' }}>on-device</span></h3>
             <p className="modal-sub">{stud?.name} · {act.title}</p>
             <div style={{ fontSize: 12, color: 'var(--ink2)', background: 'var(--accent-l)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', margin: '8px 0 12px' }}>
-              The AI can't open the student's link, so paste their work below (open the submission, copy the text). It suggests a score and feedback against your rubric, and you review and Save.
+              Paste the student's work below (open their link, copy the text). On-device AI estimates how well it covers each rubric criterion and drafts a score — a starting point you review and adjust before saving. Nothing is uploaded.
             </div>
             {sub.link && (
               <a href={sub.link} target="_blank" rel="noopener noreferrer" className="link-btn" style={{ fontSize: 12, marginBottom: 8, display: 'inline-block' }}>Open submission ↗</a>

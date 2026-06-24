@@ -16,71 +16,10 @@
 // thin — the caller then falls back to the instant rule-based drafter.
 
 import { splitSentences, keyTerms, definitions } from '@/utils/quizGen'
+import { ensureExtractor, embedAll, cos, prewarmEmbeddings } from '@/utils/embeddings'
 
-// Pinned v2 build: `quantized: true` is the default, giving the int8 model
-// rather than the much larger fp32 one. Weights are fetched from the Hugging
-// Face hub (the app sets no CSP, so cross-origin model loads are allowed).
-const TRANSFORMERS_URL = 'https://esm.sh/@xenova/transformers@2.17.2'
-const MODEL = 'Xenova/paraphrase-multilingual-MiniLM-L12-v2'
-
-let _libPromise, _extractorPromise
-
-/** Dynamically import Transformers.js from the CDN (kept out of the Vite bundle). */
-function loadLib() {
-  if (!_libPromise) {
-    _libPromise = import(/* @vite-ignore */ TRANSFORMERS_URL)
-      .then(mod => {
-        // Fetch weights from the hub, cache in the browser, no local model dir.
-        if (mod.env) { mod.env.allowLocalModels = false; mod.env.useBrowserCache = true }
-        return mod
-      })
-      .catch(err => { _libPromise = null; throw err })
-  }
-  return _libPromise
-}
-
-/** Load the feature-extraction (embedding) pipeline once. */
-function ensureExtractor() {
-  if (!_extractorPromise) {
-    _extractorPromise = (async () => {
-      const { pipeline } = await loadLib()
-      return pipeline('feature-extraction', MODEL)
-    })().catch(err => { _extractorPromise = null; throw err })
-  }
-  return _extractorPromise
-}
-
-/**
- * Warm the model up ahead of time (download + compile) so the first real
- * generation isn't a cold wait. Call when the lesson modal opens. Errors
- * swallowed; safe to call repeatedly.
- */
-export function prewarmQuizAI() {
-  if (typeof window === 'undefined') return
-  ensureExtractor().then(ex => ex('warm up', { pooling: 'mean', normalize: true })).catch(() => {})
-}
-
-/** Embed an array of strings → array of unit vectors (number[][]). Batched. */
-async function embedAll(extractor, texts) {
-  const vecs = []
-  const BATCH = 32
-  for (let i = 0; i < texts.length; i += BATCH) {
-    const chunk = texts.slice(i, i + BATCH)
-    const out = await extractor(chunk, { pooling: 'mean', normalize: true })
-    const list = out.tolist() // [chunk.length, dim]
-    for (const v of list) vecs.push(v)
-    // Yield so a long lesson doesn't freeze the UI mid-embed.
-    await new Promise(r => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(() => r()) : setTimeout(r, 0)))
-  }
-  return vecs
-}
-
-/** Cosine similarity of two unit vectors (just a dot product). */
-function cos(a, b) {
-  let s = 0
-  for (let i = 0; i < a.length; i++) s += a[i] * b[i]
-  return s
-}
+// Warm the shared embedding model when the lesson modal opens (re-export).
+export const prewarmQuizAI = prewarmEmbeddings
 
 function meanVec(vecs) {
   if (!vecs.length) return null

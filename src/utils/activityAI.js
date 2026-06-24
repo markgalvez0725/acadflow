@@ -1,9 +1,19 @@
-// ── Activity AI helpers (free on-device templates + optional Gemini) ──────
+// ── Activity AI helpers (fully on-device — no Gemini, no server) ───────────
 // Used by the New Activity form (instructions, rubric) and the grading assist.
-// AI calls go through /api/ai-generate (gated by a free Gemini key); every
-// function has an on-device fallback so the app works with no key.
+// Everything runs in-browser:
+//   • instructions  → smart type-aware template (text generation can't be done
+//                     safely on-device, and a template never hallucinates)
+//   • rubric        → the shared embedding model picks the best-fit rubric
+//                     archetype by MEANING (semantic match, multilingual)
+//   • grading       → embeddings estimate how well a submission covers each
+//                     rubric criterion → a draft score + feedback the teacher
+//                     reviews. An honest coverage estimate, not an authority.
 
-import { aiRequest } from '@/utils/aiGateway'
+import { ensureExtractor, embedAll, cos, prewarmEmbeddings } from '@/utils/embeddings'
+import { splitSentences } from '@/utils/quizGen'
+
+// Warm the shared embedding model when the activity modal opens (re-export).
+export const prewarmActivityAI = prewarmEmbeddings
 
 // ── On-device rubric templates by activity type ───────────────────────────
 const RUBRIC_TEMPLATES = [
@@ -47,69 +57,79 @@ export function deviceInstructions(title = '', subject = '') {
   ].join(' ')
 }
 
-// ── AI wrappers (call /api/ai-generate via the serialized gateway) ─────────
-async function callAI(prompt, json, opts = {}) {
-  const { ok, status, data, error } = await aiRequest('/api/ai-generate', { prompt, json: !!json }, opts)
-  if (status === 501) { const e = new Error('not-configured'); e.code = 501; throw e }
-  if (!ok) throw new Error(error || 'AI request failed')
-  return data
-}
-
+// ── Instructions (smart template, on-device) ──────────────────────────────
 export async function aiInstructions(title, subject) {
-  const prompt = `Write clear, concise instructions (2-4 sentences) for a student activity titled "${title}"${subject ? ` in the subject ${subject}` : ''}. Tell them what to do, what to submit (a shareable link), and any reminders. Output only the instructions text, no preamble.`
-  const { text } = await callAI(prompt, false)
-  return (text || '').trim()
+  return deviceInstructions(title, subject)
 }
 
-// Explain a quiz question for a student reviewing their result. Throws with
-// code 501 when AI is unconfigured so the caller can fall back gracefully.
-export async function aiExplainQuiz({ question, correctAnswer, studentAnswer, subject }) {
-  const prompt = `A student is reviewing a quiz question they got wrong${subject ? ` in ${subject}` : ''}.
-Question: ${question}
-Correct answer: ${correctAnswer}
-Student's answer: ${studentAnswer || '(left blank)'}
-In 2-3 short sentences, kindly explain why the correct answer is right and where the student likely went wrong. Output only the explanation, no preamble.`
-  // Same question → same explanation: cache so repeated "Explain" taps don't re-call.
-  const { text } = await callAI(prompt, false, { cache: true })
-  return (text || '').trim()
-}
-
+// ── Rubric (semantic archetype match, on-device) ──────────────────────────
 export async function aiRubric(title, subject, instructions) {
-  const prompt = `Create a grading rubric for the student activity "${title}"${subject ? ` in ${subject}` : ''}.${instructions ? ` Instructions: ${instructions}.` : ''}
-Return ONLY a JSON array of 3-5 criteria. Each item: {"name":"...","points":NN}. The points must be whole numbers that sum to exactly 100.`
-  const { json } = await callAI(prompt, true)
-  const arr = Array.isArray(json) ? json : (json?.criteria || [])
-  const clean = arr
-    .filter(c => c && c.name)
-    .map(c => ({ name: String(c.name).slice(0, 60), points: Math.max(1, Math.round(Number(c.points) || 0)) }))
-  return withIds(clean.length ? clean : [])
-}
-
-/**
- * Suggest a grade for a submission against the rubric.
- * @returns {Promise<{score:number, feedback:string, criteria:Array<{name,met,points}>}>}
- */
-export async function aiGrade({ title, subject, instructions, rubric, maxScore, submissionText }) {
-  const rubricText = rubric?.length
-    ? rubric.map(c => `- ${c.name} (${c.points} pts)`).join('\n')
-    : `- Overall quality (out of ${maxScore || 100})`
-  const prompt = `You are grading a student submission for the activity "${title}"${subject ? ` in ${subject}` : ''}.
-${instructions ? `Instructions: ${instructions}\n` : ''}Rubric:
-${rubricText}
-
-Student submission:
-"""
-${(submissionText || '').slice(0, 12000)}
-"""
-
-Assess fairly against the rubric. Return ONLY JSON:
-{"score": <number 0-${maxScore || 100}>, "feedback": "2-3 sentences of constructive feedback", "criteria": [{"name":"<rubric criterion>","met": true|false, "points": <points awarded>}]}`
-  const { json } = await callAI(prompt, true)
-  return {
-    score: Math.max(0, Math.min(maxScore || 100, Math.round(Number(json?.score) || 0))),
-    feedback: String(json?.feedback || '').slice(0, 800),
-    criteria: Array.isArray(json?.criteria) ? json.criteria : [],
+  const ctx = [title, subject, instructions].filter(Boolean).join('. ').trim()
+  if (!ctx) return deviceRubric(title, subject)
+  try {
+    const extractor = await ensureExtractor()
+    const [ctxVec] = await embedAll(extractor, [ctx])
+    const tVecs = await embedAll(extractor, RUBRIC_TEMPLATES.map(t => t.keys.join(', ')))
+    let best = RUBRIC_TEMPLATES.length - 1, bestS = -Infinity
+    tVecs.forEach((v, i) => { const sim = cos(v, ctxVec); if (sim > bestS) { bestS = sim; best = i } })
+    return withIds(RUBRIC_TEMPLATES[best].rubric)
+  } catch {
+    return deviceRubric(title, subject) // model unavailable → keyword template
   }
 }
 
-export function isNotConfigured(err) { return err && (err.code === 501 || err.message === 'not-configured') }
+// ── Grading coverage estimate (on-device) ─────────────────────────────────
+/**
+ * Estimate how well a pasted submission covers each rubric criterion using
+ * embeddings, and turn that into a DRAFT score + feedback for the teacher to
+ * review. This is a coverage heuristic, not authoritative essay grading.
+ * @returns {Promise<{score:number, feedback:string, criteria:Array<{name,met,points}>}|null>}
+ *   null when the model can't load (caller should tell the teacher).
+ */
+export async function aiGrade({ title, subject, instructions, rubric, maxScore, submissionText }) {
+  const text = String(submissionText || '').trim()
+  if (!text) return null
+  const max = maxScore || (rubric?.length ? rubric.reduce((s, c) => s + (c.points || 0), 0) : 100)
+
+  let extractor
+  try { extractor = await ensureExtractor() } catch { return null }
+
+  let sents = splitSentences(text)
+  if (!sents.length) sents = [text.slice(0, 600)]
+  let subVecs
+  try { subVecs = await embedAll(extractor, sents.slice(0, 120)) } catch { return null }
+
+  const crits = (rubric && rubric.length)
+    ? rubric.map(c => ({ name: c.name, points: c.points || 0 }))
+    : [{ name: title || 'Overall quality', points: max }]
+
+  // Expand each terse criterion name with activity context for a better match.
+  const ctx = [title, subject].filter(Boolean).join(' ')
+  let critVecs
+  try { critVecs = await embedAll(extractor, crits.map(c => `${c.name}. ${ctx}`.trim())) } catch { return null }
+
+  const results = crits.map((c, i) => {
+    let best = 0
+    for (const sv of subVecs) { const sim = cos(sv, critVecs[i]); if (sim > best) best = sim }
+    // Criterion names are short, so real coverage tops out ~0.5; calibrate
+    // generously but bounded.
+    const frac = Math.max(0, Math.min(1, (best - 0.15) / (0.5 - 0.15)))
+    return { name: c.name, points: Math.round(c.points * frac), max: c.points, frac, met: frac >= 0.5 }
+  })
+
+  const score = Math.max(0, Math.min(max, Math.round(results.reduce((s, r) => s + r.points, 0))))
+
+  const strong = results.filter(r => r.frac >= 0.66).map(r => r.name)
+  const weak = results.filter(r => r.frac < 0.4).map(r => r.name)
+  let fb = ''
+  if (strong.length) fb += `Appears to address ${strong.join(', ')} well. `
+  if (weak.length) fb += `Seems to under-cover ${weak.join(', ')}. `
+  fb += 'This is an on-device coverage estimate — read the work and adjust before saving.'
+
+  return {
+    score,
+    feedback: fb.trim(),
+    criteria: results.map(r => ({ name: r.name, met: r.met, points: r.points })),
+    aiUsed: true,
+  }
+}
