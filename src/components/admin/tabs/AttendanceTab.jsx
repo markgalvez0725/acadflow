@@ -1,19 +1,30 @@
-import React, { useState, useMemo, useRef, lazy, Suspense } from 'react'
+import React, { useState, useMemo, useRef, useEffect, lazy, Suspense } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { sortByLastName, fmtDateShort } from '@/utils/format'
 import { getHeldDays } from '@/utils/grades'
 import { classTag } from '@/utils/groupChat'
+import { triageExcuses } from '@/utils/excuseTriage'
+import { prewarmEmbeddings } from '@/utils/embeddings'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import QRCode from '@/components/primitives/QRCode'
-import { Download, Upload, AlertTriangle, Shuffle, RefreshCw, CalendarDays, Check, ClipboardList, X, Trash2, ClipboardCheck, Archive, ArchiveRestore, UserCheck, UserX, Radio, Copy } from 'lucide-react'
+import { Download, Upload, AlertTriangle, Shuffle, RefreshCw, CalendarDays, Check, ClipboardList, X, Trash2, ClipboardCheck, Archive, ArchiveRestore, UserCheck, UserX, Radio, Copy, ListFilter } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
 
 const ATT_PER_PAGE = 10
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+// Small pill used by excuse triage (#26) to tag a request.
+function ExcuseChip({ text, bg, fg }) {
+  return (
+    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 999, background: bg, color: fg, border: '1px solid var(--border)' }}>
+      {text}
+    </span>
+  )
+}
 
 // ── ImportAttendanceModal ──────────────────────────────────────────────────────
 // Accepts an Excel file (.xlsx / .xls / .csv) where:
@@ -1100,6 +1111,38 @@ export default function AttendanceTab() {
     [excuseRequests, effectiveId]
   )
 
+  // ── Triage (#26): on-device ranking + tagging of pending excuses ────────────
+  const [triage, setTriage] = useState(null)     // { byId, order, modelUsed } | null
+  const [triaging, setTriaging] = useState(false)
+  useEffect(() => { prewarmEmbeddings() }, [])
+  // Drop a stale triage when the selected class changes.
+  useEffect(() => { setTriage(null) }, [effectiveId])
+
+  async function runTriage() {
+    setTriaging(true)
+    try {
+      const res = await triageExcuses(pendingExcuses, excuseRequests || [], { classId: effectiveId })
+      setTriage(res)
+      const need = Object.values(res.byId).filter(m => m.copy || m.frequent || m.substance === 'Vague' || m.stale).length
+      toast(need ? `Sorted ${pendingExcuses.length} request${pendingExcuses.length === 1 ? '' : 's'} — ${need} need${need === 1 ? 's' : ''} a closer look.` : `Sorted ${pendingExcuses.length} request${pendingExcuses.length === 1 ? '' : 's'} — nothing stands out.`, need ? 'dark' : 'green')
+    } catch {
+      toast('Could not run triage on this device.', 'red')
+    } finally {
+      setTriaging(false)
+    }
+  }
+
+  // Apply triage ordering when present (else submission order).
+  const orderedExcuses = useMemo(() => {
+    if (!triage) return pendingExcuses
+    const idx = {}; pendingExcuses.forEach(r => { idx[r.id] = r })
+    const seen = new Set()
+    const out = triage.order.map(id => idx[id]).filter(Boolean)
+    out.forEach(r => seen.add(r.id))
+    pendingExcuses.forEach(r => { if (!seen.has(r.id)) out.push(r) }) // any new since triage
+    return out
+  }, [triage, pendingExcuses])
+
   async function decideExcuse(req, approve) {
     setExcuseBusy(req.id)
     try {
@@ -1160,9 +1203,20 @@ export default function AttendanceTab() {
               <ClipboardList size={15} /> Excuse Requests
               <span className="badge badge-yellow">{pendingExcuses.length}</span>
             </div>
+            {pendingExcuses.length > 1 && (
+              <button type="button" className="btn btn-ghost btn-sm" onClick={runTriage} disabled={triaging}
+                title="Rank & tag these requests on-device (advisory — Approve/Deny unchanged)">
+                <ListFilter size={13} className="inline-block mr-1" />{triaging ? 'Triaging…' : triage ? 'Re-triage' : 'Triage'}
+              </button>
+            )}
           </div>
+          {triage && (
+            <p className="text-xs text-ink3 mb-2">Sorted with the ones needing a closer look first. Tags are hints only — your decision stands.</p>
+          )}
           <div className="flex flex-col gap-2">
-            {pendingExcuses.map(r => (
+            {orderedExcuses.map(r => {
+              const m = triage?.byId[r.id]
+              return (
               <div key={r.id} className="flex items-center justify-between gap-3 flex-wrap"
                 style={{ padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 10 }}>
                 <div style={{ minWidth: 0 }}>
@@ -1170,6 +1224,19 @@ export default function AttendanceTab() {
                     {r.studentName} <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>· {r.subject} · {r.date}</span>
                   </div>
                   {r.reason && <div style={{ fontSize: 12, color: 'var(--ink2)', marginTop: 2 }}>{r.reason}</div>}
+                  {m && (
+                    <div className="flex flex-wrap gap-1" style={{ marginTop: 5 }}>
+                      {m.category !== 'Other' && <ExcuseChip text={m.category} bg="var(--bg)" fg="var(--ink2)" />}
+                      <ExcuseChip
+                        text={m.substance}
+                        bg={m.substance === 'Detailed' ? 'var(--green-l)' : m.substance === 'Vague' ? 'var(--red-l, #fee2e2)' : 'var(--bg)'}
+                        fg={m.substance === 'Detailed' ? 'var(--green)' : m.substance === 'Vague' ? 'var(--red)' : 'var(--ink3)'}
+                      />
+                      {m.frequent && <ExcuseChip text={`${m.freqCount} requests this class`} bg="var(--yellow-l, #fef9c3)" fg="var(--gold-var)" />}
+                      {m.stale && <ExcuseChip text={`${Math.round(m.ageDays)}d pending`} bg="var(--yellow-l, #fef9c3)" fg="var(--gold-var)" />}
+                      {m.copy && <ExcuseChip text={m.copyWith ? `similar to ${m.copyWith}` : 'possible copy'} bg="var(--red-l, #fee2e2)" fg="var(--red)" />}
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-1.5">
                   <button className="btn btn-success btn-sm" disabled={excuseBusy === r.id} onClick={() => decideExcuse(r, true)}>
@@ -1180,7 +1247,8 @@ export default function AttendanceTab() {
                   </button>
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
