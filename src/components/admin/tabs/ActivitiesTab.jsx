@@ -1272,6 +1272,8 @@ export default function ActivitiesTab() {
     const isPast    = act.deadline < now
     const submitted = Object.values(act.submissions || {}).filter(s => s.link).length
     const graded    = Object.values(act.submissions || {}).filter(s => s.score != null).length
+    const groupCount     = act.isGroup ? (act.groups || []).length : 0
+    const groupsSubmitted = act.isGroup ? Object.values(act.groupSubmissions || {}).filter(g => g?.text).length : 0
     const dlLabel   = new Date(act.deadline).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
     return (
       <div className="card card-pad">
@@ -1281,13 +1283,18 @@ export default function ActivitiesTab() {
               <strong style={{ fontSize: 14 }}>{act.title}</strong>
               <Badge variant={isPast ? 'red' : 'green'}>{isPast ? 'Closed' : 'Open'}</Badge>
               <Badge variant="blue">{act.subject}</Badge>
+              {act.isGroup && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 999, background: 'var(--accent-l)', color: 'var(--accent)' }}>
+                  <Users size={11} /> Group
+                </span>
+              )}
               {readOnly && <Badge variant="yellow">Archived</Badge>}
             </div>
             <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
               {cls ? cls.name + ' ' + cls.section : '—'} · Max: {act.maxScore} pts
             </div>
             <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 3 }}>
-              Deadline: {dlLabel} · {submitted}/{subs.length} submitted · {graded} graded
+              Deadline: {dlLabel} · {act.isGroup ? `${groupsSubmitted}/${groupCount} group${groupCount === 1 ? '' : 's'} submitted` : `${submitted}/${subs.length} submitted`} · {graded} graded
             </div>
           </div>
           <div className="flex gap-1.5 flex-shrink-0">
