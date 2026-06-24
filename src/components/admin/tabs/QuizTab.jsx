@@ -301,7 +301,7 @@ function ImportResponseModal({ onClose, onImported }) {
 }
 
 // ── Create/Edit Quiz Modal ────────────────────────────────────────────────────
-function QuizFormModal({ quiz, initialQuestions, onClose }) {
+function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', onClose }) {
   const { classes, db, fbReady } = useData()
   const { toast } = useUI()
   const isEdit = !!quiz
@@ -332,6 +332,7 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
   })
   const [questions, setQuestions] = useState(quiz?.questions || initialQuestions || [])
   const [partialCredit, setPartialCredit] = useState(quiz?.partialCredit || false)
+  const [difficulty, setDifficulty] = useState(quiz?.difficulty || initialDifficulty || 'medium')
   const [editingQ, setEditingQ] = useState(null)
   const [err, setErr] = useState('')
   const [saving, setSaving] = useState(false)
@@ -456,7 +457,7 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
     const payload = {
       title: title.trim(), classIds, subject,
       timeLimit: parseInt(timeLimit), openAt: openTs, closeAt: closeTs,
-      questions, totalPoints, partialCredit,
+      questions, totalPoints, partialCredit, difficulty,
       submissions: quiz?.submissions || {},
       createdAt: quiz?.createdAt || Date.now(), createdBy: 'admin',
     }
@@ -544,6 +545,19 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
           <option value="">— Select Subject —</option>
           {availableSubjects.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
+      </div>
+
+      <div className="field mb-3">
+        <label className="text-xs font-semibold text-ink2 mb-1 block">Difficulty</label>
+        <div className="flex gap-2">
+          {['easy', 'medium', 'hard'].map(d => (
+            <button key={d} type="button" onClick={() => setDifficulty(d)}
+              className={`btn btn-sm ${difficulty === d ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ flex: 1, fontSize: 12, textTransform: 'capitalize' }}>
+              {d}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="input-row mb-3">
@@ -1188,6 +1202,7 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
   const [extracting, setExtracting] = useState(false)
   const [count, setCount] = useState(10)
   const [qTypes, setQTypes] = useState(['multiple_choice', 'true_false', 'fill_in_the_blank', 'identification'])
+  const [difficulty, setDifficulty] = useState('medium') // 'easy' | 'medium' | 'hard'
   const [method, setMethod] = useState('smart') // 'smart' (on-device AI) | 'quick' (instant rules)
   const [busy, setBusy] = useState(false)
 
@@ -1227,17 +1242,17 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
         // Custom on-device AI (sentence embeddings). Grounded in the lesson,
         // private, $0 — no Gemini. Falls back to quick drafts if it can't run.
         try {
-          const qs = await generateQuizAI(text, { count, types: qTypes })
-          if (qs && qs.length) { onGenerated(qs); return }
+          const qs = await generateQuizAI(text, { count, types: qTypes, difficulty })
+          if (qs && qs.length) { onGenerated(qs, difficulty); return }
           toast('Smart generator unavailable on this device — using quick drafts.', 'info', 5000)
         } catch {
           toast('Smart generator hit a snag — using quick drafts.', 'warn', 5000)
         }
       }
       // Quick rule-based drafts (default, or smart fallback)
-      const qs = generateDraftQuestions(text, { count, types: qTypes })
+      const qs = generateDraftQuestions(text, { count, types: qTypes, difficulty })
       if (!qs.length) { toast('Could not draft questions from this lesson. Try a longer, text-heavy file.', 'error', 6000); return }
-      onGenerated(qs)
+      onGenerated(qs, difficulty)
     } finally {
       setBusy(false)
     }
@@ -1299,6 +1314,35 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
         </div>
       </div>
 
+      {/* Difficulty */}
+      <div className="field mb-3">
+        <label className="text-xs font-semibold text-ink2 mb-2 block">Difficulty</label>
+        <div className="flex gap-2">
+          {[
+            { id: 'easy',   label: 'Easy',   desc: 'Clearly different options' },
+            { id: 'medium', label: 'Medium', desc: 'Balanced' },
+            { id: 'hard',   label: 'Hard',   desc: 'Tricky near-miss options' },
+          ].map(opt => {
+            const active = difficulty === opt.id
+            return (
+              <button key={opt.id} type="button" onClick={() => setDifficulty(opt.id)}
+                title={opt.desc}
+                className={`btn btn-sm ${active ? 'btn-primary' : 'btn-ghost'}`}
+                style={{ flex: 1, fontSize: 12 }}>
+                {opt.label}
+              </button>
+            )
+          })}
+        </div>
+        <p className="text-xs text-ink3 mt-1">
+          {difficulty === 'easy'
+            ? 'Wrong choices look obviously different — easier to eliminate.'
+            : difficulty === 'hard'
+              ? 'Wrong choices are close in meaning — students must read carefully.'
+              : 'A balanced mix of plausible wrong choices.'}
+        </p>
+      </div>
+
       {/* Method */}
       <div className="field mb-4">
         <label className="text-xs font-semibold text-ink2 mb-2 block">Generation method</label>
@@ -1358,6 +1402,7 @@ export default function QuizTab() {
   const [showLesson, setShowLesson] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [importedQuestions, setImportedQuestions] = useState([])
+  const [importedDifficulty, setImportedDifficulty] = useState('medium')
   const [viewQuiz, setViewQuiz] = useState(null)
   const [editQuiz, setEditQuiz] = useState(null)
 
@@ -1393,8 +1438,9 @@ export default function QuizTab() {
     return { label: 'Open', variant: 'green' }
   }
 
-  function handleImported(qs) {
+  function handleImported(qs, difficulty = 'medium') {
     setImportedQuestions(qs)
+    setImportedDifficulty(difficulty)
     setShowImport(false)
     setShowForm(true)
   }
@@ -1443,6 +1489,9 @@ export default function QuizTab() {
                         <strong style={{ fontSize: 14 }}>{q.title}</strong>
                         <Badge variant={variant}>{label}</Badge>
                         <Badge variant="blue">{q.subject}</Badge>
+                        {q.difficulty && (
+                          <Badge variant={q.difficulty === 'easy' ? 'green' : q.difficulty === 'hard' ? 'red' : 'gray'}>{q.difficulty.charAt(0).toUpperCase() + q.difficulty.slice(1)}</Badge>
+                        )}
                       </div>
                       <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
                         {clsNames} · {q.questions?.length || 0} questions · {q.timeLimit} min
@@ -1540,13 +1589,14 @@ export default function QuizTab() {
       {showLesson && (
         <GenerateFromLessonModal
           onClose={() => setShowLesson(false)}
-          onGenerated={(qs) => { setShowLesson(false); handleImported(qs) }}
+          onGenerated={(qs, difficulty) => { setShowLesson(false); handleImported(qs, difficulty) }}
         />
       )}
 
       {showForm && (
         <QuizFormModal
           initialQuestions={importedQuestions}
+          initialDifficulty={importedDifficulty}
           onClose={() => { setShowForm(false); setImportedQuestions([]) }}
         />
       )}

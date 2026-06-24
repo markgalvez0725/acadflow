@@ -63,7 +63,15 @@ function mmrOrder(vecs, centroid, lambda = 0.72) {
  * Embedding-aware MCQ distractors: terms whose meaning is NEAR the answer —
  * related enough to be tempting, not synonyms or identical.
  */
-function smartDistractors(answer, terms, termVec, answerVec, n = 3) {
+// Distractor similarity bands by difficulty. `prefer:'high'` orders the closest
+// (most confusable) terms first; `prefer:'low'` orders the most different first.
+const DIST_BANDS = {
+  easy:   { lo: 0.12, hi: 0.45, prefer: 'low'  }, // clearly different — easy to eliminate
+  medium: { lo: 0.30, hi: 0.82, prefer: 'high' }, // the original confusable band
+  hard:   { lo: 0.55, hi: 0.90, prefer: 'high' }, // near-misses — hard to tell apart
+}
+
+function smartDistractors(answer, terms, termVec, answerVec, n = 3, difficulty = 'medium') {
   if (!answerVec) return []
   const scored = []
   for (const t of terms) {
@@ -75,9 +83,10 @@ function smartDistractors(answer, terms, termVec, answerVec, n = 3) {
     if (s > 0.92) continue            // basically a synonym — skip
     scored.push({ t, s })
   }
-  // Prefer the "confusable" band (0.30–0.82), then fall back to next-best.
-  const band = scored.filter(x => x.s >= 0.30 && x.s <= 0.82).sort((a, b) => b.s - a.s)
-  const rest = scored.filter(x => x.s < 0.30 || x.s > 0.82).sort((a, b) => b.s - a.s)
+  const cfg = DIST_BANDS[difficulty] || DIST_BANDS.medium
+  const dir = (a, b) => (cfg.prefer === 'low' ? a.s - b.s : b.s - a.s)
+  const band = scored.filter(x => x.s >= cfg.lo && x.s <= cfg.hi).sort(dir)
+  const rest = scored.filter(x => x.s < cfg.lo || x.s > cfg.hi).sort(dir)
   const out = []
   const seen = new Set([answer.toLowerCase()])
   for (const { t } of [...band, ...rest]) {
@@ -200,10 +209,10 @@ export async function smartAutoKey(questions, { contextText = '' } = {}) {
 /**
  * Generate grounded quiz questions from lesson text using on-device embeddings.
  * @param {string} text
- * @param {{count?:number, types?:string[]}} opts
+ * @param {{count?:number, types?:string[], difficulty?:'easy'|'medium'|'hard'}} opts
  * @returns {Promise<Array<object>|null>} questions, or null to fall back.
  */
-export async function generateQuizAI(text, { count = 10, types = ['multiple_choice', 'true_false', 'fill_in_the_blank', 'identification'] } = {}) {
+export async function generateQuizAI(text, { count = 10, types = ['multiple_choice', 'true_false', 'fill_in_the_blank', 'identification'], difficulty = 'medium' } = {}) {
   if (typeof window === 'undefined') return null
   const order = types.length ? types : ['multiple_choice']
 
@@ -268,7 +277,7 @@ export async function generateQuizAI(text, { count = 10, types = ['multiple_choi
     } else if (type === 'multiple_choice') {
       const hit = nextSentenceWithTerm()
       if (hit) {
-        const distractors = smartDistractors(hit.term, terms, termVec, termVec.get(hit.term), 3)
+        const distractors = smartDistractors(hit.term, terms, termVec, termVec.get(hit.term), 3, difficulty)
         if (distractors.length === 3) {
           used.add(hit.s)
           const stem = hit.s.replace(reFor(hit.term), '______')
@@ -277,7 +286,7 @@ export async function generateQuizAI(text, { count = 10, types = ['multiple_choi
       }
       if (!item && defIdx < defs.length) {
         const d = defs[defIdx]
-        const distractors = smartDistractors(d.term, terms, termVec, termVec.get(d.term), 3)
+        const distractors = smartDistractors(d.term, terms, termVec, termVec.get(d.term), 3, difficulty)
         if (distractors.length === 3) {
           defIdx++
           item = { id: qid(), type: 'multiple_choice', question: `Which term means: "${cap(d.def)}"?`, options: shuffle([d.term, ...distractors]), answer: d.term, explanation: `The lesson describes ${d.term} as: ${d.def}.` }
@@ -294,16 +303,20 @@ export async function generateQuizAI(text, { count = 10, types = ['multiple_choi
       if (r) {
         used.add(r.s)
         const present = firstTermIn(r.s)
-        // Swap the key term with its NEAREST other term → a plausible falsehood.
+        // Swap the key term with another term to make a false statement. Harder
+        // quizzes swap in the NEAREST term (a subtle falsehood); easy ones swap a
+        // clearly-unrelated term so the error is obvious.
         let swap = null
         if (present && termVec.get(present)) {
           const av = termVec.get(present)
-          let best = null, bestS = -Infinity
+          const wantClose = difficulty !== 'easy'
+          let best = null, bestS = wantClose ? -Infinity : Infinity
           for (const t of terms) {
             if (t.toLowerCase() === present.toLowerCase()) continue
             const v = termVec.get(t); if (!v) continue
             const s = cos(v, av)
-            if (s > bestS && s < 0.92) { bestS = s; best = t }
+            if (s >= 0.92) continue
+            if (wantClose ? s > bestS : (s < bestS && s > 0.08)) { bestS = s; best = t }
           }
           swap = best
         }

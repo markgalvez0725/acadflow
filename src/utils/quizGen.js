@@ -57,14 +57,30 @@ export function definitions(sentences) {
   return defs
 }
 
-function pickDistractors(correct, pool, n = 3) {
-  const out = []
+// Pick wrong-answer options. Difficulty tunes how confusable they look:
+//   easy → obviously different (largest length gap first)
+//   hard → plausible look-alikes (closest length, same initial letter first)
+//   medium → random (the original behaviour)
+function pickDistractors(correct, pool, n = 3, difficulty = 'medium') {
   const seen = new Set([correct.toLowerCase()])
-  const shuffled = [...pool].sort(() => Math.random() - 0.5)
-  for (const t of shuffled) {
+  let cands = pool.filter(t => !seen.has(t.toLowerCase()) && Math.abs(t.length - correct.length) <= 40)
+  if (difficulty === 'hard') {
+    cands = cands.sort((a, b) => {
+      const la = Math.abs(a.length - correct.length), lb = Math.abs(b.length - correct.length)
+      if (la !== lb) return la - lb
+      const fa = a[0]?.toLowerCase() === correct[0]?.toLowerCase() ? 0 : 1
+      const fb = b[0]?.toLowerCase() === correct[0]?.toLowerCase() ? 0 : 1
+      return fa - fb
+    })
+  } else if (difficulty === 'easy') {
+    cands = cands.sort((a, b) => Math.abs(b.length - correct.length) - Math.abs(a.length - correct.length))
+  } else {
+    cands = [...cands].sort(() => Math.random() - 0.5)
+  }
+  const out = []
+  for (const t of cands) {
     if (out.length >= n) break
     if (seen.has(t.toLowerCase())) continue
-    if (Math.abs(t.length - correct.length) > 40) continue
     seen.add(t.toLowerCase())
     out.push(t)
   }
@@ -76,15 +92,17 @@ function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1) }
 
 /**
  * @param {string} text lesson text
- * @param {{count?:number, types?:string[]}} opts
+ * @param {{count?:number, types?:string[], difficulty?:'easy'|'medium'|'hard'}} opts
  * @returns {Array<{id,type,question,options?,answer}>}
  */
-export function generateDraftQuestions(text, { count = 10, types = ['multiple_choice', 'true_false', 'fill_in_the_blank', 'identification'] } = {}) {
+export function generateDraftQuestions(text, { count = 10, types = ['multiple_choice', 'true_false', 'fill_in_the_blank', 'identification'], difficulty = 'medium' } = {}) {
   const sentences = splitSentences(text)
   const terms = keyTerms(text)
   const defs = definitions(sentences)
   const out = []
   const usedSentences = new Set()
+  // Harder quizzes lean on more false statements; easier ones stay mostly factual.
+  const falseRate = difficulty === 'hard' ? 0.5 : difficulty === 'easy' ? 0.28 : 0.4
 
   const want = (t) => types.includes(t)
   let ti = 0
@@ -125,7 +143,7 @@ export function generateDraftQuestions(text, { count = 10, types = ['multiple_ch
         usedSentences.add(hit.s)
         const re = new RegExp('\\b' + hit.term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i')
         const stem = hit.s.replace(re, '______')
-        const distractors = pickDistractors(hit.term, terms, 3)
+        const distractors = pickDistractors(hit.term, terms, 3, difficulty)
         if (distractors.length === 3) {
           const options = shuffle([hit.term, ...distractors])
           out.push({ id: qid(), type: 'multiple_choice', question: `Fill in the blank: ${stem}`, options, answer: hit.term, explanation: `From the lesson: "${hit.s}"` })
@@ -135,7 +153,7 @@ export function generateDraftQuestions(text, { count = 10, types = ['multiple_ch
       // fallback to definition-based MCQ
       if (defs.length && terms.length >= 4) {
         const d = defs.shift()
-        const distractors = pickDistractors(d.term, terms, 3)
+        const distractors = pickDistractors(d.term, terms, 3, difficulty)
         if (distractors.length === 3) {
           const options = shuffle([d.term, ...distractors])
           out.push({ id: qid(), type: 'multiple_choice', question: `Which term means: "${cap(d.def)}"?`, options, answer: d.term, explanation: `The lesson describes ${d.term} as: ${d.def}.` })
@@ -148,10 +166,10 @@ export function generateDraftQuestions(text, { count = 10, types = ['multiple_ch
       if (s) {
         usedSentences.add(s)
         // ~40% produce a false statement by swapping a key term
-        const makeFalse = Math.random() < 0.4 && terms.length >= 2
+        const makeFalse = Math.random() < falseRate && terms.length >= 2
         if (makeFalse) {
           const present = terms.find(t => new RegExp('\\b' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(s))
-          const swap = present ? pickDistractors(present, terms, 1)[0] : null
+          const swap = present ? pickDistractors(present, terms, 1, difficulty)[0] : null
           if (present && swap) {
             const re = new RegExp('\\b' + present.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i')
             out.push({ id: qid(), type: 'true_false', question: s.replace(re, swap), answer: 'False', explanation: `False — the lesson refers to "${present}", not "${swap}".` })
