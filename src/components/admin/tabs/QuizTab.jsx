@@ -12,6 +12,8 @@ import { generateDraftQuestions } from '@/utils/quizGen'
 import { generateQuizAI, prewarmQuizAI, smartAutoKey, splitAnswerAlternates } from '@/utils/quizGenAI'
 import { auditDistractors } from '@/utils/distractorAudit'
 import { compareStyle, collectQuizText } from '@/utils/stylometry'
+import { mineAnswerKey } from '@/utils/answerKeyMine'
+import { computeQuizScore } from '@/utils/quizScore'
 import { quizItemAnalysis } from '@/utils/quizStats'
 import { classTag } from '@/utils/groupChat'
 
@@ -811,9 +813,16 @@ function QuizItemAnalysis({ quiz }) {
 // ── View Results Modal ────────────────────────────────────────────────────────
 function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
   const [showAnalysis, setShowAnalysis] = useState(false)
-  const { students, purgeQuizFromStudents, quizzes } = useData()
+  const { students, purgeQuizFromStudents, quizzes, saveStudents } = useData()
   const { toast, openDialog } = useUI()
   const { db } = useData()
+
+  // ── Answer-key auto-improvement (#41) ───────────────────────────────────────
+  const [mineResult, setMineResult] = useState(null)   // { perQuestion, modelUsed } | null
+  const [mining, setMining] = useState(false)
+  const [mineOpen, setMineOpen] = useState(false)
+  const [picked, setPicked] = useState({})             // { `${qIndex}:::${text}`: true }
+  const [applying, setApplying] = useState(false)
 
   // ── Impersonation / writing-style check (#39) ───────────────────────────────
   // On-device stylometry (no model): compares each student's text answers in this
@@ -867,6 +876,92 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
       toast('Could not run the style check.', 'red')
     } finally {
       setStyleChecking(false)
+    }
+  }
+
+  async function runMine() {
+    setMining(true)
+    try {
+      const res = await mineAnswerKey(quiz)
+      setMineResult(res)
+      setPicked({})
+      const total = res.perQuestion.reduce((n, p) => n + p.candidates.length, 0)
+      if (!res.modelUsed && !res.perQuestion.length) {
+        toast('No likely-correct answers were missed — or the on-device model is unavailable.', 'dark')
+      } else if (total === 0) {
+        toast('No missed-correct answers found — the key looks complete.', 'green')
+      } else {
+        setMineOpen(true)
+      }
+    } catch {
+      toast('Could not analyze answers on this device.', 'red')
+    } finally {
+      setMining(false)
+    }
+  }
+
+  // Append the teacher-approved alternates to the key and re-grade existing
+  // attempts so students who gave those answers get credit now.
+  async function applyKeyImprovements() {
+    if (!mineResult) return
+    // Collect selected alternates per question index.
+    const addsByQ = {}
+    mineResult.perQuestion.forEach(p => {
+      p.candidates.forEach(c => {
+        if (picked[`${p.qIndex}:::${c.text}`]) (addsByQ[p.qIndex] ||= []).push(c.text)
+      })
+    })
+    const qIndexes = Object.keys(addsByQ)
+    if (!qIndexes.length) { toast('Tick at least one answer to add.', 'dark'); return }
+
+    setApplying(true)
+    try {
+      // 1. Build updated questions with merged acceptedAnswers (deduped).
+      const updatedQuestions = quiz.questions.map((q, i) => {
+        const adds = addsByQ[i]
+        if (!adds || !adds.length) return q
+        const existing = Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers : []
+        const merged = [...existing]
+        adds.forEach(a => { if (!merged.some(x => String(x).trim().toLowerCase() === a.trim().toLowerCase())) merged.push(a) })
+        return { ...q, acceptedAnswers: merged }
+      })
+
+      // 2. Re-grade every submission against the improved key.
+      const update = { questions: updatedQuestions }
+      const newScores = {} // sid -> { score, total, pct }
+      Object.entries(submissions).forEach(([sid, sub]) => {
+        if (!Array.isArray(sub.answers)) return
+        const { score, total } = computeQuizScore(updatedQuestions, sub.answers, { partialCredit: !!quiz.partialCredit })
+        if (score !== sub.score) {
+          update[`submissions.${sid}.score`] = score
+          update[`submissions.${sid}.total`] = total
+          newScores[sid] = { score, total, pct: total > 0 ? Math.round((score / total) * 10000) / 100 : 0 }
+        }
+      })
+
+      // 3. Persist the quiz doc (key + re-graded scores) — admin write, rule-safe.
+      await updateDoc(doc(db.current, 'quizzes', quiz.id), update)
+
+      // 4. Update the denormalized quizResults cache on affected students.
+      const changedIds = Object.keys(newScores)
+      if (changedIds.length) {
+        const subject = quiz.subject
+        const updatedStudents = students.map(s => {
+          if (!newScores[s.id]) return s
+          const qr = s.quizResults || {}
+          const list = (qr[subject] || []).map(e => e.quizId === quiz.id ? { ...e, ...newScores[s.id] } : e)
+          return { ...s, quizResults: { ...qr, [subject]: list } }
+        })
+        await saveStudents(updatedStudents, changedIds)
+      }
+
+      const added = qIndexes.reduce((n, i) => n + addsByQ[i].length, 0)
+      toast(`Added ${added} answer${added === 1 ? '' : 's'} to the key${changedIds.length ? ` — re-graded ${changedIds.length} attempt${changedIds.length === 1 ? '' : 's'}` : ''}.`, 'green')
+      setMineOpen(false); setMineResult(null); setPicked({})
+    } catch (e) {
+      toast('Could not apply changes: ' + e.message, 'red')
+    } finally {
+      setApplying(false)
     }
   }
 
@@ -1018,17 +1113,59 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
 
       {/* Item analysis — per-question performance */}
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginBottom: 12 }}>
-        <button
-          type="button"
-          className="btn btn-ghost btn-sm"
-          onClick={() => setShowAnalysis(v => !v)}
-          style={{ marginBottom: showAnalysis ? 10 : 0 }}
-        >
-          <ClipboardList size={13} className="inline-block mr-1" />
-          {showAnalysis ? 'Hide item analysis' : 'Item analysis'}
-        </button>
+        <div className="flex gap-1 flex-wrap" style={{ marginBottom: showAnalysis ? 10 : 0 }}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => setShowAnalysis(v => !v)}
+          >
+            <ClipboardList size={13} className="inline-block mr-1" />
+            {showAnalysis ? 'Hide item analysis' : 'Item analysis'}
+          </button>
+          {hasTextQs && attempted > 0 && (
+            <button type="button" className="btn btn-ghost btn-sm" onClick={runMine} disabled={mining}
+              title="Find correct answers your key missed by mining student responses (on-device, you approve before anything changes)">
+              <Wand2 size={13} className="inline-block mr-1" />{mining ? 'Analyzing…' : 'Improve answer key'}
+            </button>
+          )}
+        </div>
         {showAnalysis && <QuizItemAnalysis quiz={quiz} />}
       </div>
+
+      {mineOpen && mineResult && (
+        <Modal onClose={() => setMineOpen(false)} size="lg">
+          <h3 className="text-lg font-bold text-ink mb-1"><Wand2 size={16} className="inline-block mr-1 align-text-bottom" />Improve answer key</h3>
+          <p className="modal-sub">These student answers were marked wrong but mean roughly the same as your key. Tick the ones that should count — they'll be added to the key and matching attempts re-graded.</p>
+          <div className="flex flex-col gap-3" style={{ maxHeight: '55vh', overflowY: 'auto', paddingRight: 4, marginTop: 8 }}>
+            {mineResult.perQuestion.map(p => (
+              <div key={p.qIndex} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '10px 12px', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink2)', marginBottom: 2 }}>Q{p.qIndex + 1}</div>
+                <p style={{ fontSize: 12, color: 'var(--ink)', marginBottom: 2 }}>{p.question || <em style={{ color: 'var(--ink3)' }}>No question text</em>}</p>
+                <p style={{ fontSize: 11, color: 'var(--green)', marginBottom: 8 }}>Key: {p.keys.join(' · ')}</p>
+                <div className="flex flex-col gap-1.5">
+                  {p.candidates.map(c => {
+                    const key = `${p.qIndex}:::${c.text}`
+                    return (
+                      <label key={key} className="flex items-center gap-2" style={{ fontSize: 12, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={!!picked[key]}
+                          onChange={e => setPicked(prev => ({ ...prev, [key]: e.target.checked }))} />
+                        <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{c.text}</span>
+                        <span style={{ fontSize: 11, color: 'var(--ink3)' }}>· {c.count} student{c.count === 1 ? '' : 's'} · {(c.sim * 100).toFixed(0)}% match</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="modal-footer">
+            <button className="btn btn-ghost" onClick={() => setMineOpen(false)} disabled={applying}>Cancel</button>
+            <button className="btn btn-primary" onClick={applyKeyImprovements} disabled={applying}>
+              {applying ? 'Applying…' : 'Add selected & re-grade'}
+            </button>
+          </div>
+        </Modal>
+      )}
 
       <div className="flex gap-2 flex-wrap">
         <button className="btn btn-ghost btn-sm" onClick={onEdit}><Pencil size={13} className="inline-block mr-1" />Edit</button>
