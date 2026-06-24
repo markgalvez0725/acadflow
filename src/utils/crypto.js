@@ -80,6 +80,18 @@ async function _aesDecrypt(blob, secret, salt) {
   }
 }
 
+// ── Generic local-secret encryption (reuses the Firebase key material) ─────
+// Used for on-device convenience features (e.g. biometric quick sign-in) that
+// must stash a small secret in localStorage. Not a substitute for server-side
+// security — it raises the bar for casual extraction on the user's own device.
+export async function encryptLocal(obj) {
+  return _aesEncrypt(obj, _FB_SECRET, _FB_SALT);
+}
+
+export async function decryptLocal(blob) {
+  return _aesDecrypt(blob, _FB_SECRET, _FB_SALT);
+}
+
 // ── EmailJS config encryption ─────────────────────────────────────────────
 export async function encryptEJS(ejsObj) {
   return _aesEncrypt(ejsObj, _EJS_SECRET, _EJS_SALT);

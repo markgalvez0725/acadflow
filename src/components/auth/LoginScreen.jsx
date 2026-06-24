@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react'
-import { Eye, EyeOff, BarChart2, CalendarCheck, Rss, MessageSquare, KeyRound, Check, ShieldCheck, TrendingUp, GraduationCap, UserCircle, IdCard, Lock, HelpCircle } from 'lucide-react'
+import { Eye, EyeOff, BarChart2, CalendarCheck, Rss, MessageSquare, KeyRound, Check, ShieldCheck, TrendingUp, GraduationCap, UserCircle, IdCard, Lock, HelpCircle, Fingerprint } from 'lucide-react'
 import AcadFlowLogo from '@/components/primitives/AcadFlowLogo'
 import { useTypingEffect } from '@/hooks/useTypingEffect'
 import { useAuth } from '@/context/AuthContext'
+import { isBiometricSupported, getBiometric, biometricUnlock } from '@/utils/biometric'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { createUserWithEmailAndPassword, deleteUser, signOut, signInWithEmailAndPassword, updatePassword } from 'firebase/auth'
@@ -106,6 +107,27 @@ export default function LoginScreen() {
         setErr(result.msg)
         setPass('')
       }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Biometric quick sign-in — offered only when this device has a credential set
+  // up (see BiometricSetupModal). Unlock reveals the stored password and runs
+  // the normal login. Password sign-in always remains available below.
+  const [bioOffered, setBioOffered] = useState(false)
+  useEffect(() => { setBioOffered(isBiometricSupported() && !!getBiometric()) }, [])
+
+  async function handleBiometricLogin() {
+    clearMessages()
+    setLoading(true)
+    try {
+      const { snum: bsnum, password } = await biometricUnlock()
+      setSnum(bsnum)
+      const result = await loginStudent((bsnum || '').trim(), password)
+      if (!result.ok) setErr(result.msg)
+    } catch (e) {
+      setErr(e?.message || 'Biometric sign-in failed. Please use your password.')
     } finally {
       setLoading(false)
     }
@@ -613,6 +635,11 @@ export default function LoginScreen() {
               <LoadingButton loading={loading} loadingText="Signing in…" className="btn btn-primary btn-full mt-2">
                 Sign In
               </LoadingButton>
+              {bioOffered && (
+                <button type="button" className="btn btn-ghost btn-full mt-2" onClick={handleBiometricLogin} disabled={loading}>
+                  <Fingerprint size={16} className="inline-block mr-1 align-text-bottom" />Sign in with Face ID / fingerprint
+                </button>
+              )}
               <button type="button" className="link-btn w-full text-center mt-3" onClick={() => { setMode('forgot'); clearMessages() }}>
                 Forgot Password?
               </button>
