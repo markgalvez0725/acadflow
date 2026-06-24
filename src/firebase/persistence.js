@@ -158,6 +158,12 @@ export async function fbDeleteResource(db, id) {
   return fbWithTimeout(deleteDoc(fbDoc(db, 'resources', id)))
 }
 
+// ── Rubric library (reusable grading rubrics — singleton portal doc) ─────────
+export async function fbSaveRubricLibrary(db, rubrics) {
+  const { doc: fbDoc, setDoc } = await import('firebase/firestore')
+  return fbWithTimeout(setDoc(fbDoc(db, 'portal', 'rubricLibrary'), { rubrics }, { merge: true }))
+}
+
 // ── Message delete (teacher-side hard delete of a message document) ───────────
 // Removes the whole message doc (and its nested replies). Used by the admin
 // Messages tab. Student-side "delete" hides locally instead — students must not

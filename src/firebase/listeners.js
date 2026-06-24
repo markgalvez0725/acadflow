@@ -53,6 +53,7 @@ export function fbStartListening(db, callbacks) {
     onExcuseRequestsUpdate,
     onAuditLogUpdate,
     onResourcesUpdate,
+    onRubricLibraryUpdate,
   } = callbacks;
 
   // Stop any previous listeners
@@ -279,6 +280,20 @@ export function fbStartListening(db, callbacks) {
     e => console.error('[Firebase] settings listener error:', e.message)
   );
   _unsub.push(u5);
+
+  // ── portal/rubricLibrary (reusable grading rubrics) ──────────────────────
+  if (onRubricLibraryUpdate) {
+    const uRub = onSnapshot(
+      doc(db, 'portal', 'rubricLibrary'),
+      snap => {
+        if (!snap.exists()) { onRubricLibraryUpdate([]); return; }
+        const list = snap.data()?.rubrics;
+        onRubricLibraryUpdate(Array.isArray(list) ? list : []);
+      },
+      e => console.error('[Firebase] rubricLibrary listener error:', e.message)
+    );
+    _unsub.push(uRub);
+  }
 
   // Expose write-in-flight setter for settings saves
   _settingsWriteInFlightRef = () => {

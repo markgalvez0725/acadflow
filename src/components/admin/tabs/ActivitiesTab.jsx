@@ -106,9 +106,10 @@ function newCriterion() {
 
 // ── Create / Edit Modal ───────────────────────────────────────────────
 function ActivityFormModal({ act, onClose }) {
-  const { classes, db, fbReady } = useData()
+  const { classes, db, fbReady, rubricLibrary, saveRubricToLibrary, deleteLibraryRubric } = useData()
   const { toast } = useUI()
   const isEdit = !!act
+  const [showLib, setShowLib] = useState(false)
 
   const [title,    setTitle]    = useState(act?.title || '')
   const [classId,  setClassId]  = useState(act?.classId || '')
@@ -185,6 +186,31 @@ function ActivityFormModal({ act, onClose }) {
 
   function updateCriterion(id, field, val) {
     setRubric(prev => prev.map(c => c.id === id ? { ...c, [field]: val } : c))
+  }
+
+  // ── Rubric library ──────────────────────────────────────────────────────
+  const [libName, setLibName] = useState('')
+  function saveCurrentToLibrary() {
+    if (!rubric.length) { toast('Add rubric criteria first.', 'dark'); return }
+    const name = libName.trim() || title.trim() || 'Untitled rubric'
+    const entry = {
+      id: 'rub_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+      name,
+      criteria: rubric.map(c => ({ name: (c.name || '').trim(), points: parseFloat(c.points) || 0 })).filter(c => c.name),
+      createdAt: Date.now(),
+    }
+    if (!entry.criteria.length) { toast('Name your criteria before saving.', 'dark'); return }
+    saveRubricToLibrary(entry)
+    setLibName('')
+    toast(`Saved "${name}" to rubric library.`, 'green')
+  }
+  function insertLibraryRubric(entry) {
+    setRubric((entry.criteria || []).map((c, i) => ({
+      id: 'c' + Date.now() + '_' + i + '_' + Math.random().toString(36).slice(2, 5),
+      name: c.name, points: c.points,
+    })))
+    setShowLib(false)
+    toast(`Inserted "${entry.name}".`, 'green')
   }
 
   async function handleSave() {
@@ -290,12 +316,45 @@ function ActivityFormModal({ act, onClose }) {
             Grading Rubric <span className="font-normal text-ink3">(optional)</span>
           </label>
           <div className="flex gap-1.5">
+            <button type="button" className={`btn btn-sm ${showLib ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setShowLib(v => !v)} title="Reusable rubric library">
+              <ClipboardList size={13} className="inline-block mr-1" />Library{rubricLibrary?.length ? ` (${rubricLibrary.length})` : ''}
+            </button>
             <button type="button" className="btn btn-ghost btn-sm" onClick={suggestRubric} disabled={aiBusyRubric}>
               <Wand2 size={13} className="inline-block mr-1" />{aiBusyRubric ? 'Suggesting…' : 'Suggest rubric'}
             </button>
             <button type="button" className="btn btn-ghost btn-sm" onClick={addCriterion}>+ Add Criterion</button>
           </div>
         </div>
+
+        {showLib && (
+          <div className="mb-2 px-3 py-2.5 rounded-lg" style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+            {/* Save current rubric */}
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <input className="input" style={{ flex: 1, minWidth: 140 }} placeholder="Name this rubric…" value={libName}
+                onChange={e => setLibName(e.target.value)} />
+              <button type="button" className="btn btn-ghost btn-sm" onClick={saveCurrentToLibrary} disabled={!rubric.length}>
+                <Save size={13} className="inline-block mr-1" />Save current
+              </button>
+            </div>
+            {/* Saved rubrics */}
+            {rubricLibrary?.length ? (
+              <div className="flex flex-col gap-1" style={{ maxHeight: 160, overflowY: 'auto' }}>
+                {rubricLibrary.map(entry => (
+                  <div key={entry.id} className="flex items-center gap-2 px-2 py-1 rounded" style={{ background: 'var(--surface)' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="text-xs font-semibold text-ink truncate">{entry.name}</div>
+                      <div className="text-xs text-ink3 truncate">{(entry.criteria || []).length} criteria · {(entry.criteria || []).reduce((s, c) => s + (c.points || 0), 0)} pts</div>
+                    </div>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => insertLibraryRubric(entry)}>Insert</button>
+                    <button type="button" className="btn btn-ghost btn-sm text-red-500" onClick={() => deleteLibraryRubric(entry.id)} title="Remove from library"><X size={14} /></button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-ink3">No saved rubrics yet. Build a rubric below and click “Save current”.</p>
+            )}
+          </div>
+        )}
 
         {rubric.length === 0 ? (
           <p className="text-xs text-ink3">No rubric set — max score defaults to 100.</p>

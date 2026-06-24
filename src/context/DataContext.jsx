@@ -6,7 +6,7 @@ import {
   persistStudentsSync, persistClassesSync, persistAdmin, loadAdminFromStorage,
   fbDeleteStudent, fbSaveAnnouncement, fbDeleteAnnouncement, fbPushAnnouncementNotifs,
   fbAddAnnouncementComment, fbAddCommentReply,
-  fbSaveResource, fbDeleteResource,
+  fbSaveResource, fbDeleteResource, fbSaveRubricLibrary,
   fbSaveMeetLink, fbScheduleMeeting, fbStartMeeting, fbEndMeeting, fbCancelMeeting, fbPushMeetingNotifs,
   fbSetSubjectRep, fbDeleteClassRelatedData, fbAddAuditLog, fbRestoreFromBackup,
 } from '@/firebase/persistence'
@@ -47,6 +47,7 @@ export function DataProvider({ children }) {
   const [excuseRequests, setExcuseRequests]         = useState([])
   const [auditLog, setAuditLog]                     = useState([])
   const [resources, setResources]                   = useState([])
+  const [rubricLibrary, setRubricLibrary]           = useState([])
   const [fbReady, setFbReady]           = useState(false)
   const [fbConfig, setFbConfig]         = useState(null) // decrypted config object
   const [semester, setSemester]         = useState(null)
@@ -121,6 +122,7 @@ export function DataProvider({ children }) {
         onExcuseRequestsUpdate: setExcuseRequests,
         onAuditLogUpdate: isAdminUser() ? setAuditLog : undefined,
         onResourcesUpdate: setResources,
+        onRubricLibraryUpdate: setRubricLibrary,
         onConfigUpdate: ({ ejsConfig }) => {
           if (ejsConfig) {
             setEjs({ ...ejsConfig, configured: true })
@@ -176,6 +178,7 @@ export function DataProvider({ children }) {
       onExcuseRequestsUpdate: setExcuseRequests,
       onAuditLogUpdate: isAdminUser() ? setAuditLog : undefined,
       onResourcesUpdate: setResources,
+      onRubricLibraryUpdate: setRubricLibrary,
       onConfigUpdate: ({ ejsConfig }) => {
         if (ejsConfig) {
           setEjs({ ...ejsConfig, configured: true })
@@ -592,6 +595,24 @@ export function DataProvider({ children }) {
     await fbDeleteResource(dbRef.current, id)
   }, [])
 
+  // ── Rubric library (reusable grading rubrics — singleton portal doc) ────
+  // Read-modify-write the whole list; optimistic local update + Firebase sync.
+  const saveRubricToLibrary = useCallback(async (entry) => {
+    let next
+    setRubricLibrary(prev => {
+      const idx = prev.findIndex(r => r.id === entry.id)
+      next = idx >= 0 ? prev.map((r, i) => i === idx ? entry : r) : [entry, ...prev]
+      return next
+    })
+    await fbSaveRubricLibrary(dbRef.current, next)
+  }, [])
+
+  const deleteLibraryRubric = useCallback(async (id) => {
+    let next
+    setRubricLibrary(prev => { next = prev.filter(r => r.id !== id); return next })
+    await fbSaveRubricLibrary(dbRef.current, next)
+  }, [])
+
   // Save a Meet link for a class. When `subject` is given, the link is stored
   // per-subject in meetLinks[subject]; otherwise it sets the class-wide link.
   const saveMeetLink = useCallback(async (classId, meetLink, subject) => {
@@ -886,6 +907,7 @@ export function DataProvider({ children }) {
       quizzes, setQuizzes,
       announcements, setAnnouncements, saveAnnouncement, deleteAnnouncement, pushAnnouncementNotifs, addAnnouncementComment, addCommentReply,
       resources, setResources, saveResource, deleteResource,
+      rubricLibrary, saveRubricToLibrary, deleteLibraryRubric,
       meetings, setMeetings,
       liveMeetings: meetings.filter(m => m.status === 'live'),
       saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting,
