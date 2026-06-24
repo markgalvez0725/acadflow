@@ -93,19 +93,11 @@
 }
 
 /* ── Warning banner: guaranteed-contrast amber in both themes ──────────── */
-.warn-banner {
-  background: #fdf3e0;
-  border-color: #f1d493 !important;
-  color: #7c4a03;
-}
-.warn-banner strong { color: #5f3902; }
-.warn-banner em { color: inherit; }
-[data-theme="dark"] .warn-banner {
-  background: rgba(217,119,6,.13);
-  border-color: rgba(217,119,6,.32) !important;
-  color: #f7c277;
-}
-[data-theme="dark"] .warn-banner strong { color: #fcd9a8; }
+
+
+
+
+
 
 /* ── Page header pattern (breadcrumb + title + subtitle + actions) ─────── */
 .ds-page-head {
@@ -191,24 +183,8 @@
 .empty-cta .btn, .empty-cta button { margin-top: 12px; }
 
 /* ── Mobile floating action button (used on phone breakpoints) ────────── */
-.ds-fab {
-  display: none;
-  position: fixed;
-  right: 18px;
-  bottom: 84px;
-  width: 52px;
-  height: 52px;
-  border-radius: 17px;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 8px 22px rgba(59,111,224,.42);
-  z-index: 40;
-  cursor: pointer;
-}
-.ds-fab svg { width: 24px; height: 24px; }
+
+
 @media (max-width: 768px) { .ds-fab.show { display: flex; } }
 
 /* ── Navy academic sidebar (expanded by default on desktop) ───────────── */
@@ -218,7 +194,7 @@
 /* Brand text is always on navy → keep it light (var(--ink) went dark in light theme) */
 .sb-brand h2 { color: #fff; }
 .sb-brand span { color: rgba(255,255,255,.55); }
-.nav-group-label { color: rgba(255,255,255,.42) !important; }
+
 .sb-nav .nav-item { color: #c2cde6; }
 .sb-nav .nav-item:hover { background: rgba(255,255,255,.08); color: #fff; }
 /* Instagram-style active: subtle light pill + bold white (icon thickened in globals) */
@@ -228,8 +204,8 @@
 .sb-user-info span { color: #9fb0d0; }
 .sb-logout { color: #c2cde6; }
 .sb-logout:hover { background: rgba(255,255,255,.08); color: #fff; }
-.sb-toggle { color: #9fb0d0; background: rgba(255,255,255,.06); }
-.sb-toggle:hover { color: #fff; background: rgba(255,255,255,.12); }
+
+
 .credit-footer { color: rgba(255,255,255,.30); }
 
 /* The glass fallbacks in globals.css (glass off, reduced transparency, and no
@@ -392,7 +368,7 @@ html[data-glass="off"] .sidebar { background: var(--navy) !important; }
   .admin-topbar { padding: 10px 16px; gap: 14px; }
 
   /* The floating messenger bubble is replaced by a nav item on phones */
-  .fm-bubble { display: none !important; }
+  
 
   /* Bottom nav: icon-only; the active item fills its navy segment */
   .admin-bottom-nav { padding: 5px 7px; gap: 4px; max-width: 470px; }

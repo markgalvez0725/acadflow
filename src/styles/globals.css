@@ -485,12 +485,12 @@
   background-size: 600px 100%;
   animation: sk-shimmer 1.4s infinite linear;
 }
-.sk-title  { height: 18px; width: 55%; margin-bottom: 10px; }
-.sk-text   { height: 13px; width: 90%; margin-bottom: 7px; }
-.sk-text-s { height: 13px; width: 60%; margin-bottom: 7px; }
-.sk-circle { border-radius: 50%; }
+
+
+
+
 .sk-stat   { height: 56px; border-radius: 12px; }
-.sk-card   { height: 120px; border-radius: 12px; margin-bottom: 12px; }
+
 .sk-row    { height: 44px; border-radius: 8px; margin-bottom: 6px; }
 .sk-bar-wrap { display: flex; gap: 8px; align-items: flex-end; height: 140px; }
 .sk-bar {
@@ -678,21 +678,8 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 }
 @media (max-width: 640px) { .adm-clock { display: none; } }
 
-.hamburger {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  border: none;
-  background: transparent;
-  color: var(--ink2);
-  cursor: pointer;
-  transition: background .15s, color .15s;
-  flex-shrink: 0;
-}
-.hamburger:hover { background: var(--bg2); color: var(--ink); }
+
+
 
 /* ══════════════════════════════════════════
    ADMIN SIDEBAR
@@ -763,15 +750,7 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 
 .sb-nav { padding: 8px 0; overflow-y: auto; flex: 1; }
 
-.nav-group-label {
-  display: none;
-  padding: 10px 12px 3px;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  color: var(--ink3);
-}
+
 .sidebar-wrap.expanded .nav-group-label,
 .sidebar-wrap.open .nav-group-label {
   display: block;
@@ -835,44 +814,16 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 }
 
 /* Nav badge */
-.nav-badge {
-  margin-left: auto;
-  background: var(--accent);
-  color: #fff;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  border-radius: 10px;
-  padding: 1px 5px;
-  min-width: 16px;
-  text-align: center;
-  line-height: 14px;
-  opacity: 0;
-  transition: opacity 180ms ease;
-  flex-shrink: 0;
-}
+
 .sidebar-wrap.expanded .nav-badge,
 .sidebar-wrap.open .nav-badge { opacity: 1; }
 
 /* Sidebar toggle button */
-.sb-toggle {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  cursor: pointer;
-  color: var(--ink2);
-  margin: 6px auto;
-  transition: background 120ms ease, color 120ms ease, transform 120ms ease;
-  flex-shrink: 0;
-}
-.sb-toggle:hover { background: var(--accent-l); color: var(--accent); transform: scale(1.1); }
+
+
 .sidebar-wrap.expanded .sb-toggle svg { transform: rotate(180deg); }
-.sb-toggle svg { transition: transform 220ms ease; }
-@media (min-width: 768px) { .sb-toggle { display: flex; } }
+
+
 
 .sb-footer {
   border-top: 1px solid var(--border);
@@ -988,12 +939,7 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 /* ══════════════════════════════════════════
    STUDENT LAYOUT
 ══════════════════════════════════════════ */
-.student-layout {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  background: var(--bg);
-}
+
 
 .student-topbar {
   height: 60px;
@@ -1011,14 +957,8 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
   gap: 10px;
 }
 
-.student-body {
-  flex: 1;
-  padding: 16px;
-  padding-bottom: 76px; /* bottom nav height */
-}
-@media (min-width: 640px) {
-  .student-body { padding: 24px; padding-bottom: 76px; }
-}
+
+
 
 /* ── Bottom tab bar (mobile) ─────────────────────────────────────────────── */
 .student-bottom-nav {
@@ -1066,14 +1006,7 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
   padding: 4px 10px;
 }
 
-.nav-icon {
-  font-size: 1.25rem;
-  line-height: 1;
-  transition: background .15s var(--ease-out), padding .15s var(--ease-out);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+
 .nav-label {
   font-size: 0.6875rem;
   font-weight: 600;
@@ -1085,21 +1018,14 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 }
 
 /* Hide collapse toggle on mobile — it only makes sense on desktop */
-.nav-collapse-toggle { display: none; }
+
 
 /* ── Desktop: left sidebar rail ──────────────────────────────────────────── */
 @media (min-width: 1024px) {
-  .student-layout { display: block; }
+  
 
-  .student-body {
-    padding: 24px;
-    padding-bottom: 24px;
-    margin-left: var(--sidebar-w);
-    transition: margin-left 240ms var(--ease-out);
-  }
-  .student-layout.nav-collapsed .student-body {
-    margin-left: var(--sidebar-collapsed-w);
-  }
+  
+  
 
   .student-bottom-nav {
     position: fixed;
@@ -1172,21 +1098,10 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
     max-width: 0;
     opacity: 0;
   }
-  .nav-icon { font-size: 1.25rem; flex-shrink: 0; }
+  
 
   /* Collapse toggle visible on desktop sidebar */
-  .nav-collapse-toggle {
-    display: flex;
-    margin-top: auto;
-    border-top: 1px solid var(--border);
-    padding-top: 10px;
-    margin-left: -8px;
-    margin-right: -8px;
-    padding-left: 10px;
-    padding-right: 10px;
-    border-radius: 0;
-    flex-shrink: 0;
-  }
+  
 }
 
 .stud-avatar {
@@ -1212,12 +1127,7 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 }
 .stud-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 
-.student-name {
-  font-size: 0.9063rem;
-  font-weight: 700;
-  color: var(--ink);
-  line-height: 1.3;
-}
+
 .student-id { font-size: 0.7813rem; color: var(--ink3); }
 
 .class-selector {
@@ -1564,8 +1474,8 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 .badge-red    { background: var(--red-l);    color: var(--red); }
 .badge-purple { background: var(--purple-l); color: var(--purple); }
 .badge-gray   { background: var(--bg2);      color: var(--ink2); }
-.badge-orange { background: #fef3c7;         color: #b45309; }
-[data-theme="dark"] .badge-orange { background: rgba(212,164,64,.15); color: #d4a440; }
+
+
 
 /* ══════════════════════════════════════════
    INPUT (standalone)
@@ -1634,13 +1544,9 @@ textarea.input { resize: vertical; }
 }
 .btn-green:hover:not(:disabled) { opacity: .88; }
 
-.btn-warning {
-  background: var(--yellow-l);
-  color: var(--yellow);
-  border-color: rgba(138,92,10,.25);
-}
-.btn-warning:hover:not(:disabled) { background: var(--yellow-l); opacity: .85; }
-[data-theme="dark"] .btn-warning { border-color: rgba(212,164,64,.3); }
+
+
+
 
 /* ══════════════════════════════════════════
    THEME TOGGLE
@@ -1768,7 +1674,7 @@ textarea.input { resize: vertical; }
 .sc-icon-wrap.yellow { background: var(--yellow-l); color: var(--yellow); }
 .sc-icon-wrap.teal   { background: var(--teal-l);   color: var(--teal); }
 
-.sc-icon  { font-size: 1.5625rem; line-height: 1; margin-bottom: 4px; }
+
 .sc-val   { font-size: 2rem; font-weight: 800; color: var(--ink); line-height: 1.1; letter-spacing: -.03em; }
 .sc-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--ink3); margin-top: 2px; }
 .sc-sub   { font-size: 0.7813rem; color: var(--ink3); margin-top: 2px; }
@@ -1920,54 +1826,18 @@ textarea.input { resize: vertical; }
    STUDENT STAT CARDS (Overview)
 ══════════════════════════════════════════ */
 .student-overview { }
-.s-stat-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-bottom: 4px;
-}
-@media (max-width: 480px) { .s-stat-row { grid-template-columns: repeat(2, 1fr); } }
-.s-stat-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
-  padding: 14px 16px;
-  text-align: center;
-  transition: box-shadow .2s var(--ease-out), transform .2s var(--ease-spring);
-  position: relative;
-  overflow: hidden;
-}
-.s-stat-card::after {
-  content: '';
-  position: absolute;
-  bottom: 0; left: 0; right: 0;
-  height: 2px;
-  background: var(--grad-brand);
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-  opacity: 0;
-  transition: opacity .2s;
-}
-.s-stat-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
-.s-stat-card:hover::after { opacity: 1; }
-.s-stat-label {
-  font-size: 0.7813rem;
-  font-weight: 600;
-  color: var(--ink3);
-  text-transform: uppercase;
-  letter-spacing: .05em;
-  margin-bottom: 6px;
-}
-.s-val {
-  font-size: 1.6875rem;
-  font-weight: 700;
-  color: var(--ink);
-  line-height: 1.1;
-}
+
+
+
+
+
+
+
+
 .s-val.good { color: var(--green); }
 .s-val.warn { color: var(--yellow); }
 .s-val.bad  { color: var(--red); }
-.s-grade-toggle { cursor: pointer; text-decoration: underline dotted; }
+
 
 /* ══════════════════════════════════════════
    STUDENT SUBJECT GRADE CARD (GradesTab)
@@ -2070,23 +1940,11 @@ textarea.input { resize: vertical; }
   color: var(--ink3);
   text-align: center;
 }
-.sg-exam-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 18px;
-  border-bottom: 1px solid var(--border);
-}
-.sg-exam-label  { font-size: 0.8438rem; font-weight: 600; color: var(--ink2); }
-.sg-exam-right  { display: flex; align-items: center; gap: 8px; }
-.sg-exam-pct    { font-size: 0.9688rem; font-weight: 700; }
-.sg-exam-weight {
-  display: block;
-  font-size: 0.7188rem;
-  color: var(--ink3);
-  margin-top: 2px;
-  font-weight: 400;
-}
+
+
+
+
+
 
 /* ── Upload status labels ── */
 .sg-upload-status {
@@ -2328,7 +2186,7 @@ textarea.input { resize: vertical; }
 }
 .stu-course-cell { font-size: 0.8438rem; color: var(--ink2); }
 .stu-email-cell  { font-size: 0.8438rem; color: var(--ink2); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.stu-actions-cell { display: flex; gap: 4px; }
+
 .stu-sort-icon { display: inline-block; margin-left: 4px; font-size: 0.7188rem; color: var(--ink3); }
 .stu-sort-icon.asc,
 .stu-sort-icon.desc { color: var(--accent); }
@@ -2423,42 +2281,12 @@ textarea.input { resize: vertical; }
 /* ══════════════════════════════════════════
    MESSAGES / CHAT
 ══════════════════════════════════════════ */
-.msg-conv-tab {
-  flex: 1;
-  padding: 7px 8px;
-  border: none;
-  background: transparent;
-  color: var(--ink2);
-  font-size: 0.8438rem;
-  font-weight: 500;
-  font-family: var(--font-body);
-  cursor: pointer;
-  border-radius: 8px 8px 0 0;
-  transition: background .12s, color .12s;
-  white-space: nowrap;
-}
-.msg-conv-tab:hover { background: var(--bg2); color: var(--ink); }
-.msg-conv-tab.active-tab {
-  background: var(--bg);
-  color: var(--accent);
-  font-weight: 700;
-  border-bottom: 2px solid var(--accent);
-}
-.msg-tab-count { color: var(--ink3); font-size: 0.7813rem; }
 
-.msg-group-hdr {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  padding: 6px 14px;
-  font-size: 0.7813rem;
-  font-weight: 700;
-  letter-spacing: .03em;
-  text-transform: uppercase;
-  color: var(--ink3);
-  background: var(--surface2);
-  border-bottom: 1px solid var(--border);
-}
+
+
+
+
+
 .msg-conv-item {
   display: flex;
   align-items: center;
@@ -2545,20 +2373,13 @@ textarea.input { resize: vertical; }
   color: var(--ink);
   border-bottom-left-radius: 4px;
 }
-.msg-meta {
-  font-size: 0.7188rem;
-  color: var(--ink3);
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.msg-meta-sent { justify-content: flex-end; padding-right: 4px; }
-.msg-meta-recv { justify-content: flex-start; padding-left: 4px; }
-.msg-tick { color: var(--ink3); font-size: 0.7813rem; letter-spacing: -.03em; }
-.msg-tick.msg-tick-read { color: var(--accent); }
 
-.msg-send-btn { flex-shrink: 0; height: 40px; width: 40px; padding: 0; }
+
+
+
+
+
+
 
 .unread-dot {
   display: inline-block;
@@ -2723,26 +2544,9 @@ textarea.input { resize: vertical; }
   height: calc(100dvh - 160px);
   min-height: 400px;
 }
-.s-thread-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 12px;
-  flex-shrink: 0;
-}
-.s-thread-messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 8px 0;
-}
-.s-thread-reply-wrap {
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-  margin-top: 8px;
-  flex-shrink: 0;
-}
+
+
+
 /* Shown instead of the reply box once a group chat's class/semester has ended. */
 .s-thread-ended {
   display: flex;
@@ -2757,20 +2561,8 @@ textarea.input { resize: vertical; }
   text-align: center;
   flex-shrink: 0;
 }
-.s-reply-input {
-  width: 100%;
-  padding: 9px 12px;
-  border: 1px solid var(--border2);
-  border-radius: var(--radius);
-  background: var(--surface2);
-  color: var(--ink);
-  font-size: 0.9063rem;
-  font-family: var(--font-body);
-  outline: none;
-  resize: none;
-  transition: border-color .15s;
-}
-.s-reply-input:focus { border-color: var(--accent); }
+
+
 
 /* Student message list items */
 .s-msg-thread-item {
@@ -2878,12 +2670,7 @@ textarea.input { resize: vertical; }
   color: var(--ink3);
   white-space: nowrap;
 }
-.notif-action-hint {
-  font-size: 0.7813rem;
-  color: var(--accent);
-  font-weight: 600;
-  margin-top: 4px;
-}
+
 
 /* ══════════════════════════════════════════
    STUDENT ACTIVITIES
@@ -3230,8 +3017,7 @@ textarea.input { resize: vertical; }
   transform: translateY(-2px);
   border-color: var(--border2);
 }
-.stream-card--pinned {
-}
+
 /* Three-dots overflow menu */
 .kebab { position: relative; flex-shrink: 0; }
 .kebab-trigger {
@@ -3280,65 +3066,19 @@ textarea.input { resize: vertical; }
 .kebab-item--danger { color: var(--red); }
 
 /* Segmented status filter (e.g. All / With Class / Unassigned) */
-.seg-filter {
-  display: inline-flex;
-  gap: 4px;
-  padding: 4px;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  flex-wrap: wrap;
-}
-.seg-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border: none;
-  background: none;
-  border-radius: 9px;
-  font-size: 0.9063rem;
-  font-weight: 600;
-  color: var(--ink2);
-  cursor: pointer;
-  transition: background .15s, color .15s;
-}
-.seg-btn:hover { color: var(--ink); }
+
+
+
 .seg-btn.active {
   background: var(--surface);
   color: var(--accent);
   box-shadow: 0 1px 2px rgba(0,0,0,.08);
 }
-.seg-count {
-  font-size: 0.7813rem;
-  font-weight: 700;
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: var(--border);
-  color: var(--ink2);
-}
+
 .seg-btn.active .seg-count { background: var(--accent-l); color: var(--accent); }
-.stream-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.stream-card-title {
-  font-size: 0.9688rem;
-  font-weight: 700;
-  color: var(--ink);
-  line-height: 1.4;
-}
-.stream-card-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
-}
+
+
+
 .stream-stat {
   display: flex;
   align-items: center;
@@ -3417,65 +3157,18 @@ textarea.input { resize: vertical; }
 /* ══════════════════════════════════════════
    UTILITY — gradient text, glass, hero
 ══════════════════════════════════════════ */
-.gradient-text {
-  background: var(--grad-brand);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-}
 
-.glass-card {
-  background: rgba(var(--surface-rgb), .72);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border: 1px solid rgba(255,255,255,.12);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg);
-}
-[data-theme="dark"] .glass-card { border-color: rgba(255,255,255,.06); }
 
-.page-hero {
-  padding: 28px 0 12px;
-  position: relative;
-}
-.page-hero-title {
-  font-size: clamp(1.4rem, 3vw, 1.9rem);
-  font-weight: 800;
-  color: var(--ink);
-  letter-spacing: -.03em;
-  line-height: 1.15;
-  margin-bottom: 6px;
-}
-.page-hero-sub {
-  font-size: 0.9063rem;
-  color: var(--ink3);
-  font-weight: 500;
-}
 
-.feature-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  padding: 22px;
-  box-shadow: var(--shadow);
-  transition: box-shadow .22s var(--ease-out), transform .22s var(--ease-spring), border-color .2s;
-  position: relative;
-  overflow: hidden;
-}
-.feature-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--grad-surface);
-  opacity: .5;
-  pointer-events: none;
-}
-.feature-card:hover {
-  box-shadow: var(--shadow-lg);
-  transform: translateY(-3px);
-  border-color: var(--border2);
-}
+
+
+
+
+
+
+
+
+
 
 .metric-card {
   background: var(--surface);
@@ -3489,57 +3182,14 @@ textarea.input { resize: vertical; }
   transition: box-shadow .2s var(--ease-out), transform .2s var(--ease-spring);
 }
 .metric-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
-.metric-icon-box {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  font-size: 1.375rem;
-}
-.metric-body { flex: 1; min-width: 0; }
-.metric-val {
-  font-size: 1.75rem;
-  font-weight: 800;
-  color: var(--ink);
-  line-height: 1;
-  letter-spacing: -.03em;
-}
-.metric-label {
-  font-size: 0.7813rem;
-  font-weight: 700;
-  color: var(--ink3);
-  text-transform: uppercase;
-  letter-spacing: .07em;
-  margin-top: 3px;
-}
 
-.section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 14px;
-}
-.section-title {
-  font-size: 1.0313rem;
-  font-weight: 800;
-  color: var(--ink);
-  letter-spacing: -.02em;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.section-title-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-  flex-shrink: 0;
-}
+
+
+
+
+
+
+
 
 /* ── Empty state (upgraded) ──────────────────────────────────────────── */
 .empty {
@@ -3556,62 +3206,27 @@ textarea.input { resize: vertical; }
   opacity: .55;
   display: block;
 }
-.empty-title {
-  font-size: 1.0313rem;
-  font-weight: 700;
-  color: var(--ink2);
-  margin-bottom: 6px;
-}
-.empty-sub {
-  font-size: 0.8438rem;
-  color: var(--ink3);
-  max-width: 280px;
-  margin: 0 auto;
-}
+
+
 
 /* ── Trend / delta chip ──────────────────────────────────────────────── */
-.trend-up   { color: var(--green);  font-size: 0.7813rem; font-weight: 700; }
-.trend-down { color: var(--red);    font-size: 0.7813rem; font-weight: 700; }
-.trend-flat { color: var(--ink3);   font-size: 0.7813rem; font-weight: 600; }
+
+
+
 
 /* ── Skeleton shimmer ────────────────────────────────────────────────── */
-.skeleton {
-  background: linear-gradient(90deg, var(--bg2) 25%, var(--border) 50%, var(--bg2) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-  border-radius: var(--radius);
-}
+
 @keyframes shimmer {
   0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
 
 /* ── Divider with label ──────────────────────────────────────────────── */
-.divider-label {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--ink3);
-  font-size: 0.7813rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-  margin: 16px 0;
-}
-.divider-label::before,
-.divider-label::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-}
+
+
 
 /* ── Pill / chip strip ───────────────────────────────────────────────── */
-.chip-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
+
 .chip {
   display: inline-flex;
   align-items: center;
@@ -3634,19 +3249,8 @@ textarea.input { resize: vertical; }
 }
 
 /* ── Progress ring placeholder ──────────────────────────────────────── */
-.progress-ring-wrap {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.progress-ring-val {
-  position: absolute;
-  font-size: 0.8438rem;
-  font-weight: 800;
-  color: var(--ink);
-  letter-spacing: -.02em;
-}
+
+
 
 } /* end @layer components */
 
@@ -3679,112 +3283,45 @@ textarea.input { resize: vertical; }
 }
 
 /* ── Atmospheric ambient overlay (inside login screens) ─────────────────── */
-.login-scene-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 2;
-  --scene-ambient: rgba(135, 206, 235, 0.12);
-  --scene-glow:    rgba(255, 255, 255, 0);
-  --scene-vignette: rgba(0, 0, 0, 0);
-  background:
-    radial-gradient(ellipse 75% 40% at 50% 100%, var(--scene-glow),    transparent 70%),
-    radial-gradient(ellipse 60% 60% at 50%   0%, var(--scene-ambient), transparent 65%),
-    radial-gradient(ellipse 100% 30% at 50% 120%, var(--scene-vignette), transparent 70%);
-  /* CSS @property enables smooth color interpolation between scene states */
-  transition:
-    --scene-ambient  3s ease,
-    --scene-glow     3s ease,
-    --scene-vignette 3s ease;
-}
+
 
 /* ── Midnight: obsidian deep-space, electric indigo core ────────────────── */
-[data-scene="midnight"] .login-scene-overlay {
-  --scene-ambient:  rgba(4, 8, 38, 0.52);
-  --scene-glow:     rgba(44, 26, 114, 0.32);
-  --scene-vignette: rgba(0, 0, 8, 0.60);
-}
+
 
 /* ── Pre-dawn rooster: deep crimson horizon bloom ───────────────────────── */
-[data-scene="rooster"] .login-scene-overlay {
-  --scene-ambient:  rgba(6, 2, 14, 0.40);
-  --scene-glow:     rgba(198, 24, 50, 0.52);
-  --scene-vignette: rgba(0, 0, 6, 0.52);
-}
+
 
 /* ── Sunrise: vivid magenta-orange eruption ──────────────────────────────── */
-[data-scene="sunrise"] .login-scene-overlay {
-  --scene-ambient:  rgba(14, 4, 40, 0.24);
-  --scene-glow:     rgba(240, 114, 24, 0.56);
-  --scene-vignette: rgba(4, 2, 10, 0.36);
-}
+
 
 /* ── Morning: luminous azure skylight ───────────────────────────────────── */
-[data-scene="morning"] .login-scene-overlay {
-  --scene-ambient:  rgba(36, 144, 202, 0.12);
-  --scene-glow:     rgba(186, 234, 255, 0.20);
-  --scene-vignette: rgba(0, 30, 80, 0.08);
-}
+
 
 /* ── Midday: electric cyan zenith ──────────────────────────────────────── */
-[data-scene="midday"] .login-scene-overlay {
-  --scene-ambient:  rgba(14, 140, 194, 0.10);
-  --scene-glow:     rgba(154, 232, 255, 0.18);
-  --scene-vignette: rgba(0, 20, 60, 0.06);
-}
+
 
 /* ── Afternoon: blue-gold westward warmth ──────────────────────────────── */
-[data-scene="afternoon"] .login-scene-overlay {
-  --scene-ambient:  rgba(50, 154, 218, 0.12);
-  --scene-glow:     rgba(255, 210, 96, 0.24);
-  --scene-vignette: rgba(0, 10, 40, 0.10);
-}
+
 
 /* ── Sunset: cinematic magenta-orange inferno ───────────────────────────── */
-[data-scene="sunset"] .login-scene-overlay {
-  --scene-ambient:  rgba(8, 2, 26, 0.22);
-  --scene-glow:     rgba(232, 98, 18, 0.62);
-  --scene-vignette: rgba(0, 0, 4, 0.50);
-}
+
 
 /* ── Night: moonlit deep navy ───────────────────────────────────────────── */
-[data-scene="night"] .login-scene-overlay {
-  --scene-ambient:  rgba(1, 3, 8, 0.48);
-  --scene-glow:     rgba(26, 44, 112, 0.24);
-  --scene-vignette: rgba(0, 0, 8, 0.58);
-}
+
 
 /* ── Evening: starfield void, milky-way shimmer ─────────────────────────── */
-[data-scene="evening"] .login-scene-overlay {
-  --scene-ambient:  rgba(0, 2, 6, 0.54);
-  --scene-glow:     rgba(12, 28, 98, 0.28);
-  --scene-vignette: rgba(0, 0, 4, 0.62);
-}
+
 
 /* Dark theme: boost ambient depth for day scenes */
-[data-theme="dark"][data-scene="morning"]   .login-scene-overlay,
-[data-theme="dark"][data-scene="midday"]    .login-scene-overlay,
-[data-theme="dark"][data-scene="afternoon"] .login-scene-overlay {
-  --scene-ambient:  rgba(8, 28, 60, 0.35);
-  --scene-glow:     rgba(30, 100, 180, 0.18);
-}
+
 
 /* ── Weather-specific overlay tints ────────────────────────────────────── */
 @keyframes td-storm-flash {
   0%, 85%, 100% { opacity: 0; }
   88%, 91%      { opacity: 0.08; }
 }
-[data-weather="thunderstorm"] .login-scene-overlay::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: rgba(180, 200, 255, 1);
-  animation: td-storm-flash 3.2s ease-in-out 0.5s infinite;
-  pointer-events: none;
-}
-[data-weather="fog"] .login-scene-overlay {
-  --scene-ambient: rgba(200, 210, 220, 0.2);
-}
+
+
 [data-weather="rain"],
 [data-weather="heavy_rain"] {
   filter: saturate(0.9) brightness(0.95);
@@ -3803,54 +3340,13 @@ textarea.input { resize: vertical; }
 }
 
 /* CSS star field overlay for night/evening scenes */
-.login-stars-css {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 3;
-  opacity: 0;
-  transition: opacity 2.5s ease;
-}
-[data-scene="midnight"] .login-stars-css,
-[data-scene="night"]    .login-stars-css,
-[data-scene="evening"]  .login-stars-css { opacity: 1; }
-[data-scene="rooster"]  .login-stars-css { opacity: 0.4; }
 
-.login-stars-css::before,
-.login-stars-css::after {
-  content: '';
-  position: absolute;
-  border-radius: 50%;
-  background: white;
-  animation: td-css-twinkle 3s ease-in-out infinite;
-}
-.login-stars-css::before {
-  width: 2px; height: 2px;
-  top: 8%; left: 22%;
-  box-shadow:
-    calc(100vw * 0.12)  calc(5vh)   0 0 rgba(255,255,255,0.9),
-    calc(100vw * 0.33)  calc(3vh)   0 0 rgba(200,215,255,0.7),
-    calc(100vw * 0.55)  calc(7vh)   0 1px rgba(255,255,255,0.8),
-    calc(100vw * 0.71)  calc(4vh)   0 0 rgba(220,230,255,0.6),
-    calc(100vw * 0.88)  calc(9vh)   0 0 rgba(255,255,255,0.75),
-    calc(100vw * 0.06)  calc(18vh)  0 0 rgba(200,215,255,0.5),
-    calc(100vw * 0.44)  calc(14vh)  0 0 rgba(255,255,255,0.65),
-    calc(100vw * 0.63)  calc(11vh)  0 1px rgba(230,240,255,0.7);
-  animation-delay: 0.3s;
-}
-.login-stars-css::after {
-  width: 1px; height: 1px;
-  top: 15%; left: 50%;
-  box-shadow:
-    calc(100vw * -0.28) calc(-8vh)   0 1px rgba(255,255,255,0.8),
-    calc(100vw *  0.18) calc(-3vh)   0 0  rgba(200,220,255,0.65),
-    calc(100vw *  0.38) calc(-11vh)  0 0  rgba(255,255,255,0.55),
-    calc(100vw * -0.10) calc( 6vh)   0 1px rgba(230,240,255,0.7),
-    calc(100vw *  0.25) calc( 10vh)  0 0  rgba(255,255,255,0.5),
-    calc(100vw * -0.45) calc( 2vh)   0 0  rgba(200,215,255,0.6);
-  animation-delay: 1.7s;
-  animation-duration: 4.2s;
-}
+
+
+
+
+
+
 
 /* ── CSS aurora for midnight/evening (dark nights only) ─────────────────── */
 @keyframes td-aurora-drift {
@@ -3858,55 +3354,11 @@ textarea.input { resize: vertical; }
   33%       { transform: translateX(5%) scaleX(1.1) skewX(2deg);   opacity: 0.28; }
   66%       { transform: translateX(-4%) scaleX(0.95) skewX(-1deg); opacity: 0.14; }
 }
-.login-aurora {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 2;
-  overflow: hidden;
-  opacity: 0;
-  transition: opacity 3s ease;
-}
-[data-scene="midnight"] .login-aurora,
-[data-scene="evening"]  .login-aurora { opacity: 1; }
 
-.login-aurora::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -20%;
-  width: 140%;
-  height: 45%;
-  background: linear-gradient(
-    180deg,
-    transparent 0%,
-    rgba(80, 200, 140, 0.06) 30%,
-    rgba(60, 160, 220, 0.08) 55%,
-    rgba(100, 80, 200, 0.05) 75%,
-    transparent 100%
-  );
-  filter: blur(20px);
-  animation: td-aurora-drift 18s ease-in-out infinite;
-  transform-origin: center top;
-}
-.login-aurora::after {
-  content: '';
-  position: absolute;
-  top: 2%;
-  left: -10%;
-  width: 120%;
-  height: 35%;
-  background: linear-gradient(
-    180deg,
-    transparent 0%,
-    rgba(120, 80, 200, 0.04) 35%,
-    rgba(60, 200, 180, 0.06) 60%,
-    transparent 100%
-  );
-  filter: blur(28px);
-  animation: td-aurora-drift 24s ease-in-out 6s infinite reverse;
-  transform-origin: center top;
-}
+
+
+
+
 
 /* ── Scene-responsive right panel glassmorphism ─────────────────────────── */
 .login-panel {
@@ -3977,9 +3429,7 @@ textarea.input { resize: vertical; }
 }
 
 /* ── Smooth scene transition on the WeatherScene background ─────────────── */
-.login-scene-bg {
-  transition: background 2.5s cubic-bezier(0.4, 0, 0.2, 1) !important;
-}
+
 
 /* ── Enhanced wordmark CSS glow (complement to the JS-based glow span) ───── */
 @keyframes acadflow-halo-pulse {
@@ -4029,74 +3479,22 @@ textarea.input { resize: vertical; }
    MACBOOK GLASS LOGIN CARD
    Floating frosted-glass panel — macOS Sequoia-style
 ══════════════════════════════════════════ */
-.glass-login-card {
-  background: rgba(255, 255, 255, 0.68);
-  backdrop-filter: blur(48px) saturate(1.9) brightness(1.04);
-  -webkit-backdrop-filter: blur(48px) saturate(1.9) brightness(1.04);
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  box-shadow:
-    0 0 0 0.5px rgba(255, 255, 255, 0.40) inset,
-    0 4px 12px rgba(0, 0, 0, 0.06),
-    0 24px 64px rgba(0, 20, 60, 0.18),
-    0 2px 4px rgba(0, 0, 0, 0.04);
-  /* Smooth transitions between scenes */
-  transition:
-    background     2s ease,
-    border-color   2s ease,
-    box-shadow     2s ease;
-}
+
 
 /* Dark theme */
-[data-theme="dark"] .glass-login-card {
-  background: rgba(12, 18, 40, 0.72);
-  border-color: rgba(255, 255, 255, 0.09);
-  box-shadow:
-    0 0 0 0.5px rgba(255, 255, 255, 0.06) inset,
-    0 4px 12px rgba(0, 0, 0, 0.40),
-    0 24px 64px rgba(0, 0, 0, 0.62);
-}
+
 
 /* Night / dark sky scenes */
-[data-scene="midnight"] .glass-login-card,
-[data-scene="night"]    .glass-login-card,
-[data-scene="evening"]  .glass-login-card {
-  background: rgba(4, 8, 26, 0.74);
-  border-color: rgba(60, 90, 230, 0.20);
-  box-shadow:
-    0 0 0 0.5px rgba(80, 120, 255, 0.10) inset,
-    0 24px 64px rgba(0, 0, 20, 0.68);
-}
+
 
 /* Pre-dawn */
-[data-scene="rooster"] .glass-login-card {
-  background: rgba(8, 2, 20, 0.76);
-  border-color: rgba(198, 24, 50, 0.18);
-  box-shadow:
-    0 0 0 0.5px rgba(220, 50, 70, 0.10) inset,
-    0 24px 64px rgba(0, 0, 8, 0.60);
-}
+
 
 /* Sunrise / sunset — warm tinted glass */
-[data-scene="sunrise"] .glass-login-card,
-[data-scene="sunset"]  .glass-login-card {
-  background: rgba(10, 4, 28, 0.72);
-  border-color: rgba(240, 120, 40, 0.18);
-  box-shadow:
-    0 0 0 0.5px rgba(255, 160, 80, 0.12) inset,
-    0 24px 64px rgba(0, 0, 6, 0.54);
-}
+
 
 /* Day scenes — bright frosted glass */
-[data-scene="morning"]   .glass-login-card,
-[data-scene="midday"]    .glass-login-card,
-[data-scene="afternoon"] .glass-login-card {
-  background: rgba(238, 246, 255, 0.74);
-  border-color: rgba(36, 144, 202, 0.22);
-  box-shadow:
-    0 0 0 0.5px rgba(255, 255, 255, 0.65) inset,
-    0 4px 12px rgba(0, 0, 0, 0.05),
-    0 24px 64px rgba(0, 30, 80, 0.16);
-}
+
 
 /* Glass card tab switcher — active pill */
 .glass-tab-bar {
@@ -4129,25 +3527,7 @@ textarea.input { resize: vertical; }
 }
 
 /* Rain shimmer on glass card (same as login-panel) */
-[data-weather="rain"]         .glass-login-card::before,
-[data-weather="heavy_rain"]   .glass-login-card::before,
-[data-weather="thunderstorm"] .glass-login-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: repeating-linear-gradient(
-    180deg,
-    transparent            0px,
-    transparent            18px,
-    rgba(160,200,240,0.04) 18px,
-    rgba(160,200,240,0.04) 19px
-  );
-  background-size: 100% 38px;
-  animation: td-panel-rain-drip 2.5s linear infinite;
-  pointer-events: none;
-  z-index: 0;
-}
+
 
 /* ══════════════════════════════════════════
    DESIGN REFRESH — base polish, a11y, motion
@@ -4202,7 +3582,7 @@ textarea.input { resize: vertical; }
 
 /* Sign-in cohesion: cozier corners on the glass auth card to match the
    refreshed radius scale. Glass background/scene rules are left untouched. */
-.glass-login-card { border-radius: var(--radius-2xl); }
+
 
 /* ══════════════════════════════════════════
    FROSTED GLASS — Apple-style panels
@@ -4408,8 +3788,8 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
   box-shadow: var(--shadow);
   border: 1px solid var(--border);
 }
-#student-portal .student-name { font-size: 1.0313rem; font-weight: 700; letter-spacing: -.01em; }
-#student-portal .student-body { padding-top: 6px; }
+
+
 
 /* — Panels / cards: bigger radius, app-like — */
 #student-portal .card {
@@ -4431,21 +3811,12 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 }
 
 /* — Stat tiles — */
-#student-portal .s-stat-row { gap: 10px; }
-#student-portal .s-stat-card {
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  background: var(--surface);
-  box-shadow: var(--shadow);
-  padding: 16px;
-}
-#student-portal .s-stat-card::after { display: none; }
-#student-portal .s-stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
-#student-portal .s-stat-label {
-  font-size: 0.7813rem; font-weight: 600; text-transform: uppercase;
-  letter-spacing: .06em; color: var(--ink3);
-}
-#student-portal .s-val { font-size: 1.8125rem; font-weight: 700; letter-spacing: -.02em; }
+
+
+
+
+
+
 
 /* — Bottom nav: dark floating capsule, icon-only (mobile/tablet only).
    Maya-style — a contained near-black pill that floats clear of the screen
@@ -4494,9 +3865,7 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
     background: transparent; padding: 0; border-radius: 0; color: #ffffff;
   }
   /* Keep tab content clear of the floating bar (+ safe area). */
-  #student-portal .student-body {
-    padding-bottom: calc(86px + env(safe-area-inset-bottom, 0px));
-  }
+  
 }
 
 /* — Desktop sidebar (>=1024px): navy active item, no pill oval — */
@@ -4915,69 +4284,56 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 .res-open { color: var(--ink3); flex-shrink: 0; }
 .res-item--link:hover .res-open { color: var(--accent); }
 
-/* ── Live Quiz (Kahoot-style) ───────────────────────────────────────────── */
-/* Student join banner */
-.lq-join-banner {
-  display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; cursor: pointer;
-  border: none; padding: 14px 16px; margin-bottom: 16px; border-radius: 14px; color: #fff;
-  background: linear-gradient(120deg, #e21b3c, #a3122a);
-  box-shadow: 0 8px 22px rgba(226,27,60,.3);
-  transition: transform .15s, box-shadow .2s;
-}
-.lq-join-banner:hover { transform: translateY(-1px); box-shadow: 0 12px 28px rgba(226,27,60,.4); }
-.lq-join-banner .we-t { font-weight: 700; font-size: 1.0313rem; line-height: 1.2; }
-.lq-join-banner .we-s { font-size: 0.875rem; opacity: .9; margin-top: 1px; }
-.lq-join-banner .we-arrow { margin-left: auto; opacity: .9; flex-shrink: 0; }
-.lq-join-dot { width: 12px; height: 12px; border-radius: 50%; background: #fff; flex-shrink: 0; animation: lq-pulse 1.2s ease-in-out infinite; }
+
 @keyframes lq-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .4; transform: scale(.7); } }
 
 /* Host stage */
-.lq-host { max-width: 720px; margin: 0 auto; }
-.lq-stage { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 14px; padding: 8px 0; }
-.lq-eyebrow { font-size: 0.8438rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--ink2); display: inline-flex; align-items: center; gap: 6px; }
-.lq-pin-wrap { background: var(--grad-brand); color: #fff; border-radius: 18px; padding: 22px 30px; width: 100%; }
-.lq-pin-label { font-size: 0.8438rem; opacity: .9; margin-bottom: 6px; }
-.lq-pin { font-size: 3.3125rem; font-weight: 800; letter-spacing: .15em; line-height: 1; }
-.lq-players-count { display: inline-flex; align-items: center; gap: 6px; font-size: 0.9688rem; font-weight: 600; color: var(--ink2); }
-.lq-players { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-.lq-chip { font-size: 0.8438rem; font-weight: 600; background: var(--accent-l); color: var(--accent); padding: 6px 12px; border-radius: 999px; }
-.lq-controls { display: flex; gap: 10px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }
-.lq-qmeta { display: flex; align-items: center; gap: 16px; font-size: 0.9063rem; color: var(--ink2); font-weight: 600; flex-wrap: wrap; justify-content: center; }
-.lq-qmeta > span { display: inline-flex; align-items: center; gap: 5px; }
-.lq-timer { color: var(--accent); font-weight: 800; }
-.lq-question { font-size: 1.6875rem; font-weight: 700; line-height: 1.3; color: var(--ink); }
-.lq-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
-@media (max-width: 520px) { .lq-options { grid-template-columns: 1fr; } }
-.lq-opt { display: flex; align-items: center; gap: 10px; padding: 16px; border-radius: 12px; color: #fff; font-size: 1.0313rem; font-weight: 700; border: none; text-align: left; }
-.lq-opt-letter { width: 26px; height: 26px; border-radius: 7px; background: rgba(255,255,255,.25); display: inline-flex; align-items: center; justify-content: center; font-size: 0.9063rem; flex-shrink: 0; }
-.lq-opt--tap { cursor: pointer; transition: transform .1s, filter .15s; }
-.lq-opt--tap:hover { filter: brightness(1.06); }
-.lq-opt--tap:active { transform: scale(.98); }
-.lq-opt--reveal { opacity: .92; }
-.lq-tally { display: flex; align-items: center; gap: 6px; width: 96px; flex-shrink: 0; font-size: 0.9063rem; font-weight: 700; }
-.lq-tally-bar { height: 8px; border-radius: 4px; background: currentColor; opacity: .4; min-width: 2px; }
-.lq-board { display: flex; flex-direction: column; gap: 6px; width: 100%; }
-.lq-row { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; background: var(--surface2); border: 1px solid var(--border); }
-.lq-row.is-first { background: var(--accent-l); border-color: var(--accent); }
-.lq-rank { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 0.8438rem; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.lq-name { flex: 1; font-weight: 600; font-size: 0.9688rem; text-align: left; min-width: 0; }
-.lq-correct { font-size: 0.8438rem; color: var(--ink3); }
-.lq-score { font-weight: 800; font-size: 1.0938rem; color: var(--accent); min-width: 50px; text-align: right; }
-.lq-secs { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border2); background: var(--surface2); color: var(--ink); font-size: 0.9063rem; }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /* Player overlay (renders inside .wrapped-overlay backdrop) */
-.lq-player { position: relative; width: 100%; max-width: 440px; min-height: min(70vh, 560px); background: var(--surface); border-radius: 24px; padding: 28px; display: flex; flex-direction: column; box-shadow: 0 30px 80px rgba(0,0,0,.45); }
-.lq-player--msg { align-items: center; justify-content: center; text-align: center; gap: 14px; color: var(--ink); }
-.lq-player-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 12px; width: 100%; }
-.lq-player-ic { width: 72px; height: 72px; border-radius: 22px; background: var(--accent-l); color: var(--accent); display: flex; align-items: center; justify-content: center; }
-.lq-player-ic.is-correct { background: var(--green); color: #fff; }
-.lq-player-ic.is-wrong { background: var(--red); color: #fff; }
-.lq-player-title { font-size: 1.8125rem; font-weight: 800; color: var(--ink); }
-.lq-player-sub { font-size: 1.0313rem; color: var(--ink2); }
-.lq-player-msg { font-size: 0.9688rem; color: var(--ink3); }
-.lq-player-rank { margin-top: 6px; font-size: 0.9688rem; font-weight: 700; color: var(--accent); }
-.lq-locked { display: flex; align-items: center; gap: 10px; justify-content: center; font-size: 1.0313rem; font-weight: 700; color: var(--green); padding: 20px; }
-.lq-locked--out { color: var(--ink3); }
+
+
+
+
+
+
+
+
+
+
+
+
 
 /* — Pill badges — */
 #student-portal .badge {
@@ -5012,27 +4368,13 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 #student-portal .form-input, #student-portal .input { border-radius: var(--radius); }
 
 /* — Home standing hero — */
-#student-portal .s-home-hero {
-  display: flex; align-items: stretch; justify-content: space-between;
-  gap: 12px; flex-wrap: wrap;
-  background: var(--grad-brand); color: #fff;
-  border-radius: var(--radius-xl); padding: 18px 20px;
-  box-shadow: var(--shadow-lg);
-}
-#student-portal .s-home-hero-label { font-size: 0.8438rem; color: rgba(255,255,255,.80); }
-#student-portal .s-home-hero-gwa {
-  font-size: 2.625rem; font-weight: 700; line-height: 1.1; letter-spacing: -.02em; margin-top: 2px;
-}
-#student-portal .s-home-hero-sem { font-size: 0.8438rem; color: rgba(255,255,255,.78); margin-top: 4px; }
-#student-portal .s-home-hero-status {
-  display: flex; flex-direction: column; justify-content: center; align-items: flex-end;
-  gap: 3px; text-align: right;
-}
-#student-portal .s-home-hero-status .sh-status {
-  font-size: 0.9063rem; font-weight: 600; color: #fff;
-  background: rgba(255,255,255,.18); padding: 5px 12px; border-radius: 999px;
-}
-#student-portal .s-home-hero-status .sh-sub { font-size: 0.8438rem; color: rgba(255,255,255,.78); }
+
+
+
+
+
+
+
 
 /* ══════════════════════════════════════════════════════════════════════════
    MOBILE APP-SHELL SCROLL LOCK
@@ -5050,18 +4392,8 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
   }
 
   /* Student portal — the root is the flex column. */
-  #student-portal.student-layout {
-    height: 100vh;          /* fallback */
-    height: 100dvh;         /* tracks the dynamic viewport on iOS/Android */
-    overflow: hidden;
-  }
-  #student-portal .student-body {
-    flex: 1 1 auto;
-    min-height: 0;          /* required so the flex child can actually scroll */
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
-  }
+  
+  
 
   /* Admin portal — the flex column is .admin-main inside the root. */
   #admin-portal.admin-layout {
@@ -5205,15 +4537,8 @@ html { scroll-behavior: smooth; }
 .onb-actions { display: flex; align-items: center; gap: 8px; }
 
 /* Live-quiz join QR (host lobby) */
-.lq-qr {
-  display: inline-flex;
-  padding: 10px;
-  background: #fff;
-  border-radius: 12px;
-  margin: 0 auto 10px;
-  box-shadow: 0 2px 10px rgba(0,0,0,.12);
-}
-.lq-qr img, .lq-qr canvas { display: block; }
+
+
 
 /* ══════════════════════════════════════════════════════════════════════════
    MODAL CLOSE BUTTON — one consistent control on every Modal panel
@@ -5502,8 +4827,8 @@ html[data-glass="on"][data-theme="dark"] body::before {
   font-size: 0.8438rem; font-weight: 600; color: var(--accent); padding: 2px 4px;
 }
 .msg-select-toggle:hover { text-decoration: underline; }
-.msg-thread-del { background: none; border: none; cursor: pointer; color: var(--ink3); padding: 2px; display: inline-flex; }
-.msg-thread-del:hover { color: var(--red); }
+
+
 
 /* Recipient picker (compose "To" field) */
 .recipient-picker { position: relative; }
