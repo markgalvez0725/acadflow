@@ -2686,6 +2686,9 @@ textarea.input { resize: vertical; }
   font-size: 0.6875rem; font-weight: 700; letter-spacing: -.01em; white-space: nowrap;
 }
 .msg-secure.revealed .msg-secure-hint { display: none; }
+/* Lock badge shown to the SENDER above their own private message — they wrote
+   it, so they always see the text (the blur is for the recipient + screenshots). */
+.msg-own-private { display: inline-flex; align-items: center; gap: 3px; font-size: 0.625rem; font-weight: 700; opacity: .65; margin-bottom: 2px; }
 /* Lock toggle in the composer (sender chooses / AI suggests a private send). */
 .msg-lock-btn {
   flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%;

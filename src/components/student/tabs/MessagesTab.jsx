@@ -118,8 +118,11 @@ export default function MessagesTab({ student: s, messages }) {
     if (secureTouched) return
     setSecureOn(draftFlag.sensitive)
   }, [draftFlag, secureTouched])
-  // Drop any pending reply target when the open thread changes.
-  useEffect(() => { setReplyingTo(null) }, [activeKey])
+  // Reset the composer when the open thread changes so a half-typed draft, a
+  // pending reply target, or a primed lock never leaks into a different thread.
+  useEffect(() => {
+    setReplyingTo(null); setReplyText(''); setSecureOn(false); setSecureTouched(false)
+  }, [activeKey])
   const threadRef = useRef(null)
 
   // Build conversation items
@@ -180,6 +183,24 @@ export default function MessagesTab({ student: s, messages }) {
 
   const slice = items.slice((page - 1) * PER_PAGE, page * PER_PAGE)
 
+  // Keep the OPEN thread live: rebuild its entries from the latest messages so a
+  // teacher's reply (or another group member's) shows without reopening. The
+  // teacher side already does this via a memo; the student side previously froze
+  // the thread to a snapshot taken at open time.
+  useEffect(() => {
+    if (view !== 'thread' || !activeKey) return
+    const src = activeKey === 'direct'
+      ? allMsgs.filter(m => m.type !== 'announcement').sort((a, b) => a.ts - b.ts)
+      : (messages.find(x => x.id === activeKey) ? [messages.find(x => x.id === activeKey)] : [])
+    const entries = []
+    src.forEach(m => {
+      entries.push({ from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, kind: m.kind, isMain: true })
+      ;(m.replies || []).forEach(r => entries.push({ ...r, isMain: false }))
+    })
+    entries.sort((a, b) => a.ts - b.ts)
+    setThreadEntries(entries)
+  }, [messages, allMsgs, view, activeKey])
+
   // Scroll thread to bottom when opened
   useEffect(() => {
     if (view === 'thread' && threadRef.current) {
@@ -220,7 +241,7 @@ export default function MessagesTab({ student: s, messages }) {
     setReplyMsgId(lastMsg.id)
     const allEntries = []
     directMsgs.forEach(m => {
-      allEntries.push({ from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, isMain: true })
+      allEntries.push({ from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, kind: m.kind, isMain: true })
       ;(m.replies || []).forEach(r => allEntries.push({ ...r, isMain: false }))
     })
     allEntries.sort((a, b) => a.ts - b.ts)
@@ -237,7 +258,7 @@ export default function MessagesTab({ student: s, messages }) {
     markRead([msgId])
     setReplyMsgId(msgId)
     const allEntries = [
-      { from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, isMain: true },
+      { from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, kind: m.kind, isMain: true },
       ...(m.replies || []).map(r => ({ ...r, isMain: false })),
     ].sort((a, b) => a.ts - b.ts)
     setThreadTitle(groupName(m, classes))
@@ -271,15 +292,17 @@ export default function MessagesTab({ student: s, messages }) {
     if (!fbReady || !db.current) { toast('Messages require Firebase to be connected.', 'warn'); return }
     const secure = secureOn
     const quote = replyingTo
+    const targetMsgId = replyMsgId
     stopTyping()
     setSending(true)
+    // Clear the composer optimistically for snappy UX; restored on failure.
+    setReplyText(''); setSecureOn(false); setSecureTouched(false); setReplyingTo(null)
     try {
-      if (replyMsgId) {
+      if (targetMsgId) {
         const newReply = { from: s.id, body: text, ts: Date.now(), ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}) }
         setThreadEntries(prev => [...prev, { ...newReply, isMain: false }])
-        setReplyText(''); setSecureOn(false); setSecureTouched(false); setReplyingTo(null)
         // Atomic append — won't clobber a teacher reply sent at the same time.
-        await fbAddMessageReply(db.current, replyMsgId, newReply, { readerId: s.id, adminRead: false })
+        await fbAddMessageReply(db.current, targetMsgId, newReply, { readerId: s.id, adminRead: false })
         // Notify teacher: in-app badge + best-effort web push.
         notifyAdminMessage(db.current, s.name || s.id, text, 'reply', { secure })
       } else {
@@ -292,13 +315,16 @@ export default function MessagesTab({ student: s, messages }) {
           read: [s.id], adminRead: false, replies: [], type: 'direct',
           ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}),
         }
-        setReplyText(''); setSecureOn(false); setSecureTouched(false); setReplyingTo(null)
         await setDoc(doc(db.current, 'messages', newId), msg)
+        // Anchor the open thread to the new doc so a follow-up message threads as
+        // a reply instead of creating another top-level message.
+        setReplyMsgId(newId)
         // Notify teacher of a brand-new conversation (was previously missing).
         notifyAdminMessage(db.current, s.name || s.id, text, 'message', { secure })
       }
     } catch (e) {
       toast('Failed to send: ' + e.message, 'error')
+      setReplyText(text) // restore the draft so it isn't lost
     } finally {
       setSending(false)
     }
@@ -541,7 +567,9 @@ export default function MessagesTab({ student: s, messages }) {
                               </span>
                             )}
                             {entry.secure
-                              ? <SecureBubble text={entry.body} />
+                              ? (isSelf
+                                  ? <><span className="msg-own-private"><Lock size={10} /> Private</span><div style={{ whiteSpace: 'pre-wrap' }}>{entry.body}</div></>
+                                  : <SecureBubble text={entry.body} />)
                               : <div style={{ whiteSpace: 'pre-wrap' }}>{entry.body}</div>}
                           </div>
                         </div>

@@ -488,7 +488,9 @@ function ThreadPanel({ thread, onReply, onClose, onDelete, onRename }) {
                       </span>
                     )}
                     {entry.secure
-                      ? <SecureBubble text={entry.body} />
+                      ? (isAdmin
+                          ? <><span className="msg-own-private"><Lock size={10} /> Private</span><div style={{ whiteSpace: 'pre-wrap' }}>{entry.body}</div></>
+                          : <SecureBubble text={entry.body} />)
                       : <div style={{ whiteSpace: 'pre-wrap' }}>{entry.body}</div>}
                   </div>
                 </div>
@@ -513,7 +515,7 @@ function ThreadPanel({ thread, onReply, onClose, onDelete, onRename }) {
       <TypingIndicator typers={typers} />
 
       {/* Reply box */}
-      <ReplyBox onSend={doReply} onType={notifyTyping} onStop={stopTyping} replyingTo={replyingTo} onCancelReply={() => setReplyingTo(null)} />
+      <ReplyBox key={chatKey} onSend={doReply} onType={notifyTyping} onStop={stopTyping} replyingTo={replyingTo} onCancelReply={() => setReplyingTo(null)} />
     </div>
   )
 }
@@ -810,6 +812,7 @@ export default function MessagesTab() {
           msgId: m.id,
           secure: m.secure,
           quote: m.quote,
+          kind: m.kind,
           isMain: true,
           senderLabel: m.from === 'admin' ? 'You' : name,
           studentRead,
@@ -859,6 +862,7 @@ export default function MessagesTab() {
           subject: m.subject,
           secure: m.secure,
           quote: m.quote,
+          kind: m.kind,
           isMain: true,
           senderLabel: 'You',
           studentRead: anyRead,
@@ -930,11 +934,22 @@ export default function MessagesTab() {
 
     try {
       if (thread.type === 'conversation') {
-        // Append to most recent student message
+        // Append to most recent student message — but if the student has never
+        // messaged (a teacher-started conversation), there's nothing to attach a
+        // reply to. Send a fresh direct message doc instead so the reply isn't
+        // silently dropped.
         const studentMsgs = messages.filter(m => m.from === thread.studentId).sort((a, b) => b.ts - a.ts)
         const targetMsg = studentMsgs[0]
-        if (!targetMsg) return
-        await fbAddMessageReply(db.current, targetMsg.id, reply, { adminRead: true })
+        if (!targetMsg) {
+          const newId = msgId()
+          await setDoc(doc(db.current, 'messages', newId), {
+            id: newId, from: 'admin', to: thread.studentId, subject: '',
+            body: text, ts: Date.now(), read: [], adminRead: true, replies: [], type: 'direct',
+            ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}),
+          })
+        } else {
+          await fbAddMessageReply(db.current, targetMsg.id, reply, { adminRead: true })
+        }
         notifyStudentMessage(db.current, thread.studentId, text, undefined, { secure })
       } else {
         const m = messages.find(x => x.id === thread.msgId)

@@ -11,7 +11,7 @@ import TypingIndicator from '@/components/primitives/TypingIndicator'
 import { useTyping } from '@/hooks/useTyping'
 import { notifyAdminMessage } from '@/firebase/messageNotify'
 import { fbAddMessageReply, fbMarkMessageRead } from '@/firebase/persistence'
-import { MessageSquare, GraduationCap, CheckCheck, X, Send } from 'lucide-react'
+import { MessageSquare, GraduationCap, CheckCheck, X, Send, Lock } from 'lucide-react'
 
 
 export default function FloatingStudentMessenger({ student: s, messages, unreadCount, open: openProp, onOpenChange }) {
@@ -189,6 +189,7 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
       }
     } catch (e) {
       toast('Failed to send: ' + e.message, 'error')
+      setReplyText(text) // restore the draft so it isn't lost
     } finally {
       setSending(false)
     }
@@ -340,7 +341,9 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
                             </span>
                           )}
                           {entry.secure
-                            ? <SecureBubble text={entry.body} />
+                            ? (isSelf
+                                ? <><span className="msg-own-private"><Lock size={10} /> Private</span><div>{entry.body.split('\n').map((l, j) => <React.Fragment key={j}>{l}<br /></React.Fragment>)}</div></>
+                                : <SecureBubble text={entry.body} />)
                             : <div>{entry.body.split('\n').map((l, j) => <React.Fragment key={j}>{l}<br /></React.Fragment>)}</div>}
                         </div>
                       </div>
