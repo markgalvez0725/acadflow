@@ -67,7 +67,7 @@ export default function StudentSidebar({ student, badges = {}, onSettings, onLog
                     background: 'var(--red)', color: '#fff',
                     borderRadius: 999, fontSize: 9, fontWeight: 700,
                     padding: '0 4px', lineHeight: '15px', minWidth: 15, height: 15,
-                    textAlign: 'center', boxShadow: '0 0 0 2px var(--surface)',
+                    textAlign: 'center', boxShadow: '0 0 0 2px var(--navy)',
                   }}>
                     {badge > 99 ? '99+' : badge}
                   </span>

@@ -215,10 +215,14 @@
 .sidebar { background: var(--navy); border-right: 1px solid rgba(255,255,255,.06); }
 .sb-brand { background: transparent; }
 .sb-brand::after, .sb-brand::before { display: none; }
+/* Brand text is always on navy → keep it light (var(--ink) went dark in light theme) */
+.sb-brand h2 { color: #fff; }
+.sb-brand span { color: rgba(255,255,255,.55); }
 .nav-group-label { color: rgba(255,255,255,.42) !important; }
 .sb-nav .nav-item { color: #c2cde6; }
 .sb-nav .nav-item:hover { background: rgba(255,255,255,.08); color: #fff; }
-.sb-nav .nav-item.active { background: var(--accent); color: #fff; box-shadow: none; }
+/* Instagram-style active: subtle light pill + bold white (icon thickened in globals) */
+.sb-nav .nav-item.active { background: rgba(255,255,255,.13); color: #fff; box-shadow: none; }
 .sb-footer { border-top: 1px solid rgba(255,255,255,.08); }
 .sb-user strong { color: #fff; }
 .sb-user-info span { color: #9fb0d0; }
