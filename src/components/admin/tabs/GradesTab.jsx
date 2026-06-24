@@ -12,7 +12,7 @@ import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
 import KebabMenu from '@/components/primitives/KebabMenu'
-import { Clock, Pencil, BarChart2, Upload, Download, Trash2, BarChart, RefreshCw, Archive, ArchiveRestore, FileSpreadsheet, Plus, ChevronDown, Sparkles, Undo2, Redo2, Check, Maximize2 } from 'lucide-react'
+import { Clock, Pencil, BarChart2, Upload, Download, Trash2, BarChart, RefreshCw, Archive, ArchiveRestore, FileSpreadsheet, Plus, ChevronDown, Sparkles, Undo2, Redo2, Check, Maximize2, AlertTriangle } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const GRADE_PER_PAGE = 10
@@ -1082,9 +1082,10 @@ function SortIcon({ col, sort }) {
 }
 
 // ── SubjectCard ───────────────────────────────────────────────────────────────
-function SubjectCard({ cls, sub, studs, eqScale, readOnly, onEdit, onClear, onExport, onExportGrades, onImport }) {
+function SubjectCard({ cls, sub, studs, allStuds = [], eqScale, readOnly, onEdit, onClear, onExport, onExportGrades, onImport }) {
   const [sort, setSort]   = useState({ col: 'name', dir: 'asc' })
   const [page, setPage]   = useState(1)
+  const [filter, setFilter] = useState('all') // all | passing | failing | nograde
 
   function toggleSort(col) {
     setSort(prev => ({
@@ -1124,6 +1125,17 @@ function SubjectCard({ cls, sub, studs, eqScale, readOnly, onEdit, onClear, onEx
 
   const latestTs = studs.map(s => s.gradeUploadedAt?.[sub]).filter(Boolean).sort().pop()
 
+  // Class average (of final grades) + attendance held-days from the full roster.
+  const classAvg = finGrades.length ? (finGrades.reduce((a, b) => a + b, 0) / finGrades.length) : null
+  const classAvgEquiv = classAvg != null ? gradeInfo(classAvg, eqScale).eq : '—'
+  const passRate = total ? Math.round(passing / total * 100) : 0
+  const heldDays = useMemo(() => getHeldDays(cls?.id, sub, allStuds), [cls, sub, allStuds])
+
+  // Attention breakdown — who still needs a final grade.
+  const notStarted    = studs.filter(s => { const c = s.gradeComponents?.[sub] || {}; return c.midterm == null && c.finals == null }).length
+  const missingFinals = studs.filter(s => { const c = s.gradeComponents?.[sub] || {}; return c.midterm != null && c.finals == null }).length
+  const needsAttention = noGrade
+
   // Sort
   const sorted = useMemo(() => {
     return [...studs].sort((a, b) => {
@@ -1145,7 +1157,20 @@ function SubjectCard({ cls, sub, studs, eqScale, readOnly, onEdit, onClear, onEx
     })
   }, [studs, sort, sub, eqScale])
 
-  const slice = sorted.slice((page - 1) * GRADE_PER_PAGE, page * GRADE_PER_PAGE)
+  // Quick-filter the sorted list by status.
+  const filtered = useMemo(() => sorted.filter(s => {
+    if (filter === 'all') return true
+    const c = s.gradeComponents?.[sub] || {}
+    const complete = c.midterm != null && c.finals != null
+    const fg = s.grades?.[sub]
+    if (filter === 'passing') return complete && fg != null && fg >= 75
+    if (filter === 'failing') return complete && fg != null && fg < 75
+    if (filter === 'nograde') return !complete
+    return true
+  }), [sorted, filter, sub])
+
+  const slice = filtered.slice((page - 1) * GRADE_PER_PAGE, page * GRADE_PER_PAGE)
+  const setFilterReset = (f) => { setFilter(f); setPage(1) }
 
   const ftHasAnyData = studs.some(s => {
     const fa = s.gradeComponents?.[sub]?.finalsActivityScores
@@ -1178,6 +1203,44 @@ function SubjectCard({ cls, sub, studs, eqScale, readOnly, onEdit, onClear, onEx
           />
         </div>
       </div>
+
+      {/* Summary metric cards */}
+      <div className="grid gap-2 mb-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))' }}>
+        <div className="rounded-lg p-3" style={{ background: 'var(--bg)' }}>
+          <div className="text-xs text-ink2">Class average</div>
+          <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>{classAvg != null ? classAvgEquiv : '—'}
+            <span className="text-xs text-ink3" style={{ fontWeight: 400, marginLeft: 4 }}>{classAvg != null ? `· ${classAvg.toFixed(1)}%` : ''}</span>
+          </div>
+        </div>
+        <div className="rounded-lg p-3" style={{ background: 'var(--bg)' }}>
+          <div className="text-xs text-ink2">Pass rate</div>
+          <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2, color: 'var(--green)' }}>{passRate}%
+            <span className="text-xs text-ink3" style={{ fontWeight: 400, marginLeft: 4 }}>· {passing}/{total}</span>
+          </div>
+        </div>
+        <div className="rounded-lg p-3" style={{ background: 'var(--bg)' }}>
+          <div className="text-xs text-ink2">Graded</div>
+          <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>{completeGrades.length}<span className="text-ink3" style={{ fontSize: 14, fontWeight: 400 }}>/{total}</span></div>
+        </div>
+        <div className="rounded-lg p-3" style={{ background: 'var(--bg)' }}>
+          <div className="text-xs text-ink2">Needs attention</div>
+          <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2, color: needsAttention ? 'var(--red)' : 'var(--ink)' }}>{needsAttention}</div>
+        </div>
+      </div>
+
+      {/* Attention banner */}
+      {needsAttention > 0 && (
+        <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg" style={{ background: 'var(--yellow-l, #fef9c3)', border: '1px solid var(--yellow, #ca8a04)' }}>
+          <AlertTriangle size={16} className="shrink-0" style={{ color: 'var(--yellow-d, #854d0e)' }} />
+          <span className="text-sm flex-1" style={{ color: 'var(--yellow-d, #854d0e)' }}>
+            {needsAttention} student{needsAttention !== 1 ? 's' : ''} still need a final grade
+            {(missingFinals > 0 || notStarted > 0) && <> — {[missingFinals > 0 && `${missingFinals} missing finals`, notStarted > 0 && `${notStarted} not started`].filter(Boolean).join(', ')}</>}.
+          </span>
+          {filter !== 'nograde'
+            ? <button className="btn btn-ghost btn-sm" onClick={() => setFilterReset('nograde')}>Review these</button>
+            : <button className="btn btn-ghost btn-sm" onClick={() => setFilterReset('all')}>Show all</button>}
+        </div>
+      )}
 
       {/* Grade distribution */}
       <div className="rounded-lg p-3 mb-3" style={{ background: 'var(--bg)' }}>
@@ -1218,35 +1281,69 @@ function SubjectCard({ cls, sub, studs, eqScale, readOnly, onEdit, onClear, onEx
         </div>
       </div>
 
-      {/* Table */}
-      <div className="tbl-wrap">
-        <table className="tbl">
+      {/* Quick filters */}
+      <div className="flex gap-1.5 flex-wrap mb-2">
+        {[
+          { k: 'all',     label: 'All',     n: total },
+          { k: 'passing', label: 'Passing', n: passing },
+          { k: 'failing', label: 'Failing', n: failing },
+          { k: 'nograde', label: 'No grade', n: noGrade },
+        ].map(({ k, label, n }) => {
+          const on = filter === k
+          return (
+            <button key={k} onClick={() => setFilterReset(k)}
+              style={{
+                fontSize: 12, fontWeight: 600, padding: '4px 11px', borderRadius: 999, cursor: 'pointer',
+                border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
+                background: on ? 'var(--accent)' : 'var(--surface)',
+                color: on ? '#fff' : 'var(--ink2)',
+              }}>
+              {label} · {n}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Table — wide, horizontally scrollable */}
+      <div className="tbl-wrap" style={{ overflowX: 'auto' }}>
+        <table className="tbl" style={{ minWidth: 1040 }}>
           <thead>
             <tr>
-              {[
-                { col: 'name',     label: 'Student' },
-                { col: 'midterm',  label: 'Midterm' },
-                { col: 'finals',   label: 'Finals' },
-                { col: 'grade',    label: 'Final Grade' },
-                { col: 'remarks',  label: 'Remarks' },
-                { col: 'uploaded', label: 'Uploaded' },
-              ].map(({ col, label }) => (
-                <th key={col} className="th-sort" onClick={() => toggleSort(col)}>
-                  {label} <SortIcon col={col} sort={sort} />
-                </th>
-              ))}
+              <th className="th-sort" onClick={() => toggleSort('name')}>Student <SortIcon col="name" sort={sort} /></th>
+              <th>Status</th>
+              <th title="Activity average">Acts</th>
+              <th title="Quiz average">Quiz</th>
+              <th title="Attendance rate">Attend</th>
+              <th className="th-sort" onClick={() => toggleSort('midterm')}>Midterm <SortIcon col="midterm" sort={sort} /></th>
+              <th className="th-sort" onClick={() => toggleSort('finals')}>Finals <SortIcon col="finals" sort={sort} /></th>
+              <th className="th-sort" onClick={() => toggleSort('grade')}>Final % <SortIcon col="grade" sort={sort} /></th>
+              <th>Equiv.</th>
+              <th className="th-sort" onClick={() => toggleSort('remarks')}>Remarks <SortIcon col="remarks" sort={sort} /></th>
+              <th className="th-sort" onClick={() => toggleSort('uploaded')}>Uploaded <SortIcon col="uploaded" sort={sort} /></th>
             </tr>
           </thead>
           <tbody>
             {slice.length === 0 && (
-              <tr><td colSpan={6}><div className="empty">No students.</div></td></tr>
+              <tr><td colSpan={11}><div className="empty">No students.</div></td></tr>
             )}
             {slice.map(s => {
               const comp  = s.gradeComponents?.[sub] || {}
               const midG  = comp.midterm ?? null
               const finG  = comp.finals  ?? null
+              const fg    = s.grades?.[sub] ?? null
               const ts    = s.gradeUploadedAt?.[sub]
               const tsLabel = ts ? new Date(ts).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
+
+              const complete = midG != null && finG != null
+              const anyData  = midG != null || finG != null || comp.activities != null || comp.attitude != null
+              const stMap = { complete: { l: 'Complete', c: 'green' }, partial: { l: 'Partial', c: 'yellow' }, none: { l: 'Not started', c: 'gray' } }
+              const st = complete ? stMap.complete : anyData ? stMap.partial : stMap.none
+
+              const actsV = typeof comp.activities === 'number' ? comp.activities.toFixed(0) : '—'
+              const quizV = typeof comp.quizzes === 'number' ? comp.quizzes.toFixed(0) : '—'
+              const attSize = s.attendance?.[sub]?.size ?? 0
+              const attRate = heldDays > 0 ? Math.round((attSize / heldDays) * 100) : null
+              const attColor = attRate == null ? 'var(--ink3)' : attRate >= 90 ? 'var(--green)' : attRate >= 75 ? 'var(--yellow)' : 'var(--red)'
 
               const { eq: midEq } = gradeInfo(midG, eqScale)
               const midPct = midG != null ? `${midG.toFixed(1)}%` : '—'
@@ -1258,27 +1355,18 @@ function SubjectCard({ cls, sub, studs, eqScale, readOnly, onEdit, onClear, onEx
               const finEquiv = finG != null ? finRawEq : '—'
               const finBadgeCls = finG != null ? (finG >= 75 ? 'green' : finG >= 72 ? 'yellow' : 'red') : 'gray'
 
-              // Per-student finals component progress (activities, quizzes/CS, exam)
-              const hasFtActs = comp.finalsActivityScores && Object.keys(comp.finalsActivityScores).length > 0
-              const hasFtCS   = comp.finalsCS   != null
-              const hasFtExam = comp.finalsExam != null
-              const finCompsDone = [hasFtActs, hasFtCS, hasFtExam].filter(Boolean).length
-              const finCompsPct  = Math.round(finCompsDone / 3 * 100)
+              const fgPct = fg != null ? `${fg.toFixed(1)}%` : '—'
+              const fgPctCls = fg != null ? (fg >= 75 ? 'green' : fg >= 72 ? 'yellow' : 'red') : 'gray'
 
-              // Final grade badge
               const gradeFullyUploaded = midG != null && finG != null && ts
               let combinedEq, rem
               if (gradeFullyUploaded) {
                 const combined = combineEquiv(gradeInfo(midG, eqScale).eq, gradeInfo(finG, eqScale).eq)
                 combinedEq = combined.eq; rem = combined.rem
-              } else if (midG != null) {
-                combinedEq = '—'; rem = 'Pending'
               } else {
                 combinedEq = '—'; rem = 'Pending'
               }
-
               const fgBadgeCls = rem === 'Passed' ? 'green' : rem === 'Conditional' ? 'yellow' : rem === 'Failed' ? 'red' : 'gray'
-              const remBadgeCls = rem === 'Passed' ? 'green' : rem === 'Conditional' ? 'yellow' : rem === 'Failed' ? 'red' : 'gray'
 
               return (
                 <tr key={s.id}>
@@ -1286,42 +1374,20 @@ function SubjectCard({ cls, sub, studs, eqScale, readOnly, onEdit, onClear, onEx
                     <strong>{s.name}</strong><br />
                     <small className="text-ink2">{s.id}</small>
                   </td>
-                  <td>
-                    <ToggleBadge pct={midPct} equiv={midEquiv} badgeCls={midBadgeCls} />
-                  </td>
-                  <td>
-                    {finG != null
-                      ? <ToggleBadge pct={finPct} equiv={finEquiv} badgeCls={finBadgeCls} />
-                      : <div style={{ minWidth: 80 }}>
-                          <div className="flex items-center justify-between mb-0.5">
-                            <span style={{ fontSize: 10, color: 'var(--ink3)' }}>{finCompsDone}/3</span>
-                            <span style={{ fontSize: 10, fontWeight: 600, color: finCompsPct === 100 ? 'var(--green)' : 'var(--ink2)' }}>{finCompsPct}%</span>
-                          </div>
-                          <div className="flex gap-px rounded overflow-hidden" style={{ height: 6, background: 'var(--border)' }}
-                            title={`Acts: ${hasFtActs ? '✓' : '✗'} · Quizzes: ${hasFtCS ? '✓' : '✗'} · Exam: ${hasFtExam ? '✓' : '✗'}`}>
-                            {[
-                              { done: hasFtActs, label: 'Acts' },
-                              { done: hasFtCS,   label: 'Quizzes' },
-                              { done: hasFtExam, label: 'Exam' },
-                            ].map(({ done, label }) => (
-                              <div key={label} style={{
-                                flex: 1,
-                                height: '100%',
-                                background: done ? (finCompsPct === 100 ? 'var(--green)' : 'var(--accent)') : 'transparent',
-                                transition: 'background .3s',
-                              }} />
-                            ))}
-                          </div>
-                        </div>
-                    }
-                  </td>
+                  <td><span className={`badge ${BADGE_CLS_MAP[st.c] || 'badge-gray'}`}>{st.l}</span></td>
+                  <td style={{ color: actsV === '—' ? 'var(--ink3)' : 'var(--ink)' }}>{actsV}</td>
+                  <td style={{ color: quizV === '—' ? 'var(--ink3)' : 'var(--ink)' }}>{quizV}</td>
+                  <td style={{ color: attColor, fontWeight: 600, fontSize: 12 }}>{attRate != null ? `${attRate}%` : '—'}</td>
+                  <td><ToggleBadge pct={midPct} equiv={midEquiv} badgeCls={midBadgeCls} /></td>
+                  <td>{finG != null ? <ToggleBadge pct={finPct} equiv={finEquiv} badgeCls={finBadgeCls} /> : <span className="badge badge-gray">—</span>}</td>
+                  <td><span className={`badge ${BADGE_CLS_MAP[fgPctCls] || 'badge-gray'}`}>{fgPct}</span></td>
                   <td>
                     {gradeFullyUploaded
                       ? <span className={`badge ${BADGE_CLS_MAP[fgBadgeCls] || 'badge-gray'}`} style={{ fontSize: 13, fontWeight: 700 }}>{combinedEq}</span>
                       : <span className="badge badge-gray" title="Final grade not yet fully uploaded" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={11} />Pending</span>}
                   </td>
                   <td>
-                    <span className={`badge ${BADGE_CLS_MAP[remBadgeCls] || 'badge-gray'}`}
+                    <span className={`badge ${BADGE_CLS_MAP[fgBadgeCls] || 'badge-gray'}`}
                       title={rem === 'Pending' ? 'Final grade not yet fully uploaded by teacher' : ''}>
                       {rem}
                     </span>
@@ -1333,7 +1399,7 @@ function SubjectCard({ cls, sub, studs, eqScale, readOnly, onEdit, onClear, onEx
           </tbody>
         </table>
       </div>
-      <Pagination total={studs.length} perPage={GRADE_PER_PAGE} page={page} onChange={setPage} />
+      <Pagination total={filtered.length} perPage={GRADE_PER_PAGE} page={page} onChange={setPage} />
     </div>
   )
 }
@@ -1681,6 +1747,7 @@ export default function GradesTab() {
           cls={cls}
           sub={selSub}
           studs={filteredStuds}
+          allStuds={students}
           eqScale={eqScale}
           readOnly={showArchived}
           onEdit={showArchived ? null : sub => setEditModal(sub)}
