@@ -12,12 +12,23 @@ rules_version = '2';
 //   • Only the TEACHER can write class config, grade weights, app config and
 //     online meetings, and only the teacher can create/delete student records.
 //   • Students may update their own-facing data (profile, attendance check-in,
-//     messages, submissions, etc.) but CANNOT change grade fields. Grades and
-//     grade components on a student record can only be written by the teacher.
+//     messages, submissions, quiz results, etc.) but CANNOT change grade fields.
+//     Grades and grade components on a student record can only be written by the
+//     teacher.
 //
-// HOW TO APPLY:
+// COLLECTIONS COVERED (every collection the client reads/writes is matched below;
+// an unmatched collection is denied by default, so ADD a match here whenever a new
+// feature introduces a new top-level collection — otherwise it will silently fail):
+//   students · portal/* (classes, config, settings, admin, rubricLibrary) ·
+//   onlineMeetings · auditLog · messages · typing · activities · notifications ·
+//   quizzes · announcements · attendanceSessions · excuseRequests · pushTokens ·
+//   resources.  resetSessions/* is intentionally server-only (see bottom).
+//
+// HOW TO APPLY (these rules only take effect once PUBLISHED):
 //   Firebase Console → project (collegeportal-d2b98) → Build → Firestore
 //   Database → Rules tab → replace everything with this file → Publish.
+//   If a write that should work is denied, it usually means the deployed rules
+//   are older than this file — re-publish.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -26,23 +37,37 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // The teacher account. Update this if the admin email ever changes.
+    // The teacher account. Resilient on purpose so the teacher is never locked
+    // out of every admin write by a single hardcoded value:
+    //   • the primary admin email, OR
+    //   • any account carrying a custom auth claim `admin: true` (set via the
+    //     Admin SDK if the email ever changes or a second staff account is added).
+    // Add more emails to the list if more staff need teacher rights.
     function isAdmin() {
       return request.auth != null
-        && request.auth.token.email == 'markgalvez@ucc-caloocan.edu.ph';
+        && (
+          request.auth.token.get('admin', false) == true
+          || request.auth.token.email in [
+               'markgalvez@ucc-caloocan.edu.ph'
+             ]
+        );
     }
 
     // True when a write does NOT touch grade-bearing fields on a student doc.
+    // Defensive: on an update `resource` always exists, but guard for null so a
+    // misfire evaluates to a clean allow/deny instead of erroring out.
     function gradeFieldsUntouched() {
-      return !request.resource.data.diff(resource.data)
-        .affectedKeys().hasAny(['grades', 'gradeComponents']);
+      return resource == null
+        || !request.resource.data.diff(resource.data)
+             .affectedKeys().hasAny(['grades', 'gradeComponents']);
     }
 
     // ── Student records ───────────────────────────────────────────────────
     // Read: any signed-in user (the app listens to the whole collection).
     // Create/Delete: teacher only (prevents forging or wiping records).
-    // Update: teacher freely; students may update their own-facing fields but
-    //         never grades / gradeComponents.
+    // Update: teacher freely; students may update their own-facing fields
+    //         (profile, attendance check-in, quizResults cache, …) but never
+    //         grades / gradeComponents.
     match /students/{sid} {
       allow read:   if signedIn();
       allow create: if isAdmin();
@@ -51,8 +76,9 @@ service cloud.firestore {
     }
 
     // ── Teacher-only configuration ────────────────────────────────────────
-    // Class list, grade weights / equivalence scale (settings), and the
-    // app/EJS config all live under portal/*. Students never write these.
+    // Class list, grade weights / equivalence scale (settings), the app/EJS
+    // config, and the saved rubric library all live under portal/*. Read by
+    // everyone signed in; written only by the teacher.
     match /portal/{docId}             { allow read: if signedIn(); allow write: if isAdmin(); }
 
     // Online meetings are scheduled and controlled by the teacher.
@@ -64,6 +90,9 @@ service cloud.firestore {
     match /auditLog/{docId}           { allow read, write: if isAdmin(); }
 
     // ── Shared collections students legitimately write to ────────────────
+    // (Submissions, quiz attempts, group submissions, comments, check-ins,
+    // excuse requests, push tokens — all require login but no field gating, so
+    // legitimate student writes are never blocked.)
     match /messages/{docId}           { allow read, write: if signedIn(); }
     // Ephemeral "X is typing" presence per chat (direct_/group_ keys).
     match /typing/{docId}             { allow read, write: if signedIn(); }
