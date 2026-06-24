@@ -1172,6 +1172,47 @@ function SubjectCard({ cls, sub, studs, allStuds = [], eqScale, readOnly, onEdit
   const slice = filtered.slice((page - 1) * GRADE_PER_PAGE, page * GRADE_PER_PAGE)
   const setFilterReset = (f) => { setFilter(f); setPage(1) }
 
+  // Derive each visible student's row once — shared by the desktop table and
+  // the phone card list so the computation isn't duplicated.
+  const rowsData = slice.map(s => {
+    const comp = s.gradeComponents?.[sub] || {}
+    const midG = comp.midterm ?? null
+    const finG = comp.finals  ?? null
+    const fg   = s.grades?.[sub] ?? null
+    const ts   = s.gradeUploadedAt?.[sub]
+    const tsLabel = ts ? new Date(ts).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
+
+    const complete = midG != null && finG != null
+    const anyData  = midG != null || finG != null || comp.activities != null || comp.attitude != null
+    const stMap = { complete: { l: 'Complete', c: 'green' }, partial: { l: 'Partial', c: 'yellow' }, none: { l: 'Not started', c: 'gray' } }
+    const st = complete ? stMap.complete : anyData ? stMap.partial : stMap.none
+
+    const actsV = typeof comp.activities === 'number' ? comp.activities.toFixed(0) : '—'
+    const quizV = typeof comp.quizzes === 'number' ? comp.quizzes.toFixed(0) : '—'
+    const attSize = s.attendance?.[sub]?.size ?? 0
+    const attRate = heldDays > 0 ? Math.round((attSize / heldDays) * 100) : null
+    const attColor = attRate == null ? 'var(--ink3)' : attRate >= 90 ? 'var(--green)' : attRate >= 75 ? 'var(--yellow)' : 'var(--red)'
+
+    const midPct = midG != null ? `${midG.toFixed(1)}%` : '—'
+    const midEquiv = midG != null ? gradeInfo(midG, eqScale).eq : '—'
+    const midBadgeCls = midG != null ? (midG >= 75 ? 'green' : midG >= 72 ? 'yellow' : 'red') : 'gray'
+    const finPct  = finG != null ? `${finG.toFixed(1)}%` : '—'
+    const finEquiv = finG != null ? gradeInfo(finG, eqScale).eq : '—'
+    const finBadgeCls = finG != null ? (finG >= 75 ? 'green' : finG >= 72 ? 'yellow' : 'red') : 'gray'
+    const fgPct = fg != null ? `${fg.toFixed(1)}%` : '—'
+    const fgPctCls = fg != null ? (fg >= 75 ? 'green' : fg >= 72 ? 'yellow' : 'red') : 'gray'
+
+    const gradeFullyUploaded = midG != null && finG != null && ts
+    let combinedEq, rem
+    if (gradeFullyUploaded) {
+      const c = combineEquiv(gradeInfo(midG, eqScale).eq, gradeInfo(finG, eqScale).eq)
+      combinedEq = c.eq; rem = c.rem
+    } else { combinedEq = '—'; rem = 'Pending' }
+    const fgBadgeCls = rem === 'Passed' ? 'green' : rem === 'Conditional' ? 'yellow' : rem === 'Failed' ? 'red' : 'gray'
+
+    return { s, midG, finG, tsLabel, st, actsV, quizV, attRate, attColor, midPct, midEquiv, midBadgeCls, finPct, finEquiv, finBadgeCls, fgPct, fgPctCls, gradeFullyUploaded, combinedEq, rem, fgBadgeCls }
+  })
+
   const ftHasAnyData = studs.some(s => {
     const fa = s.gradeComponents?.[sub]?.finalsActivityScores
     return fa && Object.keys(fa).length > 0
@@ -1205,7 +1246,7 @@ function SubjectCard({ cls, sub, studs, allStuds = [], eqScale, readOnly, onEdit
       </div>
 
       {/* Summary metric cards */}
-      <div className="grid gap-2 mb-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))' }}>
+      <div className="grid gap-2 mb-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
         <div className="rounded-lg p-3" style={{ background: 'var(--bg)' }}>
           <div className="text-xs text-ink2">Class average</div>
           <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>{classAvg != null ? classAvgEquiv : '—'}
@@ -1230,9 +1271,9 @@ function SubjectCard({ cls, sub, studs, allStuds = [], eqScale, readOnly, onEdit
 
       {/* Attention banner */}
       {needsAttention > 0 && (
-        <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg" style={{ background: 'var(--yellow-l, #fef9c3)', border: '1px solid var(--yellow, #ca8a04)' }}>
+        <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg flex-wrap" style={{ background: 'var(--yellow-l, #fef9c3)', border: '1px solid var(--yellow, #ca8a04)' }}>
           <AlertTriangle size={16} className="shrink-0" style={{ color: 'var(--yellow-d, #854d0e)' }} />
-          <span className="text-sm flex-1" style={{ color: 'var(--yellow-d, #854d0e)' }}>
+          <span className="text-sm" style={{ color: 'var(--yellow-d, #854d0e)', flex: '1 1 200px' }}>
             {needsAttention} student{needsAttention !== 1 ? 's' : ''} still need a final grade
             {(missingFinals > 0 || notStarted > 0) && <> — {[missingFinals > 0 && `${missingFinals} missing finals`, notStarted > 0 && `${notStarted} not started`].filter(Boolean).join(', ')}</>}.
           </span>
@@ -1304,8 +1345,8 @@ function SubjectCard({ cls, sub, studs, allStuds = [], eqScale, readOnly, onEdit
         })}
       </div>
 
-      {/* Table — wide, horizontally scrollable */}
-      <div className="tbl-wrap" style={{ overflowX: 'auto' }}>
+      {/* Table — tablet/desktop (≥640px); horizontally scrollable */}
+      <div className="tbl-wrap hidden sm:block" style={{ overflowX: 'auto' }}>
         <table className="tbl" style={{ minWidth: 1040 }}>
           <thead>
             <tr>
@@ -1323,82 +1364,71 @@ function SubjectCard({ cls, sub, studs, allStuds = [], eqScale, readOnly, onEdit
             </tr>
           </thead>
           <tbody>
-            {slice.length === 0 && (
+            {rowsData.length === 0 && (
               <tr><td colSpan={11}><div className="empty">No students.</div></td></tr>
             )}
-            {slice.map(s => {
-              const comp  = s.gradeComponents?.[sub] || {}
-              const midG  = comp.midterm ?? null
-              const finG  = comp.finals  ?? null
-              const fg    = s.grades?.[sub] ?? null
-              const ts    = s.gradeUploadedAt?.[sub]
-              const tsLabel = ts ? new Date(ts).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
-
-              const complete = midG != null && finG != null
-              const anyData  = midG != null || finG != null || comp.activities != null || comp.attitude != null
-              const stMap = { complete: { l: 'Complete', c: 'green' }, partial: { l: 'Partial', c: 'yellow' }, none: { l: 'Not started', c: 'gray' } }
-              const st = complete ? stMap.complete : anyData ? stMap.partial : stMap.none
-
-              const actsV = typeof comp.activities === 'number' ? comp.activities.toFixed(0) : '—'
-              const quizV = typeof comp.quizzes === 'number' ? comp.quizzes.toFixed(0) : '—'
-              const attSize = s.attendance?.[sub]?.size ?? 0
-              const attRate = heldDays > 0 ? Math.round((attSize / heldDays) * 100) : null
-              const attColor = attRate == null ? 'var(--ink3)' : attRate >= 90 ? 'var(--green)' : attRate >= 75 ? 'var(--yellow)' : 'var(--red)'
-
-              const { eq: midEq } = gradeInfo(midG, eqScale)
-              const midPct = midG != null ? `${midG.toFixed(1)}%` : '—'
-              const midEquiv = midG != null ? midEq : '—'
-              const midBadgeCls = midG != null ? (midG >= 75 ? 'green' : midG >= 72 ? 'yellow' : 'red') : 'gray'
-
-              const { eq: finRawEq } = gradeInfo(finG, eqScale)
-              const finPct  = finG != null ? `${finG.toFixed(1)}%` : '—'
-              const finEquiv = finG != null ? finRawEq : '—'
-              const finBadgeCls = finG != null ? (finG >= 75 ? 'green' : finG >= 72 ? 'yellow' : 'red') : 'gray'
-
-              const fgPct = fg != null ? `${fg.toFixed(1)}%` : '—'
-              const fgPctCls = fg != null ? (fg >= 75 ? 'green' : fg >= 72 ? 'yellow' : 'red') : 'gray'
-
-              const gradeFullyUploaded = midG != null && finG != null && ts
-              let combinedEq, rem
-              if (gradeFullyUploaded) {
-                const combined = combineEquiv(gradeInfo(midG, eqScale).eq, gradeInfo(finG, eqScale).eq)
-                combinedEq = combined.eq; rem = combined.rem
-              } else {
-                combinedEq = '—'; rem = 'Pending'
-              }
-              const fgBadgeCls = rem === 'Passed' ? 'green' : rem === 'Conditional' ? 'yellow' : rem === 'Failed' ? 'red' : 'gray'
-
-              return (
-                <tr key={s.id}>
+            {rowsData.map(r => (
+                <tr key={r.s.id}>
                   <td>
-                    <strong>{s.name}</strong><br />
-                    <small className="text-ink2">{s.id}</small>
+                    <strong>{r.s.name}</strong><br />
+                    <small className="text-ink2">{r.s.id}</small>
                   </td>
-                  <td><span className={`badge ${BADGE_CLS_MAP[st.c] || 'badge-gray'}`}>{st.l}</span></td>
-                  <td style={{ color: actsV === '—' ? 'var(--ink3)' : 'var(--ink)' }}>{actsV}</td>
-                  <td style={{ color: quizV === '—' ? 'var(--ink3)' : 'var(--ink)' }}>{quizV}</td>
-                  <td style={{ color: attColor, fontWeight: 600, fontSize: 12 }}>{attRate != null ? `${attRate}%` : '—'}</td>
-                  <td><ToggleBadge pct={midPct} equiv={midEquiv} badgeCls={midBadgeCls} /></td>
-                  <td>{finG != null ? <ToggleBadge pct={finPct} equiv={finEquiv} badgeCls={finBadgeCls} /> : <span className="badge badge-gray">—</span>}</td>
-                  <td><span className={`badge ${BADGE_CLS_MAP[fgPctCls] || 'badge-gray'}`}>{fgPct}</span></td>
+                  <td><span className={`badge ${BADGE_CLS_MAP[r.st.c] || 'badge-gray'}`}>{r.st.l}</span></td>
+                  <td style={{ color: r.actsV === '—' ? 'var(--ink3)' : 'var(--ink)' }}>{r.actsV}</td>
+                  <td style={{ color: r.quizV === '—' ? 'var(--ink3)' : 'var(--ink)' }}>{r.quizV}</td>
+                  <td style={{ color: r.attColor, fontWeight: 600, fontSize: 12 }}>{r.attRate != null ? `${r.attRate}%` : '—'}</td>
+                  <td><ToggleBadge pct={r.midPct} equiv={r.midEquiv} badgeCls={r.midBadgeCls} /></td>
+                  <td>{r.finG != null ? <ToggleBadge pct={r.finPct} equiv={r.finEquiv} badgeCls={r.finBadgeCls} /> : <span className="badge badge-gray">—</span>}</td>
+                  <td><span className={`badge ${BADGE_CLS_MAP[r.fgPctCls] || 'badge-gray'}`}>{r.fgPct}</span></td>
                   <td>
-                    {gradeFullyUploaded
-                      ? <span className={`badge ${BADGE_CLS_MAP[fgBadgeCls] || 'badge-gray'}`} style={{ fontSize: 13, fontWeight: 700 }}>{combinedEq}</span>
+                    {r.gradeFullyUploaded
+                      ? <span className={`badge ${BADGE_CLS_MAP[r.fgBadgeCls] || 'badge-gray'}`} style={{ fontSize: 13, fontWeight: 700 }}>{r.combinedEq}</span>
                       : <span className="badge badge-gray" title="Final grade not yet fully uploaded" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={11} />Pending</span>}
                   </td>
                   <td>
-                    <span className={`badge ${BADGE_CLS_MAP[fgBadgeCls] || 'badge-gray'}`}
-                      title={rem === 'Pending' ? 'Final grade not yet fully uploaded by teacher' : ''}>
-                      {rem}
+                    <span className={`badge ${BADGE_CLS_MAP[r.fgBadgeCls] || 'badge-gray'}`}
+                      title={r.rem === 'Pending' ? 'Final grade not yet fully uploaded by teacher' : ''}>
+                      {r.rem}
                     </span>
                   </td>
-                  <td style={{ fontSize: 11, color: 'var(--ink2)' }}>{tsLabel}</td>
+                  <td style={{ fontSize: 11, color: 'var(--ink2)' }}>{r.tsLabel}</td>
                 </tr>
-              )
-            })}
+            ))}
           </tbody>
         </table>
       </div>
+
+      {/* Phone (<640px) — one card per student instead of a sideways-scrolling table */}
+      <div className="sm:hidden flex flex-col gap-2">
+        {rowsData.length === 0 && <div className="empty">No students.</div>}
+        {rowsData.map(r => (
+          <div key={r.s.id} className="rounded-lg p-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div style={{ minWidth: 0 }}>
+                <strong style={{ fontSize: 14 }}>{r.s.name}</strong>
+                <div className="text-xs text-ink3">{r.s.id}</div>
+              </div>
+              <span className={`badge ${BADGE_CLS_MAP[r.st.c] || 'badge-gray'}`} style={{ flexShrink: 0 }}>{r.st.l}</span>
+            </div>
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              {r.gradeFullyUploaded
+                ? <span className={`badge ${BADGE_CLS_MAP[r.fgBadgeCls] || 'badge-gray'}`} style={{ fontSize: 14, fontWeight: 700 }}>{r.combinedEq}</span>
+                : <span className="badge badge-gray" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={11} />Pending</span>}
+              <span className={`badge ${BADGE_CLS_MAP[r.fgPctCls] || 'badge-gray'}`}>{r.fgPct}</span>
+              <span className={`badge ${BADGE_CLS_MAP[r.fgBadgeCls] || 'badge-gray'}`}>{r.rem}</span>
+            </div>
+            <div className="grid gap-x-3 gap-y-1" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', fontSize: 12 }}>
+              <div className="flex justify-between"><span className="text-ink3">Midterm</span><strong>{r.midPct}</strong></div>
+              <div className="flex justify-between"><span className="text-ink3">Finals</span><strong>{r.finPct}</strong></div>
+              <div className="flex justify-between"><span className="text-ink3">Activities</span><strong>{r.actsV}</strong></div>
+              <div className="flex justify-between"><span className="text-ink3">Quiz</span><strong>{r.quizV}</strong></div>
+              <div className="flex justify-between"><span className="text-ink3">Attendance</span><strong style={{ color: r.attColor }}>{r.attRate != null ? `${r.attRate}%` : '—'}</strong></div>
+              <div className="flex justify-between"><span className="text-ink3">Uploaded</span><strong>{r.tsLabel}</strong></div>
+            </div>
+          </div>
+        ))}
+      </div>
+
       <Pagination total={filtered.length} perPage={GRADE_PER_PAGE} page={page} onChange={setPage} />
     </div>
   )
@@ -1713,7 +1743,7 @@ export default function GradesTab() {
 
       {/* Controls */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <select className="input" style={{ maxWidth: 420 }}
+        <select className="input" style={{ flex: '1 1 240px', minWidth: 0, maxWidth: 420 }}
           value={selected?.key || ''}
           onChange={e => { setSelKey(e.target.value); setSearch('') }}>
           <option value="">— Select a subject —</option>
@@ -1721,7 +1751,7 @@ export default function GradesTab() {
             <option key={o.key} value={o.key}>{o.label}</option>
           ))}
         </select>
-        <input className="input" style={{ maxWidth: 220 }}
+        <input className="input" style={{ flex: '1 1 160px', minWidth: 0, maxWidth: 240 }}
           aria-label="Search students"
           placeholder="Search student…"
           value={search}
