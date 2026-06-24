@@ -12,7 +12,7 @@ const STOPWORDS = new Set(('a an the and or but of to in on at for with from by 
 let _seq = 0
 function qid() { return 'q_' + Date.now() + '_' + (_seq++) }
 
-function splitSentences(text) {
+export function splitSentences(text) {
   return String(text)
     .replace(/\s+/g, ' ')
     .split(/(?<=[.!?])\s+(?=[A-Z0-9])/)
@@ -21,7 +21,7 @@ function splitSentences(text) {
 }
 
 // Candidate key terms: title-case phrases + frequent meaningful words.
-function keyTerms(text) {
+export function keyTerms(text) {
   const counts = {}
   const phrases = {}
   // Title-case phrases (e.g. "Game Loop", "Object Oriented Programming")
@@ -41,7 +41,7 @@ function keyTerms(text) {
 }
 
 // Definitions from "X is/are/refers to/means ..." patterns.
-function definitions(sentences) {
+export function definitions(sentences) {
   const defs = []
   const re = /^(.{3,60}?)\s+(?:is|are|refers to|means|is called|is defined as|describes|represents)\s+(.{8,})$/i
   for (const s of sentences) {

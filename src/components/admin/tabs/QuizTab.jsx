@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -9,9 +9,9 @@ import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { extractTextFromFile } from '@/utils/lessonExtract'
 import { generateDraftQuestions } from '@/utils/quizGen'
+import { generateQuizAI, prewarmQuizAI } from '@/utils/quizGenAI'
 import { quizItemAnalysis } from '@/utils/quizStats'
 import { classTag } from '@/utils/groupChat'
-import { aiRequest } from '@/utils/aiGateway'
 
 
 function quizId() {
@@ -862,8 +862,12 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
   const [extracting, setExtracting] = useState(false)
   const [count, setCount] = useState(10)
   const [qTypes, setQTypes] = useState(['multiple_choice', 'true_false', 'fill_in_the_blank', 'identification'])
-  const [method, setMethod] = useState('device') // 'device' | 'ai'
+  const [method, setMethod] = useState('smart') // 'smart' (on-device AI) | 'quick' (instant rules)
   const [busy, setBusy] = useState(false)
+
+  // Warm the on-device AI model the moment the modal opens so the first
+  // generation isn't a cold ~23MB download-and-compile wait.
+  useEffect(() => { prewarmQuizAI() }, [])
 
   function toggleType(t) {
     setQTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])
@@ -893,23 +897,18 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
     if (!qTypes.length) { toast('Pick at least one question type.', 'warn'); return }
     setBusy(true)
     try {
-      if (method === 'ai') {
-        // Routed through the serialized gateway so rapid re-clicks can't fan out
-        // multiple Gemini calls against the free-tier quota.
-        const { ok, status, data, error } = await aiRequest('/api/generate-quiz-gemini', { text, count, types: qTypes })
-        if (ok) {
-          const qs = (data?.questions || []).map(q => ({ id: 'q_' + Date.now() + Math.random().toString(36).slice(2, 6), ...q }))
-          if (qs.length) { onGenerated(qs); return }
-          toast('AI returned no questions. Using on-device drafts instead.', 'warn', 5000)
-        } else if (status === 501) {
-          toast('AI is not set up yet (no free key). Using on-device drafts instead.', 'info', 6000)
-        } else if (error === 'aborted' || status === 0) {
-          toast('Could not reach the AI service. Using on-device drafts instead.', 'warn', 5000)
-        } else {
-          toast('AI: ' + (error || 'request failed') + '. Using on-device drafts instead.', 'warn', 8000)
+      if (method === 'smart') {
+        // Custom on-device AI (sentence embeddings). Grounded in the lesson,
+        // private, $0 — no Gemini. Falls back to quick drafts if it can't run.
+        try {
+          const qs = await generateQuizAI(text, { count, types: qTypes })
+          if (qs && qs.length) { onGenerated(qs); return }
+          toast('Smart generator unavailable on this device — using quick drafts.', 'info', 5000)
+        } catch {
+          toast('Smart generator hit a snag — using quick drafts.', 'warn', 5000)
         }
       }
-      // On-device (default, or AI fallback)
+      // Quick rule-based drafts (default, or smart fallback)
       const qs = generateDraftQuestions(text, { count, types: qTypes })
       if (!qs.length) { toast('Could not draft questions from this lesson. Try a longer, text-heavy file.', 'error', 6000); return }
       onGenerated(qs)
@@ -979,8 +978,8 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
         <label className="text-xs font-semibold text-ink2 mb-2 block">Generation method</label>
         <div className="flex flex-col gap-2">
           {[
-            { id: 'device', title: 'On-device', desc: 'Instant, free, no setup. Drafts from your lesson text.' },
-            { id: 'ai', title: 'AI (Gemini free tier)', desc: 'Higher quality. Needs a free Google API key (no credit card). Falls back to on-device if not set up.' },
+            { id: 'smart', title: 'Smart AI (on-device)', desc: 'Best quality. A small AI model reads your lesson on this device — private, free, no key. First run downloads ~23MB, then it’s cached.' },
+            { id: 'quick', title: 'Quick draft', desc: 'Instant, no download. Rule-based drafts from your lesson text.' },
           ].map(opt => {
             const active = method === opt.id
             return (
