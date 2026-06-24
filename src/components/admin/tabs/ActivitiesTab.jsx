@@ -7,7 +7,7 @@ import { getHeldDays, computeTerms, scoredPercent, round2 } from '@/utils/grades
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
-import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil, ClipboardList, AlarmClock, CircleDot, BarChart3, CheckCircle2, Check, Save, Plus } from 'lucide-react'
+import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil, ClipboardList, AlarmClock, CircleDot, BarChart3, CheckCircle2, Check, Save, Plus, Copy } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { deviceRubric, deviceInstructions, aiInstructions, aiRubric, aiGrade, isNotConfigured } from '@/utils/activityAI'
 import { sendPushToOwners } from '@/firebase/pushTokens'
@@ -608,6 +608,30 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
     }
   }
 
+  async function handleClone() {
+    try {
+      const id = actId()
+      const copy = {
+        ...act, id,
+        title: `${act.title} (Copy)`,
+        submissions: {},   // a fresh activity — no carried-over submissions
+        createdAt: Date.now(),
+        deadline: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      }
+      await setDoc(doc(db.current, 'activities', id), copy)
+      logAudit?.({
+        action: 'activity.clone',
+        target: copy.title,
+        summary: `Duplicated activity "${act.title}"`,
+        meta: { from: act.id, to: id, subject: act.subject || null },
+      })
+      toast('Activity duplicated — due in 7 days. Edit to adjust.', 'green')
+      onClose()
+    } catch (e) {
+      toast('Duplicate failed: ' + e.message, 'red')
+    }
+  }
+
   // Manual deadline reminder: notify enrolled students who haven't submitted.
   async function handleRemind() {
     const missing = enrolledStudents.filter(s => !(act.submissions || {})[s.id]?.link)
@@ -824,6 +848,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
           <AlarmClock size={16} /> Remind Missing
         </button>
         <button className="btn btn-ghost btn-sm" onClick={onEdit}><Pencil size={16} /> Edit</button>
+        <button className="btn btn-ghost btn-sm" onClick={handleClone}><Copy size={16} /> Duplicate</button>
         <button className="btn btn-danger btn-sm" onClick={handleDelete}>Delete</button>
         <button className="btn btn-ghost btn-sm ml-auto" onClick={onClose}>Close</button>
         <button className="btn btn-primary btn-sm" onClick={handleSaveAll} disabled={savingAll}>
