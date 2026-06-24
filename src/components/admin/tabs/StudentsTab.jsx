@@ -291,10 +291,21 @@ function EditStudentModal({ student, onClose }) {
   }
 
   return (
-    <Modal onClose={onClose} maxWidth={600}>
-      <h3><Pencil size={18} /> Edit Student</h3>
-      <p className="modal-sub">Update student information.{isRegistered ? ' The student number is locked once the student has an account.' : ''}</p>
+    <Modal onClose={onClose} size="lg">
+      <div className="pr-8 flex items-center gap-3 mb-4">
+        <div className="stu-avatar" style={{ width: 44, height: 44, fontSize: 18, flexShrink: 0, overflow: 'hidden' }}>
+          {student.photo
+            ? <img src={student.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+            : (student.name || '?').charAt(0).toUpperCase()}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <h3 className="mb-0" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Pencil size={16} /> Edit student</h3>
+          <div className="text-xs text-ink2 truncate">{student.name} · #{student.id}</div>
+        </div>
+      </div>
       {err && <div className="err-msg mb-3">{err}</div>}
+
+      <div className="text-[11px] font-bold uppercase tracking-wide text-ink3 mb-2">Identity</div>
       <div className="input-row">
         <div className="field">
           <label>Full Name <span className="text-red-500">*</span></label>
@@ -313,6 +324,8 @@ function EditStudentModal({ student, onClose }) {
           />
         </div>
       </div>
+
+      <div className="text-[11px] font-bold uppercase tracking-wide text-ink3 mb-2 mt-4 flex items-center gap-1.5"><GraduationCap size={12} /> Academic</div>
       <div className="input-row">
         <div className="field">
           <label>Course / Program <span className="text-red-500">*</span></label>
@@ -346,18 +359,20 @@ function EditStudentModal({ student, onClose }) {
         <div className="field mb-2">
           <label className="flex items-center justify-between">
             <span>Additional Classes <span className="font-normal text-ink3">(also enrolled in)</span></span>
-            <span className="text-xs text-ink3 font-normal">Tick all that apply</span>
+            <span className="text-xs text-ink3 font-normal">Tap all that apply</span>
           </label>
-          <div className="grid grid-cols-2 gap-1.5 bg-bg border border-border rounded-lg p-2 mt-1 max-h-40 overflow-y-auto">
-            {otherClasses.map(c => (
-              <label key={c.id} className="flex items-start gap-1.5 cursor-pointer p-1 rounded hover:bg-bg2 text-xs">
-                <input type="checkbox" checked={extraIds.includes(c.id)} onChange={() => toggleExtra(c.id)} style={{ width: 'auto', margin: 0, marginTop: 2, flexShrink: 0 }} />
-                <span>
-                  <span className="font-semibold text-ink block">{c.name} · {c.section}</span>
-                  <span className="text-ink3">{c.subjects?.join(', ') || 'No subjects'}</span>
-                </span>
-              </label>
-            ))}
+          <div className="flex flex-wrap gap-1.5 mt-1">
+            {otherClasses.map(c => {
+              const on = extraIds.includes(c.id)
+              return (
+                <button key={c.id} type="button" onClick={() => toggleExtra(c.id)}
+                  title={c.subjects?.join(', ') || 'No subjects'}
+                  className="text-xs px-2.5 py-1 rounded-full transition-colors"
+                  style={{ border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`, background: on ? 'var(--accent-l)' : 'var(--surface)', color: on ? 'var(--accent)' : 'var(--ink2)', cursor: 'pointer' }}>
+                  {on && <Check size={11} className="inline-block mr-1 align-text-bottom" />}{c.name} · {c.section}
+                </button>
+              )
+            })}
           </div>
         </div>
       )}
@@ -371,6 +386,7 @@ function EditStudentModal({ student, onClose }) {
         </div>
       )}
 
+      <div className="text-[11px] font-bold uppercase tracking-wide text-ink3 mb-2 mt-4 flex items-center gap-1.5"><KeyRound size={12} /> Account</div>
       <div className="field">
         <label>Account Status</label>
         <div className="py-2">
@@ -437,7 +453,7 @@ function EditStudentModal({ student, onClose }) {
         </div>
       )}
 
-      <div className="modal-footer">
+      <div className="modal-footer-sticky">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
         <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
           {saving ? 'Saving…' : <><Save size={16} /> Save Changes</>}

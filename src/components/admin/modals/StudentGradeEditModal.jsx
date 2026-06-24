@@ -63,43 +63,74 @@ function SubjectRow({ sub, meta, eqScale, row, onChange }) {
   }
 
   const finalDisplay = final != null ? Math.round(final) : '—'
+  const csDisplay = meta.cs != null ? Math.round(meta.cs) : '—'
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 84px 84px 56px 64px auto', gap: 8, alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-        <span style={{ width: 8, height: 8, borderRadius: '50%', background: col, flexShrink: 0 }} />
-        <span style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={sub}>{sub}</span>
+    <>
+      {/* Desktop / tablet — grid row */}
+      <div className="hidden sm:grid" style={{ gridTemplateColumns: '1.4fr 84px 84px 56px 64px auto', gap: 8, alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: col, flexShrink: 0 }} />
+          <span style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={sub}>{sub}</span>
+        </div>
+        <input
+          type="number" min="0" max="100" step="0.1"
+          className="input"
+          style={{ padding: '4px 8px', fontSize: 13, height: 32 }}
+          value={row.midtermExam}
+          onChange={e => onChange('midtermExam', e.target.value)}
+          placeholder="—"
+          aria-label={`${sub} midterm exam`}
+        />
+        <input
+          type="number" min="0" max="100" step="0.1"
+          className="input"
+          style={{ padding: '4px 8px', fontSize: 13, height: 32 }}
+          value={row.finalsExam}
+          onChange={e => onChange('finalsExam', e.target.value)}
+          placeholder="—"
+          aria-label={`${sub} finals exam`}
+        />
+        <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--ink2)' }} title="Class standing (activities, quizzes, attendance, attitude)">
+          {csDisplay}
+        </div>
+        <div style={{ textAlign: 'center', fontSize: 18, fontWeight: 800, color: pctColor(final), lineHeight: 1 }}>
+          {finalDisplay}
+        </div>
+        <div style={{ minWidth: 64, textAlign: 'right' }}>
+          {remark
+            ? <span className={`badge ${remarkCls}`}>{equiv}</span>
+            : <span style={{ fontSize: 13, color: 'var(--ink2)' }}>{equiv}</span>}
+        </div>
       </div>
-      <input
-        type="number" min="0" max="100" step="0.1"
-        className="input"
-        style={{ padding: '4px 8px', fontSize: 13, height: 32 }}
-        value={row.midtermExam}
-        onChange={e => onChange('midtermExam', e.target.value)}
-        placeholder="—"
-        aria-label={`${sub} midterm exam`}
-      />
-      <input
-        type="number" min="0" max="100" step="0.1"
-        className="input"
-        style={{ padding: '4px 8px', fontSize: 13, height: 32 }}
-        value={row.finalsExam}
-        onChange={e => onChange('finalsExam', e.target.value)}
-        placeholder="—"
-        aria-label={`${sub} finals exam`}
-      />
-      <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--ink2)' }} title="Class standing (activities, quizzes, attendance, attitude)">
-        {meta.cs != null ? Math.round(meta.cs) : '—'}
+
+      {/* Mobile — card per subject */}
+      <div className="sm:hidden" style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 12, marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13, marginBottom: 10, minWidth: 0 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: col, flexShrink: 0 }} />
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={sub}>{sub}</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--ink3)', marginBottom: 3 }}>Midterm</div>
+            <input type="number" min="0" max="100" step="0.1" className="input" style={{ textAlign: 'center', height: 38 }}
+              value={row.midtermExam} onChange={e => onChange('midtermExam', e.target.value)} placeholder="—" aria-label={`${sub} midterm exam`} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--ink3)', marginBottom: 3 }}>Finals</div>
+            <input type="number" min="0" max="100" step="0.1" className="input" style={{ textAlign: 'center', height: 38 }}
+              value={row.finalsExam} onChange={e => onChange('finalsExam', e.target.value)} placeholder="—" aria-label={`${sub} finals exam`} />
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)', fontSize: 12 }}>
+          <span style={{ color: 'var(--ink3)' }}>CS <strong style={{ color: 'var(--ink)' }}>{csDisplay}</strong></span>
+          <span style={{ color: 'var(--ink3)' }}>Final <strong style={{ fontSize: 18, fontWeight: 800, color: pctColor(final) }}>{finalDisplay}</strong></span>
+          {remark
+            ? <span className={`badge ${remarkCls}`}>{remark} · {equiv}</span>
+            : <span style={{ fontSize: 12, color: 'var(--ink2)' }}>{equiv}</span>}
+        </div>
       </div>
-      <div style={{ textAlign: 'center', fontSize: 18, fontWeight: 800, color: pctColor(final), lineHeight: 1 }}>
-        {finalDisplay}
-      </div>
-      <div style={{ minWidth: 64, textAlign: 'right' }}>
-        {remark
-          ? <span className={`badge ${remarkCls}`}>{equiv}</span>
-          : <span style={{ fontSize: 13, color: 'var(--ink2)' }}>{equiv}</span>}
-      </div>
-    </div>
+    </>
   )
 }
 
@@ -156,6 +187,20 @@ export default function StudentGradeEditModal() {
     setLastStudentId(editGradesStudentId)
     setRows(initRows)
   }
+
+  // Live count of subjects whose Midterm/Finals differ from the stored values —
+  // mirrors the change detection in handleSave so the footer stays truthful.
+  const changedCount = useMemo(() => {
+    let n = 0
+    for (const sub of subjects) {
+      const meta = subjectMeta[sub]; if (!meta) continue
+      const r = rows[sub] || {}
+      const origMid = meta.comp.midtermExam != null ? String(meta.comp.midtermExam) : ''
+      const origFin = meta.comp.finalsExam  != null ? String(meta.comp.finalsExam)  : ''
+      if ((r.midtermExam ?? '').trim() !== origMid || (r.finalsExam ?? '').trim() !== origFin) n++
+    }
+    return n
+  }, [subjects, subjectMeta, rows])
 
   if (!editGradesStudentId) return null
   if (!student) {
@@ -284,7 +329,7 @@ export default function StudentGradeEditModal() {
         <div className="empty" style={{ padding: 32 }}>No current-semester subjects to edit. Previous grades are finalized.</div>
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 84px 84px 56px 64px auto', gap: 8, padding: '0 0 6px', borderBottom: '2px solid var(--border)' }}>
+          <div className="hidden sm:grid" style={{ gridTemplateColumns: '1.4fr 84px 84px 56px 64px auto', gap: 8, padding: '0 0 6px', borderBottom: '2px solid var(--border)' }}>
             {['Subject', 'Midterm', 'Finals', 'CS', 'Final', 'Equiv'].map((h, i) => (
               <div key={h} style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '.05em', textAlign: i >= 3 ? (i === 5 ? 'right' : 'center') : 'left' }}>{h}</div>
             ))}
@@ -301,11 +346,18 @@ export default function StudentGradeEditModal() {
             />
           ))}
 
-          <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button className="btn" onClick={closeEditGrades} disabled={saving}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-              {saving ? 'Saving…' : 'Save Grades'}
-            </button>
+          <div className="modal-footer-sticky" style={{ justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 12, color: 'var(--ink3)' }}>
+              {changedCount > 0
+                ? `${changedCount} of ${subjects.length} subject${subjects.length === 1 ? '' : 's'} changed`
+                : 'No changes yet'}
+            </span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn" onClick={closeEditGrades} disabled={saving}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleSave} disabled={saving || changedCount === 0}>
+                {saving ? 'Saving…' : 'Save Grades'}
+              </button>
+            </div>
           </div>
         </>
       )}

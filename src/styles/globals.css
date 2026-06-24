@@ -1671,6 +1671,23 @@ textarea.input { resize: vertical; }
   border-top: 1px solid var(--border);
   flex-wrap: wrap;
 }
+/* Sticky variant — pins the action bar to the modal bottom while the body
+   scrolls. Negative margins bleed past .modal-scroll's 28px padding so the
+   bar sits flush with the panel edge. */
+.modal-footer-sticky {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  position: sticky;
+  bottom: -28px;
+  margin: 18px -28px -28px;
+  padding: 14px 28px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  z-index: 3;
+}
 .input-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
