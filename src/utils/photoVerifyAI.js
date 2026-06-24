@@ -95,7 +95,9 @@ function ensureSeg() {
       await loadScript(SRC.seg)
       return window.bodySegmentation.createSegmenter(
         window.bodySegmentation.SupportedModels.MediaPipeSelfieSegmentation,
-        { runtime: 'tfjs', modelType: 'general' },
+        // 'landscape' (144×256) is markedly faster than 'general' and plenty
+        // accurate for backdrop-whiteness + torso sampling.
+        { runtime: 'tfjs', modelType: 'landscape' },
       )
     })().catch(err => { _segPromise = null; throw err })
   }
@@ -114,6 +116,14 @@ export function prewarmOnDeviceAI() {
   warm.width = 64; warm.height = 64
   ensureFace().then(d => d.estimateFaces(warm, { flipHorizontal: false, staticImageMode: true })).catch(() => {})
   ensureSeg().then(s => s.segmentPeople(warm, { flipHorizontal: false })).catch(() => {})
+}
+
+/** Yield to the browser for one paint so the "checking" spinner stays animated. */
+function nextFrame() {
+  return new Promise(resolve => {
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => resolve())
+    else setTimeout(resolve, 0)
+  })
 }
 
 // ── Small pixel helpers ─────────────────────────────────────────────────────
@@ -177,8 +187,10 @@ export async function runOnDeviceAI(imgEl) {
   // Neither model available → let the caller fall back to legacy heuristics.
   if (!faceModel && !segmenter) return null
 
-  // One downscaled canvas drives every model and every pixel read.
-  const MAX = 256
+  // One downscaled canvas drives every model and every pixel read. 192px keeps
+  // the GPU/CPU work light — FaceMesh resizes internally, so this costs no
+  // accuracy, and the background/attire pixel loops shrink ~45% vs 256px.
+  const MAX = 192
   const iw = imgEl.naturalWidth || imgEl.width
   const ih = imgEl.naturalHeight || imgEl.height
   const scale = Math.min(1, MAX / Math.max(iw, ih))
@@ -191,13 +203,36 @@ export async function runOnDeviceAI(imgEl) {
   let pixels
   try { pixels = ctx.getImageData(0, 0, w, h).data } catch { return null }
 
+  // Let the "checking" UI paint before the heavy inference begins.
+  await nextFrame()
+
+  // Run both model inferences concurrently so the orchestration never blocks
+  // sequentially on one before starting the other.
+  const facePromise = faceModel
+    ? faceModel.estimateFaces(canvas, { flipHorizontal: false, staticImageMode: true }).catch(() => null)
+    : Promise.resolve(null)
+  const maskPromise = segmenter
+    ? segmenter.segmentPeople(canvas, { flipHorizontal: false })
+        .then(seg => window.bodySegmentation.toBinaryMask(
+          seg,
+          { r: 255, g: 255, b: 255, a: 255 }, // person → alpha 255
+          { r: 0, g: 0, b: 0, a: 0 },         // background → alpha 0
+          false, 0.5,
+        ))
+        .then(m => m?.data || null)
+        .catch(() => null)
+    : Promise.resolve(null)
+
+  const [det, mask] = await Promise.all([facePromise, maskPromise])
+
   // ── Stage A — face & pose (FaceMesh) ──────────────────────────────────────
-  let faces = null, faceBox = null, faceFrac = null, faceCx = null, frontalScore = null
-  if (faceModel) try {
-    const det = await faceModel.estimateFaces(canvas, { flipHorizontal: false, staticImageMode: true })
+  // null = the model errored (caller can fall back); a real run gives a count.
+  let faces = det == null ? null : 0
+  let faceBox = null, faceFrac = null, faceCx = null, frontalScore = null
+  if (Array.isArray(det)) {
     // FaceMesh only returns a result when it can actually fit a face mesh, so a
     // logo/object yields zero faces. A light box sanity drops any stray fit.
-    const valid = (det || []).filter(f => {
+    const valid = det.filter(f => {
       const b = f.box
       if (!b || !b.width || !b.height) return false
       const area = (b.width * b.height) / (w * h)
@@ -215,20 +250,7 @@ export async function runOnDeviceAI(imgEl) {
       faceCx = (b.xMin + b.width / 2) / w
       frontalScore = frontalFromMesh(best.keypoints)
     }
-  } catch { faces = null } // unknown → caller can fall back for the face check
-
-  // ── Person/background mask (Selfie Segmentation) ──────────────────────────
-  let mask = null
-  if (segmenter) try {
-    const seg = await segmenter.segmentPeople(canvas, { flipHorizontal: false })
-    const m = await window.bodySegmentation.toBinaryMask(
-      seg,
-      { r: 255, g: 255, b: 255, a: 255 }, // person → alpha 255
-      { r: 0, g: 0, b: 0, a: 0 },         // background → alpha 0
-      false, 0.5,
-    )
-    mask = m?.data || null
-  } catch { mask = null }
+  }
 
   // ── Stage B — true background whiteness ───────────────────────────────────
   let bgSupported = false, bgWhiteFrac = null
