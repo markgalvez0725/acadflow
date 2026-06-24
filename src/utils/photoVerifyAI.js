@@ -2,8 +2,11 @@
 // Custom, in-browser replacement for the Gemini /api/validate-photo call.
 // The student's photo NEVER leaves the device — every model runs client-side:
 //
-//   • BlazeFace (TF.js)                — face detection + 6 keypoints
-//                                        (count, framing, head angle)
+//   • MediaPipe FaceMesh (TF.js)       — fits a 468-point face mesh; used for
+//     (face-landmarks-detection)         count, framing, and head angle. A mesh
+//                                        model won't fit a face onto a logo or
+//                                        object, so it does NOT false-positive
+//                                        the way a bare face *detector* does.
 //   • MediaPipe Selfie Segmentation    — person/background mask, so we can
 //     (TF.js runtime)                    measure the TRUE backdrop, not a guess
 //   • Heuristic attire read            — skin-vs-fabric + pattern busyness on
@@ -24,11 +27,9 @@
 //   }
 
 const SRC = {
-  tf:    'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js',
-  // NOTE: the UMD bundle is `blazeface.min.umd.js` — the package's own
-  // package.json "main" points at a `blazeface.min.js` that does not exist.
-  blaze: 'https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.1.0/dist/blazeface.min.umd.js',
-  seg:   'https://cdn.jsdelivr.net/npm/@tensorflow-models/body-segmentation@1.0.2/dist/body-segmentation.min.js',
+  tf:   'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js',
+  mesh: 'https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@1.0.6/dist/face-landmarks-detection.min.js',
+  seg:  'https://cdn.jsdelivr.net/npm/@tensorflow-models/body-segmentation@1.0.2/dist/body-segmentation.min.js',
 }
 
 /** Inject a CDN <script> once; resolve when it has loaded. */
@@ -53,9 +54,9 @@ function loadScript(src) {
 }
 
 // The two models load INDEPENDENTLY so a failure in one doesn't disable the
-// other. BlazeFace (face/count) is the priority — segmentation is an
-// enhancement for background + attire. Each cache clears itself on failure so a
-// later photo can retry.
+// other. FaceMesh (face/count) is the priority — segmentation is an enhancement
+// for background + attire. Each cache clears itself on failure so a later photo
+// can retry.
 let _corePromise, _facePromise, _segPromise
 
 /** Load TF.js once and pick the WebGL backend. */
@@ -71,13 +72,16 @@ function ensureCore() {
   return _corePromise
 }
 
-/** Load BlazeFace. Resolves to the loaded model. */
+/** Load MediaPipe FaceMesh. Resolves to the detector. */
 function ensureFace() {
   if (!_facePromise) {
     _facePromise = (async () => {
       await ensureCore()
-      await loadScript(SRC.blaze)
-      return window.blazeface.load()
+      await loadScript(SRC.mesh)
+      return window.faceLandmarksDetection.createDetector(
+        window.faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh,
+        { runtime: 'tfjs', refineLandmarks: false, maxFaces: 2 },
+      )
     })().catch(err => { _facePromise = null; throw err })
   }
   return _facePromise
@@ -101,15 +105,14 @@ function ensureSeg() {
 /**
  * Warm the models up ahead of time: load the scripts/weights AND run one tiny
  * throwaway inference so the WebGL backend + shaders compile in the background.
- * Call this when the photo UI opens so the first real check isn't a cold,
- * janky download-and-compile. Safe to call repeatedly; all errors swallowed.
+ * Call this when the photo UI opens so the first real check isn't a cold, janky
+ * download-and-compile. Safe to call repeatedly; all errors swallowed.
  */
 export function prewarmOnDeviceAI() {
   if (typeof window === 'undefined' || typeof document === 'undefined') return
   const warm = document.createElement('canvas')
   warm.width = 64; warm.height = 64
-  // A blank canvas is enough to trigger weight load + shader compile.
-  ensureFace().then(m => m.estimateFaces(warm, false)).catch(() => {})
+  ensureFace().then(d => d.estimateFaces(warm, { flipHorizontal: false, staticImageMode: true })).catch(() => {})
   ensureSeg().then(s => s.segmentPeople(warm, { flipHorizontal: false })).catch(() => {})
 }
 
@@ -144,52 +147,15 @@ function hueEntropy(hues) {
   return H / Math.log2(12)
 }
 
-/** BlazeFace probability can be a number, an array, or a TypedArray. */
-function faceProb(p) {
-  const pr = p?.probability
-  if (pr == null) return null
-  return (Array.isArray(pr) || ArrayBuffer.isView(pr)) ? pr[0] : pr
-}
-
-/**
- * Reject non-face detections (logos, patterns) that BlazeFace sometimes returns
- * with a box but no real facial geometry. A genuine frontal face has the two
- * eyes separated horizontally, both above the mouth, with the nose between them.
- * Landmark order: [rightEye, leftEye, nose, mouth, rightEar, leftEar].
- */
-function landmarksPlausible(lm, box) {
-  if (!lm || lm.length < 4) return false // no landmarks → can't trust it's a face
-  const [rEye, lEye, nose, mouth] = lm
-  const eyeDx = Math.abs(lEye[0] - rEye[0])
-  if (eyeDx < box.w * 0.15) return false             // eyes implausibly close
-  const eyeY = (rEye[1] + lEye[1]) / 2
-  if (!(eyeY < mouth[1])) return false               // eyes must sit above mouth
-  if (!(nose[1] >= eyeY && nose[1] <= mouth[1])) return false // nose between
-  const noseX = nose[0]
-  if (noseX < Math.min(rEye[0], lEye[0]) || noseX > Math.max(rEye[0], lEye[0])) return false
-  return true
-}
-
-/** Is this prediction a real, well-formed face? (confidence + shape + geometry) */
-function isRealFace(p, w, h) {
-  const prob = faceProb(p)
-  if (prob != null && prob < 0.9) return false                  // low confidence
-  const bw = p.bottomRight[0] - p.topLeft[0]
-  const bh = p.bottomRight[1] - p.topLeft[1]
-  if (bw <= 0 || bh <= 0) return false
-  const ar = bw / bh
-  if (ar < 0.5 || ar > 1.7) return false                        // not face-shaped
-  if ((bw * bh) / (w * h) < 0.015) return false                 // too small to be the subject
-  return landmarksPlausible(p.landmarks, { w: bw, h: bh })
-}
-
-/** Frontal-ness from BlazeFace landmarks: nose centered between the eyes ≈ 1. */
-function frontalFromLandmarks(lm) {
-  if (!lm || lm.length < 3) return null
-  const rightEye = lm[0], leftEye = lm[1], nose = lm[2]
-  const eyeMid = (rightEye[0] + leftEye[0]) / 2
-  const eyeSpan = Math.abs(leftEye[0] - rightEye[0]) || 1
-  const off = Math.abs(nose[0] - eyeMid) / eyeSpan
+/** Frontal-ness from FaceMesh keypoints: nose centered between the eyes ≈ 1.
+ *  Indices: 1 = nose tip, 33 = right-eye outer corner, 263 = left-eye outer. */
+function frontalFromMesh(kp) {
+  if (!kp || kp.length < 264) return null
+  const rEye = kp[33], lEye = kp[263], nose = kp[1]
+  if (!rEye || !lEye || !nose) return null
+  const eyeMid = (rEye.x + lEye.x) / 2
+  const eyeSpan = Math.abs(lEye.x - rEye.x) || 1
+  const off = Math.abs(nose.x - eyeMid) / eyeSpan
   return Math.max(0, Math.min(1, 1 - off * 2))
 }
 
@@ -225,25 +191,29 @@ export async function runOnDeviceAI(imgEl) {
   let pixels
   try { pixels = ctx.getImageData(0, 0, w, h).data } catch { return null }
 
-  // ── Stage A — face & pose (BlazeFace) ─────────────────────────────────────
+  // ── Stage A — face & pose (FaceMesh) ──────────────────────────────────────
   let faces = null, faceBox = null, faceFrac = null, faceCx = null, frontalScore = null
   if (faceModel) try {
-    const preds = await faceModel.estimateFaces(canvas, false)
-    // Keep only real, well-formed faces — drops logo/pattern false positives.
-    const valid = (preds || []).filter(p => isRealFace(p, w, h))
+    const det = await faceModel.estimateFaces(canvas, { flipHorizontal: false, staticImageMode: true })
+    // FaceMesh only returns a result when it can actually fit a face mesh, so a
+    // logo/object yields zero faces. A light box sanity drops any stray fit.
+    const valid = (det || []).filter(f => {
+      const b = f.box
+      if (!b || !b.width || !b.height) return false
+      const area = (b.width * b.height) / (w * h)
+      if (area < 0.015) return false
+      const ar = b.width / b.height
+      return ar >= 0.4 && ar <= 1.9
+    })
     faces = valid.length
     if (faces >= 1) {
-      let best = valid[0], bestArea = -1
-      for (const p of valid) {
-        const a = (p.bottomRight[0] - p.topLeft[0]) * (p.bottomRight[1] - p.topLeft[1])
-        if (a > bestArea) { bestArea = a; best = p }
-      }
-      const x0 = best.topLeft[0], y0 = best.topLeft[1]
-      const x1 = best.bottomRight[0], y1 = best.bottomRight[1]
-      faceBox = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }
-      faceFrac = (y1 - y0) / h
-      faceCx = ((x0 + x1) / 2) / w
-      frontalScore = frontalFromLandmarks(best.landmarks)
+      let best = valid[0]
+      for (const f of valid) if (f.box.width * f.box.height > best.box.width * best.box.height) best = f
+      const b = best.box
+      faceBox = { x: b.xMin, y: b.yMin, w: b.width, h: b.height }
+      faceFrac = b.height / h
+      faceCx = (b.xMin + b.width / 2) / w
+      frontalScore = frontalFromMesh(best.keypoints)
     }
   } catch { faces = null } // unknown → caller can fall back for the face check
 
