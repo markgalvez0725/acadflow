@@ -342,6 +342,10 @@ export async function fbScheduleMeeting(db, meetingData) {
   const meeting = {
     id,
     classId: meetingData.classId,
+    // Persist the subject so the live-meeting lookup matches after the snapshot
+    // echo. Dropping it made liveMeetingFor() miss the live doc, so the "Go Live"
+    // button reappeared and a second click created a duplicate live session.
+    subject: meetingData.subject || null,
     className: meetingData.className,
     title: meetingData.title,
     description: meetingData.description || '',
@@ -376,6 +380,40 @@ export async function fbCancelMeeting(db, meetingId) {
   if (!db || !meetingId) return;
   const { doc: fbDoc, deleteDoc } = await import('firebase/firestore');
   await fbWithTimeout(deleteDoc(fbDoc(db, 'onlineMeetings', meetingId)));
+}
+
+// ── Student feedback ───────────────────────────────────────────────────────
+// One doc per submission in the `studentFeedback` collection. Students create;
+// the teacher reads them in the Feedback Hub and updates the status.
+export async function fbSubmitStudentFeedback(db, feedback) {
+  if (!db) throw new Error('Not connected.');
+  const { doc: fbDoc, setDoc } = await import('firebase/firestore');
+  const id = feedback.id || ('fb_' + Date.now() + Math.random().toString(36).slice(2, 6));
+  const doc_ = {
+    studentId: feedback.studentId || '',
+    studentName: feedback.studentName || '',
+    classId: feedback.classId || null,
+    category: feedback.category || 'general', // 'enhancement' | 'bug' | 'request' | 'general'
+    subject: (feedback.subject || '').slice(0, 120),
+    message: (feedback.message || '').slice(0, 2000),
+    status: 'new',                            // 'new' | 'reviewed' | 'archived'
+    createdAt: Date.now(),
+    reviewedAt: null,
+    reviewedBy: null,
+    id,
+  };
+  await fbWithTimeout(setDoc(fbDoc(db, 'studentFeedback', id), doc_));
+  return doc_;
+}
+
+export async function fbUpdateFeedbackStatus(db, feedbackId, status, reviewedBy) {
+  if (!db || !feedbackId) return;
+  const { doc: fbDoc, updateDoc } = await import('firebase/firestore');
+  await fbWithTimeout(updateDoc(fbDoc(db, 'studentFeedback', feedbackId), {
+    status,
+    reviewedAt: Date.now(),
+    reviewedBy: reviewedBy || null,
+  }));
 }
 
 // ── Delete all data related to a class (called on permanent class deletion) ──

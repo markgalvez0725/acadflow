@@ -2,7 +2,7 @@ import React from 'react'
 import { useUI } from '@/context/UIContext'
 import { useData } from '@/context/DataContext'
 import { studentTag } from '@/utils/groupChat'
-import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, FileQuestion, Rss, CalendarDays, Video, Bell, ClipboardSignature, Settings, LogOut, Library, ListChecks } from 'lucide-react'
+import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, FileQuestion, Rss, CalendarDays, Video, Bell, ClipboardSignature, Settings, LogOut, Library, ListChecks, MessageSquarePlus } from 'lucide-react'
 
 // Flat, Instagram-style nav list (no section headers).
 const NAV_ITEMS = [
@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { id: 'calendar',      label: 'Calendar',       Icon: CalendarDays },
   { id: 'enrollment',    label: 'Enrollment',     Icon: ClipboardSignature },
   { id: 'onlineClasses', label: 'Online Classes', Icon: Video },
+  { id: 'feedback',      label: 'Feedback',       Icon: MessageSquarePlus },
 ]
 
 export default function StudentSidebar({ student, badges = {}, onSettings, onLogout }) {

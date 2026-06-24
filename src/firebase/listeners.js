@@ -51,6 +51,7 @@ export function fbStartListening(db, callbacks) {
     onMeetingsUpdate,
     onAttendanceSessionsUpdate,
     onExcuseRequestsUpdate,
+    onStudentFeedbackUpdate,
     onAuditLogUpdate,
     onResourcesUpdate,
     onRubricLibraryUpdate,
@@ -228,6 +229,23 @@ export function fbStartListening(db, callbacks) {
     _unsub.push(uE);
     getDocs(collection(db, 'excuseRequests'))
       .then(s => { const a = []; s.forEach(d => a.push(d.data())); onExcuseRequestsUpdate(a); })
+      .catch(() => {});
+  }
+
+  // ── studentFeedback collection ────────────────────────────────────────
+  if (onStudentFeedbackUpdate) {
+    const uFb = onSnapshot(
+      collection(db, 'studentFeedback'),
+      snap => {
+        const fb = [];
+        snap.forEach(d => fb.push(d.data()));
+        onStudentFeedbackUpdate(fb);
+      },
+      e => console.error('[Firebase] studentFeedback listener error:', e.message)
+    );
+    _unsub.push(uFb);
+    getDocs(collection(db, 'studentFeedback'))
+      .then(s => { const a = []; s.forEach(d => a.push(d.data())); onStudentFeedbackUpdate(a); })
       .catch(() => {});
   }
 

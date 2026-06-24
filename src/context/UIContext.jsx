@@ -2,6 +2,22 @@ import React, { createContext, useContext, useState, useRef, useCallback, useEff
 
 const UIContext = createContext(null)
 
+// Map the semantic type names used across the app (success/error/warn/info) onto
+// the six colour variants the toast renderer actually styles. Without this every
+// success/error toast silently fell through to the default "dark" variant — which
+// is also the one that became invisible in dark mode.
+const TOAST_TYPE_ALIAS = {
+  success: 'green',
+  error:   'red',
+  danger:  'red',
+  warn:    'yellow',
+  warning: 'yellow',
+  info:    'blue',
+}
+function normalizeToastType(type) {
+  return TOAST_TYPE_ALIAS[type] || type || 'dark'
+}
+
 export function UIProvider({ children }) {
   const [theme, setTheme]           = useState('light')
   const [adminTab, setAdminTab]     = useState('dashboard')
@@ -49,16 +65,28 @@ export function UIProvider({ children }) {
   }, [])
 
   // ── Toast ───────────────────────────────────────────────────────────────
+  // Remember the last toast so we can collapse rapid duplicates. The same toast
+  // fires twice in several situations — React StrictMode double-invoking an
+  // effect, a Firestore onSnapshot echo re-running a notification effect, or a
+  // handler bound twice — and the user sees every message appear doubled. We
+  // suppress an identical (message + type) toast within a short window.
+  const lastToastRef = useRef({ key: '', at: 0 })
   const toast = useCallback((msg, type = 'dark', duration = 3500) => {
-    const id = Date.now() + Math.random()
-    setToastQueue(q => [...q, { id, msg, type, duration }])
+    const t = normalizeToastType(type)
+    const now = Date.now()
+    const key = `${t}::${msg}`
+    if (lastToastRef.current.key === key && now - lastToastRef.current.at < 1000) return
+    lastToastRef.current = { key, at: now }
+    const id = now + Math.random()
+    setToastQueue(q => [...q, { id, msg, type: t, duration }])
   }, [])
 
   // Toast with an inline action button (e.g. "Undo"). The action runs on click;
-  // the toast stays up longer so there is time to react.
+  // the toast stays up longer so there is time to react. Action toasts are not
+  // deduped — repeating one (e.g. several "Undo" prompts) is intentional.
   const toastAction = useCallback((msg, { label, onAction, type = 'dark', duration = 7000 } = {}) => {
     const id = Date.now() + Math.random()
-    setToastQueue(q => [...q, { id, msg, type, duration, action: { label, onAction } }])
+    setToastQueue(q => [...q, { id, msg, type: normalizeToastType(type), duration, action: { label, onAction } }])
   }, [])
 
   const dismissToast = useCallback(id => {

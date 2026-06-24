@@ -93,11 +93,19 @@ export default function OnlineClassesTab() {
 
   // ── Section 3: Meetings List ──────────────────────────────────────────
   const [listTab, setListTab] = useState('upcoming')
-  const upcoming = useMemo(() =>
-    meetings.filter(m => m.status === 'scheduled' || m.status === 'live')
-      .sort((a, b) => a.scheduledAt - b.scheduledAt),
-    [meetings]
-  )
+  const upcoming = useMemo(() => {
+    const active = meetings.filter(m => m.status === 'scheduled' || m.status === 'live')
+    // Collapse duplicate sessions for the same class + subject + status that an
+    // earlier double "Go Live" could have created, keeping the newest doc. This
+    // hides the "two sessions displaying" bug even for already-created dupes.
+    const byKey = new Map()
+    for (const m of active) {
+      const key = `${m.classId}::${m.subject || ''}::${m.status}`
+      const prev = byKey.get(key)
+      if (!prev || (m.createdAt || 0) > (prev.createdAt || 0)) byKey.set(key, m)
+    }
+    return [...byKey.values()].sort((a, b) => a.scheduledAt - b.scheduledAt)
+  }, [meetings])
   const past = useMemo(() =>
     meetings.filter(m => m.status === 'ended')
       .sort((a, b) => b.scheduledAt - a.scheduledAt),

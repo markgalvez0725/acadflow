@@ -217,6 +217,7 @@
     background: var(--bg);
     color: var(--ink);
     min-height: 100vh;
+    min-height: 100dvh; /* track the dynamic viewport so mobile URL-bar show/hide doesn't add phantom scroll under the fixed bottom nav */
     font-size: 0.9688rem;
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
@@ -414,7 +415,15 @@
 .toast.show::after {
   animation: toast-drain var(--toast-dur, 3.5s) linear forwards;
 }
-.toast.toast-dark   { background: var(--ink); }
+.toast.toast-dark   { background: var(--ink); color: #fff; }
+/* In dark mode --ink flips to a near-white, which made the default toast white
+   text on a white pill (invisible). Pin the neutral toast to a real dark slate
+   with light text and a hairline border so it reads in both themes. */
+[data-theme="dark"] .toast.toast-dark {
+  background: #2b2f45;
+  color: #f3f6ff;
+  border: 1px solid rgba(255,255,255,.12);
+}
 .toast.toast-green  { background: linear-gradient(135deg, #16a34a, #15803d); }
 .toast.toast-red    { background: linear-gradient(135deg, #dc2626, #b91c1c); }
 .toast.toast-blue   { background: var(--grad-brand); }
@@ -435,6 +444,26 @@
   transition: background .15s ease;
 }
 .toast-action-btn:hover { background: rgba(255,255,255,.32); }
+
+/* ══════════════════════════════════════════
+   FEEDBACK (student form + teacher hub)
+══════════════════════════════════════════ */
+.fb-cat {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px;
+  background: var(--surface); color: var(--ink2); font-weight: 600; font-size: 0.8125rem;
+  cursor: pointer; transition: border-color .15s ease, color .15s ease, background .15s ease;
+}
+.fb-cat:hover { border-color: var(--accent); color: var(--ink); }
+.fb-cat.active { border-color: var(--accent); background: var(--accent-l); color: var(--accent); }
+.fb-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.6875rem; font-weight: 700; padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+}
+.fb-pill-new      { background: var(--accent-l); color: var(--accent); }
+.fb-pill-reviewed { background: rgba(34,197,94,.15); color: #16a34a; }
+.fb-pill-archived { background: var(--surface2); color: var(--ink3); }
+[data-theme="dark"] .fb-pill-reviewed { color: #4ade80; }
 
 /* ══════════════════════════════════════════
    SKELETON LOADERS
@@ -534,6 +563,7 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 ══════════════════════════════════════════ */
 .admin-layout {
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--bg);
 }
 
@@ -550,6 +580,7 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 
 .admin-main {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
 }
@@ -2596,7 +2627,12 @@ textarea.input { resize: vertical; }
 .msg-sender-name { font-size: 0.7813rem; font-weight: 600; color: var(--ink3); margin: 0 0 2px 30px; }
 
 /* Thread header with avatar */
-.msg-thread-head { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+.msg-thread-head { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; min-width: 0; overflow: hidden; }
+/* Keep the back button, avatar and actions menu at fixed size so the title block
+   (flex:1, min-width:0) is the only part that shrinks and truncates — otherwise a
+   long group name pushes the header wider and overlaps the conversation list. */
+.msg-thread-head > button,
+.msg-thread-head > .msg-thread-head-av { flex-shrink: 0; }
 .msg-thread-head-av {
   width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; overflow: hidden;
   display: flex; align-items: center; justify-content: center;
@@ -2604,6 +2640,18 @@ textarea.input { resize: vertical; }
 }
 .msg-thread-head-av.announce { background: var(--yellow-l); color: var(--yellow); }
 .msg-thread-head-av img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Per-student watermark drawn over a message thread (screenshot deterrent).
+   Faint, non-interactive, and tiled diagonally so a capture is traceable. */
+.msg-watermark {
+  position: absolute; inset: 0; z-index: 2;
+  overflow: hidden; pointer-events: none; user-select: none;
+  display: flex; flex-direction: column; justify-content: center; gap: 34px;
+  opacity: .06; transform: rotate(-24deg) scale(1.5); transform-origin: center;
+}
+[data-theme="dark"] .msg-watermark { opacity: .09; }
+.msg-watermark-row { display: flex; gap: 48px; justify-content: center; white-space: nowrap; }
+.msg-watermark-row span { font-size: 0.8125rem; font-weight: 800; letter-spacing: .05em; color: var(--ink); }
 
 /* ══════════════════════════════════════════
    STUDENT MESSAGE THREAD
@@ -4422,7 +4470,9 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
     box-shadow: 0 12px 34px rgba(0,0,0,.30);
     padding: 8px 10px;
     gap: 4px;
-    z-index: 20;
+    /* Above page content and the sticky topbar (both z-index 20) so the nav is
+       never overlapped or pushed as the page scrolls. */
+    z-index: 90;
     overflow-x: auto;
     scrollbar-width: none;
   }

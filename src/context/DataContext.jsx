@@ -9,6 +9,7 @@ import {
   fbSaveResource, fbDeleteResource, fbSaveRubricLibrary,
   fbSaveMeetLink, fbScheduleMeeting, fbStartMeeting, fbEndMeeting, fbCancelMeeting, fbPushMeetingNotifs,
   fbSetSubjectRep, fbDeleteClassRelatedData, fbAddAuditLog, fbRestoreFromBackup,
+  fbSubmitStudentFeedback, fbUpdateFeedbackStatus,
 } from '@/firebase/persistence'
 import { serializeStudents } from '@/utils/attendance'
 import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase, saveSemesterToFirebase, saveLatePolicyToFirebase } from '@/firebase/settings'
@@ -45,6 +46,7 @@ export function DataProvider({ children }) {
   const [meetings, setMeetings]           = useState([])
   const [attendanceSessions, setAttendanceSessions] = useState([])
   const [excuseRequests, setExcuseRequests]         = useState([])
+  const [studentFeedback, setStudentFeedback]       = useState([])
   const [auditLog, setAuditLog]                     = useState([])
   const [resources, setResources]                   = useState([])
   const [rubricLibrary, setRubricLibrary]           = useState([])
@@ -120,6 +122,7 @@ export function DataProvider({ children }) {
         onMeetingsUpdate: setMeetings,
         onAttendanceSessionsUpdate: setAttendanceSessions,
         onExcuseRequestsUpdate: setExcuseRequests,
+        onStudentFeedbackUpdate: setStudentFeedback,
         onAuditLogUpdate: isAdminUser() ? setAuditLog : undefined,
         onResourcesUpdate: setResources,
         onRubricLibraryUpdate: setRubricLibrary,
@@ -684,6 +687,14 @@ export function DataProvider({ children }) {
   // enrolled students instantly see the Join button + a "live now" notice.
   // Returns the live meeting (with its Meet link) for the caller to open.
   const startInstantMeeting = useCallback(async (meetingData) => {
+    // Never spin up a second live session for a class+subject that is already
+    // live — reuse the existing one. This stops the duplicate-session bug at the
+    // source (the UI already hides "Go Live" when one is live, but a stale render
+    // could slip a second click through).
+    const already = meetings.find(m => m.status === 'live'
+      && m.classId === meetingData.classId
+      && (m.subject || null) === (meetingData.subject || null))
+    if (already) return already
     const meeting = await fbScheduleMeeting(dbRef.current, { ...meetingData, scheduledAt: Date.now() })
     if (!meeting) return null
     await fbStartMeeting(dbRef.current, meeting.id)
@@ -691,12 +702,18 @@ export function DataProvider({ children }) {
     setMeetings(prev => [live, ...prev])
     await fbPushMeetingNotifs(dbRef.current, live, students, 'meeting_live')
     return live
-  }, [students])
+  }, [students, meetings])
 
   const endMeeting = useCallback(async (meeting) => {
-    await fbEndMeeting(dbRef.current, meeting.id)
+    // End every live session for this class+subject, not just the clicked one, so
+    // any duplicate live docs are cleaned up together (students stop seeing Join).
+    const liveSiblings = meetings.filter(m => m.status === 'live'
+      && m.classId === meeting.classId
+      && (m.subject || null) === (meeting.subject || null))
+    const targets = liveSiblings.length ? liveSiblings : [meeting]
+    for (const m of targets) await fbEndMeeting(dbRef.current, m.id)
     await fbPushMeetingNotifs(dbRef.current, meeting, students, 'meeting_ended')
-  }, [students])
+  }, [students, meetings])
 
   const cancelMeeting = useCallback(async (meeting) => {
     await fbCancelMeeting(dbRef.current, meeting.id)
@@ -891,6 +908,43 @@ export function DataProvider({ children }) {
     return session
   }, [attendanceSessions, students])
 
+  // ── Student feedback (enhancement / bug / request) ─────────────────────
+  const submitStudentFeedback = useCallback(async ({ student, classId, category, subject, message }) => {
+    const res = await fbSubmitStudentFeedback(dbRef.current, {
+      studentId: student?.id, studentName: student?.name || student?.id,
+      classId: classId || student?.classId || null,
+      category, subject, message,
+    })
+    // Notify the teacher's feedback feed.
+    fbNotifyAdmin(dbRef.current, {
+      type: 'feedback_new',
+      title: 'New student feedback',
+      body: `${student?.name || student?.id || 'A student'} sent ${category === 'bug' ? 'a bug report' : category === 'enhancement' ? 'an enhancement idea' : category === 'request' ? 'a request' : 'feedback'}.`,
+      link: 'feedback',
+    })
+    return res
+  }, [])
+
+  const updateFeedbackStatus = useCallback(async (feedbackId, status) => {
+    const reviewer = (getFbAuth()?.currentUser?.email) || 'admin'
+    await fbUpdateFeedbackStatus(dbRef.current, feedbackId, status, reviewer)
+    setStudentFeedback(prev => prev.map(f =>
+      f.id === feedbackId ? { ...f, status, reviewedAt: Date.now(), reviewedBy: reviewer } : f
+    ))
+  }, [])
+
+  // ── Screenshot guard: best-effort report to the teacher ────────────────
+  // Browsers (especially iOS Safari) can't reliably block or detect a
+  // screenshot, so this is a deterrent signal, not a guarantee.
+  const reportScreenshot = useCallback((student, threadLabel) => {
+    fbNotifyAdmin(dbRef.current, {
+      type: 'screenshot',
+      title: 'Possible screenshot in Messages',
+      body: `${student?.name || student?.id || 'A student'} may have captured a conversation${threadLabel ? ` — ${threadLabel}` : ''}.`,
+      link: 'messages',
+    })
+  }, [])
+
   const submitExcuseRequest = useCallback(async ({ student, classId, subject, date, reason }) => {
     const res = await fbSubmitExcuseRequest(dbRef.current, {
       studentId: student.id, studentName: student.name || student.id,
@@ -954,6 +1008,8 @@ export function DataProvider({ children }) {
       saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting,
       attendanceSessions, openCheckIn, closeCheckIn, studentCheckIn,
       excuseRequests, submitExcuseRequest, decideExcuseRequest,
+      studentFeedback, submitStudentFeedback, updateFeedbackStatus,
+      reportScreenshot,
       auditLog, logAudit,
       fbReady, fbConfig, reinitFirebase,
       db: dbRef,

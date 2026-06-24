@@ -2,13 +2,22 @@ import React, { useEffect, useState } from 'react'
 import { useUI } from '@/context/UIContext'
 
 const TYPE_CLASS = {
-  dark:   'toast-dark',
-  green:  'toast-green',
-  red:    'toast-red',
-  blue:   'toast-blue',
-  yellow: 'toast-yellow',
-  purple: 'toast-purple',
+  dark:    'toast-dark',
+  green:   'toast-green',
+  red:     'toast-red',
+  blue:    'toast-blue',
+  yellow:  'toast-yellow',
+  purple:  'toast-purple',
+  // Semantic aliases — UIContext normalizes these, but map them here too so a
+  // raw type never falls through to an unstyled toast.
+  success: 'toast-green',
+  error:   'toast-red',
+  danger:  'toast-red',
+  warn:    'toast-yellow',
+  warning: 'toast-yellow',
+  info:    'toast-blue',
 }
+const ASSERTIVE_TYPES = new Set(['red', 'error', 'danger'])
 
 function ToastItem({ id, msg, type, duration, action, onDismiss }) {
   const [state, setState] = useState('') // '' | 'show' | 'dying'
@@ -55,7 +64,7 @@ export default function ToastManager() {
   // everything else is announced politely. The wrapper has no layout/size of its
   // own — the toast itself is position:fixed, so the region stays invisible.
   return (
-    <div role="status" aria-live={t?.type === 'red' ? 'assertive' : 'polite'} aria-atomic="true">
+    <div role="status" aria-live={t && ASSERTIVE_TYPES.has(t.type) ? 'assertive' : 'polite'} aria-atomic="true">
       {t && <ToastItem key={t.id} {...t} onDismiss={dismissToast} />}
     </div>
   )

@@ -21,8 +21,8 @@ rules_version = '2';
 // feature introduces a new top-level collection — otherwise it will silently fail):
 //   students · portal/* (classes, config, settings, admin, rubricLibrary) ·
 //   onlineMeetings · auditLog · messages · typing · activities · notifications ·
-//   quizzes · announcements · attendanceSessions · excuseRequests · pushTokens ·
-//   resources.  resetSessions/* is intentionally server-only (see bottom).
+//   quizzes · announcements · attendanceSessions · excuseRequests · studentFeedback ·
+//   pushTokens · resources.  resetSessions/* is intentionally server-only (see bottom).
 //
 // HOW TO APPLY (these rules only take effect once PUBLISHED):
 //   Firebase Console → project (collegeportal-d2b98) → Build → Firestore
@@ -102,6 +102,10 @@ service cloud.firestore {
     match /announcements/{docId}      { allow read, write: if signedIn(); }
     match /attendanceSessions/{docId} { allow read, write: if signedIn(); }
     match /excuseRequests/{docId}     { allow read, write: if signedIn(); }
+    // Student feedback (enhancements / bug reports / requests): students create &
+    // read; the teacher updates the status from the Feedback Hub. Same login-only
+    // gate as the other shared collections so a legitimate write is never blocked.
+    match /studentFeedback/{docId}    { allow read, write: if signedIn(); }
     match /pushTokens/{docId}         { allow read, write: if signedIn(); }
 
     // Learning materials: everyone signed in reads; only the teacher posts/edits.

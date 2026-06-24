@@ -13,6 +13,8 @@ import { notifyAdminMessage } from '@/firebase/messageNotify'
 import { fbAddMessageReply, fbMarkMessageRead } from '@/firebase/persistence'
 import Pagination from '@/components/primitives/Pagination'
 import KebabMenu from '@/components/primitives/KebabMenu'
+import Watermark from '@/components/primitives/Watermark'
+import { useScreenshotGuard } from '@/hooks/useScreenshotGuard'
 import { MessageSquare, GraduationCap, CheckCheck, Trash2, Check, Lock, Send, ChevronLeft, Megaphone, Search, SquarePen, MoreHorizontal } from 'lucide-react'
 
 const PER_PAGE = 10
@@ -41,7 +43,7 @@ function loadHidden(sid) {
 function saveHidden(sid, h) { try { localStorage.setItem(hiddenKey(sid), JSON.stringify(h)) } catch (e) {} }
 
 export default function MessagesTab({ student: s, messages }) {
-  const { db, fbReady, classes, semester, students } = useData()
+  const { db, fbReady, classes, semester, students, reportScreenshot } = useData()
   const { toast, openDialog, pendingMessageId, clearPendingMessage } = useUI()
 
   // A group chat is "open" only while at least one of its classes is still in the
@@ -91,6 +93,19 @@ export default function MessagesTab({ student: s, messages }) {
   const [replyMsgId, setReplyMsgId] = useState(null) // null = new msg to admin
   const [canReply, setCanReply]  = useState(true)
   const [endedNotice, setEndedNotice] = useState('') // shown when a group chat is closed
+
+  // Screenshot deterrent: while a thread is open, warn the student and flag the
+  // teacher on a detectable capture. Detection is best-effort (browsers can't
+  // see most screenshots) — the per-student <Watermark/> below is the real
+  // deterrent, making any leaked capture traceable.
+  useScreenshotGuard({
+    enabled: view === 'thread',
+    onDetect: () => {
+      toast('Heads up — screenshots of messages are logged and your teacher is notified.', 'warn')
+      reportScreenshot?.(s, threadTitle)
+    },
+  })
+  const watermarkLabel = [s?.name, s?.studentNumber || s?.id].filter(Boolean).join('  ·  ')
   const [replyText, setReplyText] = useState('')
   const [sending, setSending]    = useState(false)
   const threadRef = useRef(null)
@@ -420,7 +435,8 @@ export default function MessagesTab({ student: s, messages }) {
           {view !== 'thread' ? (
             <div className="flex-1 flex items-center justify-center text-ink3 text-sm">Select a conversation to view messages.</div>
           ) : (
-            <div className="flex flex-col flex-1 min-h-0">
+            <div className="flex flex-col flex-1 min-h-0 min-w-0 relative">
+              <Watermark label={watermarkLabel} />
               {/* Thread header */}
               <div className="msg-thread-head">
                 <button className="md:hidden text-ink2" onClick={() => { setView('list'); setActiveKey(null) }} title="Back" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex' }}>
