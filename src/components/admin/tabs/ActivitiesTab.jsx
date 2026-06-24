@@ -7,9 +7,9 @@ import { getHeldDays, computeTerms, scoredPercent, round2 } from '@/utils/grades
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
-import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil, ClipboardList, AlarmClock, CircleDot, BarChart3, CheckCircle2, Check, Save, Plus, Copy } from 'lucide-react'
+import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil, ClipboardList, AlarmClock, CircleDot, BarChart3, CheckCircle2, Check, Save, Plus, Copy, Users } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
-import { deviceRubric, deviceInstructions, aiInstructions, aiRubric, aiGrade, prewarmActivityAI } from '@/utils/activityAI'
+import { deviceRubric, deviceInstructions, aiInstructions, aiRubric, aiGrade, aiGradeGroups, autoFormGroups, prewarmActivityAI } from '@/utils/activityAI'
 import { sendPushToOwners } from '@/firebase/pushTokens'
 import { lateInfo, applyLatePenalty } from '@/utils/latePenalty'
 
@@ -106,10 +106,17 @@ function newCriterion() {
 
 // ── Create / Edit Modal ───────────────────────────────────────────────
 function ActivityFormModal({ act, onClose }) {
-  const { classes, db, fbReady, rubricLibrary, saveRubricToLibrary, deleteLibraryRubric } = useData()
+  const { classes, students, db, fbReady, rubricLibrary, saveRubricToLibrary, deleteLibraryRubric } = useData()
   const { toast } = useUI()
   const isEdit = !!act
   const [showLib, setShowLib] = useState(false)
+
+  // Group case-study mode
+  const [isGroup, setIsGroup] = useState(act?.isGroup || false)
+  const [casePrompt, setCasePrompt] = useState(act?.casePrompt || '')
+  const [groups, setGroups] = useState(() => act?.groups?.length ? act.groups : [])
+  const [groupSize, setGroupSize] = useState(3)
+  const [autoForming, setAutoForming] = useState(false)
 
   const [title,    setTitle]    = useState(act?.title || '')
   const [classId,  setClassId]  = useState(act?.classId || '')
@@ -135,6 +142,40 @@ function ActivityFormModal({ act, onClose }) {
   useEffect(() => { prewarmActivityAI() }, [])
 
   const selectedClass = classes.find(c => c.id === classId)
+
+  // Roster for the selected class (registered students), for group building.
+  const roster = useMemo(
+    () => sortByLastName((students || []).filter(s => s.classId === classId && s.account?.registered)),
+    [students, classId]
+  )
+  const assignedIds = useMemo(() => new Set(groups.flatMap(g => g.memberIds || [])), [groups])
+
+  function addGroup() {
+    setGroups(g => [...g, { id: 'g_' + Date.now() + '_' + g.length, name: `Group ${g.length + 1}`, memberIds: [] }])
+  }
+  function removeGroup(id) { setGroups(g => g.filter(x => x.id !== id)) }
+  function renameGroup(id, name) { setGroups(g => g.map(x => x.id === id ? { ...x, name } : x)) }
+  function toggleMember(groupId, sid) {
+    setGroups(g => g.map(x => {
+      if (x.id === groupId) {
+        const has = (x.memberIds || []).includes(sid)
+        return { ...x, memberIds: has ? x.memberIds.filter(i => i !== sid) : [...(x.memberIds || []), sid] }
+      }
+      // A student can be in only one group — strip them from every other group.
+      return { ...x, memberIds: (x.memberIds || []).filter(i => i !== sid) }
+    }))
+  }
+  async function autoForm() {
+    if (!roster.length) { toast('Select a class with students first.', 'warn'); return }
+    setAutoForming(true)
+    try {
+      const formed = await autoFormGroups(roster.map(s => ({ id: s.id, name: s.name })), groupSize)
+      setGroups(formed)
+      toast(`Formed ${formed.length} balanced group${formed.length === 1 ? '' : 's'}.`, 'green')
+    } catch {
+      toast('Could not auto-form groups.', 'warn')
+    } finally { setAutoForming(false) }
+  }
 
   // Deadline quick-presets
   function presetDeadline(kind) {
@@ -231,6 +272,14 @@ function ActivityFormModal({ act, onClose }) {
       if (maxScore < 1 || maxScore > 1000) { setTab('rubric'); setErr('Rubric total must be between 1 and 1000.'); return }
     }
 
+    // Validate groups for a group case-study activity.
+    const cleanGroups = isGroup
+      ? groups.map(g => ({ id: g.id, name: (g.name || '').trim() || 'Group', memberIds: g.memberIds || [] })).filter(g => g.memberIds.length)
+      : []
+    if (isGroup) {
+      if (!cleanGroups.length) { setTab('groups'); setErr('Add at least one group with members.'); return }
+    }
+
     if (!fbReady || !db.current) { setErr('Firebase is required to post activities.'); return }
 
     const cleanRubric = rubric.map(c => ({ id: c.id, name: c.name.trim(), points: parseFloat(c.points) || 0 }))
@@ -241,13 +290,15 @@ function ActivityFormModal({ act, onClose }) {
         await updateDoc(doc(db.current, 'activities', act.id), {
           title: title.trim(), classId, subject, maxScore, deadline: dlTs,
           instructions: instructions.trim(), rubric: cleanRubric,
+          isGroup, casePrompt: isGroup ? casePrompt.trim() : '', groups: cleanGroups,
         })
       } else {
         const id = actId()
         await setDoc(doc(db.current, 'activities', id), {
           id, title: title.trim(), classId, subject, maxScore, deadline: dlTs,
           instructions: instructions.trim(), rubric: cleanRubric,
-          createdAt: Date.now(), createdBy: 'admin', submissions: {},
+          isGroup, casePrompt: isGroup ? casePrompt.trim() : '', groups: cleanGroups,
+          createdAt: Date.now(), createdBy: 'admin', submissions: {}, groupSubmissions: {},
         })
       }
       toast(isEdit ? 'Activity updated!' : 'Activity posted!', 'green')
@@ -271,6 +322,7 @@ function ActivityFormModal({ act, onClose }) {
         {[
           { id: 'details', label: 'Details' },
           { id: 'rubric', label: `Rubric${rubric.length ? ` · ${rubric.length}` : ''}` },
+          ...(isGroup ? [{ id: 'groups', label: `Groups${groups.length ? ` · ${groups.length}` : ''}` }] : []),
         ].map(t => (
           <button
             key={t.id}
@@ -327,6 +379,25 @@ function ActivityFormModal({ act, onClose }) {
           </button>
         </div>
         <textarea className="input w-full" rows={3} value={instructions} onChange={e => setInstructions(e.target.value)} placeholder="Brief instructions for students…" />
+      </div>
+
+      {/* Group case-study mode */}
+      <div className="field mb-3 px-3 py-2.5 rounded-lg" style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+        <label className="flex items-center gap-2" style={{ cursor: isEdit ? 'not-allowed' : 'pointer' }}>
+          <input type="checkbox" checked={isGroup} disabled={isEdit} onChange={e => setIsGroup(e.target.checked)} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>Group case-study activity</span>
+        </label>
+        <p className="text-xs text-ink3 mt-1" style={{ marginLeft: 24 }}>
+          Students work in teams; each group submits one analysis. The on-device AI drafts a rubric score per group, which you review and apply to all members.
+        </p>
+        {isGroup && (
+          <div className="mt-2" style={{ marginLeft: 24 }}>
+            <label className="text-xs font-semibold text-ink2 mb-1 block">Case prompt / scenario</label>
+            <textarea className="input w-full" rows={3} value={casePrompt} onChange={e => setCasePrompt(e.target.value)}
+              placeholder="Describe the case or scenario the groups must analyze…" />
+            <p className="text-xs text-ink3 mt-1">Used to check each group actually addresses the case. Set up teams in the <strong>Groups</strong> tab.</p>
+          </div>
+        )}
       </div>
       </>
       )}
@@ -415,6 +486,76 @@ function ActivityFormModal({ act, onClose }) {
       </div>
       )}
 
+      {/* Groups builder */}
+      {tab === 'groups' && (
+      <div className="field mb-3">
+        {roster.length === 0 ? (
+          <p className="text-xs text-ink3">Select a class on the Details tab to load students.</p>
+        ) : (
+          <>
+          <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+            <label className="text-xs font-semibold text-ink2">{assignedIds.size} of {roster.length} students grouped</label>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-ink3">Size</span>
+              <input className="input" type="number" min={2} max={10} style={{ width: 56 }} value={groupSize}
+                onChange={e => setGroupSize(Math.max(2, Math.min(10, parseInt(e.target.value) || 3)))} />
+              <button type="button" className="btn btn-ghost btn-sm" onClick={autoForm} disabled={autoForming}>
+                <Sparkles size={12} className="inline-block mr-1" />{autoForming ? 'Forming…' : 'Auto-form'}
+              </button>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={addGroup}>+ Add group</button>
+            </div>
+          </div>
+
+          {roster.filter(s => !assignedIds.has(s.id)).length > 0 && (
+            <div className="mb-2 px-3 py-2 rounded-lg" style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+              <div className="text-xs text-ink3 mb-1">Unassigned students</div>
+              <div className="flex flex-wrap gap-1">
+                {roster.filter(s => !assignedIds.has(s.id)).map(s => (
+                  <span key={s.id} className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>{s.name}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {groups.length === 0 ? (
+            <p className="text-xs text-ink3">No groups yet — click “Auto-form” or “+ Add group”, then click student names to assign them.</p>
+          ) : (
+            <div className="flex flex-col gap-2" style={{ maxHeight: '48vh', overflowY: 'auto', paddingRight: 4 }}>
+              {groups.map(g => (
+                <div key={g.id} className="px-3 py-2.5 rounded-lg" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <input className="input" style={{ flex: 1, fontSize: 13, fontWeight: 600 }} value={g.name} onChange={e => renameGroup(g.id, e.target.value)} />
+                    <span className="text-xs text-ink3">{(g.memberIds || []).length}</span>
+                    <button type="button" className="btn btn-ghost btn-sm text-red-500" onClick={() => removeGroup(g.id)}><X size={14} /></button>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {roster.map(s => {
+                      const inGroup = (g.memberIds || []).includes(s.id)
+                      const elsewhere = !inGroup && assignedIds.has(s.id)
+                      return (
+                        <button key={s.id} type="button" onClick={() => toggleMember(g.id, s.id)}
+                          title={elsewhere ? 'In another group — click to move here' : ''}
+                          style={{
+                            fontSize: 11, padding: '2px 8px', borderRadius: 4, cursor: 'pointer',
+                            background: inGroup ? 'var(--accent-l)' : 'var(--surface2)',
+                            color: inGroup ? 'var(--accent)' : elsewhere ? 'var(--ink3)' : 'var(--ink2)',
+                            border: `1px solid ${inGroup ? 'var(--accent)' : 'var(--border)'}`,
+                            opacity: elsewhere ? 0.55 : 1,
+                          }}>
+                          {s.name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          </>
+        )}
+      </div>
+      )}
+
       {err && <div className="err-msg mb-2">{err}</div>}
 
       <div className="modal-footer">
@@ -442,6 +583,16 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
   const [saving,        setSaving]       = useState({})
   const [savingAll,     setSavingAll]    = useState(false)
 
+  // Group case-study grading state
+  const isGroupAct = !!act.isGroup
+  const [groupText, setGroupText] = useState(() => {
+    const m = {}
+    ;(act.groups || []).forEach(g => { m[g.id] = act.groupSubmissions?.[g.id]?.text || '' })
+    return m
+  })
+  const [groupResults, setGroupResults] = useState({}) // { [groupId]: { score, feedback, relevance, copies, criteria } }
+  const [gradingGroups, setGradingGroups] = useState(false)
+
   const hasRubric = !!(act.rubric?.length)
 
   const now    = Date.now()
@@ -453,6 +604,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
     () => sortByLastName(students.filter(s => s.classId === act.classId && s.account?.registered)),
     [students, act.classId]
   )
+  const idName = useMemo(() => Object.fromEntries((students || []).map(s => [s.id, s.name])), [students])
 
   const submitted = Object.values(act.submissions || {}).filter(s => s.link).length
   const graded    = Object.values(act.submissions || {}).filter(s => s.score != null).length
@@ -668,6 +820,46 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
     toast('AI suggestion applied. Review and Save.', 'green')
   }
 
+  // Warm the on-device model when the grading modal opens.
+  useEffect(() => { prewarmActivityAI() }, [])
+
+  // Auto-grade every group at once, then pre-fill each member's score/feedback/
+  // rubric so the existing Save-All path persists it (per-member adjustable).
+  async function runGroupGrade() {
+    const groupsForAI = (act.groups || [])
+      .map(g => ({ id: g.id, name: g.name, text: (groupText[g.id] || '').trim() }))
+      .filter(g => g.text)
+    if (!groupsForAI.length) { toast('Paste each group\'s submission text first.', 'warn'); return }
+    setGradingGroups(true)
+    try {
+      const res = await aiGradeGroups({
+        title: act.title, subject: act.subject, casePrompt: act.casePrompt,
+        rubric: act.rubric, maxScore: act.maxScore, groups: groupsForAI,
+      })
+      if (!res) { toast('On-device AI is unavailable on this device. Grade groups manually.', 'warn', 7000); return }
+      const byId = {}; res.forEach(r => { byId[r.groupId] = r })
+      setGroupResults(byId)
+      const nextScores = {}, nextFb = {}, nextChecks = {}
+      ;(act.groups || []).forEach(g => {
+        const r = byId[g.id]; if (!r) return
+        const checks = {}
+        if (hasRubric && Array.isArray(r.criteria)) act.rubric.forEach(c => {
+          const m = r.criteria.find(x => (x.name || '').toLowerCase().trim() === c.name.toLowerCase().trim())
+          if (m && m.met) checks[c.id] = true
+        })
+        ;(g.memberIds || []).forEach(mid => {
+          nextScores[mid] = String(r.score)
+          nextFb[mid] = r.feedback
+          if (hasRubric) nextChecks[mid] = checks
+        })
+      })
+      setScores(prev => ({ ...prev, ...nextScores }))
+      setFeedbacks(prev => ({ ...prev, ...nextFb }))
+      if (hasRubric) setRubricChecks(prev => ({ ...prev, ...nextChecks }))
+      toast('Draft group scores filled below — review, adjust members, then Save All.', 'green', 6000)
+    } finally { setGradingGroups(false) }
+  }
+
   async function handleDelete() {
     const ok = await openDialog({
       title: `Delete "${act.title}"?`,
@@ -779,6 +971,51 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
               </span>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Group case-study panel */}
+      {isGroupAct && (
+        <div className="mb-3" style={{ border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
+          <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+            <div className="text-xs font-semibold text-ink2"><Users size={14} className="inline-block mr-1" />Case-study groups · {(act.groups || []).length}</div>
+            <button className="btn btn-primary btn-sm" onClick={runGroupGrade} disabled={gradingGroups}>
+              <Sparkles size={13} className="inline-block mr-1" />{gradingGroups ? 'Grading…' : 'AI grade all groups'}
+            </button>
+          </div>
+          {act.casePrompt && (
+            <div className="text-xs text-ink2 mb-2 p-2 rounded" style={{ background: 'var(--surface2)' }}><strong>Case:</strong> {act.casePrompt}</div>
+          )}
+          <div className="flex flex-col gap-2" style={{ maxHeight: '40vh', overflowY: 'auto', paddingRight: 4 }}>
+            {(act.groups || []).map(g => {
+              const r = groupResults[g.id]
+              const memberNames = (g.memberIds || []).map(id => idName[id] || id)
+              return (
+                <div key={g.id} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-xs font-semibold text-ink">{g.name}</span>
+                    {r && <span className="text-xs font-bold" style={{ color: 'var(--accent)' }}>{r.score}/{act.maxScore}</span>}
+                  </div>
+                  <div className="text-xs text-ink3 mb-1.5">{memberNames.join(', ') || 'No members'}</div>
+                  <textarea className="input w-full" rows={3} style={{ fontSize: 12 }}
+                    placeholder="Paste this group's analysis (or it loads from their submission)…"
+                    value={groupText[g.id] || ''} onChange={e => setGroupText(t => ({ ...t, [g.id]: e.target.value }))} />
+                  {r && (
+                    <div className="mt-1.5 text-xs" style={{ color: 'var(--ink2)' }}>
+                      {r.relevance != null && (
+                        <span style={{ marginRight: 8 }}>Case relevance: <strong style={{ color: r.relevance >= 0.5 ? 'var(--green)' : 'var(--yellow)' }}>{Math.round(r.relevance * 100)}%</strong></span>
+                      )}
+                      {r.copies?.length > 0 && (
+                        <span style={{ color: 'var(--red)' }}><Copy size={11} className="inline-block mr-0.5" />Similar to {r.copies.join(', ')}</span>
+                      )}
+                      <div className="mt-1" style={{ color: 'var(--ink3)' }}>{r.feedback}</div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <p className="text-xs text-ink3 mt-2">Draft scores fill each member's row below — review, adjust individuals if needed, then <strong>Save All</strong>.</p>
         </div>
       )}
 

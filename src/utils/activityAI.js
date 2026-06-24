@@ -133,3 +133,134 @@ export async function aiGrade({ title, subject, instructions, rubric, maxScore, 
     aiUsed: true,
   }
 }
+
+// ── Group case-study grading ──────────────────────────────────────────────
+
+function meanVec(vecs) {
+  if (!vecs.length) return null
+  const dim = vecs[0].length
+  const m = new Array(dim).fill(0)
+  for (const v of vecs) for (let i = 0; i < dim; i++) m[i] += v[i]
+  for (let i = 0; i < dim; i++) m[i] /= vecs.length
+  return m
+}
+
+// similarity → coverage fraction (criterion names are terse; calibrate bounded).
+function coverageFrac(sim) { return Math.max(0, Math.min(1, (sim - 0.15) / (0.5 - 0.15))) }
+
+/**
+ * Auto-grade every group's case-study submission at once, on-device.
+ * @param {object} p
+ * @param {Array<{id:string,name:string,text:string}>} p.groups
+ * @returns {Promise<Array<{groupId,name,score,feedback,relevance,copies:string[],
+ *   criteria:Array<{name,met,points}>}>|null>} null if the model can't load.
+ */
+export async function aiGradeGroups({ title, subject, casePrompt, rubric, maxScore, groups }) {
+  const valid = (groups || []).filter(g => String(g.text || '').trim())
+  if (!valid.length) return null
+
+  let extractor
+  try { extractor = await ensureExtractor() } catch { return null }
+
+  const max = maxScore || (rubric?.length ? rubric.reduce((s, c) => s + (c.points || 0), 0) : 100)
+  const ctx = [title, subject].filter(Boolean).join(' ')
+  const crits = (rubric && rubric.length)
+    ? rubric.map(c => ({ name: c.name, points: c.points || 0 }))
+    : [{ name: title || 'Overall quality', points: max }]
+
+  let critVecs
+  try { critVecs = await embedAll(extractor, crits.map(c => `${c.name}. ${ctx}`.trim())) } catch { return null }
+
+  let caseVec = null
+  if (casePrompt && casePrompt.trim()) {
+    try { const [v] = await embedAll(extractor, [casePrompt.trim().slice(0, 1200)]); caseVec = v } catch { /* relevance optional */ }
+  }
+
+  const out = []
+  for (const g of valid) {
+    let sents = splitSentences(g.text)
+    if (!sents.length) sents = [g.text.slice(0, 600)]
+    let subVecs
+    try { subVecs = await embedAll(extractor, sents.slice(0, 120)) } catch { continue }
+
+    const results = crits.map((c, i) => {
+      let best = 0
+      for (const sv of subVecs) { const s = cos(sv, critVecs[i]); if (s > best) best = s }
+      const frac = coverageFrac(best)
+      return { name: c.name, points: Math.round(c.points * frac), max: c.points, frac, met: frac >= 0.5 }
+    })
+    const score = Math.max(0, Math.min(max, Math.round(results.reduce((s, r) => s + r.points, 0))))
+
+    let relevance = null
+    if (caseVec) {
+      let best = 0
+      for (const sv of subVecs) { const s = cos(sv, caseVec); if (s > best) best = s }
+      relevance = coverageFrac(best)
+    }
+
+    const strong = results.filter(r => r.frac >= 0.66).map(r => r.name)
+    const weak = results.filter(r => r.frac < 0.4).map(r => r.name)
+    let fb = ''
+    if (strong.length) fb += `Addresses ${strong.join(', ')} well. `
+    if (weak.length) fb += `Under-covers ${weak.join(', ')}. `
+    if (relevance != null && relevance < 0.4) fb += 'May drift from the case prompt. '
+    fb += 'On-device coverage estimate — review before saving.'
+
+    out.push({ groupId: g.id, name: g.name, score, feedback: fb.trim(), relevance, copies: [], criteria: results.map(r => ({ name: r.name, met: r.met, points: r.points })), _centroid: meanVec(subVecs) })
+  }
+
+  // Cross-group copy check on submission centroids.
+  const COPY = 0.92
+  for (let i = 0; i < out.length; i++) {
+    for (let j = 0; j < out.length; j++) {
+      if (i === j) continue
+      if (out[i]._centroid && out[j]._centroid && cos(out[i]._centroid, out[j]._centroid) >= COPY) out[i].copies.push(out[j].name)
+    }
+  }
+  out.forEach(o => { delete o._centroid })
+  return out
+}
+
+/**
+ * Form balanced groups from a roster. When prior submission text is available
+ * per student, embeddings spread similar students across different groups
+ * (diversity); otherwise it falls back to a balanced shuffle.
+ * @param {Array<{id,name}>} students
+ * @param {number} size desired members per group
+ * @param {Object<string,string>} [pastText] studentId → concatenated prior work
+ * @returns {Promise<Array<{id,name,memberIds:string[]}>>}
+ */
+export async function autoFormGroups(students, size, pastText = {}) {
+  const roster = (students || []).filter(s => s && s.id)
+  const n = roster.length
+  const groupCount = Math.max(1, Math.ceil(n / Math.max(2, size || 3)))
+  const groups = Array.from({ length: groupCount }, (_, i) => ({ id: 'g_' + Date.now() + '_' + i, name: `Group ${i + 1}`, memberIds: [] }))
+
+  // Order students: by diversity if we have text + a model, else shuffled.
+  let ordered = roster
+  const withText = roster.filter(s => String(pastText[s.id] || '').trim().length > 20)
+  if (withText.length >= Math.min(4, n)) {
+    try {
+      const extractor = await ensureExtractor()
+      const vecs = await embedAll(extractor, roster.map(s => String(pastText[s.id] || s.name).slice(0, 600)))
+      const centroid = meanVec(vecs)
+      // Sort by similarity to the class centroid; snake-drafting this order
+      // spreads typical and atypical work evenly across groups.
+      ordered = roster
+        .map((s, i) => ({ s, sim: centroid ? cos(vecs[i], centroid) : 0 }))
+        .sort((a, b) => b.sim - a.sim)
+        .map(x => x.s)
+    } catch { ordered = [...roster].sort(() => Math.random() - 0.5) }
+  } else {
+    ordered = [...roster].sort(() => Math.random() - 0.5)
+  }
+
+  // Snake draft for balanced sizes.
+  let gi = 0, dir = 1
+  for (const s of ordered) {
+    groups[gi].memberIds.push(s.id)
+    gi += dir
+    if (gi === groupCount) { gi = groupCount - 1; dir = -1 } else if (gi < 0) { gi = 0; dir = 1 }
+  }
+  return groups
+}

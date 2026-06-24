@@ -3,7 +3,7 @@ import { doc, updateDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Pagination from '@/components/primitives/Pagination'
-import { ClipboardList, Check, Circle } from 'lucide-react'
+import { ClipboardList, Check, Circle, Users } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const PER_PAGE = 10
@@ -37,15 +37,18 @@ async function pushAdminNotif(db, s, text, type, link) {
 }
 
 export default function ActivitiesTab({ student: s, viewClassId, activities }) {
-  const { db, fbReady } = useData()
+  const { db, fbReady, students } = useData()
   const { toast } = useUI()
 
   const [page, setPage] = useState(1)
   const [linkInputs, setLinkInputs] = useState({}) // actId → string
   const [submitting, setSubmitting] = useState({})  // actId → bool
   const [editing, setEditing] = useState({})        // actId → bool
+  const [groupText, setGroupText] = useState({})    // actId → string (group analysis)
+  const [groupLink, setGroupLink] = useState({})    // actId → string (optional link)
 
   const classId = viewClassId || s.classId
+  const idName = useMemo(() => Object.fromEntries((students || []).map(x => [x.id, x.name])), [students])
 
   const items = useMemo(() =>
     activities
@@ -85,6 +88,33 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
     }
   }
 
+  async function submitGroup(actId, group) {
+    const text = (groupText[actId] ?? '').trim()
+    if (!text) { toast('Add your group\'s analysis first.', 'warn'); return }
+    if (!fbReady || !db.current) { toast('Activities require Firebase to be connected.', 'warn'); return }
+    const link = (groupLink[actId] ?? '').trim()
+    if (link && !/^https?:\/\/.+/.test(link)) { toast('Link must start with http:// or https://', 'warn'); return }
+    setSubmitting(prev => ({ ...prev, [actId]: true }))
+    try {
+      const gp = `groupSubmissions.${group.id}`
+      await updateDoc(doc(db.current, 'activities', actId), {
+        [`${gp}.text`]: text,
+        [`${gp}.link`]: link,
+        [`${gp}.submittedBy`]: s.id,
+        [`${gp}.submittedByName`]: s.name,
+        [`${gp}.submittedAt`]: Date.now(),
+      })
+      setEditing(prev => ({ ...prev, [actId]: false }))
+      const act = activities.find(a => a.id === actId)
+      await pushAdminNotif(db.current, s, `Group submitted: ${act?.title || actId} (${group.name})`, 'act_sub', 'act:' + actId)
+      toast('Group submission saved!', 'success')
+    } catch (e) {
+      toast('Failed to submit: ' + e.message, 'error')
+    } finally {
+      setSubmitting(prev => ({ ...prev, [actId]: false }))
+    }
+  }
+
   if (!items.length) {
     return (
       <div className="empty">
@@ -111,6 +141,8 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
           const tl       = act.deadline ? timeLeft(act.deadline) : null
           const maxScore = act.maxScore || 100
           const hasRubric = !!(act.rubric?.length)
+          const myGroup = act.isGroup ? (act.groups || []).find(g => (g.memberIds || []).includes(s.id)) : null
+          const groupSub = myGroup ? (act.groupSubmissions || {})[myGroup.id] : null
 
           // Status badge
           let badgeCls = 'badge-gray'
@@ -198,6 +230,59 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3 }}>Teacher feedback</div>
                       <div style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{sub.feedback}</div>
                     </div>
+                  )}
+                </div>
+              ) : act.isGroup ? (
+                <div className="sa-act-group" style={{ marginTop: 8 }}>
+                  {!myGroup ? (
+                    <div style={{ fontSize: 12, color: 'var(--ink3)' }}>
+                      <Users size={13} className="inline-block mr-1" />You're not assigned to a group yet — message your teacher.
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink2)', marginBottom: 3 }}>
+                        <Users size={13} className="inline-block mr-1" />{myGroup.name}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--ink3)', marginBottom: 6 }}>
+                        {(myGroup.memberIds || []).map(id => idName[id] || id).join(', ')}
+                      </div>
+                      {groupSub?.text && !editing[act.id] ? (
+                        <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px' }}>
+                          <div style={{ fontSize: 11, color: 'var(--ink3)', marginBottom: 4 }}>
+                            Submitted by {groupSub.submittedByName || idName[groupSub.submittedBy] || 'a member'}
+                            {groupSub.submittedAt ? ` · ${new Date(groupSub.submittedAt).toLocaleDateString('en-PH', { dateStyle: 'medium' })}` : ''}
+                          </div>
+                          <div style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.5, whiteSpace: 'pre-wrap', maxHeight: 120, overflowY: 'auto' }}>{groupSub.text}</div>
+                          {groupSub.link && <a href={groupSub.link} target="_blank" rel="noreferrer" className="sa-act-link">Open attached link ↗</a>}
+                          {!isPast && (
+                            <button className="btn btn-ghost btn-sm mt-2" onClick={() => {
+                              setEditing(prev => ({ ...prev, [act.id]: true }))
+                              setGroupText(prev => ({ ...prev, [act.id]: groupSub.text }))
+                              setGroupLink(prev => ({ ...prev, [act.id]: groupSub.link || '' }))
+                            }}>Edit group submission</button>
+                          )}
+                        </div>
+                      ) : isPast && !groupSub?.text ? (
+                        <div style={{ fontSize: 12, color: 'var(--red)' }}>The deadline passed with no group submission.</div>
+                      ) : (
+                        <div className="sa-act-submit-form">
+                          <textarea className="input w-full" rows={4} placeholder="Paste your group's case analysis here…"
+                            value={groupText[act.id] ?? ''} onChange={e => setGroupText(prev => ({ ...prev, [act.id]: e.target.value }))} />
+                          <input className="input w-full mt-2" placeholder="Optional supporting link (https://…)"
+                            value={groupLink[act.id] ?? ''} onChange={e => setGroupLink(prev => ({ ...prev, [act.id]: e.target.value }))} />
+                          <div className="flex gap-2 mt-2">
+                            <button className="btn btn-primary btn-sm" onClick={() => submitGroup(act.id, myGroup)}
+                              disabled={submitting[act.id] || !(groupText[act.id] ?? '').trim() || isPast}>
+                              {submitting[act.id] ? 'Saving…' : 'Submit for group →'}
+                            </button>
+                            {editing[act.id] && (
+                              <button className="btn btn-ghost btn-sm" onClick={() => setEditing(prev => ({ ...prev, [act.id]: false }))}>Cancel</button>
+                            )}
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>Any member can submit or update on behalf of the whole group.</div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               ) : hasLink ? (
