@@ -11,7 +11,7 @@ import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
 import KebabMenu from '@/components/primitives/KebabMenu'
-import { Download, Upload, FileDown, KeyRound, GraduationCap, CheckCircle2, Pencil, Plus, Save, BookOpen, Check, Users, ClipboardList, Hourglass, Send } from 'lucide-react'
+import { Download, Upload, FileDown, KeyRound, GraduationCap, CheckCircle2, Pencil, Plus, Save, BookOpen, Check, Users, ClipboardList, Hourglass, Send, AlertTriangle } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { buildStudentReportCard } from '@/export/reportCard'
 import { exportStudentRosterExcel, exportStudentImportTemplate, parseStudentImportExcel } from '@/export/excelExport'
@@ -821,9 +821,14 @@ export default function StudentsTab() {
   }
 
   const counts = useMemo(() => {
-    let assigned = 0
-    students.forEach(s => { if (isAssigned(s)) assigned++ })
-    return { all: students.length, assigned, unassigned: students.length - assigned }
+    let assigned = 0, active = 0, pending = 0
+    students.forEach(s => {
+      if (isAssigned(s)) assigned++
+      const k = accountStatusKey(s)
+      if (k === 'active') active++
+      else if (k === 'pending') pending++
+    })
+    return { all: students.length, assigned, unassigned: students.length - assigned, active, pending }
   }, [students, classes])
 
   const filtered = useMemo(() => {
@@ -831,6 +836,8 @@ export default function StudentsTab() {
     return students.filter(s => {
       if (statusFilter === 'assigned'   && !isAssigned(s)) return false
       if (statusFilter === 'unassigned' &&  isAssigned(s)) return false
+      if (statusFilter === 'active'     && accountStatusKey(s) !== 'active')  return false
+      if (statusFilter === 'pending'    && accountStatusKey(s) !== 'pending') return false
       return (
         s.name?.toLowerCase().includes(q) ||
         s.id?.toLowerCase().includes(q) ||
@@ -973,18 +980,58 @@ export default function StudentsTab() {
         </div>
       </div>
 
-      {/* Status segments — separate assigned vs unassigned students */}
-      <div className="seg-filter mb-3">
-        {[['all', 'All', counts.all], ['assigned', 'With Class', counts.assigned], ['unassigned', 'Unassigned', counts.unassigned]].map(([k, label, n]) => (
+      {/* Summary metric cards — also act as quick filters */}
+      <div className="grid gap-2 mb-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))' }}>
+        {[
+          { key: 'all',        label: 'Total students', value: counts.all },
+          { key: 'assigned',   label: 'With class',     value: counts.assigned },
+          { key: 'unassigned', label: 'Unassigned',     value: counts.unassigned, attention: counts.unassigned > 0 },
+          { key: 'active',     label: 'Active',         value: counts.active,  color: 'var(--green)' },
+          { key: 'pending',    label: 'Pending',        value: counts.pending, color: counts.pending > 0 ? 'var(--yellow, #ca8a04)' : undefined },
+        ].map(c => {
+          const on = statusFilter === c.key
+          return (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() => { setStatusFilter(on ? 'all' : c.key); setPage(1) }}
+              className="rounded-lg p-3 text-left transition-colors"
+              title={`Filter: ${c.label}`}
+              style={{ background: on ? 'var(--accent-l)' : 'var(--bg)', border: on ? '1px solid var(--accent)' : '1px solid transparent', cursor: 'pointer' }}
+            >
+              <div className="text-xs text-ink2">{c.label}</div>
+              <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2, color: c.attention ? 'var(--red)' : (c.color || 'var(--ink)') }}>{c.value}</div>
+            </button>
+          )
+        })}
+        {selected.size > 0 && (
           <button
-            key={k}
-            className={`seg-btn${statusFilter === k ? ' active' : ''}`}
-            onClick={() => { setStatusFilter(k); setPage(1) }}
+            type="button"
+            onClick={clearSelection}
+            className="rounded-lg p-3 text-left"
+            title="Clear selection"
+            style={{ background: 'var(--accent-l)', border: '1px solid var(--accent)', cursor: 'pointer' }}
           >
-            {label} <span className="seg-count">{n}</span>
+            <div className="text-xs" style={{ color: 'var(--accent)' }}>Selected</div>
+            <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2, color: 'var(--accent)' }}>{selected.size}</div>
           </button>
-        ))}
+        )}
       </div>
+
+      {/* Attention banner — surfaces students needing placement or activation */}
+      {(counts.unassigned > 0 || counts.pending > 0) && (
+        <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg flex-wrap" style={{ background: 'var(--yellow-l, #fef9c3)', border: '1px solid var(--yellow, #ca8a04)' }}>
+          <AlertTriangle size={16} className="shrink-0" style={{ color: 'var(--yellow-d, #854d0e)' }} />
+          <span className="text-sm" style={{ color: 'var(--yellow-d, #854d0e)', flex: '1 1 200px' }}>
+            {[counts.unassigned > 0 && `${counts.unassigned} unassigned`, counts.pending > 0 && `${counts.pending} pending activation`].filter(Boolean).join(' · ')}.
+          </span>
+          {counts.unassigned > 0 && (
+            statusFilter !== 'unassigned'
+              ? <button className="btn btn-ghost btn-sm" onClick={() => { setStatusFilter('unassigned'); setPage(1) }}>Show unassigned</button>
+              : <button className="btn btn-ghost btn-sm" onClick={() => { setStatusFilter('all'); setPage(1) }}>Show all</button>
+          )}
+        </div>
+      )}
 
       {/* Search + per-page */}
       <div className="flex items-center gap-2 mb-3 flex-wrap">
@@ -1023,7 +1070,7 @@ export default function StudentsTab() {
         <div className="empty"><div className="empty-icon"><Users size={40} /></div>{search ? 'No students match your search.' : 'No students yet.'}</div>
       ) : (
         <>
-          <div className="tbl-wrap">
+          <div className="tbl-wrap hidden sm:block">
             <table className="tbl">
               <thead>
                 <tr>
@@ -1032,9 +1079,9 @@ export default function StudentsTab() {
                   </th>
                   <th onClick={() => toggleSort('name')} style={{ cursor: 'pointer' }}>Name <SortIcon col="name" /></th>
                   <th onClick={() => toggleSort('id')} style={{ cursor: 'pointer' }}>Stn. No. <SortIcon col="id" /></th>
-                  <th onClick={() => toggleSort('course')} style={{ cursor: 'pointer' }}>Course <SortIcon col="course" /></th>
+                  <th onClick={() => toggleSort('course')} className="hidden lg:table-cell" style={{ cursor: 'pointer' }}>Course <SortIcon col="course" /></th>
                   <th onClick={() => toggleSort('class')} style={{ cursor: 'pointer' }}>Class <SortIcon col="class" /></th>
-                  <th onClick={() => toggleSort('email')} style={{ cursor: 'pointer' }}>Email <SortIcon col="email" /></th>
+                  <th onClick={() => toggleSort('email')} className="hidden lg:table-cell" style={{ cursor: 'pointer' }}>Email <SortIcon col="email" /></th>
                   <th onClick={() => toggleSort('account')} style={{ cursor: 'pointer', textAlign: 'center' }}>Account <SortIcon col="account" /></th>
                   <th></th>
                 </tr>
@@ -1069,7 +1116,7 @@ export default function StudentsTab() {
                         </button>
                       </td>
                       <td><span className="stu-id-pill">{s.id}</span></td>
-                      <td><span className="stu-course-cell">{s.course || '—'}</span></td>
+                      <td className="hidden lg:table-cell"><span className="stu-course-cell">{s.course || '—'}</span></td>
                       <td>
                         {!enrolledClasses.length ? (
                           <span style={{ color: 'var(--ink3)', fontStyle: 'italic', fontSize: 12 }}>Unassigned</span>
@@ -1087,7 +1134,7 @@ export default function StudentsTab() {
                           </span>
                         )}
                       </td>
-                      <td>
+                      <td className="hidden lg:table-cell">
                         {s.account?.email
                           ? <span className="stu-email-cell">{s.account.email}</span>
                           : <span style={{ color: 'var(--ink3)', fontSize: 12 }}>—</span>}
@@ -1116,6 +1163,80 @@ export default function StudentsTab() {
               </tbody>
             </table>
           </div>
+
+          {/* Phone layout — card per student, no sideways scroll */}
+          <div className="sm:hidden flex flex-col gap-2">
+            {/* Select-all bar */}
+            <label className="flex items-center gap-2 text-xs text-ink2 px-1 cursor-pointer">
+              <input type="checkbox" aria-label="Select all students on this page" checked={allPageSelected} onChange={toggleAllPage} style={{ width: 'auto', margin: 0, cursor: 'pointer' }} />
+              Select all on page
+            </label>
+            {slice.map(s => {
+              const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
+              const enrolledClasses = enrolledIds.map(id => classes.find(c => c.id === id)).filter(Boolean)
+              const primaryCls = enrolledClasses.find(c => c.id === s.classId) || enrolledClasses[0]
+              const extras = enrolledClasses.filter(c => c.id !== (primaryCls?.id)).length
+              const initial = (s.name || '?').charAt(0).toUpperCase()
+              const st = accountStatus(s)
+              const isSel = selected.has(s.id)
+              return (
+                <div key={s.id} className="rounded-xl p-3" style={{ background: isSel ? 'var(--accent-l)' : 'var(--surface)', border: `1px solid ${isSel ? 'var(--accent)' : 'var(--border)'}` }}>
+                  <div className="flex items-start gap-2.5">
+                    <input type="checkbox" aria-label={`Select ${s.name}`} checked={isSel} onChange={() => toggleOne(s.id)} style={{ width: 'auto', margin: 0, marginTop: 4, cursor: 'pointer', flexShrink: 0 }} />
+                    <button
+                      type="button"
+                      onClick={() => openStudentProfile(s.id)}
+                      className="flex items-center gap-2.5 flex-1 min-w-0"
+                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
+                      title={`View ${s.name}'s profile`}
+                    >
+                      <div className="stu-avatar" style={s.photo ? { overflow: 'hidden', padding: 0, flexShrink: 0 } : { flexShrink: 0 }}>
+                        {s.photo
+                          ? <img src={s.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                          : initial}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="stu-name-text truncate" style={{ color: 'var(--accent)' }}>{s.name}</div>
+                        <div className="stu-year-text truncate" style={{ fontFamily: 'monospace' }}>{s.id}{s.year ? ` · ${s.year}` : ''}</div>
+                      </div>
+                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {st.key === 'active'
+                        ? <Badge variant="green" style={{ fontSize: 11 }}><Check size={12} /> Active</Badge>
+                        : st.key === 'pending'
+                          ? <Badge variant="yellow" style={{ fontSize: 11 }}><Hourglass size={12} /> Pending</Badge>
+                          : <Badge variant="gray" style={{ fontSize: 11 }}>No Account</Badge>}
+                      <KebabMenu label={`Actions for ${s.name}`} items={[
+                        { label: 'View profile', onClick: () => openStudentProfile(s.id) },
+                        { label: 'Edit', onClick: () => setEditStudent(s) },
+                        s.account?.registered && { label: 'Reset password', onClick: () => setResetStudent(s) },
+                        { label: 'Export report', onClick: () => setExportStudent(s) },
+                        { label: 'Report card (PDF)', onClick: () => buildStudentReportCard(s, { classes, students, eqScale, semester }) },
+                        { label: 'Delete', onClick: () => handleDelete(s), danger: true },
+                      ]} />
+                    </div>
+                  </div>
+                  <div className="grid gap-x-3 gap-y-1.5 mt-2.5 pt-2.5" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', borderTop: '1px solid var(--border)', fontSize: 12 }}>
+                    <div className="min-w-0">
+                      <div className="text-ink3" style={{ fontSize: 11 }}>Course</div>
+                      <div className="text-ink2 truncate">{s.course || '—'}</div>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-ink3" style={{ fontSize: 11 }}>Class</div>
+                      {!primaryCls
+                        ? <div style={{ color: 'var(--ink3)', fontStyle: 'italic' }}>Unassigned</div>
+                        : <div className="truncate">{primaryCls.name} {primaryCls.section}{extras > 0 ? <span style={{ color: 'var(--accent)' }}> +{extras}</span> : null}</div>}
+                    </div>
+                    <div className="min-w-0" style={{ gridColumn: '1 / -1' }}>
+                      <div className="text-ink3" style={{ fontSize: 11 }}>Email</div>
+                      <div className="text-ink2 truncate">{s.account?.email || '—'}</div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
           {perPage < 9999 && (
             <Pagination total={sorted.length} perPage={perPage} page={safePage} onChange={setPage} />
           )}
