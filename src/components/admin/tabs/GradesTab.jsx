@@ -11,7 +11,7 @@ import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
 import KebabMenu from '@/components/primitives/KebabMenu'
-import { Clock, Pencil, BarChart2, Upload, Download, Trash2, BarChart, RefreshCw, Archive, ArchiveRestore, FileSpreadsheet, Plus, ChevronDown, Sparkles } from 'lucide-react'
+import { Clock, Pencil, BarChart2, Upload, Download, Trash2, BarChart, RefreshCw, Archive, ArchiveRestore, FileSpreadsheet, Plus, ChevronDown, Sparkles, Undo2, Redo2, Check, Maximize2 } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const GRADE_PER_PAGE = 10
@@ -185,6 +185,26 @@ function GradeEntryModal({ classId, subject, onClose }) {
   const [rows, setRows] = useState(initRows)
   const [saving, setSaving] = useState(false)
   const [showFormula, setShowFormula] = useState(false)
+  const [autoStatus, setAutoStatus] = useState('idle') // idle | saving | saved
+
+  // Undo/redo history + debounced auto-save. undoRef/redoRef hold rows snapshots;
+  // travelRef suppresses history capture while applying an undo/redo; the rows
+  // watcher effect (below the handlers) records history and schedules auto-save.
+  const undoRef   = useRef([])
+  const redoRef   = useRef([])
+  const rowsRef   = useRef(rows)
+  const travelRef = useRef(false)   // set during undo/redo: skip history capture
+  const resyncRef = useRef(false)   // set during panel re-sync: skip history + auto-save
+  const firstRowsRef = useRef(true)
+  const dirtyRef  = useRef(false)
+  const autoTimerRef = useRef(null)
+  const autoSaveRef  = useRef(null)
+  const [canUndo, setCanUndo] = useState(false)
+  const [canRedo, setCanRedo] = useState(false)
+  const syncHist = useCallback(() => {
+    setCanUndo(undoRef.current.length > 0)
+    setCanRedo(redoRef.current.length > 0)
+  }, [])
 
   // Re-sync rows when panel activities or quizzes load/change after initial render
   const prevActKeyRef = React.useRef('')
@@ -196,6 +216,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
     if (actKey !== prevActKeyRef.current || qzKey !== prevQzKeyRef.current) {
       prevActKeyRef.current = actKey
       prevQzKeyRef.current  = qzKey
+      resyncRef.current = true // programmatic reload — not a user edit
       setRows(initRows)
     }
   }, [panelActs, panelQuizzes]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -296,11 +317,11 @@ function GradeEntryModal({ classId, subject, onClose }) {
     setRows(prev => prev.map(r => recomputeRow({ ...r, qzInputs: [...r.qzInputs, ''] })))
   }
 
-  async function handleSave() {
-    setSaving(true)
+  // Build the updated students array from the current rows (pure — reused by
+  // both the manual Save and the debounced auto-save).
+  function buildUpdatedStudents() {
     const now = Date.now()
-
-    const updatedStudents = students.map(s => {
+    return students.map(s => {
       const si = studs.findIndex(x => x.id === s.id)
       if (si === -1) return s
 
@@ -392,10 +413,18 @@ function GradeEntryModal({ classId, subject, onClose }) {
 
       return ns
     })
+  }
 
+  // Manual save — persists, audits, notifies students, then closes the modal.
+  async function handleSave() {
+    setSaving(true)
+    if (autoTimerRef.current) { clearTimeout(autoTimerRef.current); autoTimerRef.current = null }
+    const updatedStudents = buildUpdatedStudents()
     const changedIds = studs.map(s => s.id)
     try {
       await saveStudents(updatedStudents, changedIds)
+      dirtyRef.current = false
+      setAutoStatus('saved')
       logAudit?.({
         action: 'grade.edit',
         target: `${cls?.name || subject} · ${subject}`,
@@ -426,6 +455,76 @@ function GradeEntryModal({ classId, subject, onClose }) {
       setSaving(false)
     }
   }
+
+  // Debounced auto-save — quietly persists edits (no audit/notification spam);
+  // kept in a ref so the debounce timer always calls the latest closure.
+  autoSaveRef.current = async () => {
+    if (!dirtyRef.current || saving) return
+    setAutoStatus('saving')
+    try {
+      await saveStudents(buildUpdatedStudents(), studs.map(s => s.id))
+      dirtyRef.current = false
+      setAutoStatus('saved')
+    } catch (e) {
+      setAutoStatus('idle')
+    }
+  }
+
+  // Undo / redo over rows snapshots.
+  const undo = useCallback(() => {
+    if (!undoRef.current.length) return
+    const prev = undoRef.current.pop()
+    redoRef.current.push(rowsRef.current)
+    travelRef.current = true
+    setRows(prev)
+    syncHist()
+  }, [syncHist])
+  const redo = useCallback(() => {
+    if (!redoRef.current.length) return
+    const next = redoRef.current.pop()
+    undoRef.current.push(rowsRef.current)
+    travelRef.current = true
+    setRows(next)
+    syncHist()
+  }, [syncHist])
+
+  // Rows watcher: record undo history (skipping programmatic resync/undo) and
+  // schedule a debounced auto-save.
+  React.useEffect(() => {
+    if (firstRowsRef.current) { firstRowsRef.current = false; rowsRef.current = rows; return }
+    if (resyncRef.current) { resyncRef.current = false; rowsRef.current = rows; return }
+    if (travelRef.current) {
+      travelRef.current = false
+    } else if (rows !== rowsRef.current) {
+      undoRef.current.push(rowsRef.current)
+      if (undoRef.current.length > 60) undoRef.current.shift()
+      redoRef.current = []
+      syncHist()
+    }
+    rowsRef.current = rows
+    dirtyRef.current = true
+    setAutoStatus('idle')
+    if (autoTimerRef.current) clearTimeout(autoTimerRef.current)
+    autoTimerRef.current = setTimeout(() => { autoSaveRef.current && autoSaveRef.current() }, 2000)
+  }, [rows, syncHist])
+
+  // Keyboard undo/redo + clear the auto-save timer on unmount.
+  React.useEffect(() => {
+    const onKey = (e) => {
+      const z = (e.key === 'z' || e.key === 'Z')
+      if ((e.metaKey || e.ctrlKey) && z) {
+        e.preventDefault()
+        if (e.shiftKey) redo(); else undo()
+      } else if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || e.key === 'Y')) {
+        e.preventDefault(); redo()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      if (autoTimerRef.current) clearTimeout(autoTimerRef.current)
+    }
+  }, [undo, redo])
 
   // ── Fast grade entry: keyboard grid nav ─────────────────────────────────────
   // Editable columns per row, left→right: activity inputs (0..actInputCount-1),
@@ -537,7 +636,11 @@ function GradeEntryModal({ classId, subject, onClose }) {
           )}
         </div>
         <div className="flex items-center gap-2 text-xs">
-          <span className="text-ink3">Tip: Enter / ↑ ↓ move between students</span>
+          <button className="btn btn-ghost btn-sm" onClick={undo} disabled={!canUndo} title="Undo (Ctrl/Cmd+Z)" style={{ padding: '4px 8px' }}><Undo2 size={14} /></button>
+          <button className="btn btn-ghost btn-sm" onClick={redo} disabled={!canRedo} title="Redo (Ctrl/Cmd+Shift+Z)" style={{ padding: '4px 8px' }}><Redo2 size={14} /></button>
+          <span style={{ minWidth: 64, color: 'var(--ink3)' }}>
+            {autoStatus === 'saving' ? 'Saving…' : autoStatus === 'saved' ? <><Check size={12} className="inline-block align-text-bottom" style={{ color: 'var(--green)' }} /> Saved</> : ''}
+          </span>
           {validation.invalid > 0 && (
             <span className="badge badge-red" title="Values outside 0–100">{validation.invalid} invalid</span>
           )}
