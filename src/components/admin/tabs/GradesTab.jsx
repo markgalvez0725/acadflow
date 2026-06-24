@@ -206,6 +206,9 @@ function GradeEntryModal({ classId, subject, onClose }) {
   const [autoStatus, setAutoStatus] = useState('idle') // idle | saving | saved
   const [speedMode, setSpeedMode] = useState(false)
   const [speedIdx, setSpeedIdx]   = useState(0)
+  const [pasteOpen, setPasteOpen]   = useState(false)
+  const [pasteField, setPasteField] = useState('midtermExam')
+  const [pasteText, setPasteText]   = useState('')
 
   // Undo/redo history + debounced auto-save. undoRef/redoRef hold rows snapshots;
   // travelRef suppresses history capture while applying an undo/redo; the rows
@@ -601,7 +604,75 @@ function GradeEntryModal({ classId, subject, onClose }) {
     return { missing, invalid, rowFlags }
   }, [rows])
 
+  // ── CSV / paste-in ──────────────────────────────────────────────────────────
+  // Paste two columns ("id-or-name <tab|comma|2+ spaces> score" per line) and
+  // map them onto a chosen field; or import a full grading-sheet XLSX.
+  const pastePreview = useMemo(() => {
+    const idx = studs.map(s => ({ id: String(s.id).toLowerCase(), name: String(s.name || '').toLowerCase() }))
+    const out = []
+    let matched = 0
+    pasteText.split(/\r?\n/).forEach(line => {
+      const t = line.trim()
+      if (!t) return
+      const parts = t.split(/\t|,|\s{2,}/).map(x => x.trim()).filter(Boolean)
+      if (parts.length < 2) return
+      const n = parseFloat(parts[parts.length - 1])
+      if (isNaN(n)) return
+      const key = parts.slice(0, parts.length - 1).join(' ').toLowerCase()
+      const mi = idx.findIndex(s => s.id === key || (key.length >= 3 && s.name.includes(key)))
+      out.push({ key, score: n, idx: mi })
+      if (mi >= 0) matched++
+    })
+    return { rows: out, matched, total: out.length }
+  }, [pasteText, studs])
+
+  function applyPaste() {
+    const setField = (r, val) => {
+      if (pasteField === 'finalGrade') {
+        const clamped = clampGrade(String(val))
+        return { ...r, finalGrade: clamped, equivPreview: gradeInfo(toNum(clamped), eqScale).eq }
+      }
+      return recomputeRow({ ...r, [pasteField]: clampGrade(String(val)) })
+    }
+    const byIdx = {}
+    pastePreview.rows.forEach(p => { if (p.idx >= 0) byIdx[p.idx] = p.score })
+    setRows(prev => prev.map((r, i) => (byIdx[i] != null ? setField(r, byIdx[i]) : r)))
+    toast(`Applied ${pastePreview.matched} score${pastePreview.matched === 1 ? '' : 's'}.`, 'green')
+    setPasteOpen(false); setPasteText('')
+  }
+
+  async function applyExcelFile(file) {
+    try {
+      const XLSX = window.XLSX
+      if (!XLSX) { toast('SheetJS not loaded.', 'red'); return }
+      const buf = await file.arrayBuffer()
+      const wb = XLSX.read(buf, { type: 'array' })
+      const records = parseGradingSheetImport(wb)
+      const recById = {}
+      records.forEach(rec => { recById[String(rec.studentId).toLowerCase()] = rec })
+      let matched = 0
+      setRows(prev => prev.map((r, i) => {
+        const rec = recById[String(studs[i].id).toLowerCase()]
+        if (!rec) return r
+        matched++
+        const nr = { ...r }
+        if (Array.isArray(rec.actScores) && rec.actScores.length)
+          nr.actInputs = r.actInputs.map((v, idx) => (rec.actScores[idx] != null ? String(rec.actScores[idx]) : v))
+        if (Array.isArray(rec.qzScores) && rec.qzScores.length)
+          nr.qzInputs = r.qzInputs.map((v, idx) => (rec.qzScores[idx] != null ? String(rec.qzScores[idx]) : v))
+        if (rec.mtExam != null) nr.midtermExam = String(rec.mtExam)
+        if (rec.ftExam != null) nr.finalsExam = String(rec.ftExam)
+        return recomputeRow(nr)
+      }))
+      toast(`Imported scores for ${matched} student${matched === 1 ? '' : 's'}.`, 'green')
+      setPasteOpen(false)
+    } catch (e) {
+      toast('Import failed: ' + e.message, 'red')
+    }
+  }
+
   return (
+    <>
     <Modal onClose={onClose} wide>
       <div className="flex items-start justify-between flex-wrap gap-2 mb-3">
         <div>
@@ -656,6 +727,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
           )}
         </div>
         <div className="flex items-center gap-2 text-xs">
+          <button className="btn btn-ghost btn-sm" onClick={() => setPasteOpen(true)} title="Paste a column of scores or import a grading-sheet Excel file" style={{ padding: '4px 10px' }}><FileSpreadsheet size={13} className="inline-block mr-1 align-text-bottom" />Import</button>
           <button className={`btn btn-sm ${speedMode ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setSpeedMode(v => !v)} title="Speed-grading mode — one student at a time" style={{ padding: '4px 10px' }}><Maximize2 size={13} className="inline-block mr-1 align-text-bottom" />Speed</button>
           <button className="btn btn-ghost btn-sm" onClick={undo} disabled={!canUndo} title="Undo (Ctrl/Cmd+Z)" style={{ padding: '4px 8px' }}><Undo2 size={14} /></button>
           <button className="btn btn-ghost btn-sm" onClick={redo} disabled={!canRedo} title="Redo (Ctrl/Cmd+Shift+Z)" style={{ padding: '4px 8px' }}><Redo2 size={14} /></button>
@@ -928,6 +1000,60 @@ function GradeEntryModal({ classId, subject, onClose }) {
         </button>
       </div>
     </Modal>
+
+    {pasteOpen && (
+      <Modal onClose={() => setPasteOpen(false)} size="md">
+        <h3 className="mb-1"><FileSpreadsheet size={16} className="inline-block mr-1 align-text-bottom" />Import / Paste scores</h3>
+        <p className="modal-sub mb-3">Fill the open grade sheet — review, then Save Grades to keep changes.</p>
+
+        {/* Excel file import */}
+        <div className="mb-4 px-3 py-2.5 rounded-lg" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
+          <div className="text-sm font-semibold mb-1">From a grading-sheet Excel file</div>
+          <p className="text-xs text-ink3 mb-2">An <code>.xlsx</code> exported from this app (Activities / Quizzes / Exams &amp; Attendance sheets). Matched by Student ID.</p>
+          <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer' }}>
+            <Upload size={13} className="inline-block mr-1" />Choose Excel file…
+            <input type="file" accept=".xlsx,.xls" style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) applyExcelFile(f); e.target.value = '' }} />
+          </label>
+        </div>
+
+        {/* Paste a column */}
+        <div className="px-3 py-2.5 rounded-lg" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
+          <div className="text-sm font-semibold mb-1">Paste a column of scores</div>
+          <p className="text-xs text-ink3 mb-2">One student per line: <code>Student ID or name [tab/comma] score</code>. Paste straight from Excel or Sheets.</p>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs text-ink2">Apply to:</span>
+            <select className="input" style={{ maxWidth: 180 }} value={pasteField} onChange={e => setPasteField(e.target.value)}>
+              <option value="attitude">Attitude</option>
+              <option value="midtermExam">Midterm Exam</option>
+              <option value="finalsExam">Finals Exam</option>
+              <option value="finalGrade">Final Grade (override)</option>
+            </select>
+          </div>
+          <textarea
+            className="input"
+            style={{ width: '100%', minHeight: 120, fontFamily: 'monospace', fontSize: 12 }}
+            placeholder={'20241234\t85\n20241235, 90\nDela Cruz   78'}
+            value={pasteText}
+            onChange={e => setPasteText(e.target.value)}
+          />
+          {pasteText.trim() !== '' && (
+            <div className="text-xs mt-1" style={{ color: pastePreview.matched > 0 ? 'var(--green)' : 'var(--red)' }}>
+              {pastePreview.matched} of {pastePreview.total} line{pastePreview.total === 1 ? '' : 's'} matched a student
+              {pastePreview.total > pastePreview.matched && <span className="text-ink3"> · {pastePreview.total - pastePreview.matched} unmatched (ignored)</span>}
+            </div>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={() => setPasteOpen(false)}>Cancel</button>
+          <button className="btn btn-primary" onClick={applyPaste} disabled={pastePreview.matched === 0}>
+            Apply {pastePreview.matched > 0 ? pastePreview.matched : ''} score{pastePreview.matched === 1 ? '' : 's'}
+          </button>
+        </div>
+      </Modal>
+    )}
+    </>
   )
 }
 
