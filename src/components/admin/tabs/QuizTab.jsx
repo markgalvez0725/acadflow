@@ -327,6 +327,7 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
     return `${dl.getFullYear()}-${pad(dl.getMonth() + 1)}-${pad(dl.getDate())}T${pad(dl.getHours())}:${pad(dl.getMinutes())}`
   })
   const [questions, setQuestions] = useState(quiz?.questions || initialQuestions || [])
+  const [partialCredit, setPartialCredit] = useState(quiz?.partialCredit || false)
   const [editingQ, setEditingQ] = useState(null)
   const [err, setErr] = useState('')
   const [saving, setSaving] = useState(false)
@@ -363,7 +364,24 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
   }
 
   function addQuestion() {
-    setQuestions(prev => [...prev, { id: 'q_' + Date.now(), type: 'multiple_choice', question: '', options: ['', '', '', ''], answer: '' }])
+    setQuestions(prev => [...prev, { id: 'q_' + Date.now(), type: 'multiple_choice', question: '', options: ['', '', '', ''], answer: '', points: 1 }])
+  }
+
+  const TEXT_TYPES = ['short_answer', 'fill_in_the_blank', 'identification']
+
+  // Bulk auto-key: seed accepted alternate answers for every text question from
+  // its model answer, splitting on common separators (",", "/", "|", ";", "or").
+  function bulkAutoKey() {
+    let touched = 0
+    setQuestions(prev => prev.map(q => {
+      if (!TEXT_TYPES.includes(q.type)) return q
+      if (Array.isArray(q.acceptedAnswers) && q.acceptedAnswers.length) return q
+      const alts = String(q.answer || '').split(/\s*(?:[,/|;]|\bor\b)\s*/i).map(s => s.trim()).filter(Boolean)
+      if (!alts.length) return q
+      touched++
+      return { ...q, acceptedAnswers: alts }
+    }))
+    toast(touched ? `Seeded accepted answers for ${touched} question${touched === 1 ? '' : 's'}.` : 'No text questions to auto-key.', touched ? 'green' : 'dark')
   }
 
   async function handleSave() {
@@ -379,10 +397,11 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
     if (closeTs <= openTs) { setErr('Close time must be after open time.'); return }
     if (!fbReady || !db.current) { setErr('Firebase is required.'); return }
 
+    const totalPoints = questions.reduce((sum, q) => sum + ((typeof q.points === 'number' && q.points > 0) ? q.points : 1), 0)
     const payload = {
       title: title.trim(), classIds, subject,
       timeLimit: parseInt(timeLimit), openAt: openTs, closeAt: closeTs,
-      questions, totalPoints: questions.length,
+      questions, totalPoints, partialCredit,
       submissions: quiz?.submissions || {},
       createdAt: quiz?.createdAt || Date.now(), createdBy: 'admin',
     }
@@ -467,11 +486,23 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
         </div>
       </div>
 
+      {/* Auto-grading options */}
+      <div className="field mb-3 px-3 py-2.5 rounded-lg" style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+        <label className="flex items-center gap-2" style={{ cursor: 'pointer' }}>
+          <input type="checkbox" checked={partialCredit} onChange={e => setPartialCredit(e.target.checked)} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>Allow partial credit on text answers</span>
+        </label>
+        <p className="text-xs text-ink3 mt-1" style={{ marginLeft: 24 }}>Near-miss short/identification/fill-in answers earn half the question's points. Multiple-choice and true/false are always all-or-nothing.</p>
+      </div>
+
       {/* Questions Editor */}
       <div className="field mb-3">
         <div className="flex items-center justify-between mb-2">
-          <label className="text-xs font-semibold text-ink2">{questions.length} Questions</label>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={addQuestion}>+ Add Question</button>
+          <label className="text-xs font-semibold text-ink2">{questions.length} Questions · {questions.reduce((s, q) => s + ((typeof q.points === 'number' && q.points > 0) ? q.points : 1), 0)} pts</label>
+          <div className="flex gap-1">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={bulkAutoKey} title="Seed accepted alternate answers from each model answer"><Wand2 size={12} className="inline-block mr-1" />Auto-key</button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={addQuestion}>+ Add Question</button>
+          </div>
         </div>
         <div className="flex flex-col gap-3" style={{ maxHeight: 320, overflowY: 'auto', paddingRight: 4 }}>
           {questions.map((q, i) => (
@@ -511,12 +542,19 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
               )}
               {editingQ === q.id && (
                 <div style={{ marginTop: 10, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-                  <div className="field mb-2">
-                    <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 4 }}>Type</label>
-                    <select className="input w-full" style={{ fontSize: 12 }} value={q.type}
-                      onChange={e => updateQuestion(q.id, 'type', e.target.value)}>
-                      {Object.entries(TYPE_LABELS).map(([t, l]) => <option key={t} value={t}>{l}</option>)}
-                    </select>
+                  <div className="flex gap-2 mb-2">
+                    <div className="field" style={{ flex: 1 }}>
+                      <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 4 }}>Type</label>
+                      <select className="input w-full" style={{ fontSize: 12 }} value={q.type}
+                        onChange={e => updateQuestion(q.id, 'type', e.target.value)}>
+                        {Object.entries(TYPE_LABELS).map(([t, l]) => <option key={t} value={t}>{l}</option>)}
+                      </select>
+                    </div>
+                    <div className="field" style={{ width: 80 }}>
+                      <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 4 }}>Points</label>
+                      <input className="input w-full" style={{ fontSize: 12 }} type="number" min="1" value={q.points ?? 1}
+                        onChange={e => updateQuestion(q.id, 'points', Math.max(1, parseInt(e.target.value) || 1))} />
+                    </div>
                   </div>
                   <div className="field mb-2">
                     <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 4 }}>Question</label>
@@ -552,11 +590,19 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
                     </div>
                   )}
                   {['short_answer', 'fill_in_the_blank', 'identification'].includes(q.type) && (
-                    <div className="field mb-2">
-                      <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 4 }}>Model Answer / Key Answer</label>
-                      <input className="input w-full" style={{ fontSize: 12 }} value={q.answer}
-                        onChange={e => updateQuestion(q.id, 'answer', e.target.value)} />
-                    </div>
+                    <>
+                      <div className="field mb-2">
+                        <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 4 }}>Model Answer / Key Answer</label>
+                        <input className="input w-full" style={{ fontSize: 12 }} value={q.answer}
+                          onChange={e => updateQuestion(q.id, 'answer', e.target.value)} />
+                      </div>
+                      <div className="field mb-2">
+                        <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 4 }}>Accepted alternate answers <span className="text-ink3">(comma-separated — any one counts as correct)</span></label>
+                        <input className="input w-full" style={{ fontSize: 12 }} placeholder="e.g. H2O, water, dihydrogen monoxide"
+                          value={(q.acceptedAnswers || []).join(', ')}
+                          onChange={e => updateQuestion(q.id, 'acceptedAnswers', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} />
+                      </div>
+                    </>
                   )}
                 </div>
               )}

@@ -149,7 +149,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
             // Check quiz submission for auto-graded score (convert raw score to %)
             const sub = (q.submissions || {})[s.id]
             if (sub?.score != null) {
-              const total = q.questions?.length || 1
+              const total = (sub.total ?? q.totalPoints ?? q.questions?.length) || 1
               const pct = parseFloat(((sub.score / total) * 100).toFixed(1))
               return String(pct)
             }
