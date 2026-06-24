@@ -10,12 +10,12 @@ import { useEffect, useRef } from 'react'
 // So this hook only catches the cases that ARE observable from the page:
 //   • Windows PrintScreen
 //   • Some desktop capture shortcuts that still bubble a keydown
-// and it is paired with an always-on, per-student watermark (<Watermark/>),
-// which is the real deterrent for the platforms we can't detect: any captured
-// image carries the student's name, so a leaked screenshot is traceable.
+// When it fires, the Messages tab posts an Instagram/Messenger-style
+// "… took a screenshot" notice into the conversation and alerts the teacher.
 //
 // onDetect is best-effort and debounced; treat a fire as "likely capture",
-// never as proof.
+// never as proof. On mobile web (iOS/Android) a real screenshot emits no event,
+// so the notice can't fire there — true mobile parity needs a native wrapper.
 export function useScreenshotGuard({ enabled = true, onDetect } = {}) {
   const lastRef = useRef(0)
   const cbRef = useRef(onDetect)

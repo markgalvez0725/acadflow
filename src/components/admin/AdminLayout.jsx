@@ -233,7 +233,7 @@ export default function AdminLayout() {
           </span>
           <span className="abn-label">Messages</span>
         </button>
-        <button className={`abn-item${moreOpen ? ' active' : ''}`} onClick={() => setMoreOpen(true)} aria-label="More">
+        <button className={`abn-item${moreOpen ? ' active' : ''}`} onClick={() => setMoreOpen(o => !o)} aria-label="More" aria-expanded={moreOpen}>
           <Menu size={20} />
           <span className="abn-label">More</span>
         </button>

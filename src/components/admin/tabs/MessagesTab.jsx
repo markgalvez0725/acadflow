@@ -12,7 +12,7 @@ import { notifyStudentMessage, notifyStudentsBroadcast } from '@/firebase/messag
 import { fbAddMessageReply, fbDeleteMessage } from '@/firebase/persistence'
 import Modal from '@/components/primitives/Modal'
 import KebabMenu from '@/components/primitives/KebabMenu'
-import { X, Pencil, Send, CheckCheck, Megaphone, Trash2, Search, ChevronDown, ChevronLeft, Check, BookOpen, SquarePen, MoreHorizontal } from 'lucide-react'
+import { X, Pencil, Send, CheckCheck, Megaphone, Trash2, Search, ChevronDown, ChevronLeft, Check, BookOpen, SquarePen, MoreHorizontal, Camera } from 'lucide-react'
 
 // Human-readable recipient label for a message's `to` field.
 function recipientDisplay(to, students) {
@@ -411,6 +411,14 @@ function ThreadPanel({ thread, onReply, onClose, onDelete, onRename }) {
       <div className="flex-1 overflow-y-auto p-4 flex flex-col">
         {thread.entries.map((entry, i) => {
           const isAdmin = entry.from === 'admin'
+          if (entry.kind === 'screenshot') {
+            const who = isAdmin ? 'You' : (entry.senderLabel || 'Student')
+            return (
+              <div key={i} className="msg-screenshot-note">
+                <Camera size={13} /> {who} took a screenshot
+              </div>
+            )
+          }
           const prev = thread.entries[i - 1]
           const next = thread.entries[i + 1]
           const sameAsPrev = prev && prev.from === entry.from && (entry.ts - prev.ts) < GROUP_GAP
@@ -731,6 +739,7 @@ export default function MessagesTab() {
           ts: r.ts,
           subject: null,
           msgId: m.id,
+          kind: r.kind,
           isMain: false,
           senderLabel: r.from === 'admin' ? 'You' : name,
           studentRead: false,
@@ -774,6 +783,7 @@ export default function MessagesTab() {
           body: r.body,
           ts: r.ts,
           subject: null,
+          kind: r.kind,
           isMain: false,
           senderLabel: r.from === 'admin' ? 'You' : (students.find(s => s.id === r.from)?.name || r.from),
           studentRead: false,

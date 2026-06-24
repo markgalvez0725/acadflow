@@ -13,9 +13,8 @@ import { notifyAdminMessage } from '@/firebase/messageNotify'
 import { fbAddMessageReply, fbMarkMessageRead } from '@/firebase/persistence'
 import Pagination from '@/components/primitives/Pagination'
 import KebabMenu from '@/components/primitives/KebabMenu'
-import Watermark from '@/components/primitives/Watermark'
 import { useScreenshotGuard } from '@/hooks/useScreenshotGuard'
-import { MessageSquare, GraduationCap, CheckCheck, Trash2, Check, Lock, Send, ChevronLeft, Megaphone, Search, SquarePen, MoreHorizontal } from 'lucide-react'
+import { MessageSquare, GraduationCap, CheckCheck, Trash2, Check, Lock, Send, ChevronLeft, Megaphone, Search, SquarePen, MoreHorizontal, Camera } from 'lucide-react'
 
 const PER_PAGE = 10
 
@@ -94,18 +93,15 @@ export default function MessagesTab({ student: s, messages }) {
   const [canReply, setCanReply]  = useState(true)
   const [endedNotice, setEndedNotice] = useState('') // shown when a group chat is closed
 
-  // Screenshot deterrent: while a thread is open, warn the student and flag the
-  // teacher on a detectable capture. Detection is best-effort (browsers can't
-  // see most screenshots) — the per-student <Watermark/> below is the real
-  // deterrent, making any leaked capture traceable.
+  // Screenshot log (Instagram / Messenger style): when a capture is detected
+  // while a thread is open, drop a "… took a screenshot" notice into the
+  // conversation so BOTH the student and the teacher see it, and alert the
+  // teacher's feed. Detection is best-effort — see useScreenshotGuard for why
+  // browsers (especially iOS Safari) can't catch every screenshot.
   useScreenshotGuard({
     enabled: view === 'thread',
-    onDetect: () => {
-      toast('Heads up — screenshots of messages are logged and your teacher is notified.', 'warn')
-      reportScreenshot?.(s, threadTitle)
-    },
+    onDetect: () => { logScreenshot() },
   })
-  const watermarkLabel = [s?.name, s?.studentNumber || s?.id].filter(Boolean).join('  ·  ')
   const [replyText, setReplyText] = useState('')
   const [sending, setSending]    = useState(false)
   const threadRef = useRef(null)
@@ -289,6 +285,25 @@ export default function MessagesTab({ student: s, messages }) {
     }
   }
 
+  // Record a detected screenshot as an in-thread system notice (shown to the
+  // student now, and to the teacher when they open the thread) plus a teacher
+  // alert. Only logs inline when a thread doc exists to anchor it to; otherwise
+  // it still notifies the teacher.
+  const lastShotRef = useRef(0)
+  async function logScreenshot() {
+    const now = Date.now()
+    if (now - lastShotRef.current < 2500) return // collapse bursts
+    lastShotRef.current = now
+    toast('Screenshot detected — your teacher has been notified.', 'warn')
+    reportScreenshot?.(s, threadTitle)
+    if (!fbReady || !db.current || !replyMsgId) return
+    const sysEntry = { from: s.id, kind: 'screenshot', body: '', ts: now }
+    setThreadEntries(prev => [...prev, { ...sysEntry, isMain: false }])
+    try {
+      await fbAddMessageReply(db.current, replyMsgId, sysEntry, { readerId: s.id, adminRead: false })
+    } catch (e) { /* best-effort — the teacher was still notified above */ }
+  }
+
   // Live typing presence for the open thread (group_ for a group chat, else direct_).
   const openTypingMsg = (view === 'thread' && replyMsgId) ? messages.find(x => x.id === replyMsgId) : null
   const typingKey = view === 'thread'
@@ -435,8 +450,7 @@ export default function MessagesTab({ student: s, messages }) {
           {view !== 'thread' ? (
             <div className="flex-1 flex items-center justify-center text-ink3 text-sm">Select a conversation to view messages.</div>
           ) : (
-            <div className="flex flex-col flex-1 min-h-0 min-w-0 relative">
-              <Watermark label={watermarkLabel} />
+            <div className="flex flex-col flex-1 min-h-0 min-w-0">
               {/* Thread header */}
               <div className="msg-thread-head">
                 <button className="md:hidden text-ink2" onClick={() => { setView('list'); setActiveKey(null) }} title="Back" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex' }}>
@@ -458,6 +472,14 @@ export default function MessagesTab({ student: s, messages }) {
                 )}
                 {threadEntries.map((entry, i) => {
                   const info = senderInfo(entry)
+                  if (entry.kind === 'screenshot') {
+                    const who = entry.from === s.id ? 'You' : (info.name || 'Someone')
+                    return (
+                      <div key={i} className="msg-screenshot-note">
+                        <Camera size={13} /> {who} took a screenshot
+                      </div>
+                    )
+                  }
                   const isSelf = info.self
                   const prev = threadEntries[i - 1]
                   const next = threadEntries[i + 1]

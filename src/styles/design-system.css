@@ -352,7 +352,9 @@ html[data-glass="off"] .sidebar { background: var(--navy) !important; }
 .ds-sheet-backdrop {
   position: fixed; inset: 0;
   background: rgba(10,20,50,.45);
-  z-index: 60;
+  /* Must sit ABOVE the bottom nav (z-index 90); otherwise the nav pokes through
+     the sheet and its "More" button intercepts the tap, trapping the sheet open. */
+  z-index: 120;
   display: flex;
   align-items: flex-end;
 }

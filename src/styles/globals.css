@@ -2641,17 +2641,15 @@ textarea.input { resize: vertical; }
 .msg-thread-head-av.announce { background: var(--yellow-l); color: var(--yellow); }
 .msg-thread-head-av img { width: 100%; height: 100%; object-fit: cover; }
 
-/* Per-student watermark drawn over a message thread (screenshot deterrent).
-   Faint, non-interactive, and tiled diagonally so a capture is traceable. */
-.msg-watermark {
-  position: absolute; inset: 0; z-index: 2;
-  overflow: hidden; pointer-events: none; user-select: none;
-  display: flex; flex-direction: column; justify-content: center; gap: 34px;
-  opacity: .06; transform: rotate(-24deg) scale(1.5); transform-origin: center;
+/* "… took a screenshot" — a centered system notice inside a message thread,
+   shown to both the student and the teacher (Instagram / Messenger style). */
+.msg-screenshot-note {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  margin: 10px auto; padding: 4px 12px; max-width: max-content;
+  font-size: 0.75rem; font-weight: 600; color: var(--ink3);
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 999px;
 }
-[data-theme="dark"] .msg-watermark { opacity: .09; }
-.msg-watermark-row { display: flex; gap: 48px; justify-content: center; white-space: nowrap; }
-.msg-watermark-row span { font-size: 0.8125rem; font-weight: 800; letter-spacing: .05em; color: var(--ink); }
+.msg-screenshot-note svg { flex-shrink: 0; }
 
 /* ══════════════════════════════════════════
    STUDENT MESSAGE THREAD
