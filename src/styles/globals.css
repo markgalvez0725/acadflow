@@ -689,13 +689,13 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
   display: flex;
   align-items: center;
   justify-content: center;        /* collapsed rail: centre the logo */
-  gap: 10px;
+  gap: 0;
   overflow: hidden;
   flex-shrink: 0;
   position: relative;
 }
 .sidebar-wrap.open .sb-brand,
-.sidebar-wrap:hover .sb-brand { justify-content: flex-start; }
+.sidebar-wrap:hover .sb-brand { justify-content: flex-start; gap: 10px; }
 .sb-brand h2 {
   font-family: var(--font-display);
   font-size: 19px;
@@ -753,7 +753,7 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
   display: flex;
   align-items: center;
   justify-content: center;           /* collapsed rail: centre the icon */
-  gap: 14px;
+  gap: 0;                            /* no phantom gap to the hidden label when collapsed */
   padding: 11px;
   margin: 2px 8px;
   width: calc(100% - 16px);
@@ -773,7 +773,7 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 }
 /* When expanded (hover on desktop, drawer open on mobile) left-align rows */
 .sidebar-wrap.open .sb-nav .nav-item,
-.sidebar-wrap:hover .sb-nav .nav-item { justify-content: flex-start; padding: 11px 12px; }
+.sidebar-wrap:hover .sb-nav .nav-item { justify-content: flex-start; padding: 11px 12px; gap: 14px; }
 .sb-nav .nav-item:hover { background: var(--bg2); color: var(--ink); }
 .sb-nav .nav-item.active {
   background: var(--bg2);
@@ -925,10 +925,10 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 }
 .sb-logout:hover { background: var(--bg2); color: var(--ink); }
 .sb-logout:last-of-type:hover { background: var(--red-l); color: var(--red); }
-/* Collapsed rail: centre the footer rows; left-align when expanded */
-.sb-user, .sb-logout { justify-content: center; }
+/* Collapsed rail: centre the footer rows (no phantom gap); left-align when expanded */
+.sb-user, .sb-logout { justify-content: center; gap: 0; }
 .sidebar-wrap.open .sb-user, .sidebar-wrap:hover .sb-user,
-.sidebar-wrap.open .sb-logout, .sidebar-wrap:hover .sb-logout { justify-content: flex-start; }
+.sidebar-wrap.open .sb-logout, .sidebar-wrap:hover .sb-logout { justify-content: flex-start; gap: 8px; }
 .sb-logout .nav-label {
   opacity: 0;
   max-width: 0;
