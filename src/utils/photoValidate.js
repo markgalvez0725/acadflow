@@ -174,6 +174,14 @@ export async function validateProfilePhoto(imgEl, dataUrl, opts = {}) {
       if (ai.bgWhiteFrac >= 0.85) passes.push('Background is plain white.')
       else if (ai.bgWhiteFrac < 0.5) hardFails.push('Background is not plain white. Use a clean white wall behind you.')
       else warnings.push('Background may not be fully white — a clean white wall is best.')
+    } else {
+      // Segmentation unavailable — fall back to the pixel heuristic (warn-only).
+      const bg = whiteBackgroundScore(imgEl)
+      if (bg.supported && bg.score != null) {
+        if (bg.score >= 0.82) passes.push('Background looks plain white.')
+        else if (bg.score >= 0.5) warnings.push('Background may not be fully white — a clean white wall is best.')
+        else warnings.push('Background doesn’t look plain white on-device — make sure you’re against a white wall.')
+      }
     }
 
     // Stage C — attire proxy (warnings only)

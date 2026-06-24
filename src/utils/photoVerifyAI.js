@@ -25,7 +25,9 @@
 
 const SRC = {
   tf:    'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js',
-  blaze: 'https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.1.0/dist/blazeface.min.js',
+  // NOTE: the UMD bundle is `blazeface.min.umd.js` — the package's own
+  // package.json "main" points at a `blazeface.min.js` that does not exist.
+  blaze: 'https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.1.0/dist/blazeface.min.umd.js',
   seg:   'https://cdn.jsdelivr.net/npm/@tensorflow-models/body-segmentation@1.0.2/dist/body-segmentation.min.js',
 }
 
@@ -50,25 +52,50 @@ function loadScript(src) {
   })
 }
 
-let _ready, _blaze, _segmenter
+// The two models load INDEPENDENTLY so a failure in one doesn't disable the
+// other. BlazeFace (face/count) is the priority — segmentation is an
+// enhancement for background + attire. Each cache clears itself on failure so a
+// later photo can retry.
+let _corePromise, _facePromise, _segPromise
 
-/** Load TF.js + both models exactly once. Throws if anything fails to load. */
-function ensureModels() {
-  if (_ready) return _ready
-  _ready = (async () => {
-    await loadScript(SRC.tf)
-    await Promise.all([loadScript(SRC.blaze), loadScript(SRC.seg)])
-    const tf = window.tf
-    if (tf?.setBackend) {
-      try { await tf.setBackend('webgl'); await tf.ready() } catch { /* cpu fallback */ }
-    }
-    _blaze = await window.blazeface.load()
-    _segmenter = await window.bodySegmentation.createSegmenter(
-      window.bodySegmentation.SupportedModels.MediaPipeSelfieSegmentation,
-      { runtime: 'tfjs', modelType: 'general' },
-    )
-  })().catch(err => { _ready = null; throw err }) // allow a retry on a later photo
-  return _ready
+/** Load TF.js once and pick the WebGL backend. */
+function ensureCore() {
+  if (!_corePromise) {
+    _corePromise = loadScript(SRC.tf).then(async () => {
+      const tf = window.tf
+      if (tf?.setBackend) {
+        try { await tf.setBackend('webgl'); await tf.ready() } catch { /* cpu fallback */ }
+      }
+    }).catch(err => { _corePromise = null; throw err })
+  }
+  return _corePromise
+}
+
+/** Load BlazeFace. Resolves to the loaded model. */
+function ensureFace() {
+  if (!_facePromise) {
+    _facePromise = (async () => {
+      await ensureCore()
+      await loadScript(SRC.blaze)
+      return window.blazeface.load()
+    })().catch(err => { _facePromise = null; throw err })
+  }
+  return _facePromise
+}
+
+/** Load MediaPipe Selfie Segmentation (TF.js runtime). Resolves to a segmenter. */
+function ensureSeg() {
+  if (!_segPromise) {
+    _segPromise = (async () => {
+      await ensureCore()
+      await loadScript(SRC.seg)
+      return window.bodySegmentation.createSegmenter(
+        window.bodySegmentation.SupportedModels.MediaPipeSelfieSegmentation,
+        { runtime: 'tfjs', modelType: 'general' },
+      )
+    })().catch(err => { _segPromise = null; throw err })
+  }
+  return _segPromise
 }
 
 // ── Small pixel helpers ─────────────────────────────────────────────────────
@@ -121,8 +148,14 @@ function frontalFromLandmarks(lm) {
  */
 export async function runOnDeviceAI(imgEl) {
   if (typeof window === 'undefined' || typeof document === 'undefined') return null
-  try { await ensureModels() } catch { return null }
-  if (!_blaze || !_segmenter) return null
+
+  // Load both independently; tolerate either one failing.
+  const [faceModel, segmenter] = await Promise.all([
+    ensureFace().catch(() => null),
+    ensureSeg().catch(() => null),
+  ])
+  // Neither model available → let the caller fall back to legacy heuristics.
+  if (!faceModel && !segmenter) return null
 
   // One downscaled canvas drives every model and every pixel read.
   const MAX = 256
@@ -140,8 +173,8 @@ export async function runOnDeviceAI(imgEl) {
 
   // ── Stage A — face & pose (BlazeFace) ─────────────────────────────────────
   let faces = null, faceBox = null, faceFrac = null, faceCx = null, frontalScore = null
-  try {
-    const preds = await _blaze.estimateFaces(canvas, false)
+  if (faceModel) try {
+    const preds = await faceModel.estimateFaces(canvas, false)
     faces = preds.length
     if (faces >= 1) {
       let best = preds[0], bestArea = -1
@@ -160,8 +193,8 @@ export async function runOnDeviceAI(imgEl) {
 
   // ── Person/background mask (Selfie Segmentation) ──────────────────────────
   let mask = null
-  try {
-    const seg = await _segmenter.segmentPeople(canvas, { flipHorizontal: false })
+  if (segmenter) try {
+    const seg = await segmenter.segmentPeople(canvas, { flipHorizontal: false })
     const m = await window.bodySegmentation.toBinaryMask(
       seg,
       { r: 255, g: 255, b: 255, a: 255 }, // person → alpha 255
