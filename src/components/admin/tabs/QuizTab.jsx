@@ -9,7 +9,7 @@ import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { extractTextFromFile } from '@/utils/lessonExtract'
 import { generateDraftQuestions } from '@/utils/quizGen'
-import { generateQuizAI, prewarmQuizAI } from '@/utils/quizGenAI'
+import { generateQuizAI, prewarmQuizAI, smartAutoKey, splitAnswerAlternates } from '@/utils/quizGenAI'
 import { quizItemAnalysis } from '@/utils/quizStats'
 import { classTag } from '@/utils/groupChat'
 
@@ -331,6 +331,7 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
   const [editingQ, setEditingQ] = useState(null)
   const [err, setErr] = useState('')
   const [saving, setSaving] = useState(false)
+  const [keying, setKeying] = useState(false)
 
   const availableSubjects = useMemo(() => {
     const subs = new Set()
@@ -369,19 +370,40 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
 
   const TEXT_TYPES = ['short_answer', 'fill_in_the_blank', 'identification']
 
-  // Bulk auto-key: seed accepted alternate answers for every text question from
-  // its model answer, splitting on common separators (",", "/", "|", ";", "or").
-  function bulkAutoKey() {
-    let touched = 0
-    setQuestions(prev => prev.map(q => {
-      if (!TEXT_TYPES.includes(q.type)) return q
-      if (Array.isArray(q.acceptedAnswers) && q.acceptedAnswers.length) return q
-      const alts = String(q.answer || '').split(/\s*(?:[,/|;]|\bor\b)\s*/i).map(s => s.trim()).filter(Boolean)
-      if (!alts.length) return q
-      touched++
-      return { ...q, acceptedAnswers: alts }
-    }))
-    toast(touched ? `Seeded accepted answers for ${touched} question${touched === 1 ? '' : 's'}.` : 'No text questions to auto-key.', touched ? 'green' : 'dark')
+  // Smart Auto-key: fill accepted alternate answers for text questions. Uses the
+  // on-device AI to mine grounded synonyms from the quiz's own content, merged
+  // with the deterministic separator split. Falls back to split-only if the
+  // model can't load. Suggestions are review-required (shown in editable boxes).
+  async function bulkAutoKey() {
+    setKeying(true)
+    try {
+      let result = null
+      try { result = await smartAutoKey(questions, {}) } catch { result = null }
+      if (result) {
+        setQuestions(result.questions)
+        toast(
+          result.touched
+            ? `Suggested accepted answers for ${result.touched} question${result.touched === 1 ? '' : 's'} — please review them.`
+            : 'No new accepted answers to add.',
+          result.touched ? 'green' : 'dark',
+        )
+        return
+      }
+      // Fallback: deterministic separator split (no model available).
+      let touched = 0
+      setQuestions(prev => prev.map(q => {
+        if (!TEXT_TYPES.includes(q.type)) return q
+        if (Array.isArray(q.acceptedAnswers) && q.acceptedAnswers.length) return q
+        const ans = String(q.answer || '').trim()
+        const alts = splitAnswerAlternates(ans).filter(a => a.toLowerCase() !== ans.toLowerCase())
+        if (!alts.length) return q
+        touched++
+        return { ...q, acceptedAnswers: alts }
+      }))
+      toast(touched ? `Seeded accepted answers for ${touched} question${touched === 1 ? '' : 's'}.` : 'No text questions to auto-key.', touched ? 'green' : 'dark')
+    } finally {
+      setKeying(false)
+    }
   }
 
   async function handleSave() {
@@ -500,7 +522,7 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
         <div className="flex items-center justify-between mb-2">
           <label className="text-xs font-semibold text-ink2">{questions.length} Questions · {questions.reduce((s, q) => s + ((typeof q.points === 'number' && q.points > 0) ? q.points : 1), 0)} pts</label>
           <div className="flex gap-1">
-            <button type="button" className="btn btn-ghost btn-sm" onClick={bulkAutoKey} title="Seed accepted alternate answers from each model answer"><Wand2 size={12} className="inline-block mr-1" />Auto-key</button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={bulkAutoKey} disabled={keying} title="Suggest accepted alternate answers using on-device AI (review before sharing)"><Wand2 size={12} className="inline-block mr-1" />{keying ? 'Auto-keying…' : 'Auto-key'}</button>
             <button type="button" className="btn btn-ghost btn-sm" onClick={addQuestion}>+ Add Question</button>
           </div>
         </div>
@@ -866,7 +888,7 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
   const [busy, setBusy] = useState(false)
 
   // Warm the on-device AI model the moment the modal opens so the first
-  // generation isn't a cold ~23MB download-and-compile wait.
+  // generation isn't a cold ~120MB download-and-compile wait.
   useEffect(() => { prewarmQuizAI() }, [])
 
   function toggleType(t) {
@@ -978,7 +1000,7 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
         <label className="text-xs font-semibold text-ink2 mb-2 block">Generation method</label>
         <div className="flex flex-col gap-2">
           {[
-            { id: 'smart', title: 'Smart AI (on-device)', desc: 'Best quality. A small AI model reads your lesson on this device — private, free, no key. First run downloads ~23MB, then it’s cached.' },
+            { id: 'smart', title: 'Smart AI (on-device)', desc: 'Best quality. A multilingual AI model reads your lesson on this device — private, free, no key, works in Filipino. First run downloads ~120MB, then it’s cached.' },
             { id: 'quick', title: 'Quick draft', desc: 'Instant, no download. Rule-based drafts from your lesson text.' },
           ].map(opt => {
             const active = method === opt.id

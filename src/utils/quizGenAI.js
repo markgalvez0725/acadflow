@@ -1,8 +1,9 @@
 // ── On-device AI quiz generator ───────────────────────────────────────────
-// Custom, in-browser replacement for the Gemini quiz endpoint. A small neural
-// sentence-embedding model (all-MiniLM-L6-v2, ~23 MB quantized) runs entirely
-// on the teacher's device via Transformers.js. The lesson text NEVER leaves
-// the browser.
+// Custom, in-browser replacement for the Gemini quiz endpoint. A neural
+// sentence-embedding model (paraphrase-multilingual-MiniLM-L12-v2, ~120 MB
+// quantized) runs entirely on the teacher's device via Transformers.js. It is
+// multilingual on purpose — the quizzes here are in Filipino/Tagalog, which an
+// English-only model embeds poorly. The lesson text NEVER leaves the browser.
 //
 // The model is NOT used to *write* questions (which would risk hallucinating
 // facts not in the lesson). It is used to UNDERSTAND the lesson — to rank which
@@ -16,11 +17,11 @@
 
 import { splitSentences, keyTerms, definitions } from '@/utils/quizGen'
 
-// Pinned v2 build: `quantized: true` is the default, giving the ~23 MB int8
-// model rather than the ~90 MB fp32 one. Weights are fetched from the Hugging
+// Pinned v2 build: `quantized: true` is the default, giving the int8 model
+// rather than the much larger fp32 one. Weights are fetched from the Hugging
 // Face hub (the app sets no CSP, so cross-origin model loads are allowed).
 const TRANSFORMERS_URL = 'https://esm.sh/@xenova/transformers@2.17.2'
-const MODEL = 'Xenova/all-MiniLM-L6-v2'
+const MODEL = 'Xenova/paraphrase-multilingual-MiniLM-L12-v2'
 
 let _libPromise, _extractorPromise
 
@@ -150,6 +151,112 @@ function smartDistractors(answer, terms, termVec, answerVec, n = 3) {
 }
 
 function shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5) }
+
+// ── Accepted-answer (Auto-key) helpers ────────────────────────────────────
+
+/** Deterministic split of a model answer into alternates (",", "/", "|", ";", "or"). */
+export function splitAnswerAlternates(answer) {
+  return String(answer || '').split(/\s*(?:[,/|;]|\bor\b)\s*/i).map(s => s.trim()).filter(Boolean)
+}
+
+/** Merge alternates: dedupe (case-insensitive) and drop the model answer itself
+ *  (the grader already accepts the answer). */
+function mergeAlternates(list, answer) {
+  const seen = new Set([String(answer || '').trim().toLowerCase()])
+  const out = []
+  for (const x of list) {
+    const t = String(x || '').trim()
+    const k = t.toLowerCase()
+    if (!k || seen.has(k)) continue
+    seen.add(k); out.push(t)
+  }
+  return out
+}
+
+/**
+ * Grounded synonym mining for accepted answers. Returns candidate terms whose
+ * embedding is very close to the answer's — but CONSERVATIVE on purpose: a high
+ * floor + small cap, because embeddings can't fully separate a synonym from a
+ * sibling/opposite. The teacher reviews every key, so we err toward precision.
+ */
+function mineSynonyms(answer, answerVec, candEntries, { min = 0.84, cap = 2 } = {}) {
+  if (!answerVec) return []
+  const al = String(answer).toLowerCase()
+  const scored = []
+  for (const { term, vec } of candEntries) {
+    if (!vec) continue
+    const tl = term.toLowerCase()
+    if (tl === al) continue
+    if (Math.abs(term.length - answer.length) > 30) continue
+    const s = cos(vec, answerVec)
+    if (s >= min && s < 0.999) scored.push({ term, s })
+  }
+  scored.sort((a, b) => b.s - a.s)
+  const out = [], seen = new Set([al])
+  for (const { term } of scored) {
+    if (out.length >= cap) break
+    const tl = term.toLowerCase()
+    if (seen.has(tl)) continue
+    seen.add(tl); out.push(term)
+  }
+  return out
+}
+
+const TEXT_TYPES = new Set(['short_answer', 'fill_in_the_blank', 'identification'])
+
+/**
+ * Smart Auto-key: fill `acceptedAnswers` for text questions using the on-device
+ * model. Mines grounded synonyms from the quiz's own content (+ optional lesson
+ * text) and merges them with the deterministic separator split. Questions that
+ * already have acceptedAnswers are left untouched.
+ * @returns {Promise<{questions:Array, touched:number, aiUsed:boolean}|null>}
+ *   null when the model can't load — caller should fall back to split-only.
+ */
+export async function smartAutoKey(questions, { contextText = '' } = {}) {
+  const list = questions || []
+  const targets = list.filter(q => TEXT_TYPES.has(q.type) && !(Array.isArray(q.acceptedAnswers) && q.acceptedAnswers.length))
+  if (!targets.length) return { questions: list, touched: 0, aiUsed: false }
+
+  // Candidate pool: the quiz's own answers/options/stems, plus any lesson text.
+  let pool = []
+  for (const q of list) {
+    if (q.answer) pool.push(String(q.answer))
+    if (Array.isArray(q.options)) pool.push(...q.options.map(String))
+  }
+  pool.push(...keyTerms(list.map(q => q.question || '').join('. ')).slice(0, 150))
+  if (contextText && contextText.trim().length > 40) pool.push(...keyTerms(contextText).slice(0, 150))
+  pool = [...new Set(pool.map(s => String(s).trim()).filter(s => s && s.length <= 40))].slice(0, 220)
+
+  let extractor
+  try { extractor = await ensureExtractor() } catch { return null }
+
+  const answers = targets.map(q => String(q.answer || '').trim())
+  let poolVecs, ansVecs
+  try {
+    poolVecs = await embedAll(extractor, pool)
+    ansVecs = await embedAll(extractor, answers)
+  } catch { return null }
+
+  const candEntries = pool.map((t, i) => ({ term: t, vec: poolVecs[i] }))
+  const ansVec = new Map()
+  answers.forEach((a, i) => ansVec.set(a.toLowerCase(), ansVecs[i]))
+
+  let touched = 0
+  const out = list.map(q => {
+    if (!TEXT_TYPES.has(q.type)) return q
+    if (Array.isArray(q.acceptedAnswers) && q.acceptedAnswers.length) return q
+    const ans = String(q.answer || '').trim()
+    if (!ans) return q
+    const base = splitAnswerAlternates(ans)
+    const av = ansVec.get(ans.toLowerCase())
+    const syns = av ? mineSynonyms(ans, av, candEntries) : []
+    const merged = mergeAlternates([...base, ...syns], ans)
+    if (!merged.length) return q
+    touched++
+    return { ...q, acceptedAnswers: merged }
+  })
+  return { questions: out, touched, aiUsed: true }
+}
 
 /**
  * Generate grounded quiz questions from lesson text using on-device embeddings.
@@ -294,6 +401,18 @@ export async function generateQuizAI(text, { count = 10, types = ['multiple_choi
     if (tooSimilar(stemVec)) continue
     if (stemVec) stemVecs.push(stemVec)
     out.push(item)
+  }
+
+  // Pre-fill grounded accepted-answer synonyms for single-term text questions
+  // (the lesson terms are already embedded, so this is essentially free).
+  const candEntries = terms.map(t => ({ term: t, vec: termVec.get(t) }))
+  for (const item of out) {
+    if (item.type !== 'fill_in_the_blank' && item.type !== 'identification') continue
+    const av = termVec.get(item.answer)
+    const base = splitAnswerAlternates(item.answer)
+    const syns = av ? mineSynonyms(item.answer, av, candEntries) : []
+    const merged = mergeAlternates([...base, ...syns], item.answer)
+    if (merged.length) item.acceptedAnswers = merged
   }
 
   return out.length ? out.slice(0, count) : null
