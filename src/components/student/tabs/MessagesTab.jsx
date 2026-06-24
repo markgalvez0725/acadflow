@@ -13,8 +13,11 @@ import { notifyAdminMessage } from '@/firebase/messageNotify'
 import { fbAddMessageReply, fbMarkMessageRead } from '@/firebase/persistence'
 import Pagination from '@/components/primitives/Pagination'
 import KebabMenu from '@/components/primitives/KebabMenu'
+import SecureBubble from '@/components/primitives/SecureBubble'
+import SwipeReply from '@/components/primitives/SwipeReply'
 import { useScreenshotGuard } from '@/hooks/useScreenshotGuard'
-import { MessageSquare, GraduationCap, CheckCheck, Trash2, Check, Lock, Send, ChevronLeft, Megaphone, Search, SquarePen, MoreHorizontal, Camera } from 'lucide-react'
+import { classifySensitivity, sensitivityLabel } from '@/utils/sensitiveContent'
+import { MessageSquare, GraduationCap, CheckCheck, Trash2, Check, Lock, Send, ChevronLeft, Megaphone, Search, SquarePen, MoreHorizontal, Camera, Reply, X } from 'lucide-react'
 
 const PER_PAGE = 10
 
@@ -104,6 +107,19 @@ export default function MessagesTab({ student: s, messages }) {
   })
   const [replyText, setReplyText] = useState('')
   const [sending, setSending]    = useState(false)
+  // Quoted reply: the bubble the student swiped / clicked the reply icon on.
+  const [replyingTo, setReplyingTo] = useState(null) // { author, text } | null
+  // Smart-lock: send the draft as a private (blurred) message. The on-device
+  // classifier auto-suggests it for sensitive drafts; the student can override.
+  const [secureOn, setSecureOn]       = useState(false)
+  const [secureTouched, setSecureTouched] = useState(false)
+  const draftFlag = useMemo(() => classifySensitivity(replyText), [replyText])
+  useEffect(() => {
+    if (secureTouched) return
+    setSecureOn(draftFlag.sensitive)
+  }, [draftFlag, secureTouched])
+  // Drop any pending reply target when the open thread changes.
+  useEffect(() => { setReplyingTo(null) }, [activeKey])
   const threadRef = useRef(null)
 
   // Build conversation items
@@ -133,8 +149,8 @@ export default function MessagesTab({ student: s, messages }) {
       // the most recent line of the conversation (not just the last top-level
       // message). Without this a teacher's latest reply never shows in the list.
       const allEntries = directMsgs.flatMap(m => [
-        { body: m.body || '', from: m.from, ts: m.ts || 0 },
-        ...(m.replies || []).map(r => ({ body: r.body || '', from: r.from, ts: r.ts || 0 })),
+        { body: m.body || '', from: m.from, ts: m.ts || 0, secure: m.secure },
+        ...(m.replies || []).map(r => ({ body: r.body || '', from: r.from, ts: r.ts || 0, secure: r.secure })),
       ]).filter(e => e.body).sort((a, b) => b.ts - a.ts)
       const lastEntry = allEntries[0] || latest
       const hasUnread = directMsgs.some(m => {
@@ -204,7 +220,7 @@ export default function MessagesTab({ student: s, messages }) {
     setReplyMsgId(lastMsg.id)
     const allEntries = []
     directMsgs.forEach(m => {
-      allEntries.push({ from: m.from, body: m.body, ts: m.ts, subject: m.subject, isMain: true })
+      allEntries.push({ from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, isMain: true })
       ;(m.replies || []).forEach(r => allEntries.push({ ...r, isMain: false }))
     })
     allEntries.sort((a, b) => a.ts - b.ts)
@@ -221,7 +237,7 @@ export default function MessagesTab({ student: s, messages }) {
     markRead([msgId])
     setReplyMsgId(msgId)
     const allEntries = [
-      { from: m.from, body: m.body, ts: m.ts, subject: m.subject, isMain: true },
+      { from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, isMain: true },
       ...(m.replies || []).map(r => ({ ...r, isMain: false })),
     ].sort((a, b) => a.ts - b.ts)
     setThreadTitle(groupName(m, classes))
@@ -253,17 +269,19 @@ export default function MessagesTab({ student: s, messages }) {
     }
     if (text.length > 2000) { toast('Reply too long — maximum 2000 characters.', 'warn'); return }
     if (!fbReady || !db.current) { toast('Messages require Firebase to be connected.', 'warn'); return }
+    const secure = secureOn
+    const quote = replyingTo
     stopTyping()
     setSending(true)
     try {
       if (replyMsgId) {
-        const newReply = { from: s.id, body: text, ts: Date.now() }
+        const newReply = { from: s.id, body: text, ts: Date.now(), ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}) }
         setThreadEntries(prev => [...prev, { ...newReply, isMain: false }])
-        setReplyText('')
+        setReplyText(''); setSecureOn(false); setSecureTouched(false); setReplyingTo(null)
         // Atomic append — won't clobber a teacher reply sent at the same time.
         await fbAddMessageReply(db.current, replyMsgId, newReply, { readerId: s.id, adminRead: false })
         // Notify teacher: in-app badge + best-effort web push.
-        notifyAdminMessage(db.current, s.name || s.id, text, 'reply')
+        notifyAdminMessage(db.current, s.name || s.id, secure ? 'Private message' : text, 'reply')
       } else {
         // New message to admin
         const newId = 'm' + Date.now() + Math.random().toString(36).slice(2, 6)
@@ -272,11 +290,12 @@ export default function MessagesTab({ student: s, messages }) {
           subject: 'Message from ' + (s.name || s.id),
           body: text, ts: Date.now(),
           read: [s.id], adminRead: false, replies: [], type: 'direct',
+          ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}),
         }
-        setReplyText('')
+        setReplyText(''); setSecureOn(false); setSecureTouched(false); setReplyingTo(null)
         await setDoc(doc(db.current, 'messages', newId), msg)
         // Notify teacher of a brand-new conversation (was previously missing).
-        notifyAdminMessage(db.current, s.name || s.id, text, 'message')
+        notifyAdminMessage(db.current, s.name || s.id, secure ? 'Private message' : text, 'message')
       }
     } catch (e) {
       toast('Failed to send: ' + e.message, 'error')
@@ -333,6 +352,14 @@ export default function MessagesTab({ student: s, messages }) {
     return { self: false, name: st?.name || 'Member' }
   }
 
+  // Begin a quoted reply to a bubble (from a swipe or the hover reply icon).
+  function startReplyTo(entry) {
+    const info = senderInfo(entry)
+    const author = info.self ? 'You' : (info.name || 'Teacher')
+    const text = entry.secure ? '🔒 Private message' : (entry.body || '')
+    setReplyingTo({ author, text: text.slice(0, 140) })
+  }
+
   // One conversation-list row (shared by both panes' list).
   function renderListItems() {
     if (!items.length) {
@@ -348,7 +375,9 @@ export default function MessagesTab({ student: s, messages }) {
         const m = item.lastEntry || item.latest
         const isOwn = m.from === s.id
         const body = m.body || ''
-        const preview = (isOwn ? 'You: ' : '') + body.slice(0, 60) + (body.length > 60 ? '…' : '')
+        const preview = m.secure
+          ? (isOwn ? 'You: ' : '') + '🔒 Private message'
+          : (isOwn ? 'You: ' : '') + body.slice(0, 60) + (body.length > 60 ? '…' : '')
         const replyHint = item.msgCount > 1
           ? `${item.msgCount} messages · ${item.replyCount} repl${item.replyCount === 1 ? 'y' : 'ies'}`
           : item.replyCount ? `${item.replyCount} repl${item.replyCount === 1 ? 'y' : 'ies'}` : ''
@@ -372,7 +401,7 @@ export default function MessagesTab({ student: s, messages }) {
         )
       }
       const m = item.msg
-      const preview = m.body.slice(0, 60) + (m.body.length > 60 ? '…' : '')
+      const preview = m.secure ? '🔒 Private message' : m.body.slice(0, 60) + (m.body.length > 60 ? '…' : '')
       const replyCount = (m.replies || []).length
       // Class/subject group chats are teacher-owned: students can't delete them.
       const locked = isGroupChat(m)
@@ -492,19 +521,29 @@ export default function MessagesTab({ student: s, messages }) {
                     <React.Fragment key={i}>
                       {showDay && <div className="msg-day-sep"><span>{dayLabel(entry.ts)}</span></div>}
                       {!isSelf && showGroup && firstOfGroup && <div className="msg-sender-name">{info.name}</div>}
-                      <div className={`msg-bubble-row ${isSelf ? 'sent' : 'received'}`} style={{ marginTop: sameAsPrev ? 2 : 8 }} title={timeLabel(entry.ts)}>
-                        {!isSelf && (
-                          <div className="msg-avatar-slot">
-                            {lastOfGroup && <div className="msg-avatar-sm">{info.teacher ? <GraduationCap size={13} /> : getInitials(info.name)}</div>}
-                          </div>
-                        )}
-                        <div className={`msg-bubble ${isSelf ? 'sent' : 'received'} ${lastOfGroup ? 'tail' : ''}`}>
-                          {entry.isMain && entry.subject && !isSelf && (
-                            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>{entry.subject}</div>
+                      <SwipeReply side={isSelf ? 'sent' : 'received'} onReply={() => startReplyTo(entry)}>
+                        <div className={`msg-bubble-row ${isSelf ? 'sent' : 'received'}`} style={{ marginTop: sameAsPrev ? 2 : 8 }} title={timeLabel(entry.ts)}>
+                          {!isSelf && (
+                            <div className="msg-avatar-slot">
+                              {lastOfGroup && <div className="msg-avatar-sm">{info.teacher ? <GraduationCap size={13} /> : getInitials(info.name)}</div>}
+                            </div>
                           )}
-                          <div style={{ whiteSpace: 'pre-wrap' }}>{entry.body}</div>
+                          <div className={`msg-bubble ${isSelf ? 'sent' : 'received'} ${lastOfGroup ? 'tail' : ''}`}>
+                            {entry.isMain && entry.subject && !isSelf && (
+                              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>{entry.subject}</div>
+                            )}
+                            {entry.quote && (
+                              <span className="msg-quote">
+                                <span className="msg-quote-author">{entry.quote.author}</span>
+                                <span className="msg-quote-text">{entry.quote.text}</span>
+                              </span>
+                            )}
+                            {entry.secure
+                              ? <SecureBubble text={entry.body} />
+                              : <div style={{ whiteSpace: 'pre-wrap' }}>{entry.body}</div>}
+                          </div>
                         </div>
-                      </div>
+                      </SwipeReply>
                       {isSelf && i === lastSelfIdx && (
                         <div className={`msg-seen ${adminSeen ? 'read' : ''}`} title={adminSeen ? 'Read by teacher' : 'Delivered'}>
                           {adminSeen ? 'Seen' : 'Sent'} <CheckCheck size={13} />
@@ -526,21 +565,48 @@ export default function MessagesTab({ student: s, messages }) {
               <TypingIndicator typers={typers} />
 
               {canReply ? (
-                <div className="msg-reply-bar">
-                  <div className="msg-reply-pill">
-                    <textarea
-                      className="msg-reply-input"
-                      rows={1}
-                      placeholder="Message…"
-                      value={replyText}
-                      onChange={e => { setReplyText(e.target.value); notifyTyping() }}
-                      onBlur={() => stopTyping()}
-                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply() } }}
-                    />
+                <div>
+                  {replyingTo && (
+                    <div className="msg-reply-banner">
+                      <Reply size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                      <div className="rb-body">
+                        <div className="rb-author">Replying to {replyingTo.author}</div>
+                        <div className="rb-text">{replyingTo.text}</div>
+                      </div>
+                      <button className="rb-x" onClick={() => setReplyingTo(null)} aria-label="Cancel reply"><X size={14} /></button>
+                    </div>
+                  )}
+                  {secureOn && (
+                    <div className="msg-lock-hint">
+                      <Lock size={12} /> {draftFlag.sensitive ? `Private — ${sensitivityLabel(draftFlag.reasons)}. Sent blurred.` : 'Private — sent blurred until tapped.'}
+                    </div>
+                  )}
+                  <div className="msg-reply-bar">
+                    <button
+                      type="button"
+                      className={`msg-lock-btn${secureOn ? ' on' : ''}`}
+                      onClick={() => { setSecureTouched(true); setSecureOn(v => !v) }}
+                      title={secureOn ? 'Private message — tap to turn off' : 'Send as private (blurred until tapped)'}
+                      aria-pressed={secureOn}
+                      aria-label="Send as private message"
+                    >
+                      <Lock size={16} />
+                    </button>
+                    <div className="msg-reply-pill">
+                      <textarea
+                        className="msg-reply-input"
+                        rows={1}
+                        placeholder="Message…"
+                        value={replyText}
+                        onChange={e => { setReplyText(e.target.value); notifyTyping() }}
+                        onBlur={() => stopTyping()}
+                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply() } }}
+                      />
+                    </div>
+                    <button className="msg-send-circle" onClick={sendReply} disabled={sending || !replyText.trim()} title="Send">
+                      <Send size={16} />
+                    </button>
                   </div>
-                  <button className="msg-send-circle" onClick={sendReply} disabled={sending || !replyText.trim()} title="Send">
-                    <Send size={16} />
-                  </button>
                 </div>
               ) : endedNotice ? (
                 <div className="s-thread-ended"><Lock size={14} /> {endedNotice}</div>

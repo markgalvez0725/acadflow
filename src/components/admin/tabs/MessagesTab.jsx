@@ -12,7 +12,11 @@ import { notifyStudentMessage, notifyStudentsBroadcast } from '@/firebase/messag
 import { fbAddMessageReply, fbDeleteMessage } from '@/firebase/persistence'
 import Modal from '@/components/primitives/Modal'
 import KebabMenu from '@/components/primitives/KebabMenu'
-import { X, Pencil, Send, CheckCheck, Megaphone, Trash2, Search, ChevronDown, ChevronLeft, Check, BookOpen, SquarePen, MoreHorizontal, Camera } from 'lucide-react'
+import { X, Pencil, Send, CheckCheck, Megaphone, Trash2, Search, ChevronDown, ChevronLeft, Check, BookOpen, SquarePen, MoreHorizontal, Camera, Lock } from 'lucide-react'
+import SecureBubble from '@/components/primitives/SecureBubble'
+import SwipeReply from '@/components/primitives/SwipeReply'
+import { classifySensitivity, sensitivityLabel } from '@/utils/sensitiveContent'
+import { Reply } from 'lucide-react'
 
 // Human-readable recipient label for a message's `to` field.
 function recipientDisplay(to, students) {
@@ -195,6 +199,10 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
   const [body, setBody]       = useState('')
   const [err, setErr]         = useState('')
   const [sending, setSending] = useState(false)
+  const [secureOn, setSecureOn] = useState(false)
+  const [secureTouched, setSecureTouched] = useState(false)
+  const draftFlag = useMemo(() => classifySensitivity(body), [body])
+  useEffect(() => { if (!secureTouched) setSecureOn(draftFlag.sensitive) }, [draftFlag, secureTouched])
 
   // Build grouped student options
   const classGroups = useMemo(() => {
@@ -249,7 +257,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
     const subjClassIds = isSubjectBroadcast ? subjectClassIds(subjectName) : null
     const msgType = (to === 'all' || isClassBroadcast || isSubjectBroadcast) ? 'announcement' : 'direct'
     const id = msgId()
-    const snippet = body.trim().slice(0, 80)
+    const snippet = secureOn ? 'Private message' : body.trim().slice(0, 80)
 
     if (isSubjectBroadcast && (!subjClassIds || !subjClassIds.length)) {
       setErr('That subject has no current-semester classes.'); setSending(false); return
@@ -271,6 +279,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
       // the subject; students receive it if enrolled in any of these.
       classIds:  subjClassIds || null,
       targetSubject: subjectName || null,
+      ...(secureOn ? { secure: true } : {}),
     }
 
     try {
@@ -287,7 +296,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
         const ids = studentsInClasses(students, subjClassIds).map(s => s.id)
         notifyStudentsBroadcast(db.current, ids, snippet)
       } else {
-        notifyStudentMessage(db.current, to, body.trim())
+        notifyStudentMessage(db.current, to, secureOn ? 'Private message' : body.trim())
       }
       toast('Message sent!', 'green')
       onClose()
@@ -343,6 +352,22 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
         <div className="text-xs text-ink3 mt-1" style={{ textAlign: 'right' }}>{body.length}/3000</div>
       </div>
 
+      <div className="field mb-2" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          className={`btn btn-sm ${secureOn ? 'btn-primary' : 'btn-ghost'}`}
+          onClick={() => { setSecureTouched(true); setSecureOn(v => !v) }}
+          aria-pressed={secureOn}
+        >
+          <Lock size={14} style={{ marginRight: 5 }} /> {secureOn ? 'Private — on' : 'Send as private'}
+        </button>
+        {secureOn && (
+          <span style={{ fontSize: 12, color: 'var(--accent)' }}>
+            {draftFlag.sensitive ? `AI: ${sensitivityLabel(draftFlag.reasons)} — recipients must tap to reveal.` : 'Recipients must tap to reveal.'}
+          </span>
+        )}
+      </div>
+
       {err && <div className="err-msg mb-2">{err}</div>}
 
       <div className="modal-footer">
@@ -360,10 +385,23 @@ function ThreadPanel({ thread, onReply, onClose, onDelete, onRename }) {
   const messagesEndRef = useRef(null)
   const chatKey = thread ? (thread.type === 'conversation' ? 'direct_' + thread.studentId : 'group_' + thread.msgId) : null
   const { typers, notifyTyping, stopTyping } = useTyping(chatKey, { id: 'admin', name: 'Teacher' })
+  const [replyingTo, setReplyingTo] = useState(null) // { author, text } | null
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [thread])
+  // Drop any pending reply target when the open thread changes.
+  useEffect(() => { setReplyingTo(null) }, [chatKey])
+
+  function startReplyTo(entry) {
+    const author = entry.from === 'admin' ? 'You' : (entry.senderLabel || 'Student')
+    const text = entry.secure ? '🔒 Private message' : (entry.body || '')
+    setReplyingTo({ author, text: text.slice(0, 140) })
+  }
+  async function doReply(text, secure) {
+    await onReply(text, secure, replyingTo)
+    setReplyingTo(null)
+  }
 
   if (!thread) {
     return (
@@ -430,21 +468,31 @@ function ThreadPanel({ thread, onReply, onClose, onDelete, onRename }) {
             <React.Fragment key={i}>
               {showDay && <div className="msg-day-sep"><span>{dayLabel(entry.ts)}</span></div>}
               {!isAdmin && isGroup && firstOfGroup && <div className="msg-sender-name">{entry.senderLabel}</div>}
-              <div className={`msg-bubble-row ${isAdmin ? 'sent' : 'received'}`} style={{ marginTop: sameAsPrev ? 2 : 8 }} title={timeLabel(entry.ts)}>
-                {!isAdmin && (
-                  <div className="msg-avatar-slot">
-                    {lastOfGroup && <div className="msg-avatar-sm">{getInitials(entry.senderLabel)}</div>}
-                  </div>
-                )}
-                <div className={`msg-bubble ${isAdmin ? 'sent' : 'received'} ${lastOfGroup ? 'tail' : ''}`}>
-                  {entry.isMain && entry.subject && (
-                    <div style={{ fontSize: 10, fontWeight: 700, color: isAdmin ? 'rgba(255,255,255,.7)' : 'var(--c-accent)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>
-                      {entry.subject}
+              <SwipeReply side={isAdmin ? 'sent' : 'received'} onReply={() => startReplyTo(entry)}>
+                <div className={`msg-bubble-row ${isAdmin ? 'sent' : 'received'}`} style={{ marginTop: sameAsPrev ? 2 : 8 }} title={timeLabel(entry.ts)}>
+                  {!isAdmin && (
+                    <div className="msg-avatar-slot">
+                      {lastOfGroup && <div className="msg-avatar-sm">{getInitials(entry.senderLabel)}</div>}
                     </div>
                   )}
-                  <div style={{ whiteSpace: 'pre-wrap' }}>{entry.body}</div>
+                  <div className={`msg-bubble ${isAdmin ? 'sent' : 'received'} ${lastOfGroup ? 'tail' : ''}`}>
+                    {entry.isMain && entry.subject && (
+                      <div style={{ fontSize: 10, fontWeight: 700, color: isAdmin ? 'rgba(255,255,255,.7)' : 'var(--c-accent)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                        {entry.subject}
+                      </div>
+                    )}
+                    {entry.quote && (
+                      <span className="msg-quote">
+                        <span className="msg-quote-author">{entry.quote.author}</span>
+                        <span className="msg-quote-text">{entry.quote.text}</span>
+                      </span>
+                    )}
+                    {entry.secure
+                      ? <SecureBubble text={entry.body} />
+                      : <div style={{ whiteSpace: 'pre-wrap' }}>{entry.body}</div>}
+                  </div>
                 </div>
-              </div>
+              </SwipeReply>
               {isAdmin && i === lastSelfIdx && (
                 <div className={`msg-seen ${entry.studentRead ? 'read' : ''}`} title={entry.readTitle}>
                   {entry.studentRead ? 'Seen' : 'Sent'} <CheckCheck size={13} />
@@ -465,23 +513,28 @@ function ThreadPanel({ thread, onReply, onClose, onDelete, onRename }) {
       <TypingIndicator typers={typers} />
 
       {/* Reply box */}
-      <ReplyBox onSend={onReply} onType={notifyTyping} onStop={stopTyping} />
+      <ReplyBox onSend={doReply} onType={notifyTyping} onStop={stopTyping} replyingTo={replyingTo} onCancelReply={() => setReplyingTo(null)} />
     </div>
   )
 }
 
 // ── Reply Box ─────────────────────────────────────────────────────────
-function ReplyBox({ onSend, onType, onStop }) {
+function ReplyBox({ onSend, onType, onStop, replyingTo, onCancelReply }) {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
+  const [secureOn, setSecureOn] = useState(false)
+  const [secureTouched, setSecureTouched] = useState(false)
+  const flag = useMemo(() => classifySensitivity(text), [text])
+  useEffect(() => { if (!secureTouched) setSecureOn(flag.sensitive) }, [flag, secureTouched])
 
   async function handleSend() {
     const t = text.trim()
     if (!t) return
+    const secure = secureOn
     setSending(true)
     onStop?.()
-    await onSend(t)
-    setText('')
+    await onSend(t, secure)
+    setText(''); setSecureOn(false); setSecureTouched(false)
     setSending(false)
   }
 
@@ -490,27 +543,54 @@ function ReplyBox({ onSend, onType, onStop }) {
   }
 
   return (
-    <div id="admin-reply-input-wrap" className="msg-reply-bar">
-      <div className="msg-reply-pill">
-        <textarea
-          className="msg-reply-input"
-          rows={1}
-          value={text}
-          onChange={e => { setText(e.target.value); onType?.() }}
-          onBlur={() => onStop?.()}
-          onKeyDown={handleKeyDown}
-          placeholder="Message…"
-          disabled={sending}
-        />
+    <div>
+      {replyingTo && (
+        <div className="msg-reply-banner">
+          <Reply size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+          <div className="rb-body">
+            <div className="rb-author">Replying to {replyingTo.author}</div>
+            <div className="rb-text">{replyingTo.text}</div>
+          </div>
+          <button className="rb-x" onClick={onCancelReply} aria-label="Cancel reply"><X size={14} /></button>
+        </div>
+      )}
+      {secureOn && (
+        <div className="msg-lock-hint">
+          <Lock size={12} /> {flag.sensitive ? `Private — ${sensitivityLabel(flag.reasons)}. Sent blurred.` : 'Private — sent blurred until tapped.'}
+        </div>
+      )}
+      <div id="admin-reply-input-wrap" className="msg-reply-bar">
+        <button
+          type="button"
+          className={`msg-lock-btn${secureOn ? ' on' : ''}`}
+          onClick={() => { setSecureTouched(true); setSecureOn(v => !v) }}
+          title={secureOn ? 'Private message — click to turn off' : 'Send as private (blurred until tapped)'}
+          aria-pressed={secureOn}
+          aria-label="Send as private message"
+        >
+          <Lock size={16} />
+        </button>
+        <div className="msg-reply-pill">
+          <textarea
+            className="msg-reply-input"
+            rows={1}
+            value={text}
+            onChange={e => { setText(e.target.value); onType?.() }}
+            onBlur={() => onStop?.()}
+            onKeyDown={handleKeyDown}
+            placeholder="Message…"
+            disabled={sending}
+          />
+        </div>
+        <button
+          className="msg-send-circle"
+          onClick={handleSend}
+          disabled={sending || !text.trim()}
+          title="Send (Ctrl/⌘+Enter)"
+        >
+          <Send size={16} />
+        </button>
       </div>
-      <button
-        className="msg-send-circle"
-        onClick={handleSend}
-        disabled={sending || !text.trim()}
-        title="Send (Ctrl/⌘+Enter)"
-      >
-        <Send size={16} />
-      </button>
     </div>
   )
 }
@@ -728,6 +808,8 @@ export default function MessagesTab() {
           ts: m.ts,
           subject: m.subject,
           msgId: m.id,
+          secure: m.secure,
+          quote: m.quote,
           isMain: true,
           senderLabel: m.from === 'admin' ? 'You' : name,
           studentRead,
@@ -740,6 +822,8 @@ export default function MessagesTab() {
           subject: null,
           msgId: m.id,
           kind: r.kind,
+          secure: r.secure,
+          quote: r.quote,
           isMain: false,
           senderLabel: r.from === 'admin' ? 'You' : name,
           studentRead: false,
@@ -773,6 +857,8 @@ export default function MessagesTab() {
           body: m.body,
           ts: m.ts,
           subject: m.subject,
+          secure: m.secure,
+          quote: m.quote,
           isMain: true,
           senderLabel: 'You',
           studentRead: anyRead,
@@ -784,6 +870,8 @@ export default function MessagesTab() {
           ts: r.ts,
           subject: null,
           kind: r.kind,
+          secure: r.secure,
+          quote: r.quote,
           isMain: false,
           senderLabel: r.from === 'admin' ? 'You' : (students.find(s => s.id === r.from)?.name || r.from),
           studentRead: false,
@@ -833,12 +921,13 @@ export default function MessagesTab() {
   }
 
   // ── Send reply ───────────────────────────────────────────────────
-  async function handleReply(text) {
+  async function handleReply(text, secure = false, quote = null) {
     if (!thread || !fbReady || !db.current) {
       toast('Firebase not connected.', 'red')
       return
     }
-    const reply = { from: 'admin', body: text, ts: Date.now() }
+    const reply = { from: 'admin', body: text, ts: Date.now(), ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}) }
+    const notifText = secure ? 'Private message' : text
 
     try {
       if (thread.type === 'conversation') {
@@ -847,23 +936,23 @@ export default function MessagesTab() {
         const targetMsg = studentMsgs[0]
         if (!targetMsg) return
         await fbAddMessageReply(db.current, targetMsg.id, reply, { adminRead: true })
-        notifyStudentMessage(db.current, thread.studentId, text)
+        notifyStudentMessage(db.current, thread.studentId, notifText)
       } else {
         const m = messages.find(x => x.id === thread.msgId)
         if (!m) return
         await fbAddMessageReply(db.current, m.id, reply, { adminRead: true })
         // Notify the recipient(s) of this thread.
         if (m.to === 'all') {
-          notifyStudentsBroadcast(db.current, students.map(s => s.id), text)
+          notifyStudentsBroadcast(db.current, students.map(s => s.id), notifText)
         } else if (typeof m.to === 'string' && m.to.startsWith('class:')) {
           const cid = m.to.slice(6)
           const ids = students.filter(s => s.classId === cid || s.classIds?.includes(cid)).map(s => s.id)
-          notifyStudentsBroadcast(db.current, ids, text)
+          notifyStudentsBroadcast(db.current, ids, notifText)
         } else if (typeof m.to === 'string' && m.to.startsWith('subject:')) {
           const ids = studentsInClasses(students, m.classIds).map(s => s.id)
-          notifyStudentsBroadcast(db.current, ids, text)
+          notifyStudentsBroadcast(db.current, ids, notifText)
         } else if (m.to && m.to !== 'admin') {
-          notifyStudentMessage(db.current, m.to, text)
+          notifyStudentMessage(db.current, m.to, notifText)
         }
       }
     } catch (e) {
@@ -880,7 +969,7 @@ export default function MessagesTab() {
       if (item.kind === 'conversation') {
         const s = students.find(x => x.id === item.sid)
         const name = s?.name || item.sid
-        const preview = (item.latestMsg.body || '').slice(0, 60) + ((item.latestMsg.body || '').length > 60 ? '…' : '')
+        const preview = item.latestMsg.secure ? '🔒 Private message' : (item.latestMsg.body || '').slice(0, 60) + ((item.latestMsg.body || '').length > 60 ? '…' : '')
         const isActive = activeConv?.type === 'conversation' && activeConv.studentId === item.sid
         return (
           <ConvItem
@@ -904,7 +993,9 @@ export default function MessagesTab() {
       // Group chat / broadcast
       const m = item.msg
       const isSubject = typeof m.to === 'string' && m.to.startsWith('subject:')
-      const preview = (m.subject ? m.subject + ' — ' : '') + (m.body || '').slice(0, 60) + ((m.body || '').length > 60 ? '…' : '')
+      const preview = m.secure
+        ? (m.subject ? m.subject + ' — ' : '') + '🔒 Private message'
+        : (m.subject ? m.subject + ' — ' : '') + (m.body || '').slice(0, 60) + ((m.body || '').length > 60 ? '…' : '')
       const isActive = activeConv?.type === 'message' && activeConv.msgId === m.id
       return (
         <ConvItem

@@ -2641,6 +2641,65 @@ textarea.input { resize: vertical; }
 .msg-thread-head-av.announce { background: var(--yellow-l); color: var(--yellow); }
 .msg-thread-head-av img { width: 100%; height: 100%; object-fit: cover; }
 
+/* Swipe-to-reply / hover-to-reply affordances around a message bubble row. */
+.swipe-reply { position: relative; }
+.swipe-reply-cue { position: absolute; top: 50%; transform: translateY(-50%); display: flex; align-items: center; color: var(--ink3); pointer-events: none; }
+.swipe-reply-cue.received { left: 4px; }
+.swipe-reply-cue.sent { right: 4px; }
+.swipe-reply-btn {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); background: var(--surface); color: var(--ink2);
+  cursor: pointer; opacity: 0; transition: opacity .12s ease, color .12s ease; z-index: 3;
+}
+.swipe-reply:hover .swipe-reply-btn, .swipe-reply-btn:focus-visible { opacity: 1; }
+.swipe-reply-btn:hover { color: var(--ink); }
+.swipe-reply-btn.received { right: 6px; }
+.swipe-reply-btn.sent { left: 6px; }
+@media (hover: none) { .swipe-reply-btn { display: none; } }
+
+/* Quoted-reply chip shown inside a bubble that replies to another message. */
+.msg-quote {
+  display: block; margin-bottom: 5px; padding: 4px 8px;
+  border-left: 3px solid currentColor; border-radius: 4px;
+  background: rgba(127,127,127,.14); opacity: .92; max-width: 100%;
+}
+.msg-quote-author { display: block; font-size: 0.6875rem; font-weight: 700; opacity: .9; }
+.msg-quote-text { display: block; font-size: 0.75rem; opacity: .8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-reply-banner {
+  display: flex; align-items: center; gap: 8px; margin: 0 8px 6px; padding: 6px 10px;
+  background: var(--surface2); border-left: 3px solid var(--accent); border-radius: 6px;
+}
+.msg-reply-banner .rb-body { flex: 1; min-width: 0; }
+.msg-reply-banner .rb-author { font-size: 0.6875rem; font-weight: 700; color: var(--accent); }
+.msg-reply-banner .rb-text { font-size: 0.75rem; color: var(--ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-reply-banner .rb-x { flex-shrink: 0; border: none; background: none; color: var(--ink3); cursor: pointer; display: flex; padding: 2px; }
+.msg-reply-banner .rb-x:hover { color: var(--ink); }
+
+/* Smart-locked (sensitive) message body — blurred until press-and-held. */
+.msg-secure { position: relative; cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; display: inline-block; min-width: 90px; }
+.msg-secure-text { white-space: pre-wrap; filter: blur(7px); transition: filter .14s ease; }
+.msg-secure.revealed .msg-secure-text { filter: none; }
+.msg-secure-hint {
+  position: absolute; inset: 0; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  font-size: 0.6875rem; font-weight: 700; letter-spacing: -.01em; white-space: nowrap;
+}
+.msg-secure.revealed .msg-secure-hint { display: none; }
+/* Lock toggle in the composer (sender chooses / AI suggests a private send). */
+.msg-lock-btn {
+  flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); background: var(--surface); color: var(--ink2); cursor: pointer;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+.msg-lock-btn:hover { color: var(--ink); border-color: var(--ink3); }
+.msg-lock-btn.on { background: var(--accent-l); color: var(--accent); border-color: transparent; }
+.msg-lock-hint {
+  display: flex; align-items: center; gap: 6px; margin: 0 8px 6px;
+  font-size: 0.6875rem; font-weight: 600; color: var(--accent);
+}
+
 /* "… took a screenshot" — a centered system notice inside a message thread,
    shown to both the student and the teacher (Instagram / Messenger style). */
 .msg-screenshot-note {
