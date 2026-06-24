@@ -5,11 +5,12 @@ import { useUI } from '@/context/UIContext'
 import Modal from '@/components/primitives/Modal'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
-import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList, Pencil, Save, Rocket, FileText, X, Lock, Circle, Archive, ArchiveRestore, Sparkles, Wand2, FileUp, Copy, Lightbulb } from 'lucide-react'
+import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList, Pencil, Save, Rocket, FileText, X, Lock, Circle, Archive, ArchiveRestore, Sparkles, Wand2, FileUp, Copy, Lightbulb, ScanSearch } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { extractTextFromFile } from '@/utils/lessonExtract'
 import { generateDraftQuestions } from '@/utils/quizGen'
 import { generateQuizAI, prewarmQuizAI, smartAutoKey, splitAnswerAlternates } from '@/utils/quizGenAI'
+import { auditDistractors } from '@/utils/distractorAudit'
 import { quizItemAnalysis } from '@/utils/quizStats'
 import { classTag } from '@/utils/groupChat'
 
@@ -332,7 +333,14 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
   const [err, setErr] = useState('')
   const [saving, setSaving] = useState(false)
   const [keying, setKeying] = useState(false)
+  const [auditing, setAuditing] = useState(false)
+  const [audit, setAudit] = useState(null) // { perQuestion, quizNotes, audited, modelUsed } | null
   const [tab, setTab] = useState('details') // 'details' | 'questions'
+
+  // Warm the shared on-device model so the first Auto-key / Audit click is fast.
+  useEffect(() => { prewarmQuizAI() }, [])
+
+  const mcCount = useMemo(() => questions.filter(q => q.type === 'multiple_choice' && Array.isArray(q.options) && q.options.length >= 2).length, [questions])
 
   const availableSubjects = useMemo(() => {
     const subs = new Set()
@@ -404,6 +412,27 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
       toast(touched ? `Seeded accepted answers for ${touched} question${touched === 1 ? '' : 's'}.` : 'No text questions to auto-key.', touched ? 'green' : 'dark')
     } finally {
       setKeying(false)
+    }
+  }
+
+  // Audit distractors (#24) — on-device, advisory only. Flags weak MC options.
+  async function runAudit() {
+    setAuditing(true)
+    try {
+      const result = await auditDistractors(questions)
+      setAudit(result)
+      const flagged = Object.values(result.perQuestion).filter(p => !p.ok).length
+      if (result.audited === 0) {
+        toast('No multiple-choice questions to audit.', 'dark')
+      } else if (flagged === 0 && !result.quizNotes.length) {
+        toast(`Checked ${result.audited} multiple-choice question${result.audited === 1 ? '' : 's'} — distractors look good.`, 'green')
+      } else {
+        toast(`Found issues in ${flagged} question${flagged === 1 ? '' : 's'}${result.quizNotes.length ? ' + a quiz-level note' : ''} — see the flags below.`, 'dark')
+      }
+    } catch {
+      toast('Could not run the audit on this device.', 'red')
+    } finally {
+      setAuditing(false)
     }
   }
 
@@ -547,10 +576,23 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
         <div className="flex items-center justify-between mb-2">
           <label className="text-xs font-semibold text-ink2">{questions.length} Questions · {questions.reduce((s, q) => s + ((typeof q.points === 'number' && q.points > 0) ? q.points : 1), 0)} pts</label>
           <div className="flex gap-1">
+            {mcCount > 0 && (
+              <button type="button" className="btn btn-ghost btn-sm" onClick={runAudit} disabled={auditing} title="Check multiple-choice distractors for ambiguous, duplicate, or giveaway options (on-device, advisory)"><ScanSearch size={12} className="inline-block mr-1" />{auditing ? 'Auditing…' : 'Audit choices'}</button>
+            )}
             <button type="button" className="btn btn-ghost btn-sm" onClick={bulkAutoKey} disabled={keying} title="Suggest accepted alternate answers using on-device AI (review before sharing)"><Wand2 size={12} className="inline-block mr-1" />{keying ? 'Auto-keying…' : 'Auto-key'}</button>
             <button type="button" className="btn btn-ghost btn-sm" onClick={addQuestion}>+ Add Question</button>
           </div>
         </div>
+        {audit && audit.quizNotes.length > 0 && (
+          <div className="mb-2 px-3 py-2 rounded-lg" style={{ background: 'var(--yellow-l)', border: '1px solid var(--border)' }}>
+            {audit.quizNotes.map((n, i) => (
+              <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'baseline', fontSize: 12, color: 'var(--ink2)', lineHeight: 1.5 }}>
+                <AlertCircle size={12} style={{ flexShrink: 0, color: 'var(--gold-var)', transform: 'translateY(2px)' }} />
+                <span>{n}</span>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="flex flex-col gap-3" style={{ maxHeight: '55vh', overflowY: 'auto', paddingRight: 4 }}>
           {questions.map((q, i) => (
             <div key={q.id} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '10px 12px', border: '1px solid var(--border)' }}>
@@ -588,6 +630,32 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
                   Answer: {q.answer}
                 </span>
               )}
+              {q.type === 'multiple_choice' && audit?.perQuestion[q.id] && (() => {
+                const a = audit.perQuestion[q.id]
+                return (
+                  <div style={{ marginTop: 6 }}>
+                    {a.ok ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 999, background: 'var(--green-l)', color: 'var(--green)' }}>
+                        <CheckCircle size={11} /> Good distractors
+                      </span>
+                    ) : (
+                      <>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 999, background: 'var(--red-l, #fee2e2)', color: 'var(--red)' }}>
+                          <AlertCircle size={11} /> {a.issues.length} issue{a.issues.length === 1 ? '' : 's'}
+                        </span>
+                        <ul style={{ margin: '6px 0 0', paddingLeft: 0, listStyle: 'none' }}>
+                          {a.issues.map((it, k) => (
+                            <li key={k} style={{ display: 'flex', gap: 5, alignItems: 'baseline', fontSize: 11, color: 'var(--ink2)', lineHeight: 1.5 }}>
+                              <span style={{ flexShrink: 0, color: 'var(--red)' }}>•</span>
+                              <span>{it.msg}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                  </div>
+                )
+              })()}
               {q.explanation && editingQ !== q.id && (
                 <div style={{ display: 'flex', gap: 5, alignItems: 'baseline', marginTop: 6, fontSize: 11, color: 'var(--ink3)', lineHeight: 1.5 }}>
                   <Lightbulb size={12} style={{ flexShrink: 0, color: 'var(--yellow)', transform: 'translateY(2px)' }} />
