@@ -6,6 +6,7 @@ import { relativeTime } from '@/utils/format'
 import { getStudentMessages } from '@/utils/studentMessages'
 import { groupName, isGroupMessage, groupMembers } from '@/utils/groupChat'
 import GroupMembers from '@/components/primitives/GroupMembers'
+import SecureBubble from '@/components/primitives/SecureBubble'
 import TypingIndicator from '@/components/primitives/TypingIndicator'
 import { useTyping } from '@/hooks/useTyping'
 import { notifyAdminMessage } from '@/firebase/messageNotify'
@@ -43,8 +44,8 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
       : directMsgs
     const entries = []
     baseMsgs.forEach(m => {
-      entries.push({ from: m.from, body: m.body, ts: m.ts, subject: m.subject, isMain: true })
-      ;(m.replies || []).forEach(r => entries.push({ from: r.from, body: r.body, ts: r.ts, isMain: false }))
+      entries.push({ from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, isMain: true })
+      ;(m.replies || []).forEach(r => entries.push({ from: r.from, body: r.body, ts: r.ts, secure: r.secure, quote: r.quote, isMain: false }))
     })
     return entries.sort((a, b) => a.ts - b.ts)
   }, [allMsgs, view, threadMode, replyMsgId])
@@ -266,7 +267,9 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
                 ) : items.map((item) => {
                   if (item.type === 'direct') {
                     const m = item.latest
-                    const preview = (m.from === s.id ? 'You: ' : '') + m.body.slice(0, 48) + (m.body.length > 48 ? '…' : '')
+                    const preview = m.secure
+                      ? (m.from === s.id ? 'You: ' : '') + '🔒 Private message'
+                      : (m.from === s.id ? 'You: ' : '') + m.body.slice(0, 48) + (m.body.length > 48 ? '…' : '')
                     return (
                       <div key="direct" className={`s-msg-thread-item${item.hasUnread ? ' unread' : ''}`} onClick={openConversation} style={{ cursor: 'pointer' }}>
                         <div className="s-conv-avatar">T</div>
@@ -282,7 +285,7 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
                     )
                   }
                   const m = item.msg
-                  const preview = m.body.slice(0, 48) + (m.body.length > 48 ? '…' : '')
+                  const preview = m.secure ? '🔒 Private message' : m.body.slice(0, 48) + (m.body.length > 48 ? '…' : '')
                   return (
                     <div key={m.id} className={`s-msg-thread-item${item.hasUnread ? ' unread' : ''}`} onClick={() => openMessage(m.id)} style={{ cursor: 'pointer' }}>
                       <div className="s-conv-avatar announce">A</div>
@@ -322,7 +325,15 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
                           {entry.isMain && entry.subject && !isSelf && (
                             <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--accent)', marginBottom: 3, textTransform: 'uppercase' }}>{entry.subject}</div>
                           )}
-                          <div>{entry.body.split('\n').map((l, j) => <React.Fragment key={j}>{l}<br /></React.Fragment>)}</div>
+                          {entry.quote && (
+                            <span className="msg-quote">
+                              <span className="msg-quote-author">{entry.quote.author}</span>
+                              <span className="msg-quote-text">{entry.quote.text}</span>
+                            </span>
+                          )}
+                          {entry.secure
+                            ? <SecureBubble text={entry.body} />
+                            : <div>{entry.body.split('\n').map((l, j) => <React.Fragment key={j}>{l}<br /></React.Fragment>)}</div>}
                         </div>
                       </div>
                       <div className={`msg-meta${isSelf ? ' msg-meta-sent' : ' msg-meta-recv'}`} style={{ fontSize: 10 }}>
