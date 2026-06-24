@@ -374,19 +374,18 @@ export default function StudentLayout() {
         <div className="fixed inset-0 z-30 bg-black/40" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* Sidebar */}
-      <div className={`sidebar-wrap${sidebarOpen ? ' open' : ''}${sidebarExpanded ? ' expanded' : ''}`}>
+      {/* Sidebar — collapsed icon rail on desktop, expands on hover (overlay) */}
+      <div className={`sidebar-wrap${sidebarOpen ? ' open' : ''}`}>
         <StudentSidebar
           student={student}
           badges={badges}
           onSettings={() => setActionSheetOpen(true)}
           onLogout={() => logout('manual')}
-          onToggle={() => setSidebarExpanded(e => !e)}
         />
       </div>
 
       {/* Main content */}
-      <div className={`admin-main${sidebarExpanded ? ' sidebar-expanded' : ''}`}>
+      <div className="admin-main">
         {/* Top bar */}
         <div className="admin-topbar">
           <div>

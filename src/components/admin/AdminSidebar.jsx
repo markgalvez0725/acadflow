@@ -4,44 +4,25 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { LayoutDashboard, School, Users, BookOpen, CalendarCheck, Bell, ClipboardList, Settings, LogOut, FileQuestion, Rss, CalendarDays, Video, History, Library, MessageSquare } from 'lucide-react'
 
-const NAV_GROUPS = [
-  {
-    label: 'Overview',
-    items: [
-      { id: 'stream',    label: 'Stream',    Icon: Rss },
-      { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
-    ],
-  },
-  {
-    label: 'Management',
-    items: [
-      { id: 'classes',  label: 'Classes',  Icon: School },
-      { id: 'students', label: 'Students', Icon: Users },
-      { id: 'audit',    label: 'Audit Log', Icon: History },
-    ],
-  },
-  {
-    label: 'Academic',
-    items: [
-      { id: 'grades',     label: 'Grades',     Icon: BookOpen },
-      { id: 'attendance', label: 'Attendance', Icon: CalendarCheck },
-      { id: 'quizzes',    label: 'Quizzes',    Icon: FileQuestion },
-      { id: 'resources',  label: 'Resources',  Icon: Library },
-      { id: 'calendar',   label: 'Calendar',   Icon: CalendarDays },
-    ],
-  },
-  {
-    label: 'Communication',
-    items: [
-      { id: 'messages',       label: 'Messages',       badgeId: 'msg',   Icon: MessageSquare },
-      { id: 'notifications',  label: 'Notifications',  badgeId: 'notif', Icon: Bell },
-      { id: 'activities',     label: 'Activities',     badgeId: 'act',   Icon: ClipboardList },
-      { id: 'onlineClasses',  label: 'Online Classes', Icon: Video },
-    ],
-  },
+// Flat, Instagram-style nav list (no section headers).
+const NAV_ITEMS = [
+  { id: 'stream',         label: 'Stream',         Icon: Rss },
+  { id: 'dashboard',      label: 'Dashboard',      Icon: LayoutDashboard },
+  { id: 'classes',        label: 'Classes',        Icon: School },
+  { id: 'students',       label: 'Students',       Icon: Users },
+  { id: 'grades',         label: 'Grades',         Icon: BookOpen },
+  { id: 'attendance',     label: 'Attendance',     Icon: CalendarCheck },
+  { id: 'quizzes',        label: 'Quizzes',        Icon: FileQuestion },
+  { id: 'activities',     label: 'Activities',     badgeId: 'act',   Icon: ClipboardList },
+  { id: 'messages',       label: 'Messages',       badgeId: 'msg',   Icon: MessageSquare },
+  { id: 'notifications',  label: 'Notifications',  badgeId: 'notif', Icon: Bell },
+  { id: 'onlineClasses',  label: 'Online Classes', Icon: Video },
+  { id: 'resources',      label: 'Resources',      Icon: Library },
+  { id: 'calendar',       label: 'Calendar',       Icon: CalendarDays },
+  { id: 'audit',          label: 'Audit Log',      Icon: History },
 ]
 
-export default function AdminSidebar({ onSettingsOpen, onToggle }) {
+export default function AdminSidebar({ onSettingsOpen }) {
   const { logout } = useAuth()
   const { admin, adminNotifs, activities, messages } = useData()
   const { adminTab, setAdminTab } = useUI()
@@ -74,41 +55,36 @@ export default function AdminSidebar({ onSettingsOpen, onToggle }) {
         </div>
       </div>
 
-      {/* Nav */}
+      {/* Nav — flat list */}
       <nav className="sb-nav flex-1 overflow-y-auto">
-        {NAV_GROUPS.map(group => (
-          <div key={group.label}>
-            <div className="nav-group-label">{group.label}</div>
-            {group.items.map(item => {
-              const badge = item.badgeId ? getBadge(item.badgeId) : 0
-              return (
-                <button
-                  key={item.id}
-                  className={`nav-item${adminTab === item.id ? ' active' : ''}`}
-                  onClick={() => setAdminTab(item.id)}
-                  title={item.label}
-                  aria-label={item.label}
-                >
-                  <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <item.Icon size={18} />
-                    {badge > 0 && (
-                      <span style={{
-                        position: 'absolute', top: -4, right: -6,
-                        background: 'var(--accent)', color: '#fff',
-                        borderRadius: 10, fontSize: 9, fontWeight: 700,
-                        padding: '0 4px', lineHeight: '14px', minWidth: 14,
-                        textAlign: 'center',
-                      }}>
-                        {badge > 99 ? '99+' : badge}
-                      </span>
-                    )}
+        {NAV_ITEMS.map(item => {
+          const badge = item.badgeId ? getBadge(item.badgeId) : 0
+          return (
+            <button
+              key={item.id}
+              className={`nav-item${adminTab === item.id ? ' active' : ''}`}
+              onClick={() => setAdminTab(item.id)}
+              title={item.label}
+              aria-label={item.label}
+            >
+              <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <item.Icon size={24} />
+                {badge > 0 && (
+                  <span style={{
+                    position: 'absolute', top: -5, right: -7,
+                    background: 'var(--red)', color: '#fff',
+                    borderRadius: 999, fontSize: 9, fontWeight: 700,
+                    padding: '0 4px', lineHeight: '15px', minWidth: 15, height: 15,
+                    textAlign: 'center', boxShadow: '0 0 0 2px var(--surface)',
+                  }}>
+                    {badge > 99 ? '99+' : badge}
                   </span>
-                  <span className="nav-label">{item.label}</span>
-                </button>
-              )
-            })}
-          </div>
-        ))}
+                )}
+              </span>
+              <span className="nav-label">{item.label}</span>
+            </button>
+          )
+        })}
       </nav>
 
       {/* Footer */}
@@ -134,13 +110,6 @@ export default function AdminSidebar({ onSettingsOpen, onToggle }) {
         </button>
         <div className="credit-footer">by lexark25</div>
       </div>
-
-      {/* Collapse toggle (desktop only) */}
-      <button className="sb-toggle" onClick={onToggle} title="Toggle sidebar" aria-label="Toggle sidebar">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <path d="M5 3l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </button>
     </div>
   )
 }

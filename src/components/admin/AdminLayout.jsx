@@ -134,16 +134,13 @@ export default function AdminLayout() {
         />
       )}
 
-      {/* Sidebar */}
-      <div className={`sidebar-wrap${sidebarOpen ? ' open' : ''}${sidebarExpanded ? ' expanded' : ''}`}>
-        <AdminSidebar
-          onSettingsOpen={() => setSettingsOpen(true)}
-          onToggle={() => setSidebarExpanded(e => !e)}
-        />
+      {/* Sidebar — collapsed icon rail on desktop, expands on hover (overlay) */}
+      <div className={`sidebar-wrap${sidebarOpen ? ' open' : ''}`}>
+        <AdminSidebar onSettingsOpen={() => setSettingsOpen(true)} />
       </div>
 
       {/* Main content */}
-      <div className={`admin-main${sidebarExpanded ? ' sidebar-expanded' : ''}`}>
+      <div className="admin-main">
         {/* Top bar */}
         <div className="admin-topbar">
           <div className="flex items-center gap-3">
