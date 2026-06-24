@@ -7,6 +7,9 @@ import DOMPurify from 'dompurify'
 import { v4 as uuidv4 } from 'uuid'
 import ExpandableHtml from '@/components/primitives/ExpandableHtml'
 import KebabMenu from '@/components/primitives/KebabMenu'
+import MentionInput from '@/components/primitives/MentionInput'
+import { resolveMentions } from '@/utils/mentions'
+import { notifyMention } from '@/firebase/messageNotify'
 
 const PAGE_SIZE = 10
 
@@ -239,8 +242,25 @@ function RichTextEditor({ value, onChange, placeholder, rows = 3 }) {
 
 // ── Comments Section ───────────────────────────────────────────────────
 function CommentsSection({ ann, authorId, authorName, role }) {
-  const { addAnnouncementComment, addCommentReply, students = [] } = useData()
+  const { addAnnouncementComment, addCommentReply, students = [], db } = useData()
   const comments = ann.comments || []
+
+  // Who can be @mentioned: students in this announcement's scope (all enrolled
+  // when it targets "all"). The teacher is the author here, so not listed.
+  const mentionCandidates = useMemo(() => {
+    const scoped = (students || []).filter(x => {
+      if (!ann.classId || ann.classId === 'all') return true
+      const ids = x.classIds?.length ? x.classIds : (x.classId ? [x.classId] : [])
+      return ids.includes(ann.classId)
+    })
+    return scoped.map(x => ({ id: x.id, name: x.name || x.id }))
+  }, [students, ann.classId])
+
+  function fireMentions(body) {
+    const ids = resolveMentions(body, mentionCandidates).filter(id => id && id !== authorId)
+    if (!ids.length || !db?.current) return
+    ids.forEach(id => notifyMention(db.current, id, { fromName: authorName || 'Your teacher', snippet: body, link: 'stream' }))
+  }
   const [text, setText] = useState('')
   const [posting, setPosting] = useState(false)
   const [replyTo, setReplyTo] = useState(null)
@@ -264,6 +284,7 @@ function CommentsSection({ ann, authorId, authorName, role }) {
         replies: [],
       }
       await addAnnouncementComment(ann.id, comment)
+      fireMentions(comment.text)
       setText('')
     } finally {
       setPosting(false)
@@ -281,6 +302,7 @@ function CommentsSection({ ann, authorId, authorName, role }) {
         createdAt: Date.now(),
       }
       await addCommentReply(ann.id, commentId, reply)
+      fireMentions(reply.text)
       setReplyText('')
       setReplyTo(null)
     } finally {
@@ -362,7 +384,7 @@ function CommentsSection({ ann, authorId, authorName, role }) {
           )}
           {replyTo === c.id && (
             <div style={{ marginLeft: 36, marginTop: 6, display: 'flex', gap: 6 }}>
-              <input ref={replyRef} className="form-input" style={{ flex: 1, fontSize: 12, padding: '6px 10px' }} placeholder={`Reply to ${c.authorName}…`} value={replyText} onChange={e => setReplyText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleReply(c.id) } }} disabled={replyPosting} />
+              <MentionInput inputRef={replyRef} className="form-input" style={{ fontSize: 12, padding: '6px 10px' }} placeholder={`Reply to ${c.authorName}… (@ to mention)`} value={replyText} onChange={setReplyText} onEnter={() => handleReply(c.id)} candidates={mentionCandidates} disabled={replyPosting} />
               <button className="btn btn-primary btn-sm" style={{ padding: '6px 10px', flexShrink: 0 }} onClick={() => handleReply(c.id)} disabled={replyPosting || !replyText.trim()}><Send size={12} /></button>
               <button className="btn btn-ghost btn-sm" style={{ padding: '6px 8px', flexShrink: 0 }} onClick={() => { setReplyTo(null); setReplyText('') }}><X size={12} /></button>
             </div>
@@ -370,7 +392,7 @@ function CommentsSection({ ann, authorId, authorName, role }) {
         </div>
       ))}
       <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-        <input className="form-input" style={{ flex: 1, fontSize: 13, padding: '7px 10px' }} placeholder="Write a comment…" value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePost() } }} disabled={posting} />
+        <MentionInput className="form-input" style={{ fontSize: 13, padding: '7px 10px' }} placeholder="Write a comment… (@ to mention)" value={text} onChange={setText} onEnter={handlePost} candidates={mentionCandidates} disabled={posting} />
         <button className="btn btn-primary btn-sm" style={{ padding: '7px 12px', flexShrink: 0 }} onClick={handlePost} disabled={posting || !text.trim()}><Send size={14} /></button>
       </div>
     </div>
