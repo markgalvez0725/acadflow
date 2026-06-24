@@ -613,6 +613,46 @@ export function DataProvider({ children }) {
     await fbSaveRubricLibrary(dbRef.current, next)
   }, [])
 
+  // ── Purge a deleted quiz's cached records from students ──────────────────
+  // A quiz score is denormalized onto each student (quizResults[subject][] for
+  // display + gradeComponents[subject].quizScores[quizId] for the gradebook).
+  // Deleting the quiz doc leaves those stale, so the student still sees the
+  // grade — clear them here. Recomputed term grades refresh next time the
+  // teacher opens/saves the grade sheet.
+  const purgeQuizFromStudents = useCallback(async (quiz) => {
+    const quizId = quiz?.id
+    if (!quizId) return
+    const changed = []
+    const updated = students.map(s => {
+      let touched = false
+      // 1. quizResults — remove the entry for this quiz (search every subject).
+      const qr = s.quizResults || {}
+      const nextQr = {}
+      for (const sub of Object.keys(qr)) {
+        const list = qr[sub]
+        if (Array.isArray(list) && list.some(e => e?.quizId === quizId)) {
+          nextQr[sub] = list.filter(e => e?.quizId !== quizId)
+          touched = true
+        } else {
+          nextQr[sub] = list
+        }
+      }
+      // 2. gradeComponents[subject].quizScores[quizId] — drop the keyed score.
+      let nextGc = s.gradeComponents
+      const sub = quiz.subject
+      if (sub && s.gradeComponents?.[sub]?.quizScores && quizId in s.gradeComponents[sub].quizScores) {
+        const qs = { ...s.gradeComponents[sub].quizScores }
+        delete qs[quizId]
+        nextGc = { ...s.gradeComponents, [sub]: { ...s.gradeComponents[sub], quizScores: qs } }
+        touched = true
+      }
+      if (!touched) return s
+      changed.push(s.id)
+      return { ...s, quizResults: nextQr, gradeComponents: nextGc }
+    })
+    if (changed.length) await saveStudents(updated, changed)
+  }, [students, saveStudents])
+
   // Save a Meet link for a class. When `subject` is given, the link is stored
   // per-subject in meetLinks[subject]; otherwise it sets the class-wide link.
   const saveMeetLink = useCallback(async (classId, meetLink, subject) => {
@@ -908,6 +948,7 @@ export function DataProvider({ children }) {
       announcements, setAnnouncements, saveAnnouncement, deleteAnnouncement, pushAnnouncementNotifs, addAnnouncementComment, addCommentReply,
       resources, setResources, saveResource, deleteResource,
       rubricLibrary, saveRubricToLibrary, deleteLibraryRubric,
+      purgeQuizFromStudents,
       meetings, setMeetings,
       liveMeetings: meetings.filter(m => m.status === 'live'),
       saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting,

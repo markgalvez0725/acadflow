@@ -679,7 +679,7 @@ function QuizItemAnalysis({ quiz }) {
 // ── View Results Modal ────────────────────────────────────────────────────────
 function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
   const [showAnalysis, setShowAnalysis] = useState(false)
-  const { students } = useData()
+  const { students, purgeQuizFromStudents } = useData()
   const { toast, openDialog } = useUI()
   const { db } = useData()
 
@@ -705,12 +705,15 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
   async function handleDelete() {
     const ok = await openDialog({
       title: `Delete "${quiz.title}"?`,
-      msg: 'This quiz and all submissions will be permanently removed.',
+      msg: 'This quiz, its submissions, and every student’s recorded score for it will be permanently removed.',
       type: 'danger', confirmLabel: 'Delete Quiz', showCancel: true,
     })
     if (!ok) return
     try {
       await deleteDoc(doc(db.current, 'quizzes', quiz.id))
+      // Remove the quiz's denormalized score from every student so it no longer
+      // shows in their Grades/Overview.
+      try { await purgeQuizFromStudents(quiz) } catch (e) { /* listener will still drop the quiz doc */ }
       onDelete()
     } catch (e) {
       toast('Delete failed: ' + e.message, 'red')
