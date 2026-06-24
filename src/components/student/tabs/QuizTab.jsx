@@ -9,24 +9,7 @@ import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 import { activeClassIds } from '@/utils/active'
 import { subjectColor } from '@/utils/subjectColor'
 import { Lightbulb } from 'lucide-react'
-
-// ── Score computation ─────────────────────────────────────────────────────────
-function computeScore(questions, answers) {
-  let score = 0
-  questions.forEach((q, i) => {
-    const studentAns = (answers[i] || '').trim().toLowerCase()
-    const correctAns = (q.answer || '').trim().toLowerCase()
-    if (!studentAns) return
-    if (q.type === 'multiple_choice' || q.type === 'true_false') {
-      if (studentAns === correctAns) score++
-    } else {
-      // short_answer, fill_in_the_blank, identification — partial match
-      if (correctAns && studentAns.includes(correctAns)) score++
-      else if (correctAns && correctAns.includes(studentAns) && studentAns.length >= 3) score++
-    }
-  })
-  return score
-}
+import { computeQuizScore } from '@/utils/quizScore'
 
 // Fisher–Yates shuffle of [0..n-1] — the display order of questions.
 function shuffleIndices(n) {
@@ -200,18 +183,20 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
     setSubmitting(true)
 
     const timeTaken = Math.round((Date.now() - startRef.current) / 1000)
-    const score = computeScore(quiz.questions, answers)
-    const total = quiz.questions.length
+    const { score, total } = computeQuizScore(quiz.questions, answers, { partialCredit: !!quiz.partialCredit })
     const pct = total > 0 ? Math.round((score / total) * 100 * 100) / 100 : 0
 
     try {
       if (!fbReady || !db.current) throw new Error('Firebase not ready')
 
-      // 1. Write submission to quiz doc
+      // 1. Write submission to quiz doc — includes anti-cheat signals (timeTaken
+      //    and leftCount) so the teacher can flag suspicious attempts.
       const subPath = `submissions.${student.id}`
       await updateDoc(doc(db.current, 'quizzes', quiz.id), {
         [`${subPath}.score`]: score,
+        [`${subPath}.total`]: total,
         [`${subPath}.timeTaken`]: timeTaken,
+        [`${subPath}.leftCount`]: leftCountRef.current,
         [`${subPath}.answers`]: answers,
         [`${subPath}.submittedAt`]: Date.now(),
       })
@@ -483,7 +468,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
 }
 
 // ── Review Modal (post-submission) ────────────────────────────────────────────
-function ReviewRow({ q, index, isCorrect, studentAns }) {
+function ReviewRow({ q, index, isCorrect, partial, studentAns }) {
   // Explanations are authored once when the quiz is generated (see the quiz
   // generator / Gemini endpoint) and stored on the question — so reviewing
   // never triggers a per-student AI request.
@@ -494,7 +479,11 @@ function ReviewRow({ q, index, isCorrect, studentAns }) {
       background: 'var(--surface2)', borderRadius: 8, padding: '12px 14px',
     }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', marginBottom: 4 }}>
-        Q{index + 1} · {q.type.replace(/_/g, ' ')} · {isCorrect ? <><CheckCircle2 size={14} /> Correct</> : <><XCircle size={14} /> Wrong</>}
+        Q{index + 1} · {q.type.replace(/_/g, ' ')} · {isCorrect
+          ? <><CheckCircle2 size={14} /> Correct</>
+          : partial
+            ? <span style={{ color: '#f59e0b' }}><CheckCircle2 size={14} /> Partial credit</span>
+            : <><XCircle size={14} /> Wrong</>}
       </div>
       <p style={{ fontSize: 13, color: 'var(--ink)', marginBottom: 6 }}>{q.question}</p>
       <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
@@ -520,25 +509,21 @@ function ReviewRow({ q, index, isCorrect, studentAns }) {
 }
 
 function QuizReviewModal({ quiz, submission, onClose }) {
+  const graded = computeQuizScore(quiz.questions, submission.answers || [], { partialCredit: !!quiz.partialCredit })
+  const total = submission.total ?? graded.total
+  const score = submission.score ?? graded.score
   return (
     <Modal onClose={onClose} size="lg">
       <h3 className="text-base font-bold text-ink mb-1"><ClipboardList size={18} /> {quiz.title} — Review</h3>
       <p className="text-xs text-ink2 mb-4">
-        Score: <strong>{submission.score}/{quiz.questions.length}</strong> · {((submission.score / quiz.questions.length) * 100).toFixed(1)}%
+        Score: <strong>{score}/{total}</strong> · {total > 0 ? ((score / total) * 100).toFixed(1) : '0'}%
       </p>
       <div className="flex flex-col gap-3" style={{ maxHeight: 400, overflowY: 'auto' }}>
         {quiz.questions.map((q, i) => {
           const studentAns = (submission.answers?.[i] || '').toString()
-          const correct = (q.answer || '').trim().toLowerCase()
-          const given = studentAns.trim().toLowerCase()
-          let isCorrect = false
-          if (q.type === 'multiple_choice' || q.type === 'true_false') {
-            isCorrect = given === correct
-          } else {
-            isCorrect = correct && (given.includes(correct) || (correct.includes(given) && given.length >= 3))
-          }
+          const res = graded.perQuestion[i] || { correct: false, awarded: 0, points: 1 }
           return (
-            <ReviewRow key={i} q={q} index={i} isCorrect={isCorrect} studentAns={studentAns} />
+            <ReviewRow key={i} q={q} index={i} isCorrect={res.correct} partial={res.awarded > 0 && !res.correct} studentAns={studentAns} />
           )
         })}
       </div>
@@ -582,7 +567,7 @@ export default function StudentQuizTab({ student, viewClassId }) {
 
   function getStatus(q) {
     const sub = q.submissions?.[student.id]
-    if (sub) return { label: 'Completed', variant: 'green', done: true, score: sub.score, total: q.questions?.length || 0 }
+    if (sub) return { label: 'Completed', variant: 'green', done: true, score: sub.score, total: (sub.total ?? q.totalPoints ?? q.questions?.length) || 0 }
     if (now < q.openAt) return { label: 'Upcoming', variant: 'blue', done: false }
     if (now > q.closeAt) return { label: 'Missed', variant: 'red', done: false }
     return { label: 'Open', variant: 'green', done: false, canTake: true }
@@ -634,8 +619,8 @@ export default function StudentQuizTab({ student, viewClassId }) {
                     Open: {openLabel} · Close: {closeLabel}
                   </div>
                   {status.done && sub && (
-                    <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: status.score / status.total >= 0.75 ? 'var(--green)' : 'var(--red)' }}>
-                      Score: {sub.score}/{q.questions?.length || 0} ({((sub.score / (q.questions?.length || 1)) * 100).toFixed(1)}%)
+                    <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: status.total > 0 && status.score / status.total >= 0.75 ? 'var(--green)' : 'var(--red)' }}>
+                      Score: {status.score}/{status.total} ({status.total > 0 ? ((status.score / status.total) * 100).toFixed(1) : '0'}%)
                     </div>
                   )}
                 </div>
