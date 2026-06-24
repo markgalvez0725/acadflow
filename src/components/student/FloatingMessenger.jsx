@@ -90,6 +90,12 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
       const latest = directMsgs[0]
       const allReplies = directMsgs.flatMap(m => m.replies || [])
       const lastActivity = allReplies.length ? Math.max(latest.ts, ...allReplies.map(r => r.ts)) : latest.ts
+      // Newest line across messages AND replies, so a teacher's latest (private)
+      // reply drives the preview — not just the newest top-level message.
+      const lastEntry = directMsgs.flatMap(m => [
+        { body: m.body || '', from: m.from, ts: m.ts || 0, secure: m.secure },
+        ...(m.replies || []).map(r => ({ body: r.body || '', from: r.from, ts: r.ts || 0, secure: r.secure })),
+      ]).filter(e => e.body).sort((a, b) => b.ts - a.ts)[0] || latest
       const hasUnread = directMsgs.some(m => {
         const lastReadAt = m.readAt?.[s.id] || 0
         if (m.from !== s.id) {
@@ -100,7 +106,7 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
         return lastAdminReply > lastReadAt
       })
       const totalReplies = directMsgs.reduce((a, m) => a + (m.replies || []).length, 0)
-      result.push({ type: 'direct', latest, lastActivity, hasUnread, replyCount: totalReplies, msgCount: directMsgs.length })
+      result.push({ type: 'direct', latest, lastEntry, lastActivity, hasUnread, replyCount: totalReplies, msgCount: directMsgs.length })
     }
     announcements.forEach(m => {
       const isRead = Array.isArray(m.read) && m.read.includes(s.id)
@@ -266,10 +272,10 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
                   </div>
                 ) : items.map((item) => {
                   if (item.type === 'direct') {
-                    const m = item.latest
+                    const m = item.lastEntry || item.latest
                     const preview = m.secure
                       ? (m.from === s.id ? 'You: ' : '') + '🔒 Private message'
-                      : (m.from === s.id ? 'You: ' : '') + m.body.slice(0, 48) + (m.body.length > 48 ? '…' : '')
+                      : (m.from === s.id ? 'You: ' : '') + (m.body || '').slice(0, 48) + ((m.body || '').length > 48 ? '…' : '')
                     return (
                       <div key="direct" className={`s-msg-thread-item${item.hasUnread ? ' unread' : ''}`} onClick={openConversation} style={{ cursor: 'pointer' }}>
                         <div className="s-conv-avatar">T</div>
@@ -285,7 +291,9 @@ export default function FloatingStudentMessenger({ student: s, messages, unreadC
                     )
                   }
                   const m = item.msg
-                  const preview = m.secure ? '🔒 Private message' : m.body.slice(0, 48) + (m.body.length > 48 ? '…' : '')
+                  const lastRep = (m.replies || []).reduce((mx, r) => ((r.ts || 0) > (mx?.ts || 0) ? r : mx), null)
+                  const newestEntry = (lastRep && (lastRep.ts || 0) > (m.ts || 0)) ? lastRep : m
+                  const preview = newestEntry.secure ? '🔒 Private message' : m.body.slice(0, 48) + (m.body.length > 48 ? '…' : '')
                   return (
                     <div key={m.id} className={`s-msg-thread-item${item.hasUnread ? ' unread' : ''}`} onClick={() => openMessage(m.id)} style={{ cursor: 'pointer' }}>
                       <div className="s-conv-avatar announce">A</div>

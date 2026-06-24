@@ -281,7 +281,7 @@ export default function MessagesTab({ student: s, messages }) {
         // Atomic append — won't clobber a teacher reply sent at the same time.
         await fbAddMessageReply(db.current, replyMsgId, newReply, { readerId: s.id, adminRead: false })
         // Notify teacher: in-app badge + best-effort web push.
-        notifyAdminMessage(db.current, s.name || s.id, secure ? 'Private message' : text, 'reply')
+        notifyAdminMessage(db.current, s.name || s.id, text, 'reply', { secure })
       } else {
         // New message to admin
         const newId = 'm' + Date.now() + Math.random().toString(36).slice(2, 6)
@@ -295,7 +295,7 @@ export default function MessagesTab({ student: s, messages }) {
         setReplyText(''); setSecureOn(false); setSecureTouched(false); setReplyingTo(null)
         await setDoc(doc(db.current, 'messages', newId), msg)
         // Notify teacher of a brand-new conversation (was previously missing).
-        notifyAdminMessage(db.current, s.name || s.id, secure ? 'Private message' : text, 'message')
+        notifyAdminMessage(db.current, s.name || s.id, text, 'message', { secure })
       }
     } catch (e) {
       toast('Failed to send: ' + e.message, 'error')
@@ -401,7 +401,9 @@ export default function MessagesTab({ student: s, messages }) {
         )
       }
       const m = item.msg
-      const preview = m.secure ? '🔒 Private message' : m.body.slice(0, 60) + (m.body.length > 60 ? '…' : '')
+      const lastRep = (m.replies || []).reduce((mx, r) => ((r.ts || 0) > (mx?.ts || 0) ? r : mx), null)
+      const newestEntry = (lastRep && (lastRep.ts || 0) > (m.ts || 0)) ? lastRep : m
+      const preview = newestEntry.secure ? '🔒 Private message' : m.body.slice(0, 60) + (m.body.length > 60 ? '…' : '')
       const replyCount = (m.replies || []).length
       // Class/subject group chats are teacher-owned: students can't delete them.
       const locked = isGroupChat(m)

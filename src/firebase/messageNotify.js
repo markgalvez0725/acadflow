@@ -33,35 +33,44 @@ export async function appendNotif(db, ownerId, notif) {
   }
 }
 
+// Smart-locked messages must never surface their text in a notification (in-app
+// badge OR lock-screen web push). Masking lives HERE, at the single choke point
+// every message notification flows through, so no call site can forget it.
+const PRIVATE_LABEL = 'Private message'
+function notifBody(text, secure, max) {
+  if (secure) return PRIVATE_LABEL
+  return (text || '').slice(0, max)
+}
+
 /** Teacher → one student: in-app notif + best-effort web push. */
-export async function notifyStudentMessage(db, studentId, body, fromLabel = 'your teacher') {
+export async function notifyStudentMessage(db, studentId, body, fromLabel = 'your teacher', { secure = false } = {}) {
   if (!studentId) return
   const title = 'New message from ' + fromLabel
   await appendNotif(db, studentId, {
     type: 'msg_out',
     title,
-    body: (body || '').slice(0, 80),
+    body: notifBody(body, secure, 80),
     link: 'messages',
   })
   sendPushToOwners(db, [studentId], {
     title,
-    body: (body || '').slice(0, 120) || 'Open AcadFlow to read it.',
+    body: notifBody(body, secure, 120) || 'Open AcadFlow to read it.',
   }, { url: '/', tag: 'message' })
 }
 
 /** Teacher → many students (broadcast / announcement): in-app notif each + one push. */
-export async function notifyStudentsBroadcast(db, studentIds, subject) {
+export async function notifyStudentsBroadcast(db, studentIds, subject, { secure = false } = {}) {
   const ids = [...new Set((studentIds || []).filter(Boolean))]
   if (!ids.length) return
   await Promise.all(ids.map(id => appendNotif(db, id, {
     type: 'msg_out',
     title: 'New announcement from your teacher',
-    body: (subject || '').slice(0, 80),
+    body: notifBody(subject, secure, 80),
     link: 'messages',
   })))
   sendPushToOwners(db, ids, {
     title: 'New announcement',
-    body: (subject || '').slice(0, 120) || 'Open AcadFlow to read it.',
+    body: notifBody(subject, secure, 120) || 'Open AcadFlow to read it.',
   }, { url: '/', tag: 'message' })
 }
 
@@ -82,16 +91,16 @@ export async function notifyMention(db, ownerId, { fromName, snippet, link = 'st
 }
 
 /** Student → teacher: in-app admin notif + best-effort web push to admin. */
-export async function notifyAdminMessage(db, studentName, body, kind = 'message') {
+export async function notifyAdminMessage(db, studentName, body, kind = 'message', { secure = false } = {}) {
   const title = (kind === 'reply' ? 'Reply from ' : 'Message from ') + (studentName || 'a student')
   await appendNotif(db, 'admin', {
     type: 'msg_in',
     title,
-    body: (body || '').slice(0, 80),
+    body: notifBody(body, secure, 80),
     link: 'messages',
   })
   sendPushToOwners(db, ['admin'], {
     title,
-    body: (body || '').slice(0, 120) || 'Open AcadFlow to read it.',
+    body: notifBody(body, secure, 120) || 'Open AcadFlow to read it.',
   }, { url: '/', tag: 'message' })
 }

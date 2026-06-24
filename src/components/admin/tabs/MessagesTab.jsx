@@ -257,7 +257,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
     const subjClassIds = isSubjectBroadcast ? subjectClassIds(subjectName) : null
     const msgType = (to === 'all' || isClassBroadcast || isSubjectBroadcast) ? 'announcement' : 'direct'
     const id = msgId()
-    const snippet = secureOn ? 'Private message' : body.trim().slice(0, 80)
+    const snippet = body.trim().slice(0, 80)
 
     if (isSubjectBroadcast && (!subjClassIds || !subjClassIds.length)) {
       setErr('That subject has no current-semester classes.'); setSending(false); return
@@ -286,17 +286,17 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
       await setDoc(doc(db.current, 'messages', id), msg)
       // Notify the recipient(s): in-app badge + best-effort web push.
       if (to === 'all') {
-        notifyStudentsBroadcast(db.current, students.map(s => s.id), snippet)
+        notifyStudentsBroadcast(db.current, students.map(s => s.id), snippet, { secure: secureOn })
       } else if (isClassBroadcast) {
         const ids = students
           .filter(s => s.classId === classId || s.classIds?.includes(classId))
           .map(s => s.id)
-        notifyStudentsBroadcast(db.current, ids, snippet)
+        notifyStudentsBroadcast(db.current, ids, snippet, { secure: secureOn })
       } else if (isSubjectBroadcast) {
         const ids = studentsInClasses(students, subjClassIds).map(s => s.id)
-        notifyStudentsBroadcast(db.current, ids, snippet)
+        notifyStudentsBroadcast(db.current, ids, snippet, { secure: secureOn })
       } else {
-        notifyStudentMessage(db.current, to, secureOn ? 'Private message' : body.trim())
+        notifyStudentMessage(db.current, to, body.trim(), undefined, { secure: secureOn })
       }
       toast('Message sent!', 'green')
       onClose()
@@ -927,7 +927,6 @@ export default function MessagesTab() {
       return
     }
     const reply = { from: 'admin', body: text, ts: Date.now(), ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}) }
-    const notifText = secure ? 'Private message' : text
 
     try {
       if (thread.type === 'conversation') {
@@ -936,23 +935,23 @@ export default function MessagesTab() {
         const targetMsg = studentMsgs[0]
         if (!targetMsg) return
         await fbAddMessageReply(db.current, targetMsg.id, reply, { adminRead: true })
-        notifyStudentMessage(db.current, thread.studentId, notifText)
+        notifyStudentMessage(db.current, thread.studentId, text, undefined, { secure })
       } else {
         const m = messages.find(x => x.id === thread.msgId)
         if (!m) return
         await fbAddMessageReply(db.current, m.id, reply, { adminRead: true })
         // Notify the recipient(s) of this thread.
         if (m.to === 'all') {
-          notifyStudentsBroadcast(db.current, students.map(s => s.id), notifText)
+          notifyStudentsBroadcast(db.current, students.map(s => s.id), text, { secure })
         } else if (typeof m.to === 'string' && m.to.startsWith('class:')) {
           const cid = m.to.slice(6)
           const ids = students.filter(s => s.classId === cid || s.classIds?.includes(cid)).map(s => s.id)
-          notifyStudentsBroadcast(db.current, ids, notifText)
+          notifyStudentsBroadcast(db.current, ids, text, { secure })
         } else if (typeof m.to === 'string' && m.to.startsWith('subject:')) {
           const ids = studentsInClasses(students, m.classIds).map(s => s.id)
-          notifyStudentsBroadcast(db.current, ids, notifText)
+          notifyStudentsBroadcast(db.current, ids, text, { secure })
         } else if (m.to && m.to !== 'admin') {
-          notifyStudentMessage(db.current, m.to, notifText)
+          notifyStudentMessage(db.current, m.to, text, undefined, { secure })
         }
       }
     } catch (e) {
@@ -969,7 +968,11 @@ export default function MessagesTab() {
       if (item.kind === 'conversation') {
         const s = students.find(x => x.id === item.sid)
         const name = s?.name || item.sid
-        const preview = item.latestMsg.secure ? '🔒 Private message' : (item.latestMsg.body || '').slice(0, 60) + ((item.latestMsg.body || '').length > 60 ? '…' : '')
+        const lastEntry = (item.allMsgs || []).flatMap(m => [
+          { body: m.body || '', ts: m.ts || 0, secure: m.secure },
+          ...(m.replies || []).map(r => ({ body: r.body || '', ts: r.ts || 0, secure: r.secure })),
+        ]).filter(e => e.body).sort((a, b) => b.ts - a.ts)[0] || item.latestMsg
+        const preview = lastEntry.secure ? '🔒 Private message' : (lastEntry.body || '').slice(0, 60) + ((lastEntry.body || '').length > 60 ? '…' : '')
         const isActive = activeConv?.type === 'conversation' && activeConv.studentId === item.sid
         return (
           <ConvItem
@@ -993,7 +996,9 @@ export default function MessagesTab() {
       // Group chat / broadcast
       const m = item.msg
       const isSubject = typeof m.to === 'string' && m.to.startsWith('subject:')
-      const preview = m.secure
+      const lastRep = (m.replies || []).reduce((mx, r) => ((r.ts || 0) > (mx?.ts || 0) ? r : mx), null)
+      const newestEntry = (lastRep && (lastRep.ts || 0) > (m.ts || 0)) ? lastRep : m
+      const preview = newestEntry.secure
         ? (m.subject ? m.subject + ' — ' : '') + '🔒 Private message'
         : (m.subject ? m.subject + ' — ' : '') + (m.body || '').slice(0, 60) + ((m.body || '').length > 60 ? '…' : '')
       const isActive = activeConv?.type === 'message' && activeConv.msgId === m.id
