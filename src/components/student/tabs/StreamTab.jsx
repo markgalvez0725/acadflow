@@ -61,6 +61,7 @@ function Pagination({ page, total, pageSize, onPrev, onNext }) {
   )
 }
 import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, Clock, CheckCircle2, XCircle, AlertCircle, Award, Video, Link } from 'lucide-react'
+import PostShell from '@/components/primitives/StreamPost'
 
 function timeAgo(ms) {
   if (!ms) return ''
@@ -96,52 +97,36 @@ function TypeBadge({ type }) {
   )
 }
 
+function classLabel(classObj) {
+  return classObj?.name ? `${classObj.name}${classObj.section ? ' · ' + classObj.section : ''}` : ''
+}
+
 function AnnouncementCard({ item, classObj }) {
   const ann = item.data
   const hasMessage = ann.message && ann.message !== '<p></p>' && ann.message !== ''
   const commentCount = (ann.comments || []).length
-
+  const cls = classLabel(classObj)
+  const hasBody = hasMessage || ann.meetingLink || ann.moduleLink || (!hasMessage && ann.topics?.length > 0)
   return (
-    <div className={`stream-card${item.pinned ? ' stream-card--pinned' : ''}`}>
-      <div className="stream-card-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: '#f59e0b' }}><Megaphone size={16} /></span>
-          <TypeBadge type="announcement" />
-          {item.pinned && <span className="badge badge-blue" style={{ fontSize: 10 }}>Pinned</span>}
-        </div>
-        <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{timeAgo(ann.createdAt)}</span>
-      </div>
-      <div className="stream-card-title">{ann.title}</div>
-      {hasMessage && (
-        <ExpandableHtml
-          html={sanitizeAnnouncementHtml(ann.message)}
-          style={{ fontSize: 13, color: 'var(--ink2)', marginTop: 6, lineHeight: 1.6 }}
-        />
-      )}
-      {ann.meetingLink && (
-        <a href={ann.meetingLink} target="_blank" rel="noreferrer" className="stream-link-chip">
-          <Video size={12} /> Join Meeting
-        </a>
-      )}
-      {ann.moduleLink && (
-        <a href={ann.moduleLink} target="_blank" rel="noreferrer" className="stream-link-chip">
-          <BookOpen size={12} /> Module Link
-        </a>
-      )}
-      {!hasMessage && ann.topics?.length > 0 && (
-        <ul style={{ marginTop: 8, paddingLeft: 20, fontSize: 13, color: 'var(--ink2)', listStyle: 'disc' }}>
-          {ann.topics.map((t, i) => <li key={i}>{t}</li>)}
-        </ul>
-      )}
-      <div className="stream-card-footer">
-        <span style={{ fontSize: 11, color: 'var(--ink3)' }}>
-          {classObj?.name}{classObj?.section ? ` — ${classObj.section}` : ''}
-        </span>
-        {commentCount > 0 && (
-          <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{commentCount} comment{commentCount !== 1 ? 's' : ''}</span>
-        )}
-      </div>
-    </div>
+    <PostShell
+      type="announcement"
+      title={ann.title}
+      meta={<>{cls && <span>{cls}</span>}{cls && <span>·</span>}<span>{timeAgo(ann.createdAt)}</span></>}
+      badges={item.pinned ? <span className="badge badge-blue" style={{ fontSize: 10, flexShrink: 0 }}>Pinned</span> : null}
+      pinned={item.pinned}
+      commentCount={commentCount}
+    >
+      {hasBody ? (
+        <>
+          {hasMessage && <ExpandableHtml html={sanitizeAnnouncementHtml(ann.message)} style={{ fontSize: 13.5, color: 'var(--ink2)', lineHeight: 1.55 }} />}
+          {ann.meetingLink && <a href={ann.meetingLink} target="_blank" rel="noreferrer" className="stream-link-chip"><Video size={12} /> Join Meeting</a>}
+          {ann.moduleLink && <a href={ann.moduleLink} target="_blank" rel="noreferrer" className="stream-link-chip"><BookOpen size={12} /> Module Link</a>}
+          {!hasMessage && ann.topics?.length > 0 && (
+            <ul style={{ marginTop: 4, paddingLeft: 20, listStyle: 'disc' }}>{ann.topics.map((t, i) => <li key={i}>{t}</li>)}</ul>
+          )}
+        </>
+      ) : null}
+    </PostShell>
   )
 }
 
@@ -153,51 +138,27 @@ function ActivityCard({ item, classObj, student }) {
   const graded = sub?.score != null
   const overdue = act.deadline && now > act.deadline && !submitted
   const totalRubric = (act.rubric || []).reduce((s, r) => s + (r.points || 0), 0)
-
   return (
-    <div className="stream-card">
-      <div className="stream-card-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: '#6366f1' }}><ClipboardList size={16} /></span>
-          <TypeBadge type="activity" />
-          {act.subject && <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{act.subject}</span>}
-        </div>
-        <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{timeAgo(act.createdAt)}</span>
-      </div>
-      <div className="stream-card-title">{act.title}</div>
+    <PostShell
+      type="activity"
+      title={act.title}
+      meta={<><span>Activity{act.subject ? ` · ${act.subject}` : ''}</span><span>·</span><span>{timeAgo(act.createdAt)}</span></>}
+    >
       {act.deadline && (
-        <div style={{ fontSize: 12, color: overdue ? '#ef4444' : 'var(--ink3)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Clock size={12} /> Due: {formatDate(act.deadline)}
-          {overdue && <span style={{ fontWeight: 600 }}>· Overdue</span>}
+        <div style={{ fontSize: 12, color: overdue ? '#ef4444' : 'var(--ink3)', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Clock size={12} /> Due: {formatDate(act.deadline)}{overdue && <span style={{ fontWeight: 600 }}> · Overdue</span>}
         </div>
       )}
-      <div style={{ display: 'flex', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         {submitted ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#10b981', fontWeight: 600 }}>
-            <CheckCircle2 size={14} /> Submitted
-          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#10b981', fontWeight: 600 }}><CheckCircle2 size={14} /> Submitted</div>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: overdue ? '#ef4444' : '#f59e0b', fontWeight: 600 }}>
-            <AlertCircle size={14} /> {overdue ? 'Missed' : 'Not yet submitted'}
-          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: overdue ? '#ef4444' : '#f59e0b', fontWeight: 600 }}><AlertCircle size={14} /> {overdue ? 'Missed' : 'Not yet submitted'}</div>
         )}
-        {graded && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#6366f1', fontWeight: 600 }}>
-            <Award size={14} /> Score: {sub.score}{totalRubric > 0 ? `/${totalRubric}` : ''}
-          </div>
-        )}
-        {sub?.feedback && (
-          <div style={{ fontSize: 12, color: 'var(--ink2)', marginTop: 6, fontStyle: 'italic' }}>
-            "{sub.feedback}"
-          </div>
-        )}
+        {graded && <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#6366f1', fontWeight: 600 }}><Award size={14} /> Score: {sub.score}{totalRubric > 0 ? `/${totalRubric}` : ''}</div>}
       </div>
-      <div className="stream-card-footer">
-        <span style={{ fontSize: 11, color: 'var(--ink3)' }}>
-          {classObj?.name}{classObj?.section ? ` — ${classObj.section}` : ''}
-        </span>
-      </div>
-    </div>
+      {sub?.feedback && <div style={{ fontSize: 12, color: 'var(--ink2)', marginTop: 6, fontStyle: 'italic' }}>"{sub.feedback}"</div>}
+    </PostShell>
   )
 }
 
@@ -209,114 +170,68 @@ function QuizCard({ item, classObj, student }) {
   const totalQ = (quiz.questions || []).length
   const sub = quiz.submissions?.[student?.id]
   const taken = !!sub
-
   return (
-    <div className="stream-card">
-      <div className="stream-card-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: '#8b5cf6' }}><FileQuestion size={16} /></span>
-          <TypeBadge type="quiz" />
-          {isOpen && <span style={{ fontSize: 10, background: '#dcfce7', color: '#166534', fontWeight: 700, padding: '1px 7px', borderRadius: 20 }}>OPEN</span>}
-          {isClosed && <span style={{ fontSize: 10, background: '#fee2e2', color: '#991b1b', fontWeight: 700, padding: '1px 7px', borderRadius: 20 }}>CLOSED</span>}
-        </div>
-        <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{timeAgo(quiz.openAt)}</span>
-      </div>
-      <div className="stream-card-title">{quiz.title}</div>
-      <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 4 }}>
+    <PostShell
+      type="quiz"
+      title={quiz.title}
+      meta={<><span>Quiz{quiz.subject ? ` · ${quiz.subject}` : ''}</span><span>·</span><span>{timeAgo(quiz.openAt)}</span></>}
+      badges={isOpen
+        ? <span style={{ fontSize: 10, background: '#dcfce7', color: '#166534', fontWeight: 700, padding: '1px 7px', borderRadius: 20, flexShrink: 0 }}>OPEN</span>
+        : isClosed ? <span style={{ fontSize: 10, background: '#fee2e2', color: '#991b1b', fontWeight: 700, padding: '1px 7px', borderRadius: 20, flexShrink: 0 }}>CLOSED</span> : null}
+    >
+      <div style={{ fontSize: 12, color: 'var(--ink3)' }}>
         {quiz.openAt && <span><Clock size={11} style={{ display: 'inline', marginRight: 3 }} />Opens: {formatDate(quiz.openAt)}</span>}
         {quiz.closeAt && <span style={{ marginLeft: 12 }}>Closes: {formatDate(quiz.closeAt)}</span>}
       </div>
-      <div style={{ display: 'flex', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ fontSize: 12, color: 'var(--ink3)' }}>{totalQ} question{totalQ !== 1 ? 's' : ''}</div>
         {taken ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#10b981', fontWeight: 600 }}>
-            <CheckCircle2 size={14} /> Completed
-            {sub.score != null && <span>· Score: {sub.score}%</span>}
-          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#10b981', fontWeight: 600 }}><CheckCircle2 size={14} /> Completed{sub.score != null && <span> · {sub.score}%</span>}</div>
         ) : isOpen ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#f59e0b', fontWeight: 600 }}>
-            <AlertCircle size={14} /> Not yet taken
-          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#f59e0b', fontWeight: 600 }}><AlertCircle size={14} /> Not yet taken</div>
         ) : isClosed ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#ef4444', fontWeight: 600 }}>
-            <XCircle size={14} /> Missed
-          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#ef4444', fontWeight: 600 }}><XCircle size={14} /> Missed</div>
         ) : (
           <div style={{ fontSize: 12, color: 'var(--ink3)' }}>Not yet open</div>
         )}
       </div>
-      <div className="stream-card-footer">
-        <span style={{ fontSize: 11, color: 'var(--ink3)' }}>
-          {classObj?.name}{classObj?.section ? ` — ${classObj.section}` : ''}
-        </span>
-      </div>
-    </div>
+    </PostShell>
   )
 }
 
 function GradeCard({ item, classObj }) {
   const { subject, gradeData, uploadedAt } = item.data
+  const cls = classLabel(classObj)
   return (
-    <div className="stream-card">
-      <div className="stream-card-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: '#10b981' }}><BookOpen size={16} /></span>
-          <TypeBadge type="grade" />
-          {subject && <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{subject}</span>}
-        </div>
-        <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{timeAgo(uploadedAt)}</span>
+    <PostShell
+      type="grade"
+      title={`Grade posted for ${subject}`}
+      meta={<>{cls && <span>{cls}</span>}{cls && <span>·</span>}<span>{timeAgo(uploadedAt)}</span></>}
+    >
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+        {gradeData.midterm != null && <span style={{ fontSize: 13 }}>Midterm: <strong>{gradeData.midterm?.toFixed(1)}</strong></span>}
+        {gradeData.finals != null && <span style={{ fontSize: 13 }}>Finals: <strong>{gradeData.finals?.toFixed(1)}</strong></span>}
+        {gradeData.finalGrade != null && <span style={{ fontSize: 13, color: 'var(--ink)' }}>Final Grade: <strong style={{ color: '#10b981' }}>{gradeData.finalGrade?.toFixed(1)}</strong></span>}
       </div>
-      <div className="stream-card-title">Grade posted for {subject}</div>
-      <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap' }}>
-        {gradeData.midterm != null && (
-          <span style={{ fontSize: 13, color: 'var(--ink2)' }}>Midterm: <strong>{gradeData.midterm?.toFixed(1)}</strong></span>
-        )}
-        {gradeData.finals != null && (
-          <span style={{ fontSize: 13, color: 'var(--ink2)' }}>Finals: <strong>{gradeData.finals?.toFixed(1)}</strong></span>
-        )}
-        {gradeData.finalGrade != null && (
-          <span style={{ fontSize: 13, color: 'var(--ink)' }}>Final Grade: <strong style={{ color: '#10b981' }}>{gradeData.finalGrade?.toFixed(1)}</strong></span>
-        )}
-      </div>
-      <div className="stream-card-footer">
-        <span style={{ fontSize: 11, color: 'var(--ink3)' }}>
-          {classObj?.name}{classObj?.section ? ` — ${classObj.section}` : ''}
-        </span>
-      </div>
-    </div>
+    </PostShell>
   )
 }
 
 function AttendanceCard({ item, classObj }) {
   const { subject, date, present } = item.data
+  const cls = classLabel(classObj)
   return (
-    <div className="stream-card">
-      <div className="stream-card-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: '#0ea5e9' }}><CalendarCheck size={16} /></span>
-          <TypeBadge type="attendance" />
-          {subject && <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{subject}</span>}
-        </div>
-        <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{date}</span>
-      </div>
-      <div className="stream-card-title">Attendance — {date}</div>
-      <div style={{ marginTop: 8 }}>
-        {present ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#10b981', fontWeight: 600 }}>
-            <CheckCircle2 size={14} /> Present
-          </div>
-        ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#ef4444', fontWeight: 600 }}>
-            <XCircle size={14} /> Absent
-          </div>
-        )}
-      </div>
-      <div className="stream-card-footer">
-        <span style={{ fontSize: 11, color: 'var(--ink3)' }}>
-          {classObj?.name}{classObj?.section ? ` — ${classObj.section}` : ''}
-        </span>
-      </div>
-    </div>
+    <PostShell
+      type="attendance"
+      title={`Attendance — ${date}`}
+      meta={<span>{subject || 'Attendance'}{cls ? ` · ${cls}` : ''}</span>}
+    >
+      {present ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#10b981', fontWeight: 600 }}><CheckCircle2 size={14} /> Present</div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#ef4444', fontWeight: 600 }}><XCircle size={14} /> Absent</div>
+      )}
+    </PostShell>
   )
 }
 
@@ -435,42 +350,41 @@ export default function StreamTab({ student, viewClassId, classes }) {
 
   if (!fbReady) {
     return (
-      <div style={{ paddingBottom: 32, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div className="s-feed" style={{ paddingBottom: 32 }}>
         <StreamSkeleton />
       </div>
     )
   }
 
+  const TYPE_FILTERS = [
+    ['all', 'All'],
+    ['announcement', 'Announcements'],
+    ['activity', 'Activities'],
+    ['quiz', 'Quizzes'],
+    ['grade', 'Grades'],
+    ['attendance', 'Attendance'],
+  ]
+
   return (
-    <div style={{ paddingBottom: 32 }}>
-      {/* Filter */}
-      <div style={{ marginBottom: 16, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+    <div className="s-feed" style={{ paddingBottom: 32 }}>
+      {/* Filter pills + optional subject dropdown */}
+      <div className="s-filter-pills">
+        {TYPE_FILTERS.map(([k, label]) => (
+          <button key={k} className={`s-pill${filterType === k ? ' active' : ''}`} onClick={() => { setFilterType(k); setStreamPage(0) }}>{label}</button>
+        ))}
+      </div>
+      {subjectOptions.length > 1 && (
         <select
           className="form-input"
-          style={{ fontSize: 13, flex: 1, minWidth: 150, maxWidth: 220 }}
-          value={filterType}
-          onChange={e => { setFilterType(e.target.value); setStreamPage(0) }}
+          style={{ fontSize: 13, maxWidth: 220 }}
+          value={filterSubject}
+          onChange={e => { setFilterSubject(e.target.value); setStreamPage(0) }}
+          title="Filter by subject"
         >
-          <option value="all">All Updates</option>
-          <option value="announcement">Announcements</option>
-          <option value="activity">Activities</option>
-          <option value="quiz">Quizzes</option>
-          <option value="grade">Grades</option>
-          <option value="attendance">Attendance</option>
+          <option value="all">All Subjects</option>
+          {subjectOptions.map(subj => <option key={subj} value={subj}>{subj}</option>)}
         </select>
-        {subjectOptions.length > 1 && (
-          <select
-            className="form-input"
-            style={{ fontSize: 13, flex: 1, minWidth: 140, maxWidth: 220 }}
-            value={filterSubject}
-            onChange={e => { setFilterSubject(e.target.value); setStreamPage(0) }}
-            title="Filter by subject"
-          >
-            <option value="all">All Subjects</option>
-            {subjectOptions.map(subj => <option key={subj} value={subj}>{subj}</option>)}
-          </select>
-        )}
-      </div>
+      )}
 
       {streamItems.length === 0 && (
         <div style={{ textAlign: 'center', color: 'var(--ink3)', padding: '48px 0', fontSize: 14 }}>
@@ -478,28 +392,22 @@ export default function StreamTab({ student, viewClassId, classes }) {
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {streamItems.slice(streamPage * PAGE_SIZE, (streamPage + 1) * PAGE_SIZE).map((item, idx, arr) => {
-          const classObj = getClassObj(item)
-          const label = item.pinned ? 'Pinned' : getGroupLabel(item.ts)
-          const prevLabel = idx > 0 ? (arr[idx - 1].pinned ? 'Pinned' : getGroupLabel(arr[idx - 1].ts)) : null
-          const showGroup = label !== prevLabel
-          return (
-            <React.Fragment key={item.id}>
-              {showGroup && (
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.08em', paddingTop: idx > 0 ? 8 : 0 }}>
-                  {label}
-                </div>
-              )}
-              {item.type === 'announcement' && <AnnouncementCard item={item} classObj={classObj} />}
-              {item.type === 'activity' && <ActivityCard item={item} classObj={classObj} student={student} />}
-              {item.type === 'quiz' && <QuizCard item={item} classObj={classObj} student={student} />}
-              {item.type === 'grade' && <GradeCard item={item} classObj={classObj} />}
-              {item.type === 'attendance' && <AttendanceCard item={item} classObj={classObj} />}
-            </React.Fragment>
-          )
-        })}
-      </div>
+      {streamItems.slice(streamPage * PAGE_SIZE, (streamPage + 1) * PAGE_SIZE).map((item, idx, arr) => {
+        const classObj = getClassObj(item)
+        const label = item.pinned ? 'Pinned' : getGroupLabel(item.ts)
+        const prevLabel = idx > 0 ? (arr[idx - 1].pinned ? 'Pinned' : getGroupLabel(arr[idx - 1].ts)) : null
+        const showGroup = label !== prevLabel
+        return (
+          <React.Fragment key={item.id}>
+            {showGroup && <div className="s-feed-day">{label}</div>}
+            {item.type === 'announcement' && <AnnouncementCard item={item} classObj={classObj} />}
+            {item.type === 'activity' && <ActivityCard item={item} classObj={classObj} student={student} />}
+            {item.type === 'quiz' && <QuizCard item={item} classObj={classObj} student={student} />}
+            {item.type === 'grade' && <GradeCard item={item} classObj={classObj} />}
+            {item.type === 'attendance' && <AttendanceCard item={item} classObj={classObj} />}
+          </React.Fragment>
+        )
+      })}
       <Pagination page={streamPage} total={streamItems.length} pageSize={PAGE_SIZE} onPrev={() => setStreamPage(p => p - 1)} onNext={() => setStreamPage(p => p + 1)} />
     </div>
   )
