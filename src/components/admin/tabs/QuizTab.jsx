@@ -5,7 +5,7 @@ import { useUI } from '@/context/UIContext'
 import Modal from '@/components/primitives/Modal'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
-import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList, Pencil, Save, Rocket, FileText, X, Lock, Circle, Archive, ArchiveRestore, Sparkles, Wand2, FileUp } from 'lucide-react'
+import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList, Pencil, Save, Rocket, FileText, X, Lock, Circle, Archive, ArchiveRestore, Sparkles, Wand2, FileUp, Copy } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { extractTextFromFile } from '@/utils/lessonExtract'
 import { generateDraftQuestions } from '@/utils/quizGen'
@@ -717,6 +717,25 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
     }
   }
 
+  async function handleClone() {
+    try {
+      const id = quizId()
+      const copy = {
+        ...quiz, id,
+        title: `${quiz.title} (Copy)`,
+        submissions: {},          // a fresh quiz — no carried-over attempts
+        createdAt: Date.now(),
+        openAt: Date.now(),
+        closeAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      }
+      await setDoc(doc(db.current, 'quizzes', id), copy)
+      toast('Quiz duplicated — opens now, closes in 7 days. Edit to adjust dates/classes.', 'green')
+      onClose()
+    } catch (e) {
+      toast('Duplicate failed: ' + e.message, 'red')
+    }
+  }
+
   return (
     <Modal onClose={onClose} size="lg">
       <div className="mb-2 pr-8">
@@ -754,6 +773,7 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
               <th>Score</th>
               <th>Percentage</th>
               <th>Time Taken</th>
+              <th title="Anti-cheat signals captured while taking the quiz">Flags</th>
             </tr>
           </thead>
           <tbody>
@@ -761,9 +781,12 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
               const sub = submissions[s.id]
               const hasAttempt = !!sub
               const score = sub?.score
-              const total = quiz.questions?.length || 1
+              const total = (sub?.total ?? quiz.totalPoints ?? quiz.questions?.length) || 1
               const pct = score != null ? ((score / total) * 100).toFixed(1) : null
               const timeTaken = sub?.timeTaken ? Math.round(sub.timeTaken / 60) + ' min' : '—'
+              const limitSecs = (quiz.timeLimit || 0) * 60
+              const tooFast = hasAttempt && sub?.timeTaken != null && limitSecs > 0 && sub.timeTaken < Math.max(20, limitSecs * 0.15)
+              const leftN = sub?.leftCount || 0
               return (
                 <tr key={s.id}>
                   <td>
@@ -784,6 +807,16 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
                     ) : '—'}
                   </td>
                   <td style={{ fontSize: 12, color: 'var(--ink2)' }}>{timeTaken}</td>
+                  <td>
+                    {hasAttempt ? (
+                      <div className="flex gap-1 flex-wrap">
+                        {tooFast && <span className="badge badge-yellow" title={`Finished in ${sub.timeTaken}s — under 15% of the ${quiz.timeLimit}-min limit`}>Fast</span>}
+                        {leftN >= 2 && <span className="badge badge-red" title={`Left the quiz ${leftN} times — answers were reset & reshuffled`}>Left {leftN}×</span>}
+                        {leftN === 1 && <span className="badge badge-gray" title="Left once (first slip is only a warning)">1 slip</span>}
+                        {!tooFast && leftN === 0 && <span style={{ color: 'var(--ink3)', fontSize: 12 }}>—</span>}
+                      </div>
+                    ) : <span style={{ color: 'var(--ink3)', fontSize: 12 }}>—</span>}
+                  </td>
                 </tr>
               )
             })}
@@ -807,6 +840,7 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
 
       <div className="flex gap-2 flex-wrap">
         <button className="btn btn-ghost btn-sm" onClick={onEdit}><Pencil size={13} className="inline-block mr-1" />Edit</button>
+        <button className="btn btn-ghost btn-sm" onClick={handleClone}><Copy size={13} className="inline-block mr-1" />Duplicate</button>
         <button className="btn btn-danger btn-sm" onClick={handleDelete}>Delete</button>
         <button className="btn btn-ghost btn-sm ml-auto" onClick={onClose}>Close</button>
       </div>
