@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { collection, doc, setDoc, updateDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { sortByLastName } from '@/utils/format'
+import { sortByLastName, dayLabel } from '@/utils/format'
 import { isClassCurrent } from '@/utils/active'
 import { isGroupMessage, autoGroupName, groupName, studentTag, groupMembers } from '@/utils/groupChat'
 import GroupMembers from '@/components/primitives/GroupMembers'
@@ -373,13 +373,26 @@ function ThreadPanel({ thread, onReply, onClose, onDelete, onRename }) {
     )
   }
 
+  const GROUP_GAP = 5 * 60 * 1000 // 5 min → start a new visual group
+  const timeLabel = ts => new Date(ts).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {/* Thread header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface flex-shrink-0">
-        <div>
-          <div className="font-semibold text-ink text-sm">{thread.headerName}</div>
-          <div className="text-xs text-ink2">{thread.headerSub}</div>
+      <div className="msg-thread-head">
+        {onClose && (
+          <button className="msg-back-btn md:hidden text-ink2" onClick={onClose} title="Back" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex' }}>
+            <ChevronDown size={20} style={{ transform: 'rotate(90deg)' }} />
+          </button>
+        )}
+        <div className={`msg-thread-head-av ${thread.isGroup ? 'announce' : ''}`}>
+          {thread.headerPhoto
+            ? <img src={thread.headerPhoto} alt="" />
+            : (thread.isGroup ? <Megaphone size={16} /> : getInitials(thread.headerName))}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="font-semibold text-ink text-sm truncate">{thread.headerName}</div>
+          <div className="text-xs text-ink2 truncate">{thread.headerSub}</div>
         </div>
         <div className="flex items-center gap-1">
           {onRename && (
@@ -389,20 +402,31 @@ function ThreadPanel({ thread, onReply, onClose, onDelete, onRename }) {
             <button className="msg-thread-del" onClick={onDelete} title="Delete this conversation"><Trash2 size={17} /></button>
           )}
           {onClose && (
-            <button className="text-ink3 hover:text-ink" onClick={onClose}><X size={18} /></button>
+            <button className="text-ink3 hover:text-ink hidden md:flex" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={18} /></button>
           )}
         </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-1">
+      <div className="flex-1 overflow-y-auto p-4 flex flex-col">
         {thread.entries.map((entry, i) => {
           const isAdmin = entry.from === 'admin'
-          const date = new Date(entry.ts).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+          const prev = thread.entries[i - 1]
+          const next = thread.entries[i + 1]
+          const sameAsPrev = prev && prev.from === entry.from && (entry.ts - prev.ts) < GROUP_GAP
+          const sameAsNext = next && next.from === entry.from && (next.ts - entry.ts) < GROUP_GAP
+          const showDay = !prev || new Date(prev.ts).toDateString() !== new Date(entry.ts).toDateString()
+          const lastOfGroup = !sameAsNext
           return (
-            <div key={i}>
-              <div className={`msg-bubble-row ${isAdmin ? 'sent' : 'received'}`}>
-                <div className={`msg-bubble ${isAdmin ? 'sent' : 'received'}`}>
+            <React.Fragment key={i}>
+              {showDay && <div className="msg-day-sep"><span>{dayLabel(entry.ts)}</span></div>}
+              <div className={`msg-bubble-row ${isAdmin ? 'sent' : 'received'}`} style={{ marginTop: sameAsPrev ? 2 : 8 }}>
+                {!isAdmin && (
+                  <div className="msg-avatar-slot">
+                    {lastOfGroup && <div className="msg-avatar-sm">{getInitials(entry.senderLabel)}</div>}
+                  </div>
+                )}
+                <div className={`msg-bubble ${isAdmin ? 'sent' : 'received'} ${lastOfGroup ? 'tail' : ''}`}>
                   {entry.isMain && entry.subject && (
                     <div style={{ fontSize: 10, fontWeight: 700, color: isAdmin ? 'rgba(255,255,255,.7)' : 'var(--c-accent)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>
                       {entry.subject}
@@ -411,13 +435,15 @@ function ThreadPanel({ thread, onReply, onClose, onDelete, onRename }) {
                   <div style={{ whiteSpace: 'pre-wrap' }}>{entry.body}</div>
                 </div>
               </div>
-              <div className={`msg-meta ${isAdmin ? 'msg-meta-sent' : 'msg-meta-recv'}`}>
-                {entry.senderLabel} · {date}
-                {isAdmin && (
-                  <span className={`msg-tick ${entry.studentRead ? 'msg-tick-read' : ''}`} title={entry.readTitle}><CheckCheck size={14} /></span>
-                )}
-              </div>
-            </div>
+              {lastOfGroup && (
+                <div className={`msg-meta ${isAdmin ? 'msg-meta-sent' : 'msg-meta-recv'}`}>
+                  {!isAdmin && <span>{entry.senderLabel} · </span>}{timeLabel(entry.ts)}
+                  {isAdmin && (
+                    <span className={`msg-tick ${entry.studentRead ? 'msg-tick-read' : ''}`} title={entry.readTitle}><CheckCheck size={14} /></span>
+                  )}
+                </div>
+              )}
+            </React.Fragment>
           )
         })}
         <div ref={messagesEndRef} />
@@ -453,27 +479,30 @@ function ReplyBox({ onSend, onType, onStop }) {
   }
 
   function handleKeyDown(e) {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleSend()
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
   }
 
   return (
-    <div id="admin-reply-input-wrap" className="flex gap-2 px-4 py-3 border-t border-border bg-surface flex-shrink-0">
-      <textarea
-        className="input flex-1 resize-none"
-        rows={2}
-        value={text}
-        onChange={e => { setText(e.target.value); onType?.() }}
-        onBlur={() => onStop?.()}
-        onKeyDown={handleKeyDown}
-        placeholder="Type a reply… (Ctrl+Enter to send)"
-        disabled={sending}
-      />
+    <div id="admin-reply-input-wrap" className="msg-reply-bar">
+      <div className="msg-reply-pill">
+        <textarea
+          className="msg-reply-input"
+          rows={1}
+          value={text}
+          onChange={e => { setText(e.target.value); onType?.() }}
+          onBlur={() => onStop?.()}
+          onKeyDown={handleKeyDown}
+          placeholder="Message…"
+          disabled={sending}
+        />
+      </div>
       <button
-        className="msg-send-btn btn btn-primary btn-sm self-end"
+        className="msg-send-circle"
         onClick={handleSend}
         disabled={sending || !text.trim()}
+        title="Send (Ctrl/⌘+Enter)"
       >
-        {sending ? '…' : <Send size={16} />}
+        <Send size={16} />
       </button>
     </div>
   )
@@ -717,6 +746,8 @@ export default function MessagesTab() {
         latestMsgId: studentMsgs.length ? studentMsgs[studentMsgs.length - 1].id : null,
         headerName: name,
         headerSub: studentTag(s, classes) || sid,
+        headerPhoto: s?.photo || null,
+        isGroup: false,
         entries,
       }
     }

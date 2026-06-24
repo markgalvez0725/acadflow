@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { doc, setDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { relativeTime } from '@/utils/format'
+import { relativeTime, dayLabel } from '@/utils/format'
 import { getStudentMessages } from '@/utils/studentMessages'
 import { groupName, isGroupMessage, groupMembers } from '@/utils/groupChat'
 import GroupMembers from '@/components/primitives/GroupMembers'
@@ -13,9 +13,13 @@ import { notifyAdminMessage } from '@/firebase/messageNotify'
 import { fbAddMessageReply, fbMarkMessageRead } from '@/firebase/persistence'
 import Pagination from '@/components/primitives/Pagination'
 import KebabMenu from '@/components/primitives/KebabMenu'
-import { MessageSquare, GraduationCap, CheckCheck, Trash2, Check, Lock } from 'lucide-react'
+import { MessageSquare, GraduationCap, CheckCheck, Trash2, Check, Lock, Send, ChevronLeft, Megaphone } from 'lucide-react'
 
 const PER_PAGE = 10
+
+function getInitials(name) {
+  return (name || '').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+}
 
 // A class/section or subject group chat — teacher-owned, students may not delete it.
 function isGroupChat(m) {
@@ -53,9 +57,10 @@ export default function MessagesTab({ student: s, messages }) {
   const [hidden, setHidden]     = useState(() => loadHidden(s.id))
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState(() => new Set()) // tokens: 'direct' or announcement msgId
+  const [activeKey, setActiveKey] = useState(null) // open thread in the right pane: 'direct' | announcement msgId
 
   // Reload the per-student hidden set when the signed-in student changes.
-  useEffect(() => { setHidden(loadHidden(s.id)); setSelectMode(false); setSelected(new Set()) }, [s.id])
+  useEffect(() => { setHidden(loadHidden(s.id)); setSelectMode(false); setSelected(new Set()); setActiveKey(null); setView('list') }, [s.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function exitSelect() { setSelectMode(false); setSelected(new Set()) }
   function toggleSelect(token) {
@@ -175,6 +180,7 @@ export default function MessagesTab({ student: s, messages }) {
       setThreadEntries([])
       setReplyMsgId(null)
       setCanReply(true)
+      setActiveKey('direct')
       setView('thread')
       return
     }
@@ -194,6 +200,7 @@ export default function MessagesTab({ student: s, messages }) {
     setThreadTitle('Teacher')
     setThreadEntries(allEntries)
     setCanReply(true)
+    setActiveKey('direct')
     setView('thread')
   }
 
@@ -211,6 +218,7 @@ export default function MessagesTab({ student: s, messages }) {
     const active = groupChatActive(m)
     setCanReply(active)
     setEndedNotice(active ? '' : 'This class has ended — you can no longer send messages to this group chat.')
+    setActiveKey(msgId)
     setView('thread')
   }
 
@@ -273,199 +281,235 @@ export default function MessagesTab({ student: s, messages }) {
     : null
   const { typers, notifyTyping, stopTyping } = useTyping(typingKey, { id: s.id, name: s.name || s.id })
 
-  if (view === 'thread') {
-    // For a group chat, show its members + read receipts (live from messages).
-    const groupMsg = replyMsgId ? messages.find(x => x.id === replyMsgId) : null
-    const showGroup = groupMsg && isGroupMessage(groupMsg)
-    return (
-      <div className="student-messages thread-view">
-        <div className="s-thread-header">
-          <button className="btn btn-ghost btn-sm" onClick={() => setView('list')}>← Back</button>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 15 }}>{threadTitle}</div>
-            {threadEntries[0] && (
-              <div style={{ fontSize: 11, color: 'var(--ink3)' }}>
-                Started {new Date(threadEntries[0].ts).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}
-              </div>
-            )}
-          </div>
+  // ── Open thread context (right pane) ───────────────────────────────
+  const groupMsg = (view === 'thread' && replyMsgId) ? messages.find(x => x.id === replyMsgId) : null
+  const showGroup = groupMsg && isGroupMessage(groupMsg)
+  const headerIsGroup = groupMsg && isGroupChat(groupMsg)
+  const GROUP_GAP = 5 * 60 * 1000 // 5 min → new visual group
+  const timeLabel = ts => new Date(ts).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })
+  const adminSeen = messages.filter(x => x.from === 'admin' && x.to === s.id).some(x => x.replies?.some(r => r.from === 'admin')) ||
+    messages.filter(x => x.from === s.id).some(x => x.adminRead)
+
+  function senderInfo(entry) {
+    if (entry.from === s.id)    return { self: true,  name: 'You' }
+    if (entry.from === 'admin') return { self: false, name: 'Teacher', teacher: true }
+    const st = students.find(x => x.id === entry.from)
+    return { self: false, name: st?.name || 'Member' }
+  }
+
+  // One conversation-list row (shared by both panes' list).
+  function renderListItems() {
+    if (!items.length) {
+      return (
+        <div className="empty" style={{ padding: '28px 18px' }}>
+          <div className="empty-icon"><MessageSquare size={36} /></div>
+          {search ? 'No messages match your search.' : <>No messages yet.<br /><span style={{ fontSize: 12 }}>Messages from your teacher will appear here.</span></>}
         </div>
-
-        <div className="s-thread-messages" ref={threadRef}>
-          {threadEntries.length === 0 && (
-            <div className="empty" style={{ padding: 32 }}><div className="empty-icon"><MessageSquare size={40} /></div>No messages yet. Send the first one!</div>
-          )}
-          {threadEntries.map((entry, i) => {
-            const isSelf  = entry.from === s.id
-            const name    = isSelf ? 'You' : <><GraduationCap size={13} style={{ verticalAlign: 'middle', marginRight: 3 }} />Teacher</>
-            const date    = new Date(entry.ts).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-            const adminSeen = messages.filter(x => x.from === 'admin' && x.to === s.id).some(x => x.replies?.some(r => r.from === 'admin')) ||
-              messages.filter(x => x.from === s.id).some(x => x.adminRead)
-
-            return (
-              <React.Fragment key={i}>
-                <div className={`msg-bubble-row${isSelf ? ' sent' : ''}`}>
-                  <div className={`msg-bubble${isSelf ? ' sent' : ' received'}`}>
-                    {entry.isMain && entry.subject && !isSelf && (
-                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>{entry.subject}</div>
-                    )}
-                    <div>{entry.body.split('\n').map((l, j) => <React.Fragment key={j}>{l}<br /></React.Fragment>)}</div>
-                  </div>
-                </div>
-                <div className={`msg-meta${isSelf ? ' msg-meta-sent' : ' msg-meta-recv'}`}>
-                  {name} · {date}
-                  {isSelf && (
-                    <span className={`msg-tick${adminSeen ? ' msg-tick-read' : ''}`} title={adminSeen ? 'Read by teacher' : 'Delivered'} style={{ display: 'inline-flex', alignItems: 'center' }}> <CheckCheck size={13} /></span>
-                  )}
-                </div>
-              </React.Fragment>
-            )
-          })}
-        </div>
-
-        {showGroup && (
-          <GroupMembers
-            members={groupMembers(groupMsg, students)}
-            readerIds={Array.isArray(groupMsg.read) ? groupMsg.read : []}
-            readAt={groupMsg.readAt || {}}
-          />
-        )}
-
-        <TypingIndicator typers={typers} />
-
-        {canReply ? (
-          <div className="s-thread-reply-wrap">
-            <textarea
-              className="s-reply-input"
-              placeholder="Type your reply…"
-              value={replyText}
-              onChange={e => { setReplyText(e.target.value); notifyTyping() }}
-              onBlur={() => stopTyping()}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply() } }}
-              rows={3}
-            />
-            <div className="flex gap-2 justify-end mt-2">
-              <button className="btn btn-ghost btn-sm" onClick={() => setView('list')}>Cancel</button>
-              <button className="btn btn-primary btn-sm" onClick={sendReply} disabled={sending || !replyText.trim()}>
-                {sending ? 'Sending…' : 'Send Reply →'}
-              </button>
+      )
+    }
+    return slice.map(item => {
+      if (item.type === 'direct') {
+        const m = item.lastEntry || item.latest
+        const isOwn = m.from === s.id
+        const body = m.body || ''
+        const preview = (isOwn ? 'You: ' : '') + body.slice(0, 60) + (body.length > 60 ? '…' : '')
+        const replyHint = item.msgCount > 1
+          ? `${item.msgCount} messages · ${item.replyCount} repl${item.replyCount === 1 ? 'y' : 'ies'}`
+          : item.replyCount ? `${item.replyCount} repl${item.replyCount === 1 ? 'y' : 'ies'}` : ''
+        const sel = selected.has('direct')
+        const active = activeKey === 'direct'
+        return (
+          <div key="direct" className={`s-msg-thread-item${item.hasUnread ? ' unread' : ''}${sel ? ' selected' : ''}${active ? ' active' : ''}`} onClick={selectMode ? () => toggleSelect('direct') : openConversation} style={{ cursor: 'pointer' }}>
+            {selectMode && <span className={`msg-checkbox ${sel ? 'checked' : ''}`} aria-hidden="true">{sel && <Check size={13} />}</span>}
+            <div className="s-conv-avatar">T</div>
+            <div className="s-conv-body">
+              <div className="s-conv-name">{item.hasUnread && <span className="unread-dot" />}Teacher</div>
+              <div className="s-conv-preview">{preview}</div>
+              {replyHint && <div style={{ fontSize: 10, color: 'var(--green)', marginTop: 2 }}>{replyHint}</div>}
             </div>
+            <div className="s-conv-meta">
+              <div className="s-conv-time">{relativeTime(item.lastActivity)}</div>
+              {item.hasUnread && <div className="msg-unread-badge">●</div>}
+            </div>
+            {!selectMode && <KebabMenu items={[{ label: 'Delete', danger: true, onClick: () => deleteSelected(['direct']) }]} />}
           </div>
-        ) : endedNotice ? (
-          <div className="s-thread-ended">
-            <Lock size={14} /> {endedNotice}
+        )
+      }
+      const m = item.msg
+      const preview = m.body.slice(0, 60) + (m.body.length > 60 ? '…' : '')
+      const replyCount = (m.replies || []).length
+      // Class/subject group chats are teacher-owned: students can't delete them.
+      const locked = isGroupChat(m)
+      const sel = selected.has(m.id)
+      const active = activeKey === m.id
+      const onItemClick = (selectMode && !locked) ? () => toggleSelect(m.id) : () => openMessage(m.id)
+      return (
+        <div key={m.id} className={`s-msg-thread-item${item.hasUnread ? ' unread' : ''}${sel ? ' selected' : ''}${active ? ' active' : ''}`} onClick={onItemClick} style={{ cursor: 'pointer' }}>
+          {selectMode && !locked && <span className={`msg-checkbox ${sel ? 'checked' : ''}`} aria-hidden="true">{sel && <Check size={13} />}</span>}
+          <div className="s-conv-avatar announce">A</div>
+          <div className="s-conv-body">
+            <div className="s-conv-name">{item.hasUnread && <span className="unread-dot" />}{groupName(m, classes)}</div>
+            <div className="s-conv-preview">{preview}</div>
+            {replyCount > 0 && <div style={{ fontSize: 10, color: 'var(--green)', marginTop: 2 }}>{replyCount} repl{replyCount === 1 ? 'y' : 'ies'}</div>}
           </div>
-        ) : null}
-      </div>
-    )
+          <div className="s-conv-meta">
+            <div className="s-conv-time">{relativeTime(item.lastActivity)}</div>
+            {item.hasUnread && <div className="msg-unread-badge">●</div>}
+          </div>
+          {!selectMode && !locked && <KebabMenu items={[{ label: 'Delete', danger: true, onClick: () => deleteSelected([m.id]) }]} />}
+        </div>
+      )
+    })
   }
 
   return (
-    <div className="student-messages">
-      <div className="sec-hdr mb-3">
+    <div className="student-messages flex flex-col" style={{ height: 'calc(100vh - 150px)', minHeight: 480 }}>
+      <div className="sec-hdr mb-3 flex-shrink-0">
         <div className="sec-title">Messages</div>
         <button className="btn btn-primary btn-sm" onClick={openConversation}>+ New Message</button>
       </div>
 
-      <input
-        className="input mb-3"
-        aria-label="Search messages"
-        placeholder="Search messages…"
-        value={search}
-        onChange={e => { setSearch(e.target.value); setPage(1) }}
-      />
+      <div className={`msg-shell flex flex-1 min-h-0 rounded-lg border border-border overflow-hidden bg-surface${view === 'thread' ? ' has-active' : ''}`}>
 
-      {items.length > 0 && (
-        <div className="msg-select-bar mb-2">
-          {selectMode ? (
-            <>
-              <span className="msg-select-count">{selected.size} selected</span>
-              <div className="flex items-center gap-1">
-                <button className="btn btn-ghost btn-sm" onClick={exitSelect}>Cancel</button>
-                <button className="btn btn-danger btn-sm" disabled={!selected.size} onClick={() => deleteSelected([...selected])}>
-                  <Trash2 size={14} /> Delete
-                </button>
-              </div>
-            </>
-          ) : (
-            <button className="msg-select-toggle" onClick={() => setSelectMode(true)}>Select</button>
+        {/* Left: conversation list */}
+        <div className="msg-list-pane flex flex-col border-r border-border" style={{ width: 300, minWidth: 260, flexShrink: 0 }}>
+          <div className="px-2 py-2 flex-shrink-0">
+            <input
+              className="input w-full"
+              style={{ fontSize: 12 }}
+              aria-label="Search messages"
+              placeholder="Search messages…"
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1) }}
+            />
+          </div>
+
+          {items.length > 0 && (
+            <div className="msg-select-bar">
+              {selectMode ? (
+                <>
+                  <span className="msg-select-count">{selected.size} selected</span>
+                  <div className="flex items-center gap-1">
+                    <button className="btn btn-ghost btn-sm" onClick={exitSelect}>Cancel</button>
+                    <button className="btn btn-danger btn-sm" disabled={!selected.size} onClick={() => deleteSelected([...selected])}>
+                      <Trash2 size={14} /> Delete
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <button className="msg-select-toggle" onClick={() => setSelectMode(true)}>Select</button>
+              )}
+            </div>
+          )}
+
+          <div className="flex-1 overflow-y-auto">
+            {renderListItems()}
+          </div>
+
+          {items.length > PER_PAGE && (
+            <div className="flex-shrink-0 border-t border-border">
+              <Pagination total={items.length} perPage={PER_PAGE} page={page} onChange={setPage} />
+            </div>
           )}
         </div>
-      )}
 
-      {!items.length ? (
-        <div className="rounded-xl border border-border bg-surface" style={{ overflow: 'hidden' }}>
-          <div className="empty">
-            <div className="empty-icon"><MessageSquare size={40} /></div>
-            {search ? 'No messages match your search.' : <>No messages yet.<br /><span style={{ fontSize: 12 }}>Messages from your teacher will appear here.</span></>}
-          </div>
+        {/* Right: thread pane */}
+        <div className="msg-thread-pane flex flex-1 min-w-0">
+          {view !== 'thread' ? (
+            <div className="flex-1 flex items-center justify-center text-ink3 text-sm">Select a conversation to view messages.</div>
+          ) : (
+            <div className="flex flex-col flex-1 min-h-0">
+              {/* Thread header */}
+              <div className="msg-thread-head">
+                <button className="md:hidden text-ink2" onClick={() => { setView('list'); setActiveKey(null) }} title="Back" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex' }}>
+                  <ChevronLeft size={20} />
+                </button>
+                <div className={`msg-thread-head-av ${headerIsGroup ? 'announce' : ''}`}>
+                  {headerIsGroup ? <Megaphone size={16} /> : <GraduationCap size={16} />}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="font-semibold text-ink text-sm truncate">{threadTitle}</div>
+                  <div className="text-xs text-ink2 truncate">{threadEntries[0] ? `Started ${dayLabel(threadEntries[0].ts)}` : 'New conversation'}</div>
+                </div>
+              </div>
+
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto p-4 flex flex-col" ref={threadRef}>
+                {threadEntries.length === 0 && (
+                  <div className="empty" style={{ padding: 32 }}><div className="empty-icon"><MessageSquare size={40} /></div>No messages yet. Send the first one!</div>
+                )}
+                {threadEntries.map((entry, i) => {
+                  const info = senderInfo(entry)
+                  const isSelf = info.self
+                  const prev = threadEntries[i - 1]
+                  const next = threadEntries[i + 1]
+                  const sameAsPrev = prev && prev.from === entry.from && (entry.ts - prev.ts) < GROUP_GAP
+                  const sameAsNext = next && next.from === entry.from && (next.ts - entry.ts) < GROUP_GAP
+                  const showDay = !prev || new Date(prev.ts).toDateString() !== new Date(entry.ts).toDateString()
+                  const lastOfGroup = !sameAsNext
+                  return (
+                    <React.Fragment key={i}>
+                      {showDay && <div className="msg-day-sep"><span>{dayLabel(entry.ts)}</span></div>}
+                      <div className={`msg-bubble-row ${isSelf ? 'sent' : 'received'}`} style={{ marginTop: sameAsPrev ? 2 : 8 }}>
+                        {!isSelf && (
+                          <div className="msg-avatar-slot">
+                            {lastOfGroup && <div className="msg-avatar-sm">{info.teacher ? <GraduationCap size={13} /> : getInitials(info.name)}</div>}
+                          </div>
+                        )}
+                        <div className={`msg-bubble ${isSelf ? 'sent' : 'received'} ${lastOfGroup ? 'tail' : ''}`}>
+                          {entry.isMain && entry.subject && !isSelf && (
+                            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>{entry.subject}</div>
+                          )}
+                          <div style={{ whiteSpace: 'pre-wrap' }}>{entry.body}</div>
+                        </div>
+                      </div>
+                      {lastOfGroup && (
+                        <div className={`msg-meta ${isSelf ? 'msg-meta-sent' : 'msg-meta-recv'}`}>
+                          {!isSelf && <span>{info.name} · </span>}{timeLabel(entry.ts)}
+                          {isSelf && (
+                            <span className={`msg-tick ${adminSeen ? 'msg-tick-read' : ''}`} title={adminSeen ? 'Read by teacher' : 'Delivered'} style={{ display: 'inline-flex', alignItems: 'center' }}><CheckCheck size={13} /></span>
+                          )}
+                        </div>
+                      )}
+                    </React.Fragment>
+                  )
+                })}
+              </div>
+
+              {showGroup && (
+                <GroupMembers
+                  members={groupMembers(groupMsg, students)}
+                  readerIds={Array.isArray(groupMsg.read) ? groupMsg.read : []}
+                  readAt={groupMsg.readAt || {}}
+                />
+              )}
+
+              <TypingIndicator typers={typers} />
+
+              {canReply ? (
+                <div className="msg-reply-bar">
+                  <div className="msg-reply-pill">
+                    <textarea
+                      className="msg-reply-input"
+                      rows={1}
+                      placeholder="Message…"
+                      value={replyText}
+                      onChange={e => { setReplyText(e.target.value); notifyTyping() }}
+                      onBlur={() => stopTyping()}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply() } }}
+                    />
+                  </div>
+                  <button className="msg-send-circle" onClick={sendReply} disabled={sending || !replyText.trim()} title="Send">
+                    <Send size={16} />
+                  </button>
+                </div>
+              ) : endedNotice ? (
+                <div className="s-thread-ended"><Lock size={14} /> {endedNotice}</div>
+              ) : null}
+            </div>
+          )}
         </div>
-      ) : (
-        <>
-          <div className="rounded-xl border border-border bg-surface" style={{ overflow: 'hidden' }}>
-            {slice.map((item, i) => {
-              if (item.type === 'direct') {
-                const m = item.lastEntry || item.latest
-                const isOwn = m.from === s.id
-                const body = m.body || ''
-                const preview = (isOwn ? 'You: ' : '') + body.slice(0, 60) + (body.length > 60 ? '…' : '')
-                const replyHint = item.msgCount > 1
-                  ? `${item.msgCount} messages · ${item.replyCount} repl${item.replyCount === 1 ? 'y' : 'ies'}`
-                  : item.replyCount ? `${item.replyCount} repl${item.replyCount === 1 ? 'y' : 'ies'}` : ''
-                const sel = selected.has('direct')
-                return (
-                  <div key="direct" className={`s-msg-thread-item${item.hasUnread ? ' unread' : ''}${sel ? ' selected' : ''}`} onClick={selectMode ? () => toggleSelect('direct') : openConversation} style={{ cursor: 'pointer' }}>
-                    {selectMode && <span className={`msg-checkbox ${sel ? 'checked' : ''}`} aria-hidden="true">{sel && <Check size={13} />}</span>}
-                    <div className="s-conv-avatar">T</div>
-                    <div className="s-conv-body">
-                      <div className="s-conv-name">
-                        {item.hasUnread && <span className="unread-dot" />}
-                        Teacher
-                      </div>
-                      <div className="s-conv-preview">{preview}</div>
-                      {replyHint && <div style={{ fontSize: 10, color: 'var(--green)', marginTop: 2 }}>{replyHint}</div>}
-                    </div>
-                    <div className="s-conv-meta">
-                      <div className="s-conv-time">{relativeTime(item.lastActivity)}</div>
-                      {item.hasUnread && <div className="msg-unread-badge">●</div>}
-                    </div>
-                    {!selectMode && <KebabMenu items={[{ label: 'Delete', danger: true, onClick: () => deleteSelected(['direct']) }]} />}
-                  </div>
-                )
-              } else {
-                const m = item.msg
-                const preview = m.body.slice(0, 60) + (m.body.length > 60 ? '…' : '')
-                const replyCount = (m.replies || []).length
-                // Class/subject group chats are teacher-owned: students can't
-                // delete them (only hide-by-teacher), and they aren't selectable.
-                const locked = isGroupChat(m)
-                const sel = selected.has(m.id)
-                const onItemClick = (selectMode && !locked) ? () => toggleSelect(m.id) : () => openMessage(m.id)
-                return (
-                  <div key={m.id} className={`s-msg-thread-item${item.hasUnread ? ' unread' : ''}${sel ? ' selected' : ''}`} onClick={onItemClick} style={{ cursor: 'pointer' }}>
-                    {selectMode && !locked && <span className={`msg-checkbox ${sel ? 'checked' : ''}`} aria-hidden="true">{sel && <Check size={13} />}</span>}
-                    <div className="s-conv-avatar announce">A</div>
-                    <div className="s-conv-body">
-                      <div className="s-conv-name">
-                        {item.hasUnread && <span className="unread-dot" />}
-                        {groupName(m, classes)}
-                      </div>
-                      <div className="s-conv-preview">{preview}</div>
-                      {replyCount > 0 && <div style={{ fontSize: 10, color: 'var(--green)', marginTop: 2 }}>{replyCount} repl{replyCount === 1 ? 'y' : 'ies'}</div>}
-                    </div>
-                    <div className="s-conv-meta">
-                      <div className="s-conv-time">{relativeTime(item.lastActivity)}</div>
-                      {item.hasUnread && <div className="msg-unread-badge">●</div>}
-                    </div>
-                    {!selectMode && !locked && <KebabMenu items={[{ label: 'Delete', danger: true, onClick: () => deleteSelected([m.id]) }]} />}
-                  </div>
-                )
-              }
-            })}
-          </div>
-          <Pagination total={items.length} perPage={PER_PAGE} page={page} onChange={setPage} />
-        </>
-      )}
+      </div>
     </div>
   )
 }

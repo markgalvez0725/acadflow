@@ -19,6 +19,19 @@ export function relativeTime(ts) {
   return new Date(ts).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
 }
 
+// Messenger-style day separator label for a timestamp: "Today" / "Yesterday"
+// / "Jun 18" (adds the year only when it differs from the current one).
+export function dayLabel(ts) {
+  const d = new Date(ts), now = new Date();
+  if (d.toDateString() === now.toDateString()) return 'Today';
+  const yest = new Date(now); yest.setDate(now.getDate() - 1);
+  if (d.toDateString() === yest.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString('en-PH', {
+    month: 'short', day: 'numeric',
+    ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}),
+  });
+}
+
 // Used only for export HTML strings — JSX handles escaping elsewhere.
 export function escHtml(s) {
   return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
