@@ -427,6 +427,61 @@ function GradeEntryModal({ classId, subject, onClose }) {
     }
   }
 
+  // ── Fast grade entry: keyboard grid nav ─────────────────────────────────────
+  // Editable columns per row, left→right: activity inputs (0..actInputCount-1),
+  // quiz inputs (next quizInputCount), then attitude, midtermExam, finalsExam,
+  // finalGrade. Each input carries data-cell="row-col" so Enter / ArrowDown move
+  // to the same column of the next student (and ArrowUp to the previous).
+  const gridRef = useRef(null)
+  const colAttitude = actInputCount + quizInputCount
+  const focusCell = useCallback((r, c) => {
+    const el = gridRef.current?.querySelector(`input[data-cell="${r}-${c}"]`)
+    if (el) {
+      el.focus()
+      try { el.select() } catch (_) { /* number inputs may not support select */ }
+      el.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    }
+  }, [])
+  const onGridKey = useCallback((e) => {
+    const t = e.target
+    if (!t || t.tagName !== 'INPUT' || !t.dataset.cell) return
+    if (e.key !== 'Enter' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+    const [r, c] = t.dataset.cell.split('-').map(Number)
+    // ArrowDown/Up on a number input would otherwise nudge its value — block that.
+    e.preventDefault()
+    const nr = e.key === 'ArrowUp' ? Math.max(0, r - 1) : Math.min(studs.length - 1, r + 1)
+    focusCell(nr, c)
+  }, [studs.length, focusCell])
+
+  // ── Search-as-you-type: jump focus to the first matching student row ────────
+  const [jumpQ, setJumpQ] = useState('')
+  const jumpIdx = useMemo(() => {
+    const q = jumpQ.trim().toLowerCase()
+    if (!q) return -1
+    return studs.findIndex(s => (s.name || '').toLowerCase().includes(q) || (s.id || '').toLowerCase().includes(q))
+  }, [jumpQ, studs])
+  const doJump = useCallback(() => { if (jumpIdx >= 0) focusCell(jumpIdx, 0) }, [jumpIdx, focusCell])
+
+  // ── Missing / invalid grade detector — pure validation over current rows ────
+  const validation = useMemo(() => {
+    const badNum = v => {
+      if (v === '' || v === null || v === undefined) return false
+      const n = parseFloat(v)
+      return isNaN(n) || n < 0 || n > 100
+    }
+    let missing = 0, invalid = 0
+    const rowFlags = rows.map(r => {
+      if (!r) return { missing: false, invalid: false }
+      const vals = [...r.actInputs, ...r.qzInputs, r.attitude, r.midtermExam, r.finalsExam, r.finalGrade]
+      const isInvalid = vals.some(badNum)
+      const isMissing = String(r.finalGrade).trim() === '' && toNum(r.midtermExam) === null && toNum(r.finalsExam) === null
+      if (isInvalid) invalid++
+      if (isMissing) missing++
+      return { missing: isMissing, invalid: isInvalid }
+    })
+    return { missing, invalid, rowFlags }
+  }, [rows])
+
   return (
     <Modal onClose={onClose} wide>
       <div className="flex items-start justify-between flex-wrap gap-2 mb-3">
@@ -464,7 +519,38 @@ function GradeEntryModal({ classId, subject, onClose }) {
         )}
       </div>
 
-      <div className="overflow-x-auto">
+      {/* Fast-entry toolbar: jump-to-student + validation summary */}
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+        <div style={{ position: 'relative', minWidth: 220 }}>
+          <input
+            className="input"
+            style={{ width: 240 }}
+            placeholder="Jump to student… (name or ID)"
+            value={jumpQ}
+            onChange={e => setJumpQ(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); doJump() } }}
+          />
+          {jumpQ.trim() !== '' && (
+            <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: jumpIdx >= 0 ? 'var(--green)' : 'var(--red)' }}>
+              {jumpIdx >= 0 ? 'Enter ↵' : 'no match'}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-ink3">Tip: Enter / ↑ ↓ move between students</span>
+          {validation.invalid > 0 && (
+            <span className="badge badge-red" title="Values outside 0–100">{validation.invalid} invalid</span>
+          )}
+          {validation.missing > 0 && (
+            <span className="badge badge-yellow" title="No exam scores and no final grade yet">{validation.missing} no grade</span>
+          )}
+          {validation.invalid === 0 && validation.missing === 0 && (
+            <span className="badge badge-green">All entered</span>
+          )}
+        </div>
+      </div>
+
+      <div className="overflow-x-auto" ref={gridRef} onKeyDown={onGridKey}>
         <table className="tbl" style={{ minWidth: 900 }}>
           <thead>
             {/* Row 1: group headers */}
@@ -527,20 +613,26 @@ function GradeEntryModal({ classId, subject, onClose }) {
             {studs.map((s, i) => {
               const r = rows[i]
               if (!r) return null
+              const vf = validation.rowFlags[i] || {}
               const attColor = r.attRate !== null
                 ? (r.attRate >= 90 ? 'var(--green)' : r.attRate >= 75 ? 'var(--yellow)' : 'var(--red)')
                 : 'var(--ink3)'
+              const flagBorder = vf.invalid ? 'var(--red)' : vf.missing ? 'var(--yellow)' : 'transparent'
 
               return (
                 <tr key={s.id}>
-                  <td style={{ minWidth: 160, position: 'sticky', left: 0, zIndex: 1, background: 'var(--surface)', boxShadow: '2px 0 4px -1px var(--border)' }}>
-                    <strong>{s.name}</strong><br />
+                  <td style={{ minWidth: 160, position: 'sticky', left: 0, zIndex: 1, background: 'var(--surface)', boxShadow: '2px 0 4px -1px var(--border)', borderLeft: `3px solid ${flagBorder}` }}>
+                    <strong>{s.name}</strong>
+                    {vf.invalid && <span className="badge badge-red ml-1" style={{ fontSize: 9, padding: '0 4px' }} title="Has a value outside 0–100">!</span>}
+                    {!vf.invalid && vf.missing && <span className="badge badge-yellow ml-1" style={{ fontSize: 9, padding: '0 4px' }} title="No grade entered yet">—</span>}
+                    <br />
                     <small className="text-ink2">{s.id}</small>
                   </td>
                   {/* Per-activity inputs */}
                   {r.actInputs.map((val, ai) => (
                     <td key={ai}>
                       <input className="grade-input" type="number" min="0" max="100"
+                        data-cell={`${i}-${ai}`}
                         value={val} placeholder="—"
                         title={panelActs[ai]?.title || `Activity ${ai + 1}`}
                         onChange={e => updateActInput(i, ai, e.target.value)} />
@@ -557,6 +649,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
                   {r.qzInputs.map((val, qi) => (
                     <td key={qi}>
                       <input className="grade-input" type="number" min="0" max="100"
+                        data-cell={`${i}-${actInputCount + qi}`}
                         value={val} placeholder="—"
                         title={panelQuizzes[qi]?.title || `Quiz ${qi + 1}`}
                         onChange={e => updateQzInput(i, qi, e.target.value)} />
@@ -572,6 +665,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
                   {/* Attitude / Character input */}
                   <td>
                     <input className="grade-input" type="number" min="0" max="100"
+                      data-cell={`${i}-${colAttitude}`}
                       value={r.attitude} placeholder="0–100"
                       title="Attitude/Character grade (included in Class Standing)"
                       style={{ background: 'var(--purple-l, #ede9fe)' }}
@@ -587,6 +681,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
                   </td>
                   <td>
                     <input className="grade-input" type="number" min="0" max="100"
+                      data-cell={`${i}-${colAttitude + 1}`}
                       value={r.midtermExam} placeholder="0–100"
                       title="Midterm Exam score"
                       style={{ background: 'var(--yellow-l)' }}
@@ -594,6 +689,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
                   </td>
                   <td>
                     <input className="grade-input" type="number" min="0" max="100"
+                      data-cell={`${i}-${colAttitude + 2}`}
                       value={r.finalsExam} placeholder="0–100"
                       title="Finals Exam score"
                       style={{ background: 'var(--yellow-l)' }}
@@ -601,6 +697,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
                   </td>
                   <td>
                     <input className="grade-input" type="number" min="0" max="100"
+                      data-cell={`${i}-${colAttitude + 3}`}
                       value={r.finalGrade} placeholder="auto"
                       title="Final Grade (editable)"
                       style={{ background: 'var(--accent-l)', fontWeight: 700 }}
