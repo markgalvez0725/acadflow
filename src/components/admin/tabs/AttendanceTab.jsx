@@ -3,6 +3,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { sortByLastName, fmtDateShort } from '@/utils/format'
 import { getHeldDays } from '@/utils/grades'
+import { classTag } from '@/utils/groupChat'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import QRCode from '@/components/primitives/QRCode'
@@ -740,6 +741,7 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
   const { toast } = useUI()
   const [sort, setSort] = useState({ col: 'name', dir: 'asc' })
   const [page, setPage] = useState(1)
+  const [filter, setFilter] = useState('all') // 'all' | 'atrisk' | 'excellent'
   const [repModal, setRepModal] = useState(false)
   const [busyCI, setBusyCI] = useState(false)
 
@@ -804,7 +806,15 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
     })
   }, [allStats, sort])
 
-  const slice = sorted.slice((page - 1) * ATT_PER_PAGE, page * ATT_PER_PAGE)
+  const filtered = useMemo(() => {
+    if (filter === 'atrisk')    return sorted.filter(s => held > 0 && s.rate < 80)
+    if (filter === 'excellent') return sorted.filter(s => held > 0 && s.rate >= 90)
+    return sorted
+  }, [sorted, filter, held])
+
+  const slice = filtered.slice((page - 1) * ATT_PER_PAGE, page * ATT_PER_PAGE)
+
+  function setFilterReset(f) { setFilter(f); setPage(1) }
 
   return (
     <div className="card card-pad mb-3">
@@ -887,6 +897,39 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
         />
       )}
 
+      {/* Summary metric cards */}
+      <div className="grid gap-2 mb-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))' }}>
+        <div className="rounded-lg p-3" style={{ background: 'var(--bg)' }}>
+          <div className="text-xs text-ink2">Avg attendance</div>
+          <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>{held > 0 ? `${avgRate}%` : '—'}</div>
+        </div>
+        <div className="rounded-lg p-3" style={{ background: 'var(--bg)' }}>
+          <div className="text-xs text-ink2">Sessions held</div>
+          <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>{held}</div>
+        </div>
+        <div className="rounded-lg p-3" style={{ background: 'var(--bg)' }}>
+          <div className="text-xs text-ink2">≥90%</div>
+          <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2, color: 'var(--green)' }}>{excellent}</div>
+        </div>
+        <div className="rounded-lg p-3" style={{ background: 'var(--bg)' }}>
+          <div className="text-xs text-ink2">At-risk &lt;80%</div>
+          <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2, color: poor ? 'var(--red)' : 'var(--ink)' }}>{poor}</div>
+        </div>
+      </div>
+
+      {/* Attention banner */}
+      {poor > 0 && (
+        <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg flex-wrap" style={{ background: 'var(--red-l)', border: '1px solid var(--red)' }}>
+          <AlertTriangle size={16} className="shrink-0" style={{ color: 'var(--red)' }} />
+          <span className="text-sm" style={{ color: 'var(--red)', flex: '1 1 200px' }}>
+            {poor} student{poor !== 1 ? 's' : ''} below 80% attendance{held === 0 ? '' : ` (of ${held} session${held !== 1 ? 's' : ''})`}.
+          </span>
+          {filter !== 'atrisk'
+            ? <button className="btn btn-ghost btn-sm" onClick={() => setFilterReset('atrisk')}>Show at-risk</button>
+            : <button className="btn btn-ghost btn-sm" onClick={() => setFilterReset('all')}>Show all</button>}
+        </div>
+      )}
+
       {/* Distribution */}
       <div className="rounded-lg p-3 mb-3" style={{ background: 'var(--bg)' }}>
         <div className="flex items-center justify-between mb-2 flex-wrap gap-1.5">
@@ -907,8 +950,30 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
         </div>
       </div>
 
-      {/* Table */}
-      <div className="tbl-wrap">
+      {/* Quick filters */}
+      <div className="flex gap-1.5 flex-wrap mb-2">
+        {[
+          { k: 'all',       label: 'All',       n: total },
+          { k: 'atrisk',    label: 'At-risk',   n: poor },
+          { k: 'excellent', label: 'Excellent', n: excellent },
+        ].map(({ k, label, n }) => {
+          const on = filter === k
+          return (
+            <button key={k} onClick={() => setFilterReset(k)}
+              style={{
+                fontSize: 12, fontWeight: 600, padding: '4px 11px', borderRadius: 999, cursor: 'pointer',
+                border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
+                background: on ? 'var(--accent)' : 'var(--surface)',
+                color: on ? '#fff' : 'var(--ink2)',
+              }}>
+              {label} · {n}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Table — desktop / tablet */}
+      <div className="tbl-wrap hidden sm:block">
         <table className="tbl">
           <thead>
             <tr>
@@ -923,7 +988,7 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
                   {label} <SortIcon col={col} sort={sort} />
                 </th>
               ))}
-              <th>Recent Dates</th>
+              <th className="hidden lg:table-cell">Recent Dates</th>
             </tr>
           </thead>
           <tbody>
@@ -944,7 +1009,7 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
                   <td><span className="badge badge-yellow">{st.excuse}</span></td>
                   <td><span className="badge badge-red">{st.absent}</span></td>
                   <td><span className={`badge ${rBadge}`}>{rateDisplay}</span></td>
-                  <td style={{ fontSize: 12 }}>
+                  <td className="hidden lg:table-cell" style={{ fontSize: 12 }}>
                     {recentDates.length > 0
                       ? recentDates.map(d => (
                           <span key={d} className="badge badge-green" style={{ margin: 1 }}>{fmtDateShort(d)}</span>
@@ -957,7 +1022,40 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
           </tbody>
         </table>
       </div>
-      <Pagination total={allStats.length} perPage={ATT_PER_PAGE} page={page} onChange={setPage} />
+
+      {/* Phone layout — card per student, no sideways scroll */}
+      <div className="sm:hidden flex flex-col gap-2">
+        {slice.length === 0 && <div className="empty">No students.</div>}
+        {slice.map(st => {
+          const rBadge = held === 0 ? 'badge-gray' : st.rate >= 90 ? 'badge-green' : st.rate >= 80 ? 'badge-yellow' : 'badge-red'
+          const rateDisplay = held === 0 ? '—' : `${st.rate}%`
+          const recentDates = [...st.dates].sort().slice(-4)
+          return (
+            <div key={st.id} className="rounded-xl p-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="font-semibold text-sm truncate">{st.name}</div>
+                  <div className="text-xs text-ink2" style={{ fontFamily: 'monospace' }}>{st.id}</div>
+                </div>
+                <span className={`badge ${rBadge}`} style={{ fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{rateDisplay}</span>
+              </div>
+              <div className="grid mt-2.5 pt-2.5" style={{ gridTemplateColumns: 'repeat(3, 1fr)', textAlign: 'center', borderTop: '1px solid var(--border)' }}>
+                <div><div style={{ fontSize: 18, fontWeight: 800, color: 'var(--green)' }}>{st.present}</div><div className="text-xs text-ink3">Present</div></div>
+                <div><div style={{ fontSize: 18, fontWeight: 800, color: 'var(--yellow, #ca8a04)' }}>{st.excuse}</div><div className="text-xs text-ink3">Excused</div></div>
+                <div><div style={{ fontSize: 18, fontWeight: 800, color: 'var(--red)' }}>{st.absent}</div><div className="text-xs text-ink3">Absent</div></div>
+              </div>
+              <div className="mt-2.5 pt-2 flex items-center gap-1.5 flex-wrap" style={{ borderTop: '1px solid var(--border)' }}>
+                <span className="text-xs text-ink3">Recent</span>
+                {recentDates.length > 0
+                  ? recentDates.map(d => <span key={d} className="badge badge-green" style={{ fontSize: 11 }}>{fmtDateShort(d)}</span>)
+                  : <span className="text-xs text-ink3">—</span>}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <Pagination total={filtered.length} perPage={ATT_PER_PAGE} page={page} onChange={setPage} />
     </div>
   )
 }
@@ -972,14 +1070,23 @@ export default function AttendanceTab() {
   const archivedClasses = useMemo(() => classes.filter(c =>  c.archived), [classes])
   const visibleClasses  = showArchived ? archivedClasses : activeClasses
 
-  const [selClassId,   setSelClassId]   = useState(() => activeClasses[0]?.id || null)
+  const [selKey,       setSelKey]       = useState(null) // `${classId}|||${subject}`
   const [search,       setSearch]       = useState('')
   const [calModal,     setCalModal]     = useState(null) // subject string
   const [exportModal,  setExportModal]  = useState(null) // subject string
   const [importModal,  setImportModal]  = useState(null) // subject string
 
-  const cls = visibleClasses.find(c => c.id === selClassId) || visibleClasses[0] || null
+  // One option per class+subject pair — mirrors the Grades subject dropdown.
+  const subjectOptions = useMemo(() =>
+    visibleClasses.flatMap(c => (c.subjects || []).map(sub => ({
+      key: `${c.id}|||${sub}`, classId: c.id, sub,
+      label: `${sub} - ${classTag(c)}`,
+    }))), [visibleClasses])
+
+  const selected    = subjectOptions.find(o => o.key === selKey) || subjectOptions[0] || null
+  const cls         = selected ? (visibleClasses.find(c => c.id === selected.classId) || null) : null
   const effectiveId = cls?.id || null
+  const selSub      = selected?.sub || null
 
   const filteredStuds = useMemo(() => {
     const base = sortByLastName(students.filter(s => s.classId === effectiveId || s.classIds?.includes(effectiveId)))
@@ -1013,7 +1120,7 @@ export default function AttendanceTab() {
         <div className="sec-title">Attendance</div>
         <button
           className="btn btn-ghost btn-sm"
-          onClick={() => { setShowArchived(v => !v); setSelClassId(null); setSearch('') }}
+          onClick={() => { setShowArchived(v => !v); setSelKey(null); setSearch('') }}
         >
           {showArchived
             ? <><ArchiveRestore size={14} className="inline-block mr-1" />Active Classes</>
@@ -1030,15 +1137,15 @@ export default function AttendanceTab() {
       )}
 
       <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <select className="input" style={{ maxWidth: 280 }}
-          value={effectiveId || ''}
-          onChange={e => { setSelClassId(e.target.value); setSearch('') }}>
-          <option value="">— Select a class —</option>
-          {visibleClasses.map(c => (
-            <option key={c.id} value={c.id}>{c.name} · {c.section}</option>
+        <select className="input" style={{ flex: '1 1 280px', maxWidth: 420 }}
+          value={selected?.key || ''}
+          onChange={e => { setSelKey(e.target.value); setSearch('') }}>
+          <option value="">— Select a subject —</option>
+          {subjectOptions.map(o => (
+            <option key={o.key} value={o.key}>{o.label}</option>
           ))}
         </select>
-        <input className="input" style={{ maxWidth: 220 }}
+        <input className="input" style={{ flex: '1 1 160px', maxWidth: 220 }}
           aria-label="Search students"
           placeholder="Search student…"
           value={search}
@@ -1078,23 +1185,21 @@ export default function AttendanceTab() {
         </div>
       )}
 
-      {!effectiveId ? (
+      {!subjectOptions.length ? (
         <div className="empty"><div className="empty-icon"><ClipboardCheck size={32} /></div>{showArchived ? 'No archived classes.' : 'No classes yet.'}</div>
-      ) : !cls?.subjects?.length ? (
-        <div className="empty">This class has no subjects.</div>
+      ) : !selSub ? (
+        <div className="empty">Select a subject to view attendance.</div>
       ) : (
-        cls.subjects.map(sub => (
-          <SubjectAttCard
-            key={sub}
-            classId={effectiveId}
-            sub={sub}
-            studs={filteredStuds}
-            readOnly={showArchived}
-            onCalendar={sub => setCalModal(sub)}
-            onExport={sub => setExportModal(sub)}
-            onImport={showArchived ? null : sub => setImportModal(sub)}
-          />
-        ))
+        <SubjectAttCard
+          key={selected.key}
+          classId={effectiveId}
+          sub={selSub}
+          studs={filteredStuds}
+          readOnly={showArchived}
+          onCalendar={sub => setCalModal(sub)}
+          onExport={sub => setExportModal(sub)}
+          onImport={showArchived ? null : sub => setImportModal(sub)}
+        />
       )}
 
       {calModal && (
