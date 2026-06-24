@@ -5,7 +5,7 @@ import { useUI } from '@/context/UIContext'
 import Modal from '@/components/primitives/Modal'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
-import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList, Pencil, Save, Rocket, FileText, X, Lock, Circle, Archive, ArchiveRestore, Sparkles, Wand2, FileUp, Copy } from 'lucide-react'
+import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList, Pencil, Save, Rocket, FileText, X, Lock, Circle, Archive, ArchiveRestore, Sparkles, Wand2, FileUp, Copy, Lightbulb } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { extractTextFromFile } from '@/utils/lessonExtract'
 import { generateDraftQuestions } from '@/utils/quizGen'
@@ -332,6 +332,7 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
   const [err, setErr] = useState('')
   const [saving, setSaving] = useState(false)
   const [keying, setKeying] = useState(false)
+  const [tab, setTab] = useState('details') // 'details' | 'questions'
 
   const availableSubjects = useMemo(() => {
     const subs = new Set()
@@ -408,15 +409,15 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
 
   async function handleSave() {
     setErr('')
-    if (!title.trim()) { setErr('Quiz title is required.'); return }
-    if (!classIds.length) { setErr('Select at least one class.'); return }
-    if (!subject) { setErr('Select a subject.'); return }
-    if (!questions.length) { setErr('Quiz must have at least one question.'); return }
-    if (timeLimit < 1) { setErr('Time limit must be at least 1 minute.'); return }
+    if (!title.trim()) { setTab('details'); setErr('Quiz title is required.'); return }
+    if (!classIds.length) { setTab('details'); setErr('Select at least one class.'); return }
+    if (!subject) { setTab('details'); setErr('Select a subject.'); return }
+    if (!questions.length) { setTab('questions'); setErr('Quiz must have at least one question.'); return }
+    if (timeLimit < 1) { setTab('details'); setErr('Time limit must be at least 1 minute.'); return }
     const openTs = new Date(openAt).getTime()
     const closeTs = new Date(closeAt).getTime()
-    if (isNaN(openTs) || isNaN(closeTs)) { setErr('Invalid date range.'); return }
-    if (closeTs <= openTs) { setErr('Close time must be after open time.'); return }
+    if (isNaN(openTs) || isNaN(closeTs)) { setTab('details'); setErr('Invalid date range.'); return }
+    if (closeTs <= openTs) { setTab('details'); setErr('Close time must be after open time.'); return }
     if (!fbReady || !db.current) { setErr('Firebase is required.'); return }
 
     const totalPoints = questions.reduce((sum, q) => sum + ((typeof q.points === 'number' && q.points > 0) ? q.points : 1), 0)
@@ -452,8 +453,29 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
       </h3>
       <p className="modal-sub">{isEdit ? `${questions.length} questions` : `${questions.length} questions imported`}. Review, edit, then share with classes.</p>
 
+      {/* Tabs: Details · Questions */}
+      <div className="inline-flex bg-[var(--surface2)] border border-[var(--border)] rounded-full p-0.5 mb-3">
+        {[
+          { id: 'details', label: 'Details' },
+          { id: 'questions', label: `Questions · ${questions.length}` },
+        ].map(t => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={`text-xs font-medium px-3.5 py-1.5 rounded-full transition-colors ${
+              tab === t.id ? 'bg-[var(--surface)] text-[var(--accent)] shadow-sm' : 'text-[var(--ink3)] hover:text-[var(--ink2)]'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {err && <div ref={el => el?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="err-msg mb-3">{err}</div>}
 
+      {tab === 'details' && (
+      <>
       <div className="field mb-3">
         <label className="text-xs font-semibold text-ink2 mb-1 block">Quiz Title <span className="text-red-500">*</span></label>
         <input className="input w-full" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Chapter 3 Quiz" />
@@ -516,8 +538,11 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
         </label>
         <p className="text-xs text-ink3 mt-1" style={{ marginLeft: 24 }}>Near-miss short/identification/fill-in answers earn half the question's points. Multiple-choice and true/false are always all-or-nothing.</p>
       </div>
+      </>
+      )}
 
       {/* Questions Editor */}
+      {tab === 'questions' && (
       <div className="field mb-3">
         <div className="flex items-center justify-between mb-2">
           <label className="text-xs font-semibold text-ink2">{questions.length} Questions · {questions.reduce((s, q) => s + ((typeof q.points === 'number' && q.points > 0) ? q.points : 1), 0)} pts</label>
@@ -526,12 +551,13 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
             <button type="button" className="btn btn-ghost btn-sm" onClick={addQuestion}>+ Add Question</button>
           </div>
         </div>
-        <div className="flex flex-col gap-3" style={{ maxHeight: 320, overflowY: 'auto', paddingRight: 4 }}>
+        <div className="flex flex-col gap-3" style={{ maxHeight: '55vh', overflowY: 'auto', paddingRight: 4 }}>
           {questions.map((q, i) => (
             <div key={q.id} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '10px 12px', border: '1px solid var(--border)' }}>
               <div className="flex items-center justify-between mb-2">
                 <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink2)' }}>
-                  Q{i + 1} · {TYPE_LABELS[q.type] || q.type}
+                  Q{i + 1} · <span style={{ color: 'var(--accent)' }}>{TYPE_LABELS[q.type] || q.type}</span>
+                  <span style={{ marginLeft: 6, fontWeight: 600, color: 'var(--ink3)' }}>{(typeof q.points === 'number' && q.points > 0) ? q.points : 1} pt{((typeof q.points === 'number' && q.points > 0) ? q.points : 1) === 1 ? '' : 's'}</span>
                 </span>
                 <div className="flex gap-1">
                   <button type="button" className="btn btn-ghost btn-sm" style={{ fontSize: 10 }}
@@ -561,6 +587,12 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
                 <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 600 }}>
                   Answer: {q.answer}
                 </span>
+              )}
+              {q.explanation && editingQ !== q.id && (
+                <div style={{ display: 'flex', gap: 5, alignItems: 'baseline', marginTop: 6, fontSize: 11, color: 'var(--ink3)', lineHeight: 1.5 }}>
+                  <Lightbulb size={12} style={{ flexShrink: 0, color: 'var(--yellow)', transform: 'translateY(2px)' }} />
+                  <span><span style={{ fontWeight: 600, color: 'var(--ink2)' }}>Explanation:</span> {q.explanation}</span>
+                </div>
               )}
               {editingQ === q.id && (
                 <div style={{ marginTop: 10, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
@@ -626,12 +658,21 @@ function QuizFormModal({ quiz, initialQuestions, onClose }) {
                       </div>
                     </>
                   )}
+                  <div className="field">
+                    <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink2)', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                      <Lightbulb size={11} style={{ color: 'var(--yellow)' }} />Explanation <span className="text-ink3" style={{ fontWeight: 500 }}>(shown to students on review)</span>
+                    </label>
+                    <textarea className="input w-full" rows={2} style={{ fontSize: 12 }} placeholder="Why this answer is correct…"
+                      value={q.explanation || ''}
+                      onChange={e => updateQuestion(q.id, 'explanation', e.target.value)} />
+                  </div>
                 </div>
               )}
             </div>
           ))}
         </div>
       </div>
+      )}
 
       <div className="modal-footer">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
