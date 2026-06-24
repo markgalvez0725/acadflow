@@ -98,6 +98,21 @@ function ensureSeg() {
   return _segPromise
 }
 
+/**
+ * Warm the models up ahead of time: load the scripts/weights AND run one tiny
+ * throwaway inference so the WebGL backend + shaders compile in the background.
+ * Call this when the photo UI opens so the first real check isn't a cold,
+ * janky download-and-compile. Safe to call repeatedly; all errors swallowed.
+ */
+export function prewarmOnDeviceAI() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return
+  const warm = document.createElement('canvas')
+  warm.width = 64; warm.height = 64
+  // A blank canvas is enough to trigger weight load + shader compile.
+  ensureFace().then(m => m.estimateFaces(warm, false)).catch(() => {})
+  ensureSeg().then(s => s.segmentPeople(warm, { flipHorizontal: false })).catch(() => {})
+}
+
 // ── Small pixel helpers ─────────────────────────────────────────────────────
 
 /** Standard RGB skin-tone test (approximate, lighting-tolerant). */

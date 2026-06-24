@@ -1,10 +1,11 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useData } from '@/context/DataContext'
 import { useAuth } from '@/context/AuthContext'
 import { useUI } from '@/context/UIContext'
 import { fbDeleteStudent } from '@/firebase/persistence'
 import { validateSnum } from '@/utils/validate'
 import { validateProfilePhoto } from '@/utils/photoValidate'
+import { prewarmOnDeviceAI } from '@/utils/photoVerifyAI'
 import Modal from '@/components/primitives/Modal'
 import { Camera, Lock, Timer, CheckCircle2, Save, Eye, EyeOff, ShieldCheck, AlertTriangle, XCircle, Loader2 } from 'lucide-react'
 
@@ -54,6 +55,10 @@ export default function EditProfileModal({ student: s, onClose }) {
   // null = no new photo checked; { status:'checking'|'done', result } otherwise.
   const [photoCheck, setPhotoCheck] = useState(null)
   const photoBlocked = photoCheck?.status === 'done' && photoCheck.result && !photoCheck.result.ok
+
+  // Warm the on-device AI models the moment the modal opens, so the first photo
+  // check isn't a cold download-and-compile (the cause of the loading lag).
+  useEffect(() => { prewarmOnDeviceAI() }, [])
 
   // Email password-confirm flow
   const [emailStep,     setEmailStep]     = useState('idle') // 'idle' | 'confirm' | 'verified'
