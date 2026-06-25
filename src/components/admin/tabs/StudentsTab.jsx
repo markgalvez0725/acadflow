@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, lazy, Suspense } from 'react'
+import React, { useState, useMemo, useEffect, useRef, lazy, Suspense } from 'react'
 import { doc, setDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -18,6 +18,7 @@ import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { buildStudentReportCard } from '@/export/reportCard'
 import { exportStudentRosterExcel, exportStudentImportTemplate, parseStudentImportExcel } from '@/export/excelExport'
 import { courseOptions } from '@/constants/courses'
+import { classMatchesCourseYear } from '@/utils/enrollment'
 
 const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
 
@@ -25,15 +26,25 @@ const PER_PAGE = 50
 const DEFAULT_PASS = 'Welcome@2026'
 
 // ── Add Student Modal ─────────────────────────────────────────────────
+// Compact subject summary for a class option: "Calculus, Physics, +2 more".
+function classSubjectsLabel(cls) {
+  const subs = cls.subjects || []
+  if (!subs.length) return 'No subjects yet'
+  if (subs.length <= 3) return subs.join(', ')
+  return `${subs.slice(0, 3).join(', ')}, +${subs.length - 3} more`
+}
+
 function AddStudentModal({ onClose }) {
   const { classes, students, saveStudents } = useData()
   const { toast } = useUI()
 
-  const [name, setName]         = useState('')
+  // Name is captured in parts and stored canonically as "LASTNAME, FIRST M".
+  const [lastName, setLastName]     = useState('')
+  const [firstName, setFirstName]   = useState('')
+  const [middleInit, setMiddleInit] = useState('')
   const [snum, setSnum]         = useState('')
   const [course, setCourse]     = useState('')
   const [year, setYear]         = useState('1st Year')
-  const [section, setSection]   = useState('')
   const [classId, setClassId]   = useState('')
   const [extraIds, setExtraIds] = useState([])
   const [setPass, setSetPass]   = useState(false)
@@ -43,7 +54,30 @@ function AddStudentModal({ onClose }) {
   const [passErr, setPassErr]   = useState('')
   const [saving, setSaving]     = useState(false)
 
-  const otherClasses = classes.filter(c => !c.archived && c.id !== classId)
+  // Canonical name preview: "DELA CRUZ, JUAN D"
+  const composedName = useMemo(() => {
+    const last = lastName.trim(), first = firstName.trim(), mi = middleInit.trim()
+    if (!last && !first) return ''
+    return `${last}, ${first}${mi ? ` ${mi}` : ''}`.toUpperCase()
+  }, [lastName, firstName, middleInit])
+
+  // Classes offered to this student: same course requirement + matching year.
+  // Only computed once both course and year are chosen.
+  const matchingClasses = useMemo(() => {
+    if (!course.trim()) return []
+    return classes.filter(c => !c.archived && classMatchesCourseYear(course, year, c))
+  }, [classes, course, year])
+
+  // Keep the primary/extra selections valid as the course/year filter changes.
+  useEffect(() => {
+    const ok = new Set(matchingClasses.map(c => c.id))
+    setClassId(prev => (prev && ok.has(prev) ? prev : ''))
+    setExtraIds(prev => prev.filter(id => ok.has(id)))
+  }, [matchingClasses])
+
+  const primaryCls   = classes.find(c => c.id === classId) || null
+  const otherClasses = matchingClasses.filter(c => c.id !== classId)
+  const inheritedSection = primaryCls?.section || ''
 
   function toggleExtra(cid) {
     setExtraIds(prev => prev.includes(cid) ? prev.filter(x => x !== cid) : [...prev, cid])
@@ -52,13 +86,14 @@ function AddStudentModal({ onClose }) {
   async function handleAdd() {
     setErr(''); setPassErr('')
     const id = snum.trim().toUpperCase()
-    if (!name.trim()) { setErr('Full name is required.'); return }
+    if (!lastName.trim())  { setErr('Last name is required.');  return }
+    if (!firstName.trim()) { setErr('First name is required.'); return }
     if (!id) { setErr('Student number is required.'); return }
     const snumErr = validateSnum(id)
     if (snumErr) { setErr(snumErr); return }
     if (!course.trim()) { setErr('Course/Program is required.'); return }
     if (students.find(s => s.id === id)) { setErr(`Student number "${id}" already exists.`); return }
-    if (name && students.find(s => s.name.toLowerCase() === name.trim().toLowerCase())) {
+    if (students.find(s => (s.name || '').toLowerCase() === composedName.toLowerCase())) {
       setErr('A student with this name already exists.'); return
     }
 
@@ -85,13 +120,12 @@ function AddStudentModal({ onClose }) {
       })
     })
 
-    // Section: explicit value, else inherit from the chosen primary class.
-    const primaryCls = classes.find(c => c.id === classId)
-    const finalSection = section.trim() || primaryCls?.section || ''
+    // Section is the primary class's section (year + section encode enrollment).
+    const finalSection = inheritedSection
 
     setSaving(true)
     try {
-      const newStudent = { id, name: name.trim().toUpperCase(), course: course.trim(), year, section: finalSection, classId: classId || null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account }
+      const newStudent = { id, name: composedName, course: course.trim(), year, section: finalSection, classId: classId || null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account }
       await saveStudents([...students, newStudent], [id])
       toast('Student added!', 'green')
       onClose()
@@ -102,21 +136,39 @@ function AddStudentModal({ onClose }) {
     }
   }
 
+  const classesReady = !!course.trim()
+
   return (
     <Modal onClose={onClose} maxWidth={600}>
       <h3>Add New Student</h3>
-      <p className="modal-sub">Fill in the student's details below.</p>
+      <p className="modal-sub">Enter the student's name, identifiers, then enroll them in classes.</p>
       {err && <div className="err-msg mb-3">{err}</div>}
+
+      {/* Name — captured in parts, stored as "SURNAME, First M.I." */}
+      <div className="field">
+        <label>Last Name <span className="text-red-500">*</span></label>
+        <input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Dela Cruz" />
+      </div>
       <div className="input-row">
-        <div className="field">
-          <label>Full Name <span className="text-red-500">*</span></label>
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="Juan dela Cruz" />
+        <div className="field" style={{ flex: 2 }}>
+          <label>First Name <span className="text-red-500">*</span></label>
+          <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Juan" />
         </div>
-        <div className="field">
-          <label>Student Number <span className="text-red-500">*</span></label>
-          <input value={snum} onChange={e => setSnum(e.target.value)} placeholder="2024-10001" maxLength={10} />
+        <div className="field" style={{ flex: 1 }}>
+          <label>M.I. <span className="font-normal text-ink3">(optional)</span></label>
+          <input value={middleInit} onChange={e => setMiddleInit(e.target.value.replace(/[^A-Za-z]/g, '').slice(0, 2))} placeholder="S" maxLength={2} />
         </div>
       </div>
+      {composedName && (
+        <div className="text-xs text-ink3 -mt-1 mb-2">Saved as <strong className="text-ink">{composedName}</strong></div>
+      )}
+
+      <div className="field">
+        <label>Student Number <span className="text-red-500">*</span></label>
+        <input value={snum} onChange={e => setSnum(e.target.value)} placeholder="2024-10001" maxLength={10} />
+      </div>
+
+      {/* Course + Year drive which classes are offered below */}
       <div className="input-row">
         <div className="field">
           <label>Course / Program <span className="text-red-500">*</span></label>
@@ -132,30 +184,38 @@ function AddStudentModal({ onClose }) {
           </select>
         </div>
       </div>
-      <div className="field">
-        <label>Section <span className="font-normal text-ink3">(used to verify enrollment — leave blank to inherit from primary class)</span></label>
-        <input value={section} onChange={e => setSection(e.target.value)} placeholder="e.g. 2A" maxLength={10} />
-      </div>
+
+      {/* Enrollment — only classes matching the course + year are offered */}
       <div className="field">
         <label>Primary Class <span className="font-normal text-ink3">(home class for grades &amp; attendance)</span></label>
-        <select value={classId} onChange={e => { setClassId(e.target.value); setExtraIds(prev => prev.filter(x => x !== e.target.value)) }}>
-          <option value="">— Select Class —</option>
-          {classes.filter(c => !c.archived).map(c => <option key={c.id} value={c.id}>{c.name} · {c.section}</option>)}
+        <select value={classId} disabled={!classesReady} onChange={e => { setClassId(e.target.value); setExtraIds(prev => prev.filter(x => x !== e.target.value)) }}>
+          <option value="">{classesReady ? (matchingClasses.length ? '— Select a class —' : 'No classes match this course & year') : 'Select course & year first'}</option>
+          {matchingClasses.map(c => (
+            <option key={c.id} value={c.id}>{c.section} · {classSubjectsLabel(c)}</option>
+          ))}
         </select>
+        {classesReady && primaryCls && (
+          <div className="text-xs text-ink3 mt-1">
+            Section <strong className="text-ink">{inheritedSection || '—'}</strong> · {(primaryCls.subjects || []).length} subject{(primaryCls.subjects || []).length !== 1 ? 's' : ''}: {(primaryCls.subjects || []).join(', ') || 'none'}
+          </div>
+        )}
+        {classesReady && !matchingClasses.length && (
+          <div className="text-xs text-ink3 mt-1">No class is set up for this course &amp; year yet — create one in the <strong>Classes</strong> tab, or add the student without a class for now.</div>
+        )}
       </div>
 
       {otherClasses.length > 0 && (
         <div className="field mb-2">
           <label className="flex items-center justify-between">
             <span>Additional Classes <span className="font-normal text-ink3">(also enrolled in)</span></span>
-            <span className="text-xs text-ink3 font-normal">Tick all that apply</span>
+            <span className="text-xs text-ink3 font-normal">Same course &amp; year</span>
           </label>
-          <div className="grid grid-cols-2 gap-1.5 bg-bg border border-border rounded-lg p-2 mt-1 max-h-40 overflow-y-auto">
+          <div className="grid grid-cols-1 gap-1.5 bg-bg border border-border rounded-lg p-2 mt-1 max-h-40 overflow-y-auto">
             {otherClasses.map(c => (
               <label key={c.id} className="flex items-start gap-1.5 cursor-pointer p-1 rounded hover:bg-bg2 text-xs">
                 <input type="checkbox" checked={extraIds.includes(c.id)} onChange={() => toggleExtra(c.id)} style={{ width: 'auto', margin: 0, marginTop: 2, flexShrink: 0 }} />
                 <span>
-                  <span className="font-semibold text-ink block">{c.name} · {c.section}</span>
+                  <span className="font-semibold text-ink block">Section {c.section}</span>
                   <span className="text-ink3">{c.subjects?.join(', ') || 'No subjects'}</span>
                 </span>
               </label>

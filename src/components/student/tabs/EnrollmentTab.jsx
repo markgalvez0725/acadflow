@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { findScheduleConflicts } from '@/utils/schedule'
+import { eligibleForClass } from '@/utils/enrollment'
 import {
   BookOpen, CheckCircle2, XCircle, LockOpen, Lock,
   CalendarDays, Clock, MapPin, AlertTriangle, TimerOff, Bell,
@@ -9,57 +10,6 @@ import {
 } from 'lucide-react'
 
 // ── Helpers ───────────────────────────────────────────────────────────
-function courseMatches(studentCourse, clsCourseReq) {
-  if (!clsCourseReq) return true // no requirement = open to all
-  return (studentCourse || '').trim().toLowerCase() === clsCourseReq.trim().toLowerCase()
-}
-
-// Extract the leading year digit from a section string (e.g. "2A", "2-A", "3B" → 2, 3)
-function extractSectionYear(section) {
-  if (!section) return null
-  const m = String(section).match(/^(\d)/)
-  return m ? parseInt(m[1], 10) : null
-}
-
-// Extract year number from student year-level string (e.g. "2nd Year" → 2)
-function extractStudentYear(yearStr) {
-  if (!yearStr) return null
-  const m = String(yearStr).match(/(\d)/)
-  return m ? parseInt(m[1], 10) : null
-}
-
-// Returns true when the class section year matches the student's year level.
-// If either side cannot be determined, allow the class through.
-function yearLevelMatches(studentYear, clsSection) {
-  const stuYear = extractStudentYear(studentYear)
-  const clsYear = extractSectionYear(clsSection)
-  if (!stuYear || !clsYear) return true
-  return stuYear === clsYear
-}
-
-// The student's section: explicit field, else inherited from their primary class.
-function getStudentSection(student, classes) {
-  if (student.section) return student.section
-  const primary = classes.find(c => c.id === (student.classId || student.classIds?.[0]))
-  return primary?.section || ''
-}
-
-// Exact section match (ignores spacing/dashes/case: "2 - A" === "2A").
-function sectionMatches(student, cls, classes) {
-  if (!cls.section) return true // class has no section requirement
-  const stuSec = getStudentSection(student, classes)
-  if (!stuSec) return false     // student's section unknown → cannot verify
-  const normalize = v => String(v).trim().toLowerCase().replace(/[\s\-_]/g, '')
-  return normalize(stuSec) === normalize(cls.section)
-}
-
-// Full eligibility: course + year level + exact section must all match.
-function eligibleForClass(student, cls, classes) {
-  return courseMatches(student.course, cls.courseReq) &&
-         yearLevelMatches(student.year, cls.section) &&
-         sectionMatches(student, cls, classes)
-}
-
 function fmtDate(iso) {
   if (!iso) return null
   try {
