@@ -12,6 +12,7 @@ import {
   DEFAULT_EQ_SCALE,
 } from '@/utils/grades.js'
 import { sortByLastName } from '@/utils/format.js'
+import { splitStudentName, buildStudentName } from '@/utils/studentName.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -553,16 +554,19 @@ export function exportStudentRosterExcel({ students, classes }) {
     [''],
     [''],
   ]
-  const headers = ['#', 'Student No.', 'Full Name', 'Course', 'Year Level', 'Date of Birth', 'Mobile', 'Class', 'Section']
+  const headers = ['#', 'Student No.', 'Surname', 'First Name', 'M.I.', 'Course', 'Year Level', 'Date of Birth', 'Mobile', 'Class', 'Section']
   const dataRows = sorted.map((s, idx) => {
     const cls = classes.find(c =>
       (c.id === s.classId) ||
       (s.classIds?.includes(c.id))
     )
+    const n = splitStudentName(s.name)
     return [
       idx + 1,
       s.id,
-      s.name,
+      n.last,
+      n.first,
+      n.middle,
       s.course || '',
       s.year   || '',
       s.dob    || '',
@@ -571,14 +575,14 @@ export function exportStudentRosterExcel({ students, classes }) {
       cls?.section || '',
     ]
   })
-  const blankRows = Array.from({ length: 5 }, () => Array(9).fill(''))
+  const blankRows = Array.from({ length: 5 }, () => Array(headers.length).fill(''))
 
   const aoa = [...titleRows, headers, ...dataRows, ...blankRows]
   const ws  = XLSX.utils.aoa_to_sheet(aoa)
 
   XLSX.utils.sheet_add_aoa(ws, [headers], { origin: 10 }) // row 11 (0-based row 10)
 
-  ws['!cols'] = [4, 14, 28, 20, 12, 14, 14, 20, 12].map(w => ({ wch: w }))
+  ws['!cols'] = [4, 14, 18, 18, 6, 20, 12, 14, 14, 20, 12].map(w => ({ wch: w }))
   ws['!freeze'] = { xSplit: 0, ySplit: 11 }
 
   // Password Guide sheet
@@ -605,16 +609,20 @@ export function exportStudentRosterExcel({ students, classes }) {
 // ── Student import template / parser (simple, fill-in Excel) ───────────────
 // Column order shared by the blank template and the parser so a teacher can
 // export the template, fill rows in, and re-import the same file.
-export const STUDENT_IMPORT_COLUMNS = ['Student No.', 'Full Name', 'Course', 'Year Level', 'Section', 'Date of Birth', 'Mobile']
+export const STUDENT_IMPORT_COLUMNS = ['Student No.', 'Surname', 'First Name', 'M.I.', 'Course', 'Year Level', 'Section', 'Date of Birth', 'Mobile']
 
 // Normalized header → field. Mirrors the CSV importer's aliases so either path
-// resolves the same columns.
+// resolves the same columns. `name` (Full Name) is kept for backward-compat with
+// older files; separate Surname/First Name/M.I. columns take precedence.
 const STUDENT_COL_ALIASES = {
-  id:     ['studentno', 'sno', 'id', 'studentnumber', 'stuno'],
-  name:   ['fullname', 'name', 'studentname'],
-  course: ['course', 'courseprogram', 'program', 'coursename'],
-  year:   ['yearlevel', 'year', 'yearlvl'],
-  section:['section', 'sec'],
+  id:        ['studentno', 'sno', 'id', 'studentnumber', 'stuno'],
+  surname:   ['surname', 'lastname', 'familyname'],
+  firstname: ['firstname', 'givenname', 'fname'],
+  mi:        ['mi', 'middleinitial', 'middlename', 'middle'],
+  name:      ['fullname', 'name', 'studentname'],
+  course:    ['course', 'courseprogram', 'program', 'coursename'],
+  year:      ['yearlevel', 'year', 'yearlvl'],
+  section:   ['section', 'sec'],
   dob:    ['dateofbirth', 'dob', 'birthdate', 'birthday'],
   mobile: ['mobile', 'mobilenumber', 'phone', 'contact'],
 }
@@ -628,10 +636,10 @@ export function exportStudentImportTemplate({ classes = [] } = {}) {
   const XLSX = window.XLSX
   if (!XLSX) { alert('SheetJS not loaded.'); return }
 
-  const example = ['2024-10001', 'Juan dela Cruz', 'BS Computer Science', '1st Year', '2A', '2005-06-15', '+63 900 000 0000']
+  const example = ['2024-10001', 'Dela Cruz', 'Juan', 'S', 'BS Computer Science', '1st Year', '2A', '2005-06-15', '+63 900 000 0000']
   const blanks  = Array.from({ length: 30 }, () => Array(STUDENT_IMPORT_COLUMNS.length).fill(''))
   const ws = XLSX.utils.aoa_to_sheet([STUDENT_IMPORT_COLUMNS, example, ...blanks])
-  ws['!cols'] = [14, 28, 22, 12, 10, 14, 16].map(w => ({ wch: w }))
+  ws['!cols'] = [14, 18, 18, 6, 22, 12, 10, 14, 16].map(w => ({ wch: w }))
   ws['!freeze'] = { xSplit: 0, ySplit: 1 }
 
   const wb = XLSX.utils.book_new()
@@ -649,7 +657,7 @@ export function exportStudentImportTemplate({ classes = [] } = {}) {
     ...refRows,
     [''],
     ['Notes:'],
-    ['• Only "Student No." and "Full Name" are required. Course is recommended.'],
+    ['• Required: "Student No." and "Surname" + "First Name" (M.I. optional). Course is recommended.'],
     ['• Default password for imported students: Welcome@2026 (changed on first login).'],
     ['• Keep or delete the example row — rows with errors are skipped on import.'],
   ])
@@ -691,9 +699,11 @@ export function parseStudentImportExcel(workbook) {
 
   return aoa.slice(headerIdx + 1).map(row => {
     const get = k => idxs[k] >= 0 ? String(row[idxs[k]] ?? '').trim() : ''
+    // Separate Surname / First Name / M.I. columns win; fall back to Full Name.
+    const composed = buildStudentName(get('surname'), get('firstname'), get('mi'))
     return {
       id:     get('id'),
-      name:   get('name'),
+      name:   composed || get('name'),
       course: get('course'),
       year:   get('year'),
       section:get('section'),

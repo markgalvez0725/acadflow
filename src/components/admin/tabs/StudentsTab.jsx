@@ -20,6 +20,7 @@ import { exportStudentRosterExcel, exportStudentImportTemplate, parseStudentImpo
 import { courseOptions } from '@/constants/courses'
 import { classMatchesCourseYear } from '@/utils/enrollment'
 import { courseShort } from '@/utils/groupChat'
+import { splitStudentName, buildStudentName } from '@/utils/studentName'
 
 const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
 
@@ -35,33 +36,8 @@ function classSubjectsLabel(cls) {
   return `${subs.slice(0, 3).join(', ')}, +${subs.length - 3} more`
 }
 
-// Names are stored canonically as "SURNAME, First Middle". Split a stored name
-// into parts for editing, and rebuild that exact structure on save.
-// The middle is an INITIAL by convention, so only a trailing single-letter token
-// (e.g. the "G" in "STEPHEN ANDREI G") is treated as the middle initial — the
-// rest stays in the first name. This keeps multi-word first names like "STEPHEN
-// ANDREI" intact instead of pushing the second word into the M.I. field.
-function splitStudentName(full) {
-  const raw = (full || '').trim()
-  if (!raw) return { last: '', first: '', middle: '' }
-  if (raw.includes(',')) {
-    const [sur, rest = ''] = raw.split(/,(.+)/) // split on the FIRST comma only
-    const parts = rest.trim().split(/\s+/).filter(Boolean)
-    let firstParts = parts, middle = ''
-    const lastTok = parts[parts.length - 1] || ''
-    if (parts.length >= 2 && /^[A-Za-z]\.?$/.test(lastTok)) {
-      middle = lastTok.replace(/\.$/, '') // trailing single letter → middle initial
-      firstParts = parts.slice(0, -1)
-    }
-    return { last: sur.trim(), first: firstParts.join(' '), middle }
-  }
-  return { last: '', first: raw, middle: '' } // no comma — keep it in the first-name slot
-}
-function buildStudentName(last, first, middle) {
-  const l = (last || '').trim(), f = (first || '').trim(), m = (middle || '').trim()
-  if (!l && !f) return ''
-  return `${l}, ${f}${m ? ` ${m}` : ''}`.toUpperCase()
-}
+// Name split/build helpers live in @/utils/studentName (imported at top), shared
+// with the Excel/CSV export + import so the column parsing stays identical.
 
 function AddStudentModal({ onClose }) {
   const { classes, students, saveStudents } = useData()
@@ -710,10 +686,11 @@ function ResetPasswordModal({ student, onClose }) {
 
 // ── CSV helpers ───────────────────────────────────────────────────────
 function exportRosterCSV(students, classes) {
-  const headers = ['Student No.', 'Full Name', 'Course', 'Year Level', 'Date of Birth', 'Mobile', 'Primary Class', 'Email', 'Account Status']
+  const headers = ['Student No.', 'Surname', 'First Name', 'M.I.', 'Course', 'Year Level', 'Date of Birth', 'Mobile', 'Primary Class', 'Email', 'Account Status']
   const rows = students.map(s => {
     const cls = classes.find(c => c.id === s.classId)
-    return [s.id, (s.name || '').toUpperCase(), s.course || '', s.year || '', s.dob || '', s.mobile || '', cls ? `${cls.name} ${cls.section}` : '', s.account?.email || '', accountStatus(s).label]
+    const n = splitStudentName(s.name)
+    return [s.id, n.last, n.first, n.middle, s.course || '', s.year || '', s.dob || '', s.mobile || '', cls ? `${cls.name} ${cls.section}` : '', s.account?.email || '', accountStatus(s).label]
   })
   const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
@@ -740,12 +717,26 @@ function parseCSV(text) {
     return result
   }
   const headers = parseRow(lines[0]).map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''))
-  const colMap = { id: ['studentno', 'sno', 'id', 'studentnumber', 'stuno'], name: ['fullname', 'name', 'studentname'], course: ['course', 'courseprogram', 'program', 'coursename'], year: ['yearlevel', 'year', 'yearlvl'], dob: ['dateofbirth', 'dob', 'birthdate', 'birthday'], mobile: ['mobile', 'mobilenumber', 'phone', 'contact'] }
-  function getCol(key) { return colMap[key].reduce((found, alias) => found ?? headers.indexOf(alias), undefined) }
+  const colMap = {
+    id:        ['studentno', 'sno', 'id', 'studentnumber', 'stuno'],
+    surname:   ['surname', 'lastname', 'familyname'],
+    firstname: ['firstname', 'givenname', 'fname'],
+    mi:        ['mi', 'middleinitial', 'middlename', 'middle'],
+    name:      ['fullname', 'name', 'studentname'],
+    course:    ['course', 'courseprogram', 'program', 'coursename'],
+    year:      ['yearlevel', 'year', 'yearlvl'],
+    dob:       ['dateofbirth', 'dob', 'birthdate', 'birthday'],
+    mobile:    ['mobile', 'mobilenumber', 'phone', 'contact'],
+  }
+  // Fall through ALL aliases (the previous `??` stopped at the first -1).
+  function getCol(key) { return colMap[key].reduce((found, alias) => found >= 0 ? found : headers.indexOf(alias), -1) }
   const idxs = Object.fromEntries(Object.keys(colMap).map(k => [k, getCol(k)]))
   return lines.slice(1).map(line => {
     const v = parseRow(line)
-    return Object.fromEntries(Object.keys(idxs).map(k => [k, idxs[k] >= 0 ? (v[idxs[k]] || '').trim() : '']))
+    const get = k => idxs[k] >= 0 ? (v[idxs[k]] || '').trim() : ''
+    // Separate Surname / First / M.I. columns win; fall back to a single Full Name.
+    const composed = buildStudentName(get('surname'), get('firstname'), get('mi'))
+    return { id: get('id'), name: composed || get('name'), course: get('course'), year: get('year'), dob: get('dob'), mobile: get('mobile') }
   }).filter(r => Object.values(r).some(v => v))
 }
 
