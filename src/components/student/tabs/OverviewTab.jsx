@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, lazy, Suspense } from 'react'
-import {
-  gradeInfo, combineEquiv, getGWA, getAttRate, computeFinalGradeFromTerms,
-} from '@/utils/grades'
+import { getGWA, getAttRate, computeFinalGradeFromTerms } from '@/utils/grades'
+import { computeSubjectGrade } from '@/utils/gradeEngine'
 import { computeSemesterWrapped } from '@/utils/semesterWrapped'
 import { useData } from '@/context/DataContext'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
@@ -731,6 +730,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
               classes={classes}
               activities={activities}
               quizzes={quizzes}
+              students={students}
               eqScale={eqScale}
             />
           ))}
@@ -785,125 +785,56 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
   )
 }
 
-function SubjectCard({ sub, student: s, classes, activities, quizzes = [], eqScale }) {
+function SubjectCard({ sub, student: s, classes, activities, quizzes = [], students = [], eqScale }) {
   const [open, setOpen] = useState(false)
   const comp = s.gradeComponents?.[sub] || {}
-  const midG = comp.midterm ?? null
-  const finG = comp.finals  ?? null
-  const ts   = s.gradeUploadedAt?.[sub]
-
-  const gradeFullyUploaded = midG != null && finG != null && ts
-  const derivedFinalPct = computeFinalGradeFromTerms(midG, finG)
-  const g = derivedFinalPct ?? s.grades?.[sub] ?? null
-
-  // Activity cells
-  let actContent = null
   const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
-  const panelActs = activities.filter(a => enrolledIds.includes(a.classId) && a.subject === sub)
-  const hasGradedActs = panelActs.some(a => (a.submissions || {})[s.id]?.score != null)
-  // Reconcile cached activity scores against live activities — drop id-keyed
-  // scores whose activity the teacher deleted; keep positional (a1, a2…) only
-  // when there are no live activities to reconcile against (legacy entry).
-  const liveActIds = new Set(panelActs.map(a => a.id))
-  const cachedActEntries = (comp.activityScores ? Object.entries(comp.activityScores) : [])
-    .filter(([k]) => /^a\d+$/.test(k) ? !panelActs.length : liveActIds.has(k))
-  if (hasGradedActs) {
-    const scored = panelActs
-      .map((a, i) => ({ num: i + 1, score: (a.submissions || {})[s.id]?.score ?? null, max: a.maxScore || 100 }))
-      .filter(a => a.score != null)
-    actContent = scored.map(a => {
-      const pct = Math.round(a.score / a.max * 100)
-      const col = pct >= 75 ? 'var(--green)' : pct >= 60 ? 'var(--yellow)' : 'var(--red)'
-      return (
-        <div key={a.num} style={{ fontSize: 11, display: 'flex', gap: 3, alignItems: 'center' }}>
-          <span style={{ color: 'var(--ink2)', fontWeight: 600 }}>A{a.num}:</span>
-          <span style={{ color: col, fontWeight: 700 }}>{a.score}{a.max !== 100 ? `/${a.max}` : '%'}</span>
-        </div>
-      )
-    })
-  } else if (cachedActEntries.length) {
-    const isNumbered = cachedActEntries.every(([k]) => /^a\d+$/.test(k))
-    const sorted = isNumbered
-      ? cachedActEntries.sort((a, b) => parseInt(a[0].slice(1)) - parseInt(b[0].slice(1)))
-      : cachedActEntries.sort(([a], [b]) => a.localeCompare(b))
-    actContent = sorted.map(([k, val], i) => {
-      const num = isNumbered ? parseInt(k.slice(1)) : i + 1
-      const col = val >= 75 ? 'var(--green)' : val >= 60 ? 'var(--yellow)' : 'var(--red)'
-      return (
-        <div key={k} style={{ fontSize: 11, display: 'flex', gap: 3, alignItems: 'center' }}>
-          <span style={{ color: 'var(--ink2)', fontWeight: 600 }}>A{num}:</span>
-          <span style={{ color: col, fontWeight: 700 }}>{val}%</span>
-        </div>
-      )
-    })
-  } else if (comp.activities != null) {
-    actContent = <span style={{ fontSize: 12 }}>{comp.activities}%</span>
-  } else {
-    actContent = '—'
-  }
 
-  // Quiz cells — the student's own per-quiz results cache, reconciled against the
-  // live quizzes so a quiz the teacher deleted no longer counts (with legacy
-  // fallback). id-keyed quizScores for deleted quizzes are dropped; positional
-  // ones survive only when there are no live quizzes.
-  const liveQuizIds = new Set(quizzes.map(q => q.id))
-  const myQuizResults = s.quizResults?.[sub]?.length
-    ? s.quizResults[sub].filter(e => !e?.quizId || liveQuizIds.has(e.quizId))
-    : (Array.isArray(comp.quizzes) ? comp.quizzes : null)
-  const cachedQzEntries = (comp.quizScores ? Object.entries(comp.quizScores) : [])
-    .filter(([k]) => /^q\d+$/.test(k) ? liveQuizIds.size === 0 : liveQuizIds.has(k))
-  let qzContent = null
-  if (cachedQzEntries.length) {
-    const isNumberedQz = cachedQzEntries.every(([k]) => /^q\d+$/.test(k))
-    const sorted = isNumberedQz
-      ? cachedQzEntries.sort((a, b) => parseInt(a[0].slice(1)) - parseInt(b[0].slice(1)))
-      : cachedQzEntries.sort(([a], [b]) => String(a).localeCompare(String(b)))
-    qzContent = sorted.map(([k, val], i) => {
-      const num = isNumberedQz ? parseInt(k.slice(1)) : i + 1
-      const col = val >= 75 ? 'var(--green)' : val >= 60 ? 'var(--yellow)' : 'var(--red)'
-      return (
-        <div key={k} style={{ fontSize: 11, display: 'flex', gap: 3, alignItems: 'center' }}>
-          <span style={{ color: 'var(--ink2)', fontWeight: 600 }}>Q{num}:</span>
-          <span style={{ color: col, fontWeight: 700 }}>{val}%</span>
-        </div>
-      )
-    })
-  } else if (myQuizResults && myQuizResults.length) {
-    qzContent = myQuizResults.map((q, i) => {
-      const col = q.pct >= 75 ? 'var(--green)' : q.pct >= 60 ? 'var(--yellow)' : 'var(--red)'
-      return (
-        <div key={q.quizId || i} style={{ fontSize: 11, display: 'flex', gap: 3, alignItems: 'center' }}>
+  // One source of truth — the same GradeEngine the Grades page uses, so this
+  // overview summary always matches it and the teacher's gradebook.
+  const gr = computeSubjectGrade(s, sub, { activities, quizzes, students, classes, eqScale, enrolledIds })
+  const midG = gr.midterm
+  const finG = gr.finals
+  const g = gr.final
+  const gradeFullyUploaded = gr.published
+
+  const cellCol = v => (v == null ? 'var(--ink3)' : v >= 75 ? 'var(--green)' : v >= 60 ? 'var(--yellow)' : 'var(--red)')
+
+  // Activity cells — from the engine's reconciled per-activity detail.
+  const actContent = gr.detail.activityItems.length
+    ? gr.detail.activityItems.map((a, i) => {
+        const pct = a.max ? Math.round(a.score / a.max * 100) : null
+        return (
+          <div key={i} style={{ fontSize: 11, display: 'flex', gap: 3, alignItems: 'center' }}>
+            <span style={{ color: 'var(--ink2)', fontWeight: 600 }}>A{i + 1}:</span>
+            <span style={{ color: cellCol(pct), fontWeight: 700 }}>{a.score}{a.max !== 100 ? `/${a.max}` : '%'}</span>
+          </div>
+        )
+      })
+    : (gr.components.activities != null ? <span style={{ fontSize: 12 }}>{gr.components.activities}%</span> : '—')
+
+  // Quiz cells — from the engine's reconciled per-quiz detail.
+  const qzContent = gr.detail.quizItems.length
+    ? gr.detail.quizItems.map((q, i) => (
+        <div key={i} style={{ fontSize: 11, display: 'flex', gap: 3, alignItems: 'center' }}>
           <span style={{ color: 'var(--ink2)', fontWeight: 600 }}>Q{i + 1}:</span>
-          <span style={{ color: col, fontWeight: 700 }}>{q.pct}%</span>
+          <span style={{ color: cellCol(q.pct), fontWeight: 700 }}>{q.pct}%</span>
         </div>
-      )
-    })
-  } else if (comp.quizzes != null && !Array.isArray(comp.quizzes)) {
-    const qzVal = typeof comp.quizzes === 'object' ? comp.quizzes.pct : comp.quizzes
-    qzContent = <span style={{ fontSize: 12 }}>{qzVal}%</span>
-  } else {
-    qzContent = '—'
-  }
+      ))
+    : (gr.components.quizzes != null ? <span style={{ fontSize: 12 }}>{gr.components.quizzes}%</span> : '—')
 
-  const { eq: midEq } = gradeInfo(midG, eqScale)
-  const { eq: finEq } = gradeInfo(finG, eqScale)
+  const midEq = gr.equiv.midEq
+  const finEq = gr.equiv.finEq
 
-  // Final equiv + remark
-  let eq, remarkBadge
+  // Final equivalent + remark badge (engine-derived).
+  const eq = gr.equiv.eq
+  let remarkBadge
   if (gradeFullyUploaded) {
-    const combined = combineEquiv(gradeInfo(midG, eqScale).eq, gradeInfo(finG, eqScale).eq)
-    eq = combined.eq
-    const badgeCls = combined.rem === 'Passed' ? 'badge-green' : combined.rem === 'Conditional' ? 'badge-yellow' : combined.rem === 'Failed' ? 'badge-red' : 'badge-gray'
-    remarkBadge = <span className={`badge ${badgeCls}`}>{combined.rem}</span>
-  } else if (midG != null && finG != null) {
-    eq = combineEquiv(gradeInfo(midG, eqScale).eq, gradeInfo(finG, eqScale).eq).eq
-    remarkBadge = <span className="badge badge-gray" title="Grades entered but not yet finalized" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={11} />Pending</span>
-  } else if (midG != null) {
-    eq = gradeInfo(midG, eqScale).eq
-    remarkBadge = <span className="badge badge-gray" title="Finals not yet uploaded" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={11} />Pending</span>
+    const badgeCls = gr.equiv.rem === 'Passed' ? 'badge-green' : gr.equiv.rem === 'Conditional' ? 'badge-yellow' : gr.equiv.rem === 'Failed' ? 'badge-red' : 'badge-gray'
+    remarkBadge = <span className={`badge ${badgeCls}`}>{gr.equiv.rem}</span>
   } else {
-    eq = '—'
-    remarkBadge = <span className="badge badge-gray" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={11} />Pending</span>
+    const title = (midG != null && finG != null) ? 'Grades entered but not yet finalized' : 'Finals not yet uploaded'
+    remarkBadge = <span className="badge badge-gray" title={title} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={11} />Pending</span>
   }
 
   const dotColor = g == null ? 'var(--ink3)' : g >= 85 ? 'var(--green)' : g >= 75 ? 'var(--yellow)' : 'var(--red)'
