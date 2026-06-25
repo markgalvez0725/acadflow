@@ -19,19 +19,38 @@ import { buildStudentReportCard } from '@/export/reportCard'
 import { exportStudentRosterExcel, exportStudentImportTemplate, parseStudentImportExcel } from '@/export/excelExport'
 import { courseOptions } from '@/constants/courses'
 import { classMatchesCourseYear } from '@/utils/enrollment'
+import { courseShort } from '@/utils/groupChat'
 
 const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
 
 const PER_PAGE = 50
 const DEFAULT_PASS = 'Welcome@2026'
 
-// ── Add Student Modal ─────────────────────────────────────────────────
+// ── Add / Edit Student Modal helpers ──────────────────────────────────
 // Compact subject summary for a class option: "Calculus, Physics, +2 more".
 function classSubjectsLabel(cls) {
   const subs = cls.subjects || []
   if (!subs.length) return 'No subjects yet'
   if (subs.length <= 3) return subs.join(', ')
   return `${subs.slice(0, 3).join(', ')}, +${subs.length - 3} more`
+}
+
+// Names are stored canonically as "SURNAME, First Middle". Split a stored name
+// into parts for editing, and rebuild that exact structure on save.
+function splitStudentName(full) {
+  const raw = (full || '').trim()
+  if (!raw) return { last: '', first: '', middle: '' }
+  if (raw.includes(',')) {
+    const [sur, rest = ''] = raw.split(/,(.+)/) // split on the FIRST comma only
+    const parts = rest.trim().split(/\s+/).filter(Boolean)
+    return { last: sur.trim(), first: parts[0] || '', middle: parts.slice(1).join(' ') }
+  }
+  return { last: '', first: raw, middle: '' } // no comma — keep it in the first-name slot
+}
+function buildStudentName(last, first, middle) {
+  const l = (last || '').trim(), f = (first || '').trim(), m = (middle || '').trim()
+  if (!l && !f) return ''
+  return `${l}, ${f}${m ? ` ${m}` : ''}`.toUpperCase()
 }
 
 function AddStudentModal({ onClose }) {
@@ -55,11 +74,7 @@ function AddStudentModal({ onClose }) {
   const [saving, setSaving]     = useState(false)
 
   // Canonical name preview: "DELA CRUZ, JUAN D"
-  const composedName = useMemo(() => {
-    const last = lastName.trim(), first = firstName.trim(), mi = middleInit.trim()
-    if (!last && !first) return ''
-    return `${last}, ${first}${mi ? ` ${mi}` : ''}`.toUpperCase()
-  }, [lastName, firstName, middleInit])
+  const composedName = useMemo(() => buildStudentName(lastName, firstName, middleInit), [lastName, firstName, middleInit])
 
   // Classes offered to this student: same course requirement + matching year.
   // Only computed once both course and year are chosen.
@@ -270,12 +285,14 @@ function EditStudentModal({ student, onClose }) {
   const { classes, students, saveStudents, deleteStudent, verifyStudentAccount } = useData()
   const { toast } = useUI()
 
-  const [name, setName]       = useState(student.name || '')
+  const _parsed = splitStudentName(student.name)
+  const [lastName, setLastName]     = useState(_parsed.last)
+  const [firstName, setFirstName]   = useState(_parsed.first)
+  const [middleName, setMiddleName] = useState(_parsed.middle)
   const [snum, setSnum]       = useState(student.id || '')
   const isRegistered = !!student.account?.registered
   const [course, setCourse]   = useState(student.course || '')
   const [year, setYear]       = useState(student.year || '1st Year')
-  const [section, setSection] = useState(student.section || '')
   const [classId, setClassId] = useState(student.classId || '')
   const [extraIds, setExtraIds] = useState(
     (student.classIds || []).filter(id => id !== student.classId)
@@ -284,8 +301,41 @@ function EditStudentModal({ student, onClose }) {
   const [saving, setSaving]   = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
 
-  const activeClasses = useMemo(() => classes.filter(c => !c.archived), [classes])
-  const otherClasses  = useMemo(() => activeClasses.filter(c => c.id !== classId), [activeClasses, classId])
+  const composedName = useMemo(() => buildStudentName(lastName, firstName, middleName), [lastName, firstName, middleName])
+
+  // Classes offered for this student's course + year.
+  const matchingClasses = useMemo(
+    () => classes.filter(c => !c.archived && classMatchesCourseYear(course, year, c)),
+    [classes, course, year]
+  )
+
+  // Primary-class options: the matching classes PLUS the student's CURRENT
+  // primary class even if it no longer matches — so editing never hides an
+  // existing assignment.
+  const primaryOptions = useMemo(() => {
+    const m = new Map(matchingClasses.map(c => [c.id, c]))
+    const cur = classes.find(c => c.id === classId)
+    if (cur && !m.has(cur.id)) m.set(cur.id, cur)
+    return [...m.values()]
+  }, [matchingClasses, classId, classes])
+
+  // Additional-class options: matching classes (minus the primary) PLUS any
+  // already-enrolled extra class that doesn't match — kept visible so stray
+  // cross-course enrollments can be seen and removed, never silently hidden.
+  const additionalOptions = useMemo(() => {
+    const m = new Map(matchingClasses.filter(c => c.id !== classId).map(c => [c.id, c]))
+    extraIds.forEach(id => {
+      if (id === classId || m.has(id)) return
+      const c = classes.find(x => x.id === id)
+      if (c) m.set(id, c)
+    })
+    return [...m.values()]
+  }, [matchingClasses, classId, extraIds, classes])
+
+  const primaryCls = classes.find(c => c.id === classId) || null
+  // Section follows the primary class; if none is set, keep the student's
+  // existing section so editing never wipes it.
+  const inheritedSection = primaryCls?.section || student.section || ''
 
   const allSubjects = useMemo(() => {
     const allIds = [...new Set([classId, ...extraIds].filter(Boolean))]
@@ -300,9 +350,9 @@ function EditStudentModal({ student, onClose }) {
 
   async function handleSave() {
     setErr('')
-    const trimName = name.trim()
     const trimSnum = snum.trim().toUpperCase()
-    if (!trimName) { setErr('Full name is required.'); return }
+    if (!lastName.trim())  { setErr('Last name is required.');  return }
+    if (!firstName.trim()) { setErr('First name is required.'); return }
     if (!course.trim()) { setErr('Course is required.'); return }
 
     // Student number can only be changed before the student has an account,
@@ -318,9 +368,7 @@ function EditStudentModal({ student, onClose }) {
     const allClassIds = [...new Set([newClassId, ...extraIds].filter(Boolean))]
     const finalId = snumChanged ? trimSnum : student.id
 
-    const primaryCls = classes.find(c => c.id === newClassId)
-    const finalSection = section.trim() || primaryCls?.section || ''
-    const ns = { ...student, id: finalId, name: trimName.toUpperCase(), course: course.trim(), year, section: finalSection, classId: newClassId, classIds: allClassIds, grades: { ...student.grades }, attendance: { ...student.attendance }, excuse: { ...student.excuse } }
+    const ns = { ...student, id: finalId, name: composedName, course: course.trim(), year, section: inheritedSection, classId: newClassId, classIds: allClassIds, grades: { ...student.grades }, attendance: { ...student.attendance }, excuse: { ...student.excuse } }
     if (student.gradeComponents) ns.gradeComponents = { ...student.gradeComponents }
     allClassIds.forEach(cid => {
       const cls = classes.find(c => c.id === cid)
@@ -368,23 +416,34 @@ function EditStudentModal({ student, onClose }) {
       {err && <div className="err-msg mb-3">{err}</div>}
 
       <div className="text-[11px] font-bold uppercase tracking-wide text-ink3 mb-2">Identity</div>
+      <div className="field">
+        <label>Last Name <span className="text-red-500">*</span></label>
+        <input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Dela Cruz" />
+      </div>
       <div className="input-row">
-        <div className="field">
-          <label>Full Name <span className="text-red-500">*</span></label>
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="Juan dela Cruz" />
+        <div className="field" style={{ flex: 2 }}>
+          <label>First Name <span className="text-red-500">*</span></label>
+          <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Juan" />
         </div>
-        <div className="field">
-          <label>Student Number {isRegistered
-            ? <span className="text-ink3 font-normal">(locked — student has an account)</span>
-            : <span className="text-red-500">*</span>}</label>
-          <input
-            value={snum}
-            onChange={e => setSnum(e.target.value)}
-            readOnly={isRegistered}
-            maxLength={15}
-            style={isRegistered ? { background: 'var(--border)', color: 'var(--ink2)', cursor: 'not-allowed' } : {}}
-          />
+        <div className="field" style={{ flex: 1 }}>
+          <label>Middle <span className="font-normal text-ink3">(optional)</span></label>
+          <input value={middleName} onChange={e => setMiddleName(e.target.value)} placeholder="S" maxLength={30} />
         </div>
+      </div>
+      {composedName && (
+        <div className="text-xs text-ink3 -mt-1 mb-2">Saved as <strong className="text-ink">{composedName}</strong></div>
+      )}
+      <div className="field">
+        <label>Student Number {isRegistered
+          ? <span className="text-ink3 font-normal">(locked — student has an account)</span>
+          : <span className="text-red-500">*</span>}</label>
+        <input
+          value={snum}
+          onChange={e => setSnum(e.target.value)}
+          readOnly={isRegistered}
+          maxLength={15}
+          style={isRegistered ? { background: 'var(--border)', color: 'var(--ink2)', cursor: 'not-allowed' } : {}}
+        />
       </div>
 
       <div className="text-[11px] font-bold uppercase tracking-wide text-ink3 mb-2 mt-4 flex items-center gap-1.5"><GraduationCap size={12} /> Academic</div>
@@ -405,37 +464,47 @@ function EditStudentModal({ student, onClose }) {
       </div>
 
       <div className="field">
-        <label>Section <span className="font-normal text-ink3">(used to verify enrollment — leave blank to inherit from primary class)</span></label>
-        <input value={section} onChange={e => setSection(e.target.value)} placeholder="e.g. 2A" maxLength={10} />
-      </div>
-
-      <div className="field">
         <label>Primary Class <span className="font-normal text-ink3">(home class for grades &amp; attendance)</span></label>
         <select value={classId} onChange={e => { setClassId(e.target.value); setExtraIds(prev => prev.filter(x => x !== e.target.value)) }}>
           <option value="">— Unassigned —</option>
-          {activeClasses.map(c => <option key={c.id} value={c.id}>{c.name} · {c.section}</option>)}
+          {primaryOptions.map(c => {
+            const matches = classMatchesCourseYear(course, year, c)
+            return <option key={c.id} value={c.id}>{c.section} · {classSubjectsLabel(c)}{matches ? '' : ` (${courseShort(c.name)})`}</option>
+          })}
         </select>
+        <div className="text-xs text-ink3 mt-1">
+          Section <strong className="text-ink">{inheritedSection || '—'}</strong>
+          {primaryCls && <> · {(primaryCls.subjects || []).length} subject{(primaryCls.subjects || []).length !== 1 ? 's' : ''}: {(primaryCls.subjects || []).join(', ') || 'none'}</>}
+        </div>
       </div>
 
-      {otherClasses.length > 0 && (
+      {additionalOptions.length > 0 && (
         <div className="field mb-2">
           <label className="flex items-center justify-between">
             <span>Additional Classes <span className="font-normal text-ink3">(also enrolled in)</span></span>
-            <span className="text-xs text-ink3 font-normal">Tap all that apply</span>
+            <span className="text-xs text-ink3 font-normal">Same course &amp; year</span>
           </label>
           <div className="flex flex-wrap gap-1.5 mt-1">
-            {otherClasses.map(c => {
+            {additionalOptions.map(c => {
               const on = extraIds.includes(c.id)
+              const matches = classMatchesCourseYear(course, year, c)
+              const border = on ? (matches ? 'var(--accent)' : 'var(--yellow)') : 'var(--border)'
+              const bg     = on ? (matches ? 'var(--accent-l)' : 'var(--yellow-l)') : 'var(--surface)'
+              const color  = on ? (matches ? 'var(--accent)' : 'var(--yellow)') : 'var(--ink2)'
               return (
                 <button key={c.id} type="button" onClick={() => toggleExtra(c.id)}
                   title={c.subjects?.join(', ') || 'No subjects'}
                   className="text-xs px-2.5 py-1 rounded-full transition-colors"
-                  style={{ border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`, background: on ? 'var(--accent-l)' : 'var(--surface)', color: on ? 'var(--accent)' : 'var(--ink2)', cursor: 'pointer' }}>
-                  {on && <Check size={11} className="inline-block mr-1 align-text-bottom" />}{c.name} · {c.section}
+                  style={{ border: `1px solid ${border}`, background: bg, color, cursor: 'pointer' }}>
+                  {on && <Check size={11} className="inline-block mr-1 align-text-bottom" />}
+                  {matches ? `${c.section} · ${classSubjectsLabel(c)}` : `${courseShort(c.name)} · ${c.section}`}
                 </button>
               )
             })}
           </div>
+          {additionalOptions.some(c => extraIds.includes(c.id) && !classMatchesCourseYear(course, year, c)) && (
+            <div className="text-xs text-ink3 mt-1.5">Yellow chips are enrolled outside this course/year — tap to remove if no longer applicable.</div>
+          )}
         </div>
       )}
 
