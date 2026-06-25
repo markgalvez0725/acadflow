@@ -18,19 +18,14 @@
 //     means stay full-precision (see grades.js). Never round twice.
 //   • Two modes — 'published' (what the student sees: final from the teacher's
 //     saved term grades) and 'live' (recompute everything from raw inputs, used
-//     by the gradebook + the integrity auditor).
+//     by the gradebook).
 
 import {
   scoredPercent, computeTerms, computeFinalGradeFromTerms,
   gradeInfo, combineEquiv, round2, DEFAULT_EQ_SCALE,
 } from './grades'
 
-// Bump when the formula or derivation changes, so cached snapshots can be
-// re-validated against the engine that produced them.
-export const GRADE_ENGINE_VERSION = 1
-
-// Rounding policy — the ONE place display precision is decided.
-export const COMPONENT_DP = 2   // activities / quizzes / attendance / attitude / CS / terms
+// Rounding policy — the ONE place display precision is decided (2 dp).
 const r2 = round2
 
 function enrolledIdsOf(s) {
@@ -41,7 +36,7 @@ function enrolledIdsOf(s) {
 // Mean of (score ÷ maxScore × 100) over the live activities the student was
 // graded on. Cached gradeComponents.activityScores are only used to backfill
 // when there are no live submissions, and only for activities that still exist
-// (id-keyed) — a deleted activity never counts. Returns { pct, items, source }.
+// (id-keyed) — a deleted activity never counts. Returns { pct, items }.
 export function deriveActivities(s, sub, activities = [], enrolledIds = enrolledIdsOf(s)) {
   const comp = s.gradeComponents?.[sub] || {}
   const liveActs = (activities || []).filter(a => enrolledIds.includes(a.classId) && a.subject === sub)
@@ -53,20 +48,17 @@ export function deriveActivities(s, sub, activities = [], enrolledIds = enrolled
     max: a.maxScore || 100,
   }))
   let items = panel.filter(a => a.score != null)
-  let source = 'live'
 
   if (!items.length && comp.activityScores && Object.keys(comp.activityScores).length) {
     const entries = Object.entries(comp.activityScores)
     const idKeyed = entries.filter(([k]) => liveActIds.has(k))
     if (idKeyed.length) {
-      source = 'cache'
       items = idKeyed.map(([k, v]) => {
         const a = liveActs.find(x => x.id === k)
         return { id: k, title: a?.title || '', score: v, max: a?.maxScore || 100 }
       })
     } else if (!liveActs.length && entries.every(([k]) => /^a\d+$/.test(k))) {
       // Legacy doc-less manual entry (teacher typed scores with no activity docs).
-      source = 'legacy'
       items = entries
         .sort((a, b) => parseInt(a[0].slice(1)) - parseInt(b[0].slice(1)))
         .map(([k, v]) => ({ id: k, title: '', score: v, max: 100 }))
@@ -76,7 +68,7 @@ export function deriveActivities(s, sub, activities = [], enrolledIds = enrolled
   const raw = items.length ? scoredPercent(items.map(i => ({ score: i.score, maxScore: i.max }))) : null
   // Fall back to the teacher's stored aggregate only when nothing is derivable.
   const pct = raw != null ? r2(raw) : (typeof comp.activities === 'number' ? comp.activities : null)
-  return { pct, items, source: raw != null ? source : (pct != null ? 'aggregate' : 'none') }
+  return { pct, items }
 }
 
 // ── Quizzes component ──────────────────────────────────────────────────────
@@ -90,7 +82,6 @@ export function deriveQuizzes(s, sub, quizzes = []) {
   const cached = (s.quizResults?.[sub] || [])
     .filter(e => !e?.quizId || liveQuizIds.has(e.quizId))
   let items = []
-  let source = 'live'
 
   if (cached.length) {
     items = cached.map(q => ({
@@ -101,7 +92,6 @@ export function deriveQuizzes(s, sub, quizzes = []) {
     const hasLive = liveQuizIds.size > 0
     const entries = Object.entries(comp.quizScores)
       .filter(([k]) => /^q\d+$/.test(k) ? !hasLive : liveQuizIds.has(k))
-    source = 'cache'
     items = entries.map(([k, v]) => ({ id: /^q\d+$/.test(k) ? null : k, title: '', pct: v }))
   }
 
@@ -109,7 +99,7 @@ export function deriveQuizzes(s, sub, quizzes = []) {
     ? items.reduce((t, q) => t + q.pct, 0) / items.length
     : null
   const pct = raw != null ? r2(raw) : (typeof comp.quizzes === 'number' ? comp.quizzes : null)
-  return { pct, items, source: raw != null ? source : (pct != null ? 'aggregate' : 'none') }
+  return { pct, items }
 }
 
 // ── Attendance component ───────────────────────────────────────────────────
@@ -183,22 +173,15 @@ export function computeSubjectGrade(s, sub, ctx = {}, opts = {}) {
   const published = !!(comp.midterm != null && comp.finals != null && ts)
 
   return {
-    version: GRADE_ENGINE_VERSION,
-    subject: sub,
     components,
     cs: r2(live.cs),
     midterm: midterm != null ? r2(midterm) : null,
     finals:  finals  != null ? r2(finals)  : null,
     final,
     equiv: { midEq, finEq, ...equiv },
-    overridden,
     published,
     uploadedAt: ts || null,
-    // Live recompute (for the integrity auditor to compare against `final`).
-    live: { cs: r2(live.cs), midterm: r2(live.midterm), finals: r2(live.finals), final: live.final },
-    sources: { activities: act.source, quizzes: qz.source },
     detail: { activityItems: act.items, quizItems: qz.items, attendance: att },
-    inputs: { activities: act.pct, quizzes: qz.pct, attendance: att.pct, attitude, midtermExam, finalsExam },
     trace: buildTrace({ act, qz, att, attitude, midtermExam, finalsExam, live, midterm, finals, final, equiv, overridden }),
   }
 }
@@ -228,26 +211,4 @@ function buildTrace({ act, qz, att, attitude, midtermExam, finalsExam, live, mid
     formula: overridden ? 'manual grade set by teacher' : 'average of Midterm Term and Finals Term' })
   steps.push({ key: 'equiv', label: 'Equivalent', value: equiv.eq, remark: equiv.rem })
   return steps
-}
-
-// Stable, order-independent hash of the inputs that produced a grade — lets a
-// published snapshot detect when its inputs later changed (drift).
-export function gradeInputHash(result) {
-  const i = result?.inputs || {}
-  const norm = v => (v == null ? '∅' : Number(v).toFixed(4))
-  const detail = (result?.detail?.activityItems || []).map(a => `${a.id || ''}:${norm(a.score)}/${a.max}`).join('|')
-    + '#' + (result?.detail?.quizItems || []).map(q => `${q.id || ''}:${norm(q.pct)}`).join('|')
-  const base = [i.activities, i.quizzes, i.attendance, i.attitude, i.midtermExam, i.finalsExam]
-    .map(norm).join(',') + ';' + detail
-  let h = 0
-  for (let k = 0; k < base.length; k++) { h = (h * 31 + base.charCodeAt(k)) | 0 }
-  return 'g' + GRADE_ENGINE_VERSION + '_' + (h >>> 0).toString(36)
-}
-
-// Drift check for the integrity auditor: does the stored/published final still
-// match a fresh live recompute? Tolerance absorbs 2-dp rounding.
-export function checkGradeDrift(result, tol = 0.01) {
-  if (!result || result.final == null || result.live?.final == null) return { drift: false }
-  const delta = Math.abs(result.final - result.live.final)
-  return { drift: delta > tol, stored: result.final, live: result.live.final, delta: round2(delta) }
 }
