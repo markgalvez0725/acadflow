@@ -307,6 +307,41 @@ export function DataProvider({ children }) {
     return sentIds.length
   }, [students, saveStudents])
 
+  // Re-verify incomplete active accounts: demote each selected account back to
+  // PENDING (account.verified = false) AND nudge it to finish the profile, in one
+  // pass. Demotion is coupled to a SUCCESSFUL nudge — an account is only sent to
+  // pending if its notification was delivered, so a student never silently loses
+  // grade access without being told why. When they complete the profile, the
+  // Edit-Profile save re-runs the AI check and can auto-activate them. Returns the
+  // number demoted+nudged. Admin-only.
+  const bulkDemoteAndNudge = useCallback(async (ids) => {
+    const db = dbRef.current
+    if (!db) return 0
+    const idSet = new Set((ids || []).filter(Boolean))
+    if (!idSet.size) return 0
+    const now = Date.now()
+    const dayKey = new Date(now).toISOString().slice(0, 10)
+    const rem = {
+      remKey: `profile-verify-${dayKey}`,
+      type: 'profile',
+      title: 'Action needed: finish setting up your account',
+      body: 'Some details are incomplete, so full access is paused. Tap to update your profile — it can be restored automatically.',
+      link: 'profile',
+    }
+    const sentIds = []
+    for (const id of idSet) {
+      try { if (await fbPushReminderNotif(db, id, rem)) sentIds.push(id) } catch (_) { /* leave active — retry later */ }
+    }
+    if (!sentIds.length) return 0
+    const sent = new Set(sentIds)
+    const updated = students.map(s => (sent.has(s.id) && s.account?.registered)
+      ? { ...s, account: { ...s.account, verified: false, profileNudgedAt: now,
+          verification: { ...(s.account.verification || {}), method: 'teacher-recheck', reason: 'incomplete-profile', at: now } } }
+      : s)
+    await saveStudents(updated, sentIds)
+    return sentIds.length
+  }, [students, saveStudents])
+
   // Append an entry to the admin audit log. Fire-and-forget — callers should
   // not await this in a way that blocks the primary action.
   const logAudit = useCallback((entry) => {
@@ -1150,6 +1185,7 @@ export function DataProvider({ children }) {
       bulkVerifyAccounts,
       bulkVerifyActivate,
       bulkNudgeProfiles,
+      bulkDemoteAndNudge,
       meetings, setMeetings,
       liveMeetings: meetings.filter(m => m.status === 'live'),
       saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting,

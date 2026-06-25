@@ -1,15 +1,15 @@
 import React, { useMemo, useState } from 'react'
-import { ShieldCheck, AlertTriangle, CheckCircle2, ChevronRight, BellRing, RefreshCw, Loader2 } from 'lucide-react'
+import { ShieldCheck, AlertTriangle, CheckCircle2, ChevronRight, BellRing, RefreshCw, Loader2, UserMinus } from 'lucide-react'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { auditAccounts, legacyActiveIds, nudgeTargets, incompleteProfiles } from '@/utils/accountAudit'
+import { auditAccounts, legacyActiveIds, nudgeTargets, incompleteProfiles, demoteCandidates } from '@/utils/accountAudit'
 
 // Teacher-side analyzer for EXISTING accounts (the AI identity check only runs at
 // registration). Shows verification coverage + flags integrity anomalies, with a
 // one-click "mark all legacy accounts verified" and a jump into each flagged row.
 export default function AccountAuditModal({ onClose, onOpenStudent }) {
-  const { students, classes, bulkVerifyAccounts, bulkNudgeProfiles } = useData()
+  const { students, classes, bulkVerifyAccounts, bulkNudgeProfiles, bulkDemoteAndNudge } = useData()
   const { toast, openDialog } = useUI()
   const [busy, setBusy] = useState(false)
   const [scanning, setScanning] = useState(false)
@@ -21,7 +21,14 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
   // the subset eligible to nudge right now (the rest are within their cooldown).
   const incomplete = useMemo(() => incompleteProfiles(students), [students])
   const nudgeList  = useMemo(() => nudgeTargets(students), [students])
-  const alreadyNudged = incomplete.length - nudgeList.length
+  // ACTIVE accounts with a self-fixable data gap — eligible to be sent back to
+  // pending for re-verification (course/section gaps are excluded — see helper).
+  const demoteList = useMemo(() => demoteCandidates(students), [students])
+  // incomplete = pending accounts + active-with-data-gap accounts (disjoint:
+  // active ≠ pending). Pending ones are the nudge audience; active ones are the
+  // demote audience.
+  const pendingCount  = incomplete.length - demoteList.length
+  const alreadyNudged = pendingCount - nudgeList.length
 
   async function markLegacyVerified() {
     if (!legacyIds.length) return
@@ -53,6 +60,21 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
     } catch (e) { toast('Failed: ' + e.message, 'red') } finally { setBusy(false) }
   }
 
+  async function demoteIncomplete() {
+    if (!demoteList.length) return
+    const ok = await openDialog({
+      title: `Send ${demoteList.length} incomplete account${demoteList.length > 1 ? 's' : ''} back to pending?`,
+      msg: 'These are ACTIVE students missing a profile photo or a properly formatted name. Each one is set back to "pending" (grade/quiz/activity access paused) and nudged to finish their profile. When they complete it, the AI re-checks them and restores full access automatically — or you can approve them manually. Only students who can fix the gap themselves are included.',
+      type: 'warn', confirmLabel: 'Send to pending & nudge', showCancel: true,
+    })
+    if (!ok) return
+    setBusy(true)
+    try {
+      const n = await bulkDemoteAndNudge(demoteList.map(t => t.id))
+      toast(n ? `${n} account${n > 1 ? 's' : ''} set to pending and nudged.` : 'Could not reach those students — nothing changed.', n ? 'green' : 'blue')
+    } catch (e) { toast('Failed: ' + e.message, 'red') } finally { setBusy(false) }
+  }
+
   // The audit is computed live from the real-time roster, so it is always current
   // the moment this modal opens. This button re-evaluates the WHOLE roster on
   // demand and reports the result, so the teacher can see the scan ran and pick
@@ -62,7 +84,7 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
     setTimeout(() => {
       setScannedTotal(registeredCount)
       setScanning(false)
-      toast(`Scanned ${registeredCount} account${registeredCount !== 1 ? 's' : ''} — ${incomplete.length} incomplete, ${nudgeList.length} ready to nudge.`, 'blue')
+      toast(`Scanned ${registeredCount} account${registeredCount !== 1 ? 's' : ''} — ${demoteList.length} active to re-verify, ${nudgeList.length} pending to nudge.`, 'blue')
     }, 350)
   }
 
@@ -97,23 +119,28 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
         ))}
       </div>
 
-      {(legacyIds.length > 0 || incomplete.length > 0) && (
+      {(legacyIds.length > 0 || incomplete.length > 0 || demoteList.length > 0) && (
         <div className="flex flex-wrap items-center gap-2 mb-3">
           {legacyIds.length > 0 && (
             <button className="btn btn-ghost btn-sm" disabled={busy} onClick={markLegacyVerified}>
               <ShieldCheck size={14} /> Mark all {legacyIds.length} legacy account{legacyIds.length > 1 ? 's' : ''} verified
             </button>
           )}
-          {incomplete.length > 0 && (
+          {demoteList.length > 0 && (
+            <button className="btn btn-ghost btn-sm" disabled={busy} onClick={demoteIncomplete} style={{ color: 'var(--yellow)' }} title="Set active-but-incomplete accounts back to pending and nudge them to finish">
+              <UserMinus size={14} /> Re-verify {demoteList.length} incomplete active account{demoteList.length > 1 ? 's' : ''}
+            </button>
+          )}
+          {pendingCount > 0 && (
             <button
               className="btn btn-ghost btn-sm"
               disabled={busy || nudgeList.length === 0}
               onClick={nudgeProfiles}
-              title={nudgeList.length === 0 ? 'Everyone with an incomplete profile has already been nudged.' : undefined}
+              title={nudgeList.length === 0 ? 'Every pending student has already been nudged.' : undefined}
             >
               <BellRing size={14} /> {nudgeList.length > 0
-                ? `Nudge ${nudgeList.length} student${nudgeList.length > 1 ? 's' : ''} to finish profile`
-                : 'All flagged students nudged'}
+                ? `Nudge ${nudgeList.length} pending student${nudgeList.length > 1 ? 's' : ''} to finish profile`
+                : 'All pending students nudged'}
             </button>
           )}
         </div>
@@ -121,7 +148,8 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
 
       {incomplete.length > 0 && (
         <div className="text-[11px] text-ink3 mb-3" style={{ marginTop: -4 }}>
-          {incomplete.length} incomplete profile{incomplete.length !== 1 ? 's' : ''} across the roster
+          {demoteList.length > 0 && <>{demoteList.length} active account{demoteList.length !== 1 ? 's' : ''} with incomplete details (re-verify) · </>}
+          {pendingCount} pending account{pendingCount !== 1 ? 's' : ''}
           {alreadyNudged > 0 && <> · {alreadyNudged} already nudged (re-eligible after a week if still incomplete)</>}
           {nudgeList.length > 0 && <> · {nudgeList.length} awaiting a nudge</>}
         </div>
