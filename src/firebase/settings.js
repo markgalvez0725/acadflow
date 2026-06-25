@@ -19,6 +19,7 @@ export async function syncSettingsFromFirebase(db) {
     }
     if (d?.semester) result.semester = d.semester;
     if (d?.latePolicy && typeof d.latePolicy === 'object') result.latePolicy = d.latePolicy;
+    if (typeof d?.gradeFloor === 'number') result.gradeFloor = d.gradeFloor;
     return result;
   } catch (e) {
     if (!e.message?.includes('offline')) console.warn('[Firebase] Settings sync failed:', e.message);
@@ -34,6 +35,11 @@ export async function saveSemesterToFirebase(db, semester) {
 export async function saveLatePolicyToFirebase(db, latePolicy) {
   if (!db) return;
   await fbWithTimeout(setDoc(doc(db, 'portal', 'settings'), { latePolicy }, { merge: true }));
+}
+
+export async function saveGradeFloorToFirebase(db, gradeFloor) {
+  if (!db) return;
+  await fbWithTimeout(setDoc(doc(db, 'portal', 'settings'), { gradeFloor }, { merge: true }));
 }
 
 export async function saveSettingsToFirebase(db, equivScale) {

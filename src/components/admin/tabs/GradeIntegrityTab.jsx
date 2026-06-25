@@ -11,12 +11,12 @@ import { auditSubjectGrade } from '@/utils/gradeEngine'
 // click recomputes & re-publishes so the student always sees a grade that is
 // provably consistent with the data — nothing to dispute.
 export default function GradeIntegrityTab() {
-  const { students, activities, quizzes, classes, eqScale, syncDriftedGrades } = useData()
+  const { students, activities, quizzes, classes, eqScale, gradeFloor, syncDriftedGrades } = useData()
   const { toast, openDialog } = useUI()
   const [busy, setBusy] = useState(false)
 
   const { drifts, publishedCount } = useMemo(() => {
-    const ctx = { activities, quizzes, students, classes, eqScale }
+    const ctx = { activities, quizzes, students, classes, eqScale, floor: gradeFloor }
     const out = []
     let published = 0
     for (const s of students) {
@@ -32,7 +32,7 @@ export default function GradeIntegrityTab() {
     }
     out.sort((a, b) => (b.delta || 0) - (a.delta || 0))
     return { drifts: out, publishedCount: published }
-  }, [students, activities, quizzes, classes, eqScale])
+  }, [students, activities, quizzes, classes, eqScale, gradeFloor])
 
   async function syncAll() {
     if (!drifts.length) return

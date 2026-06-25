@@ -12,7 +12,7 @@ import {
   fbSubmitStudentFeedback, fbUpdateFeedbackStatus,
 } from '@/firebase/persistence'
 import { serializeStudents } from '@/utils/attendance'
-import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase, saveSemesterToFirebase, saveLatePolicyToFirebase } from '@/firebase/settings'
+import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase, saveSemesterToFirebase, saveLatePolicyToFirebase, saveGradeFloorToFirebase } from '@/firebase/settings'
 import { DEFAULT_LATE_POLICY, normalizeLatePolicy } from '@/utils/latePenalty'
 import { sendPushToOwners } from '@/firebase/pushTokens'
 import {
@@ -59,6 +59,8 @@ export function DataProvider({ children }) {
   const [ejs, setEjs] = useState({ publicKey: '', serviceId: '', templateId: '', configured: false })
   const [eqScale, setEqScale]           = useState(DEFAULT_EQ_SCALE)
   const [latePolicy, setLatePolicy]     = useState(DEFAULT_LATE_POLICY)
+  // Minimum-component-grade floor (0 = off). Applies to activities & quizzes.
+  const [gradeFloor, setGradeFloor]     = useState(0)
   const [admin, setAdmin]               = useState({ user: 'admin', pass: 'Admin@1234', email: 'admin@school.edu', resetPin: null })
 
   const _bootstrapping = useRef(false)
@@ -109,6 +111,8 @@ export function DataProvider({ children }) {
         const settings = await syncSettingsFromFirebase(db)
         if (settings?.equivScale) setEqScale(settings.equivScale)
         if (settings?.semester) setSemester(settings.semester)
+        if (settings?.latePolicy) setLatePolicy(normalizeLatePolicy(settings.latePolicy))
+        if (typeof settings?.gradeFloor === 'number') setGradeFloor(settings.gradeFloor)
       } catch (e) {}
 
       // Real-time listeners.
@@ -138,6 +142,7 @@ export function DataProvider({ children }) {
           }
           if (data?.semester) setSemester(data.semester)
           if (data?.latePolicy) setLatePolicy(normalizeLatePolicy(data.latePolicy))
+          if (typeof data?.gradeFloor === 'number') setGradeFloor(data.gradeFloor)
         },
       })
     }
@@ -194,6 +199,7 @@ export function DataProvider({ children }) {
         }
         if (data?.semester) setSemester(data.semester)
         if (data?.latePolicy) setLatePolicy(normalizeLatePolicy(data.latePolicy))
+        if (typeof data?.gradeFloor === 'number') setGradeFloor(data.gradeFloor)
       },
     })
     return true
@@ -318,9 +324,9 @@ export function DataProvider({ children }) {
       excuseRequests,
       adminNotifs,   // included for record; not written back on restore
       auditLog,      // included for record; not written back on restore
-      settings: { equivScale: eqScale, semester, latePolicy },
+      settings: { equivScale: eqScale, semester, latePolicy, gradeFloor },
     },
-  }), [students, classes, messages, activities, quizzes, announcements, meetings, attendanceSessions, excuseRequests, adminNotifs, auditLog, eqScale, semester, latePolicy])
+  }), [students, classes, messages, activities, quizzes, announcements, meetings, attendanceSessions, excuseRequests, adminNotifs, auditLog, eqScale, semester, latePolicy, gradeFloor])
 
   const restoreBackup = useCallback(async (backup, onProgress) => {
     await fbRestoreFromBackup(dbRef.current, backup, onProgress)
@@ -337,6 +343,16 @@ export function DataProvider({ children }) {
     setLatePolicy(norm)
     try { await saveLatePolicyToFirebase(dbRef.current, norm) } catch (e) {
       console.warn('[DataContext] saveLatePolicy Firebase sync failed:', e.message)
+      throw e
+    }
+  }, [])
+
+  // Minimum component grade (floor) for activities & quizzes. 0 disables it.
+  const saveGradeFloor = useCallback(async (v) => {
+    const n = Math.max(0, Math.min(100, Math.round(Number(v) || 0)))
+    setGradeFloor(n)
+    try { await saveGradeFloorToFirebase(dbRef.current, n) } catch (e) {
+      console.warn('[DataContext] saveGradeFloor Firebase sync failed:', e.message)
       throw e
     }
   }, [])
@@ -673,7 +689,7 @@ export function DataProvider({ children }) {
       if (!s) continue
       const live = computeSubjectGrade(
         s, subject,
-        { activities, quizzes, students: updated, classes, eqScale },
+        { activities, quizzes, students: updated, classes, eqScale, floor: gradeFloor },
         { mode: 'live' }
       )
       if (live.final == null && live.midterm == null && live.finals == null) continue
@@ -700,7 +716,7 @@ export function DataProvider({ children }) {
     }
     if (changed.size) await saveStudents(updated, [...changed])
     return changed.size
-  }, [students, activities, quizzes, classes, eqScale, saveStudents])
+  }, [students, activities, quizzes, classes, eqScale, gradeFloor, saveStudents])
 
   // Save a Meet link for a class. When `subject` is given, the link is stored
   // per-subject in meetLinks[subject]; otherwise it sets the class-wide link.
@@ -1063,6 +1079,7 @@ export function DataProvider({ children }) {
       ejs, setEjs, saveEjs,
       eqScale, saveEquivScale,
       latePolicy, saveLatePolicy,
+      gradeFloor, saveGradeFloor,
       buildBackup, restoreBackup,
       semester, saveSemester,
       admin, setAdmin, saveAdmin,

@@ -375,7 +375,7 @@ function AnnIcon({ type, size = 18 }) {
 }
 
 export default function OverviewTab({ student: s, viewClassId, classes }) {
-  const { activities, students, eqScale, announcements, quizzes, semester, fbReady, liveMeetings, meetings } = useData()
+  const { activities, students, eqScale, announcements, quizzes, semester, fbReady, liveMeetings, meetings, gradeFloor } = useData()
   const { setStudentTab, toast } = useUI()
 
   const [viewAnn, setViewAnn] = useState(null)
@@ -732,6 +732,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
               quizzes={quizzes}
               students={students}
               eqScale={eqScale}
+              gradeFloor={gradeFloor}
             />
           ))}
         </div>
@@ -785,14 +786,14 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
   )
 }
 
-function SubjectCard({ sub, student: s, classes, activities, quizzes = [], students = [], eqScale }) {
+function SubjectCard({ sub, student: s, classes, activities, quizzes = [], students = [], eqScale, gradeFloor = 0 }) {
   const [open, setOpen] = useState(false)
   const comp = s.gradeComponents?.[sub] || {}
   const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
 
   // One source of truth — the same GradeEngine the Grades page uses, so this
   // overview summary always matches it and the teacher's gradebook.
-  const gr = computeSubjectGrade(s, sub, { activities, quizzes, students, classes, eqScale, enrolledIds })
+  const gr = computeSubjectGrade(s, sub, { activities, quizzes, students, classes, eqScale, enrolledIds, floor: gradeFloor })
   const midG = gr.midterm
   const finG = gr.finals
   const g = gr.final
@@ -802,21 +803,18 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
 
   // Activity cells — from the engine's reconciled per-activity detail.
   const actContent = gr.detail.activityItems.length
-    ? gr.detail.activityItems.map((a, i) => {
-        const pct = a.max ? Math.round(a.score / a.max * 100) : null
-        return (
-          <div key={i} style={{ fontSize: 11, display: 'flex', gap: 3, alignItems: 'center' }}>
-            <span style={{ color: 'var(--ink2)', fontWeight: 600 }}>A{i + 1}:</span>
-            <span style={{ color: cellCol(pct), fontWeight: 700 }}>{a.score}{a.max !== 100 ? `/${a.max}` : '%'}</span>
-          </div>
-        )
-      })
+    ? gr.detail.activityItems.map((a, i) => (
+        <div key={i} style={{ fontSize: 11, display: 'flex', gap: 3, alignItems: 'center', opacity: a.missing ? 0.7 : 1 }}>
+          <span style={{ color: 'var(--ink2)', fontWeight: 600 }}>A{i + 1}:</span>
+          <span style={{ color: cellCol(a.pct), fontWeight: 700 }}>{a.missing ? `${a.pct}%` : `${a.score}${a.max !== 100 ? `/${a.max}` : '%'}`}</span>
+        </div>
+      ))
     : (gr.components.activities != null ? <span style={{ fontSize: 12 }}>{gr.components.activities}%</span> : '—')
 
   // Quiz cells — from the engine's reconciled per-quiz detail.
   const qzContent = gr.detail.quizItems.length
     ? gr.detail.quizItems.map((q, i) => (
-        <div key={i} style={{ fontSize: 11, display: 'flex', gap: 3, alignItems: 'center' }}>
+        <div key={i} style={{ fontSize: 11, display: 'flex', gap: 3, alignItems: 'center', opacity: q.missing ? 0.7 : 1 }}>
           <span style={{ color: 'var(--ink2)', fontWeight: 600 }}>Q{i + 1}:</span>
           <span style={{ color: cellCol(q.pct), fontWeight: 700 }}>{q.pct}%</span>
         </div>

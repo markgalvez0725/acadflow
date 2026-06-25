@@ -15,7 +15,7 @@ const TABS = [
   { id: 'cred',     label: 'Credentials',   Icon: KeyRound },
   { id: 'notifs',   label: 'Notifications', Icon: Bell },
   { id: 'eq',       label: 'Equiv Scale',   Icon: Scale },
-  { id: 'late',     label: 'Late Policy',   Icon: Clock },
+  { id: 'late',     label: 'Grading Rules', Icon: Clock },
   { id: 'data',     label: 'Backup',        Icon: DatabaseBackup },
   { id: 'firebase', label: 'Firebase',      Icon: Flame },
 ]
@@ -596,12 +596,14 @@ function FirebaseTab() {
 
 // ── Late Policy Tab ────────────────────────────────────────────────────────
 function LatePolicyTab() {
-  const { latePolicy, saveLatePolicy } = useData()
+  const { latePolicy, saveLatePolicy, gradeFloor, saveGradeFloor } = useData()
   const { toast } = useUI()
   const [enabled, setEnabled]   = useState(!!latePolicy?.enabled)
   const [perDay, setPerDay]     = useState(String(latePolicy?.percentPerDay ?? 10))
   const [maxPct, setMaxPct]     = useState(String(latePolicy?.maxPercent ?? 100))
   const [grace, setGrace]       = useState(String(latePolicy?.graceMins ?? 0))
+  const [floorOn, setFloorOn]   = useState(gradeFloor > 0)
+  const [floorVal, setFloorVal] = useState(String(gradeFloor > 0 ? gradeFloor : 50))
   const [saving, setSaving]     = useState(false)
 
   async function handleSave() {
@@ -613,7 +615,8 @@ function LatePolicyTab() {
         maxPercent: parseFloat(maxPct) || 0,
         graceMins: parseFloat(grace) || 0,
       })
-      toast('Late policy saved.', 'green')
+      await saveGradeFloor(floorOn ? (parseInt(floorVal, 10) || 0) : 0)
+      toast('Grading rules saved.', 'green')
     } catch (e) {
       toast('Saved locally — sync failed: ' + e.message, 'red')
     } finally {
@@ -657,9 +660,31 @@ function LatePolicyTab() {
         becomes <strong>{(() => { const f = Math.min(parseFloat(maxPct) || 0, (parseFloat(perDay) || 0) * 2) / 100; return Math.max(0, 90 * (1 - f)).toFixed(2) })()}</strong>.
       </div>
 
+      {/* ── Minimum component grade (floor) ── */}
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 4 }}>
+        <label className="flex items-center gap-2 mb-2" style={{ cursor: 'pointer', fontWeight: 600, fontSize: 14, color: 'var(--ink)' }}>
+          <input type="checkbox" checked={floorOn} onChange={e => setFloorOn(e.target.checked)} style={{ width: 'auto', margin: 0 }} />
+          Minimum grade for activities &amp; quizzes
+        </label>
+        <p className="modal-sub" style={{ marginBottom: 12 }}>
+          No activity or quiz score can fall below this floor. Each item is lifted to the
+          floor (and a missing submission counts as the floor) before averaging. Applies to
+          activities &amp; quizzes only — attendance, attitude, and exams are unchanged.
+        </p>
+        <div className="field" style={{ opacity: floorOn ? 1 : 0.5 }}>
+          <label>Minimum component grade</label>
+          <input type="number" min="0" max="100" value={floorVal} onChange={e => setFloorVal(e.target.value)} disabled={!floorOn} style={{ maxWidth: 160 }} />
+          <div className="text-xs text-ink3 mt-1">Typical value: 50. Set the checkbox off to disable the floor.</div>
+        </div>
+        <div className="text-xs text-ink2 bg-accent-l rounded-lg px-3 py-2 mt-2">
+          Heads up: turning this on changes already-published grades. Open{' '}
+          <strong>Grade Integrity</strong> afterward to recompute &amp; re-publish everyone in one click.
+        </div>
+      </div>
+
       <div className="modal-footer">
         <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving}>
-          {saving ? 'Saving…' : 'Save Policy'}
+          {saving ? 'Saving…' : 'Save Grading Rules'}
         </button>
       </div>
     </div>

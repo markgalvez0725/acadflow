@@ -21,7 +21,7 @@
 //     by the gradebook).
 
 import {
-  scoredPercent, computeTerms, computeFinalGradeFromTerms,
+  computeTerms, computeFinalGradeFromTerms,
   gradeInfo, combineEquiv, round2, DEFAULT_EQ_SCALE,
 } from './grades'
 
@@ -33,82 +33,109 @@ function enrolledIdsOf(s) {
 }
 
 // ── Activities component ───────────────────────────────────────────────────
-// Mean of (score ÷ maxScore × 100) over the live activities the student was
-// graded on. Cached gradeComponents.activityScores are only used to backfill
-// when there are no live submissions, and only for activities that still exist
-// (id-keyed) — a deleted activity never counts. Returns { pct, items }.
-export function deriveActivities(s, sub, activities = [], enrolledIds = enrolledIdsOf(s)) {
+// Mean of each activity's percentage over the live activities. A deleted
+// activity never counts (reconciled against live ids). Each item carries its
+// final pct + a `missing` flag. Returns { pct, items }.
+//
+// `floor` (e.g. 50) enables the "minimum component grade" policy: every live
+// activity counts, a missing submission scores the floor, and a scored item is
+// lifted to the floor if it falls below — all per-item, then averaged.
+export function deriveActivities(s, sub, activities = [], enrolledIds = enrolledIdsOf(s), floor = 0) {
   const comp = s.gradeComponents?.[sub] || {}
   const liveActs = (activities || []).filter(a => enrolledIds.includes(a.classId) && a.subject === sub)
   const liveActIds = new Set(liveActs.map(a => a.id))
-
   const hadScores = !!(comp.activityScores && Object.keys(comp.activityScores).length)
-  const panel = liveActs.map(a => ({
-    id: a.id, title: a.title,
-    score: (a.submissions || {})[s.id]?.score ?? null,
-    max: a.maxScore || 100,
-  }))
-  let items = panel.filter(a => a.score != null)
+  const fl = floor > 0 ? floor : 0
+  const norm = (score, max) => (Number(score) / (Number(max) || 100)) * 100
+  const withFloor = p => r2(fl ? Math.max(fl, p) : p)
 
-  if (!items.length && hadScores) {
-    const entries = Object.entries(comp.activityScores)
-    const idKeyed = entries.filter(([k]) => liveActIds.has(k))
-    if (idKeyed.length) {
-      items = idKeyed.map(([k, v]) => {
-        const a = liveActs.find(x => x.id === k)
-        return { id: k, title: a?.title || '', score: v, max: a?.maxScore || 100 }
-      })
-    } else if (!liveActs.length && entries.every(([k]) => /^a\d+$/.test(k))) {
-      // Legacy doc-less manual entry (teacher typed scores with no activity docs).
-      items = entries
-        .sort((a, b) => parseInt(a[0].slice(1)) - parseInt(b[0].slice(1)))
-        .map(([k, v]) => ({ id: k, title: '', score: v, max: 100 }))
+  let items = []
+  if (fl && liveActs.length) {
+    // Floor policy: every live activity counts; missing = floor.
+    items = liveActs.map(a => {
+      const raw = (a.submissions || {})[s.id]?.score
+      const has = raw != null
+      const max = a.maxScore || 100
+      return { id: a.id, title: a.title, score: has ? raw : null, max,
+        pct: has ? withFloor(norm(raw, max)) : r2(fl), missing: !has }
+    })
+  } else {
+    items = liveActs
+      .map(a => ({ id: a.id, title: a.title, score: (a.submissions || {})[s.id]?.score ?? null, max: a.maxScore || 100 }))
+      .filter(a => a.score != null)
+      .map(a => ({ ...a, pct: withFloor(norm(a.score, a.max)), missing: false }))
+
+    if (!items.length && hadScores) {
+      const entries = Object.entries(comp.activityScores)
+      const idKeyed = entries.filter(([k]) => liveActIds.has(k))
+      if (idKeyed.length) {
+        items = idKeyed.map(([k, v]) => {
+          const a = liveActs.find(x => x.id === k)
+          const max = a?.maxScore || 100
+          return { id: k, title: a?.title || '', score: v, max, pct: withFloor(norm(v, max)), missing: false }
+        })
+      } else if (!liveActs.length && entries.every(([k]) => /^a\d+$/.test(k))) {
+        // Legacy doc-less manual entry (teacher typed scores with no activity docs).
+        items = entries
+          .sort((a, b) => parseInt(a[0].slice(1)) - parseInt(b[0].slice(1)))
+          .map(([k, v]) => ({ id: k, title: '', score: v, max: 100, pct: withFloor(v), missing: false }))
+      }
     }
   }
 
-  const raw = items.length ? scoredPercent(items.map(i => ({ score: i.score, maxScore: i.max }))) : null
+  const raw = items.length ? items.reduce((t, i) => t + i.pct, 0) / items.length : null
   // Aggregate fallback ONLY when there was never per-activity data to reconcile.
-  // If there WAS (live submissions or cached per-activity scores) but it now
-  // reconciles to empty, the activities were deleted → no activity component.
   const pct = raw != null ? r2(raw)
-    : (hadScores ? null : (typeof comp.activities === 'number' ? comp.activities : null))
+    : (hadScores ? null : (typeof comp.activities === 'number' ? withFloor(comp.activities) : null))
   return { pct, items }
 }
 
 // ── Quizzes component ──────────────────────────────────────────────────────
 // Mean of each quiz percentage. Prefers the student's own per-quiz results
 // cache (reconciled against live quiz ids so a deleted quiz drops out), then
-// the teacher's quizScores map, then the stored numeric aggregate.
-export function deriveQuizzes(s, sub, quizzes = []) {
+// the teacher's quizScores map, then the stored numeric aggregate. Each item
+// carries its pct + a `missing` flag.
+//
+// `floor` enables the "minimum component grade" policy: every quiz that exists
+// for the subject counts, a not-taken quiz scores the floor, and a taken quiz
+// is lifted to the floor if below.
+export function deriveQuizzes(s, sub, quizzes = [], enrolledIds = enrolledIdsOf(s), floor = 0) {
   const comp = s.gradeComponents?.[sub] || {}
   const liveQuizIds = new Set((quizzes || []).map(q => q.id))
-
+  const subjectQuizzes = (quizzes || []).filter(q => q.subject === sub && (q.classIds || []).some(id => enrolledIds.includes(id)))
   const hadResults = (s.quizResults?.[sub] || []).length > 0
   const hadScores = !!(comp.quizScores && Object.keys(comp.quizScores).length)
-  const cached = (s.quizResults?.[sub] || [])
-    .filter(e => !e?.quizId || liveQuizIds.has(e.quizId))
-  let items = []
+  const fl = floor > 0 ? floor : 0
+  const withFloor = p => r2(fl ? Math.max(fl, p) : p)
+  const resultPct = e => e == null ? null : (e.pct ?? (e.score != null && e.total ? Math.round((e.score / e.total) * 100) : null))
 
-  if (cached.length) {
-    items = cached.map(q => ({
-      id: q.quizId || null, title: q.title || '',
-      pct: q.pct ?? (q.score != null && q.total ? Math.round((q.score / q.total) * 100) : null),
-    })).filter(q => q.pct != null)
-  } else if (hadScores) {
-    const hasLive = liveQuizIds.size > 0
-    const entries = Object.entries(comp.quizScores)
-      .filter(([k]) => /^q\d+$/.test(k) ? !hasLive : liveQuizIds.has(k))
-    items = entries.map(([k, v]) => ({ id: /^q\d+$/.test(k) ? null : k, title: '', pct: v }))
+  let items = []
+  if (fl && subjectQuizzes.length) {
+    // Floor policy: every quiz for the subject counts; not taken = floor.
+    const by = {}
+    for (const e of (s.quizResults?.[sub] || [])) if (e?.quizId) by[e.quizId] = e
+    items = subjectQuizzes.map(q => {
+      const p = resultPct(by[q.id])
+      return { id: q.id, title: q.title || '', pct: p != null ? withFloor(p) : r2(fl), missing: p == null }
+    })
+  } else {
+    const cached = (s.quizResults?.[sub] || []).filter(e => !e?.quizId || liveQuizIds.has(e.quizId))
+    if (cached.length) {
+      items = cached.map(q => ({ id: q.quizId || null, title: q.title || '', pct: resultPct(q) }))
+        .filter(q => q.pct != null)
+        .map(q => ({ ...q, pct: withFloor(q.pct), missing: false }))
+    } else if (hadScores) {
+      const hasLive = liveQuizIds.size > 0
+      const entries = Object.entries(comp.quizScores)
+        .filter(([k]) => /^q\d+$/.test(k) ? !hasLive : liveQuizIds.has(k))
+      items = entries.map(([k, v]) => ({ id: /^q\d+$/.test(k) ? null : k, title: '', pct: withFloor(v), missing: false }))
+    }
   }
 
-  const raw = items.length
-    ? items.reduce((t, q) => t + q.pct, 0) / items.length
-    : null
-  // Aggregate fallback ONLY when there was never per-quiz data to reconcile. If
-  // there WAS (quiz results or per-quiz scores) but it reconciles to empty, the
-  // quizzes were deleted → no quiz component.
+  const raw = items.length ? items.reduce((t, q) => t + q.pct, 0) / items.length : null
+  // Aggregate fallback ONLY when there was never per-quiz data to reconcile.
   const pct = raw != null ? r2(raw)
-    : ((hadResults || hadScores) ? null : (typeof comp.quizzes === 'number' ? comp.quizzes : null))
+    : ((hadResults || hadScores) ? null : (typeof comp.quizzes === 'number' ? withFloor(comp.quizzes) : null))
   return { pct, items }
 }
 
@@ -136,14 +163,14 @@ export function deriveAttendance(s, sub, students = [], classes = [], enrolledId
 export function computeSubjectGrade(s, sub, ctx = {}, opts = {}) {
   const {
     activities = [], quizzes = [], students = [], classes = [],
-    eqScale = DEFAULT_EQ_SCALE,
+    eqScale = DEFAULT_EQ_SCALE, floor = 0,
   } = ctx
   const enrolledIds = ctx.enrolledIds || enrolledIdsOf(s)
   const mode = opts.mode || 'published'
   const comp = s.gradeComponents?.[sub] || {}
 
-  const act = deriveActivities(s, sub, activities, enrolledIds)
-  const qz  = deriveQuizzes(s, sub, quizzes)
+  const act = deriveActivities(s, sub, activities, enrolledIds, floor)
+  const qz  = deriveQuizzes(s, sub, quizzes, enrolledIds, floor)
   const att = deriveAttendance(s, sub, students, classes, enrolledIds)
   const attitude = comp.attitude ?? null
   const midtermExam = comp.midtermExam ?? null
@@ -192,21 +219,22 @@ export function computeSubjectGrade(s, sub, ctx = {}, opts = {}) {
     published,
     uploadedAt: ts || null,
     detail: { activityItems: act.items, quizItems: qz.items, attendance: att },
-    trace: buildTrace({ act, qz, att, attitude, midtermExam, finalsExam, live, midterm, finals, final, equiv, overridden }),
+    trace: buildTrace({ act, qz, att, attitude, midtermExam, finalsExam, live, midterm, finals, final, equiv, overridden, floor }),
   }
 }
 
 // Human-readable, step-by-step trace — the data the student "How is this
 // computed?" panel and the AI explainer render. Numbers come straight from the
 // engine; nothing is re-derived downstream.
-function buildTrace({ act, qz, att, attitude, midtermExam, finalsExam, live, midterm, finals, final, equiv, overridden }) {
+function buildTrace({ act, qz, att, attitude, midtermExam, finalsExam, live, midterm, finals, final, equiv, overridden, floor }) {
+  const floorNote = floor > 0 ? `, minimum ${floor}` : ''
   const steps = []
   steps.push({ key: 'activities', label: 'Activities', value: act.pct,
-    detail: act.items.map(i => ({ title: i.title, score: i.score, max: i.max, pct: i.max ? round2((i.score / i.max) * 100) : null })),
-    formula: 'average of (score ÷ max × 100)' })
+    detail: act.items.map(i => ({ title: i.title, score: i.score, max: i.max, pct: i.pct, missing: i.missing })),
+    formula: `average of each activity %${floorNote}` })
   steps.push({ key: 'quizzes', label: 'Quizzes', value: qz.pct,
-    detail: qz.items.map(i => ({ title: i.title, pct: i.pct })),
-    formula: 'average of each quiz %' })
+    detail: qz.items.map(i => ({ title: i.title, pct: i.pct, missing: i.missing })),
+    formula: `average of each quiz %${floorNote}` })
   steps.push({ key: 'attendance', label: 'Attendance', value: att.pct,
     detail: { present: att.present, held: att.held },
     formula: 'present ÷ sessions held × 100' })

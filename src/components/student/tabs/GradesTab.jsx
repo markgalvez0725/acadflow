@@ -8,7 +8,7 @@ import { neededFinalsForRemarks } from '@/utils/whatIf'
 import RegradeRequestModal from '@/components/student/modals/RegradeRequestModal'
 
 export default function GradesTab({ student: s, viewClassId, classes }) {
-  const { activities, quizzes, students, eqScale, semester } = useData()
+  const { activities, quizzes, students, eqScale, semester, gradeFloor } = useData()
   const [regradeOpen, setRegradeOpen] = useState(false)
 
   // Current, non-archived classes only — archived/ended/removed subjects drop off.
@@ -77,6 +77,7 @@ export default function GradesTab({ student: s, viewClassId, classes }) {
           quizzes={quizzes}
           students={students}
           eqScale={eqScale}
+          gradeFloor={gradeFloor}
         />
       ))}
     </div>
@@ -164,7 +165,7 @@ function TrailRow({ label, value, sub, isResult, isFinal }) {
   )
 }
 
-function SubjectCard({ sub, student: s, classes, activities, quizzes = [], students, eqScale }) {
+function SubjectCard({ sub, student: s, classes, activities, quizzes = [], students, eqScale, gradeFloor = 0 }) {
   const [showTrail, setShowTrail] = useState(false)
 
   const comp = s.gradeComponents?.[sub] || {}
@@ -174,7 +175,7 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
   // one GradeEngine, so the student page agrees with the teacher's gradebook and
   // the exports to the last decimal. Components are reconciled against the live
   // activities/quizzes/attendance, so a deleted item never lingers.
-  const engineCtx = { activities, quizzes, students, classes, eqScale, enrolledIds }
+  const engineCtx = { activities, quizzes, students, classes, eqScale, enrolledIds, floor: gradeFloor }
   const gr = computeSubjectGrade(s, sub, engineCtx)
   // Plain-language summary + live verified status (grounded in engine numbers).
   const explanation = explainGradeText(gr)
@@ -210,8 +211,8 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
 
   // Per-activity / per-quiz detail rows — sourced from the same engine
   // derivation as the averages above, so rows and averages can never disagree.
-  const displayActs = gr.detail.activityItems.map(i => ({ title: i.title, score: i.score, max: i.max }))
-  const qzEntries   = gr.detail.quizItems.map((q, i) => [`q${i + 1}`, q.pct, q.title || null])
+  const displayActs = gr.detail.activityItems.map(i => ({ title: i.title, score: i.score, max: i.max, pct: i.pct, missing: i.missing }))
+  const qzEntries   = gr.detail.quizItems.map((q, i) => [`q${i + 1}`, q.pct, q.title || null, q.missing])
 
   const hasAny = actVal != null || quizzesAvg != null || attitudeVal != null || midG != null || finG != null
   const hasTrailData = (midG != null || finG != null)
@@ -408,16 +409,21 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
         <div className="sg-score-block">
           <div className="sg-section-label">Activity Scores</div>
           {displayActs.map((a, i) => {
-            const pct = a.score != null ? Math.round(a.score / a.max * 100) : null
-            const col = pct == null ? 'var(--ink3)' : pct >= 75 ? 'var(--green)' : pct >= 60 ? 'var(--yellow)' : 'var(--red)'
+            const col = a.pct == null ? 'var(--ink3)' : a.pct >= 75 ? 'var(--green)' : a.pct >= 60 ? 'var(--yellow)' : 'var(--red)'
+            const rawPct = a.score != null && a.max ? (a.score / a.max) * 100 : null
+            const floored = !a.missing && rawPct != null && Math.abs(a.pct - rawPct) > 0.01
             const label = a.title
               ? `Activity ${i + 1} — ${a.title.slice(0, 35)}${a.title.length > 35 ? '…' : ''}`
               : `Activity ${i + 1}`
             return (
               <div key={i} className="sg-score-row">
-                <span className="sg-score-label">{label}</span>
+                <span className="sg-score-label">{label}{a.missing && <span style={{ color: 'var(--ink3)', fontWeight: 400 }}> · not submitted</span>}</span>
                 <span className="sg-score-val" style={{ color: col }}>
-                  {a.score != null ? a.score + (a.max !== 100 ? `/${a.max}` : '%') : '—'}
+                  {a.missing
+                    ? `${a.pct}%`
+                    : a.score != null
+                      ? `${a.score}${a.max !== 100 ? `/${a.max}` : '%'}${floored ? ` → ${a.pct}%` : ''}`
+                      : `${a.pct}%`}
                 </span>
               </div>
             )
@@ -444,7 +450,7 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
       {qzEntries.length > 0 && (
         <div className="sg-score-block">
           <div className="sg-section-label">Quiz Scores</div>
-          {qzEntries.map(([k, v, title]) => {
+          {qzEntries.map(([k, v, title, missing]) => {
             const num = parseInt(k.slice(1))
             const col = v == null ? 'var(--ink3)' : v >= 75 ? 'var(--green)' : v >= 60 ? 'var(--yellow)' : 'var(--red)'
             const label = title
@@ -452,7 +458,7 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
               : `Quiz ${isNaN(num) ? k : num}`
             return (
               <div key={k} className="sg-score-row">
-                <span className="sg-score-label">{label}</span>
+                <span className="sg-score-label">{label}{missing && <span style={{ color: 'var(--ink3)', fontWeight: 400 }}> · not taken</span>}</span>
                 <span className="sg-score-val" style={{ color: col }}>{v != null ? `${v}%` : '—'}</span>
               </div>
             )
