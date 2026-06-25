@@ -254,6 +254,23 @@ export function DataProvider({ children }) {
     return idSet.size
   }, [students, saveStudents])
 
+  // Bulk Verify + Activate: stamp registered accounts as verified AND active in
+  // one write — they keep their current (temp/default) password until they
+  // change it. Only touches registered accounts. Admin-only. Returns the count.
+  const bulkVerifyActivate = useCallback(async (ids) => {
+    const idSet = new Set(ids || [])
+    if (!idSet.size) return 0
+    const now = Date.now()
+    let n = 0
+    const updated = students.map(s => {
+      if (!idSet.has(s.id) || !s.account?.registered) return s
+      n++
+      return { ...s, account: { ...s.account, verified: true, activated: true, _tempPass: false, verification: { ...(s.account.verification || {}), method: 'teacher', at: now } } }
+    })
+    if (n) await saveStudents(updated, students.filter(s => idSet.has(s.id) && s.account?.registered).map(s => s.id))
+    return n
+  }, [students, saveStudents])
+
   // Append an entry to the admin audit log. Fire-and-forget — callers should
   // not await this in a way that blocks the primary action.
   const logAudit = useCallback((entry) => {
@@ -1095,6 +1112,7 @@ export function DataProvider({ children }) {
       syncDriftedGrades,
       verifyStudentAccount,
       bulkVerifyAccounts,
+      bulkVerifyActivate,
       meetings, setMeetings,
       liveMeetings: meetings.filter(m => m.status === 'live'),
       saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting,

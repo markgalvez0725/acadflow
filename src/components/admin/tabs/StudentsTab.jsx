@@ -836,7 +836,7 @@ function MessageSelectedModal({ recipients, onClose }) {
 
 // ── Students Tab ──────────────────────────────────────────────────────
 export default function StudentsTab() {
-  const { classes, students, saveStudents, deleteStudent, restoreStudents, eqScale, semester, fbReady } = useData()
+  const { classes, students, saveStudents, deleteStudent, restoreStudents, eqScale, semester, fbReady, bulkVerifyActivate } = useData()
   const { toast, toastAction, openDialog, openStudentProfile } = useUI()
 
   const [search, setSearch]       = useState('')
@@ -945,6 +945,27 @@ export default function StudentsTab() {
   function handleExportSelected() {
     exportRosterCSV(students.filter(s => selected.has(s.id)), classes)
   }
+
+  // Verify + Activate a set of registered students in one write. They keep their
+  // current (temp/default) password until they choose to change it.
+  async function handleVerifyActivate(ids, label) {
+    const targets = students.filter(s => ids.includes(s.id) && s.account?.registered && accountStatusKey(s) !== 'active')
+    if (!targets.length) { toast('No pending registered accounts in that selection.', 'gray'); return }
+    const ok = await openDialog({
+      title: `Verify & activate ${targets.length} account${targets.length === 1 ? '' : 's'}?`,
+      msg: 'These accounts become Active immediately and keep their current (temporary/default) password until each student changes it. Make sure the students know their login.',
+      type: 'warn', confirmLabel: `Activate ${targets.length}`, showCancel: true,
+    })
+    if (!ok) return
+    try {
+      const n = await bulkVerifyActivate(targets.map(s => s.id))
+      clearSelection()
+      toast(`${n} account${n === 1 ? '' : 's'} verified & activated.`, 'green')
+    } catch (e) { toast('Failed: ' + e.message, 'red') }
+  }
+
+  // All registered students not yet Active (pending activation/verification).
+  const pendingIds = useMemo(() => students.filter(s => s.account?.registered && accountStatusKey(s) !== 'active').map(s => s.id), [students])
 
   async function handleBulkDelete() {
     const ids = [...selected]
@@ -1088,6 +1109,11 @@ export default function StudentsTab() {
               ? <button className="btn btn-ghost btn-sm" onClick={() => { setStatusFilter('unassigned'); setPage(1) }}>Show unassigned</button>
               : <button className="btn btn-ghost btn-sm" onClick={() => { setStatusFilter('all'); setPage(1) }}>Show all</button>
           )}
+          {pendingIds.length > 0 && (
+            <button className="btn btn-primary btn-sm" onClick={() => handleVerifyActivate(pendingIds)} title="Mark every pending account verified & active (they keep their current password)">
+              <ShieldCheck size={13} /> Verify &amp; activate all {pendingIds.length}
+            </button>
+          )}
         </div>
       )}
 
@@ -1117,6 +1143,9 @@ export default function StudentsTab() {
           </button>
           <button className="btn btn-ghost btn-sm" onClick={handleExportSelected} title="Export selected students as CSV">
             <Download size={13} /> Export selected
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => handleVerifyActivate([...selected])} title="Verify & activate the selected accounts (they keep their current password)">
+            <ShieldCheck size={13} /> Verify &amp; activate
           </button>
           <button className="btn btn-danger btn-sm" onClick={handleBulkDelete}>Delete selected</button>
           <button className="btn btn-ghost btn-sm" onClick={clearSelection} style={{ marginLeft: 'auto' }}>Clear</button>
