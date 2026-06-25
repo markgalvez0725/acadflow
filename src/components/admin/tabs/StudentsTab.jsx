@@ -687,12 +687,12 @@ function ResetPasswordModal({ student, onClose }) {
 
 // ── CSV helpers ───────────────────────────────────────────────────────
 function exportRosterCSV(students, classes, semester) {
-  const headers = ['Student No.', 'Surname', 'First Name', 'M.I.', 'Course', 'Year Level', 'Date of Birth', 'Class Subject', 'Email', 'Account Status']
+  const headers = ['Student No.', 'Surname', 'First Name', 'M.I.', 'Course', 'Year Level', 'Class Subject', 'Email', 'Account Status']
   const rows = students.map(s => {
     // Only current-semester (non-archived) subjects.
     const subjects = activeSubjects(s, classes, semester).join(', ')
     const n = splitStudentName(s.name)
-    return [s.id, n.last, n.first, n.middle, courseShort(s.course) || s.course || '', s.year || '', s.dob || '', subjects, s.account?.email || '', accountStatus(s).label]
+    return [s.id, n.last, n.first, n.middle, courseShort(s.course) || s.course || '', s.year || '', subjects, s.account?.email || '', accountStatus(s).label]
   })
   const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })

@@ -559,14 +559,14 @@ export async function exportStudentRosterExcel({ students, classes, semester }) 
 function rosterData(students, classes, semester) {
   const exportDate = new Date().toLocaleDateString('en-PH', { dateStyle: 'long' })
   const sorted = sortByLastName(students)
-  const headers = ['#', 'Student No.', 'Surname', 'First Name', 'M.I.', 'Course', 'Year Level', 'Date of Birth', 'Class Subject', 'Section']
+  const headers = ['#', 'Student No.', 'Surname', 'First Name', 'M.I.', 'Course', 'Year Level', 'Class Subject', 'Section']
   const dataRows = sorted.map((s, idx) => {
     const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
     const primary = classes.find(c => c.id === s.classId) || classes.find(c => enrolledIds.includes(c.id))
     // Only CURRENT-semester (non-archived) subjects — past/archived classes drop off.
     const subjects = activeSubjects(s, classes, semester).join(', ')
     const n = splitStudentName(s.name)
-    return [idx + 1, s.id, n.last, n.first, n.middle, courseShort(s.course) || s.course || '', s.year || '', s.dob || '', subjects, primary?.section || '']
+    return [idx + 1, s.id, n.last, n.first, n.middle, courseShort(s.course) || s.course || '', s.year || '', subjects, primary?.section || '']
   })
   // Dropdown sources — NOT the column data. Subjects = the distinct subjects across
   // the app's CURRENT-semester (non-archived) classes only. Courses = the canonical
@@ -574,7 +574,7 @@ function rosterData(students, classes, semester) {
   const currentClasses = (classes || []).filter(c => isClassCurrent(c, semester))
   const allSubjects = [...new Set(currentClasses.flatMap(c => c.subjects || []))].filter(Boolean).sort()
   const courseShorts = [...new Set(COURSES.map(c => courseShort(c)).filter(Boolean))]
-  const widths = [4, 14, 18, 18, 6, 20, 12, 14, 40, 12]
+  const widths = [4, 14, 18, 18, 6, 20, 12, 40, 12]
   const fileName = `StudentRoster_${new Date().toISOString().slice(0, 10)}.xlsx`
   const pwGuide = [
     ['AcadFlow — Password Guide'], [''],
@@ -586,7 +586,7 @@ function rosterData(students, classes, semester) {
   return { exportDate, total: sorted.length, headers, dataRows, allSubjects, courseShorts, widths, fileName, pwGuide }
 }
 
-// ExcelJS writer — real dropdowns on Course (col F) + Class Subject (col I),
+// ExcelJS writer — real dropdowns on Course (col F) + Class Subject (col H),
 // referencing a hidden "Lists" sheet (no inline-list length limit).
 async function rosterExcelJS(ExcelJS, ctx) {
   const { exportDate, total, headers, dataRows, allSubjects, courseShorts, widths, fileName, pwGuide } = ctx
@@ -615,7 +615,7 @@ async function rosterExcelJS(ExcelJS, ctx) {
   const courseRef = courseShorts.length ? `Lists!$B$2:$B$${1 + courseShorts.length}` : null
   for (let r = 12; r <= dvLast; r++) {
     if (courseRef) ws.getCell(r, 6).dataValidation = { type: 'list', allowBlank: true, showErrorMessage: false, formulae: [courseRef] }
-    if (subjRef)   ws.getCell(r, 9).dataValidation = { type: 'list', allowBlank: true, showErrorMessage: false, formulae: [subjRef] }
+    if (subjRef)   ws.getCell(r, 8).dataValidation = { type: 'list', allowBlank: true, showErrorMessage: false, formulae: [subjRef] }
   }
 
   const wsPw = wb.addWorksheet('Password Guide')
@@ -646,7 +646,7 @@ function rosterSheetJS(XLSX, ctx) {
   XLSX.utils.sheet_add_aoa(ws, [headers], { origin: 10 })
   ws['!cols'] = widths.map(w => ({ wch: w }))
   ws['!freeze'] = { xSplit: 0, ySplit: 11 }
-  ws['!autofilter'] = { ref: `A11:J${11 + dataRows.length}` }
+  ws['!autofilter'] = { ref: `A11:I${11 + dataRows.length}` }
 
   const wsPw = XLSX.utils.aoa_to_sheet(pwGuide)
   wsPw['!cols'] = [{ wch: 60 }]
