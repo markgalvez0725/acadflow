@@ -33,10 +33,26 @@ const STUDENT_PHRASES = [
 ]
 
 // Modes: 'student' | 'register' | 'forgot' | 'fp-set-sq' | 'fp-sq'
-export default function LoginScreen() {
+export default function LoginScreen({ onRevealFaculty }) {
   const { loginStudent } = useAuth()
   const { students, saveStudents, fbReady } = useData()
   const { theme, toast } = useUI()
+
+  // Hidden faculty entrance: tap the logo 5× within 2s to reveal the faculty
+  // sign-in. Lets teachers reach it inside the installed PWA, where there's no
+  // address bar to type the /faculty path — without showing a link to students.
+  const logoTaps = useRef({ count: 0, first: 0 })
+  function handleLogoTap() {
+    const now = Date.now()
+    const t = logoTaps.current
+    if (now - t.first > 2000) { t.count = 0; t.first = now }
+    t.count += 1
+    if (t.count >= 5) {
+      t.count = 0
+      try { window.history.pushState({}, '', '/faculty') } catch (_) {}
+      onRevealFaculty?.()
+    }
+  }
 
   const [mode, setMode]       = useState('student')
   const [faqOpen, setFaqOpen] = useState(false)
@@ -470,7 +486,7 @@ export default function LoginScreen() {
         <div className="auth-orb auth-orb-2" aria-hidden="true" />
         <div className="auth-grid" aria-hidden="true" />
 
-        <AcadFlowLogo size="sm" />
+        <span onClick={handleLogoTap}><AcadFlowLogo size="sm" /></span>
         <div>
           <div className="auth-eyebrow">
             <GraduationCap size={13} /> Student portal
@@ -517,7 +533,7 @@ export default function LoginScreen() {
       <div className="login-panel relative z-10 flex flex-col justify-center w-full lg:max-w-[460px] lg:min-h-screen px-4 py-8 lg:px-12">
         {/* Mobile branding (hidden on desktop) */}
         <div className="auth-brand-mobile text-center mb-6 lg:hidden">
-          <AcadFlowLogo variant="stacked" size="lg" className="justify-center mb-1" />
+          <span onClick={handleLogoTap}><AcadFlowLogo variant="stacked" size="lg" className="justify-center mb-1" /></span>
           <p className="text-xs text-ink3 mt-2">Academic Management System</p>
         </div>
 

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -16,8 +16,11 @@ export default function AppRouter() {
   const { fbReady }     = useData()
   const { startLoading, stopLoading } = useUI()
   // Faculty/admin sign-in is reached via the /faculty path (not linked from the
-  // student login — enter the URL directly).
-  const isAdminPath = window.location.pathname.startsWith('/faculty')
+  // student login). Inside an installed PWA there's no address bar to type that
+  // path, so the student login also exposes a hidden gesture (tap the logo 5×)
+  // that flips this flag to reveal the faculty form.
+  const [facultyReveal, setFacultyReveal] = useState(false)
+  const isAdminPath = window.location.pathname.startsWith('/faculty') || facultyReveal
 
   // Show loading bar while Firebase is initializing
   useEffect(() => {
@@ -32,7 +35,7 @@ export default function AppRouter() {
     <React.Suspense fallback={null}>
       {sessionRole === 'admin'   && <AdminLayout />}
       {sessionRole === 'student' && <StudentLayout />}
-      {!sessionRole && (isAdminPath ? <AdminLoginScreen /> : <LoginScreen />)}
+      {!sessionRole && (isAdminPath ? <AdminLoginScreen /> : <LoginScreen onRevealFaculty={() => setFacultyReveal(true)} />)}
       {/* Global Ctrl/⌘-K command palette — only when authenticated */}
       {sessionRole && <CommandPalette />}
       {/* Quick-unlock lock screen — covers the app when the session is idle-locked */}
