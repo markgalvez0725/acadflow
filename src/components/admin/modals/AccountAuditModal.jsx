@@ -1,20 +1,21 @@
 import React, { useMemo, useState } from 'react'
-import { ShieldCheck, AlertTriangle, CheckCircle2, ChevronRight } from 'lucide-react'
+import { ShieldCheck, AlertTriangle, CheckCircle2, ChevronRight, BellRing } from 'lucide-react'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { auditAccounts, legacyActiveIds } from '@/utils/accountAudit'
+import { auditAccounts, legacyActiveIds, nudgeTargets } from '@/utils/accountAudit'
 
 // Teacher-side analyzer for EXISTING accounts (the AI identity check only runs at
 // registration). Shows verification coverage + flags integrity anomalies, with a
 // one-click "mark all legacy accounts verified" and a jump into each flagged row.
 export default function AccountAuditModal({ onClose, onOpenStudent }) {
-  const { students, classes, bulkVerifyAccounts } = useData()
+  const { students, classes, bulkVerifyAccounts, bulkNudgeProfiles } = useData()
   const { toast, openDialog } = useUI()
   const [busy, setBusy] = useState(false)
 
   const { coverage, registeredCount, flags } = useMemo(() => auditAccounts(students, classes), [students, classes])
   const legacyIds = useMemo(() => legacyActiveIds(students), [students])
+  const nudgeList = useMemo(() => nudgeTargets(students), [students])
 
   async function markLegacyVerified() {
     if (!legacyIds.length) return
@@ -28,6 +29,21 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
     try {
       const n = await bulkVerifyAccounts(legacyIds)
       toast(`${n} account${n > 1 ? 's' : ''} marked verified.`, 'green')
+    } catch (e) { toast('Failed: ' + e.message, 'red') } finally { setBusy(false) }
+  }
+
+  async function nudgeProfiles() {
+    if (!nudgeList.length) return
+    const ok = await openDialog({
+      title: `Nudge ${nudgeList.length} student${nudgeList.length > 1 ? 's' : ''} to finish their profile?`,
+      msg: 'Sends an in-app notification that opens Edit Profile. When they save, the AI re-checks their details and can activate them automatically. Only reaches students who have signed in and have something they can fix themselves — never-logged-in accounts are not included (use “Verify & activate” for those).',
+      type: 'info', confirmLabel: 'Send nudge', showCancel: true,
+    })
+    if (!ok) return
+    setBusy(true)
+    try {
+      const n = await bulkNudgeProfiles(nudgeList.map(t => t.id))
+      toast(n ? `Nudge sent to ${n} student${n > 1 ? 's' : ''}.` : 'Everyone was already nudged today.', n ? 'green' : 'blue')
     } catch (e) { toast('Failed: ' + e.message, 'red') } finally { setBusy(false) }
   }
 
@@ -51,10 +67,19 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
         ))}
       </div>
 
-      {legacyIds.length > 0 && (
-        <button className="btn btn-ghost btn-sm mb-3" disabled={busy} onClick={markLegacyVerified}>
-          <ShieldCheck size={14} /> Mark all {legacyIds.length} legacy account{legacyIds.length > 1 ? 's' : ''} verified
-        </button>
+      {(legacyIds.length > 0 || nudgeList.length > 0) && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {legacyIds.length > 0 && (
+            <button className="btn btn-ghost btn-sm" disabled={busy} onClick={markLegacyVerified}>
+              <ShieldCheck size={14} /> Mark all {legacyIds.length} legacy account{legacyIds.length > 1 ? 's' : ''} verified
+            </button>
+          )}
+          {nudgeList.length > 0 && (
+            <button className="btn btn-ghost btn-sm" disabled={busy} onClick={nudgeProfiles}>
+              <BellRing size={14} /> Nudge {nudgeList.length} student{nudgeList.length > 1 ? 's' : ''} to finish profile
+            </button>
+          )}
+        </div>
       )}
 
       <div className="text-[11px] font-bold uppercase tracking-wide text-ink3 mb-2 flex items-center gap-1.5">

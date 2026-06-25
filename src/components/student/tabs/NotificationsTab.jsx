@@ -3,7 +3,7 @@ import { doc, setDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Pagination from '@/components/primitives/Pagination'
-import { Mail, Upload, CheckCircle, BookOpen, MessageSquare, Bell, Trash2, Megaphone, Video } from 'lucide-react'
+import { Mail, Upload, CheckCircle, BookOpen, MessageSquare, Bell, Trash2, Megaphone, Video, UserCircle } from 'lucide-react'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 import { applyNotifPrefs, isNotifAllowed } from '@/utils/notifPrefs'
 
@@ -20,6 +20,7 @@ const ICONS = {
   meeting_live:      <Video size={16} />,
   meeting_cancelled: <Video size={16} />,
   meeting_ended:     <Video size={16} />,
+  profile:   <UserCircle size={16} />,
 }
 
 const LINK_TO_TAB = {
@@ -27,10 +28,12 @@ const LINK_TO_TAB = {
   activities: { label: '→ View Activities',  tab: 'activities' },
   messages:   { label: '→ View Messages',    tab: 'messages' },
   overview:   { label: '→ View Overview',    tab: 'overview' },
+  profile:    { label: '→ Update profile',   tab: 'profile' },
 }
 
 const TYPE_TO_TAB = {
   act_new:   { label: '→ View Activities', tab: 'activities' },
+  profile:   { label: '→ Update profile',  tab: 'profile' },
   act_grade: { label: '→ View Grades',     tab: 'grades' },
   msg_out:   { label: '→ View Messages',   tab: 'messages' },
   msg_in:    { label: '→ View Messages',   tab: 'messages' },
@@ -46,7 +49,7 @@ function resolveAction(n) {
   return LINK_TO_TAB[rawLink] || TYPE_TO_TAB[n.type] || null
 }
 
-export default function NotificationsTab({ student, notifs, setNotifs }) {
+export default function NotificationsTab({ student, notifs, setNotifs, onOpenProfile }) {
   const { db, fbReady } = useData()
   const { setStudentTab, openDialog } = useUI()
   const [page, setPage] = useState(1)
@@ -71,7 +74,8 @@ export default function NotificationsTab({ student, notifs, setNotifs }) {
       const updated = notifs.map(x => x.id === n.id ? { ...x, read: true } : x)
       await persistNotifs(updated)
     }
-    if (action) setStudentTab(action.tab)
+    if (action?.tab === 'profile') onOpenProfile?.()
+    else if (action) setStudentTab(action.tab)
   }
 
   async function deleteNotif(e, id) {

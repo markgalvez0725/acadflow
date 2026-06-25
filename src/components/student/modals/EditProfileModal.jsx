@@ -3,6 +3,8 @@ import { useData } from '@/context/DataContext'
 import { useAuth } from '@/context/AuthContext'
 import { useUI } from '@/context/UIContext'
 import { fbDeleteStudent } from '@/firebase/persistence'
+import { getFbAuth } from '@/firebase/firebaseInit'
+import { isPendingVerification } from '@/utils/accountStatus'
 import { validateSnum } from '@/utils/validate'
 import { validateProfilePhoto } from '@/utils/photoValidate'
 import { prewarmOnDeviceAI } from '@/utils/photoVerifyAI'
@@ -180,10 +182,15 @@ export default function EditProfileModal({ student: s, onClose }) {
     try {
       let finalSnum = snumLocked ? s.id : trimSnum
       const finalEmail = emailStep === 'verified' ? email.trim() : (s.account?.email || '')
+      // A pending account is being re-checked against the teacher's roster, so
+      // its authoritative name must NOT be overwritten by this edit (otherwise
+      // the server would later score the name against itself). Active accounts
+      // keep the existing free-rename behavior.
+      const pending = isPendingVerification(s)
       let updatedStudent = {
         ...s,
         id: finalSnum,
-        name: trimName,
+        name: pending ? (s.name || trimName) : trimName,
         // Course and year are locked to the teacher's record (enrolled subjects
         // depend on them). Students can't change them here.
         course: s.course || '',
@@ -223,6 +230,40 @@ export default function EditProfileModal({ student: s, onClose }) {
           localStorage.setItem('cp_session', JSON.stringify(sess))
         }
       } catch (e) {}
+
+      // Pending account → re-run the AI identity check server-side. The server
+      // re-reads the (preserved) roster, re-scores the name/course/year/section
+      // the student is claiming, and on a strong match flips account.verified=true
+      // (auto-activate). The gate lifts live via the roster listener. The flip is
+      // authoritative server-side only — this device can never set it itself.
+      if (pending) {
+        let verified = false
+        try {
+          const fbUser = getFbAuth()?.currentUser
+          if (fbUser) {
+            const idToken = await fbUser.getIdToken()
+            const resp = await fetch('/api/verify-account', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                idToken,
+                studentNumber: s.id,
+                name: trimName,
+                course: s.course || '',
+                year: s.year || year,
+                section: s.section || '',
+              }),
+            })
+            if (resp.ok) { const d = await resp.json().catch(() => ({})); verified = !!d.verified }
+          }
+        } catch (_) { /* leave pending — teacher will verify */ }
+        toast(verified
+          ? '✅ Verified! Full access is now unlocked.'
+          : 'Profile saved. Your account is still awaiting verification.',
+          verified ? 'success' : 'info')
+        onClose()
+        return
+      }
 
       toast('Profile updated successfully!', 'success')
       onClose()

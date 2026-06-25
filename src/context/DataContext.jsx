@@ -11,6 +11,7 @@ import {
   fbSetSubjectRep, fbDeleteClassRelatedData, fbAddAuditLog, fbRestoreFromBackup,
   fbSubmitStudentFeedback, fbUpdateFeedbackStatus,
 } from '@/firebase/persistence'
+import { fbPushReminderNotif } from '@/firebase/reminders'
 import { serializeStudents } from '@/utils/attendance'
 import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase, saveSemesterToFirebase, saveLatePolicyToFirebase, saveGradeFloorToFirebase } from '@/firebase/settings'
 import { DEFAULT_LATE_POLICY, normalizeLatePolicy } from '@/utils/latePenalty'
@@ -270,6 +271,30 @@ export function DataProvider({ children }) {
     if (n) await saveStudents(updated, students.filter(s => idSet.has(s.id) && s.account?.registered).map(s => s.id))
     return n
   }, [students, saveStudents])
+
+  // Bulk "complete your profile" nudge. Writes an in-app notification to each
+  // student that deep-links straight into Edit Profile, where saving re-runs the
+  // AI identity check and can auto-activate them. Idempotent per day (a stable
+  // remKey dedups same-day double clicks). Returns how many were newly sent.
+  const bulkNudgeProfiles = useCallback(async (ids) => {
+    const db = dbRef.current
+    if (!db) return 0
+    const idList = [...new Set((ids || []).filter(Boolean))]
+    if (!idList.length) return 0
+    const dayKey = new Date().toISOString().slice(0, 10)
+    const rem = {
+      remKey: `profile-verify-${dayKey}`,
+      type: 'profile',
+      title: 'Finish setting up your account',
+      body: 'Tap to review your profile. Confirming your details can unlock full access automatically.',
+      link: 'profile',
+    }
+    let sent = 0
+    for (const id of idList) {
+      try { if (await fbPushReminderNotif(db, id, rem)) sent++ } catch (_) { /* best-effort */ }
+    }
+    return sent
+  }, [])
 
   // Append an entry to the admin audit log. Fire-and-forget — callers should
   // not await this in a way that blocks the primary action.
@@ -1113,6 +1138,7 @@ export function DataProvider({ children }) {
       verifyStudentAccount,
       bulkVerifyAccounts,
       bulkVerifyActivate,
+      bulkNudgeProfiles,
       meetings, setMeetings,
       liveMeetings: meetings.filter(m => m.status === 'live'),
       saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting,

@@ -471,7 +471,7 @@ export default function StudentLayout() {
               {studentTab === 'activities'    && <ActivitiesTab    student={student} viewClassId={effectiveClassId} activities={activities} />}
               {studentTab === 'assignments'   && <AssignmentsTab   student={student} classes={classes} />}
               {studentTab === 'quizzes'       && <StudentQuizTab   student={student} viewClassId={effectiveClassId} />}
-              {studentTab === 'notifications' && <NotificationsTab student={student} notifs={studentNotifs} setNotifs={setStudentNotifs} />}
+              {studentTab === 'notifications' && <NotificationsTab student={student} notifs={studentNotifs} setNotifs={setStudentNotifs} onOpenProfile={() => setProfileOpen(true)} />}
               {studentTab === 'calendar'      && <CalendarTab      student={student} viewClassId={effectiveClassId} classes={classes} />}
               {studentTab === 'onlineClasses' && <OnlineClassesTab student={student} />}
               {studentTab === 'enrollment'    && <EnrollmentTab    student={student} />}

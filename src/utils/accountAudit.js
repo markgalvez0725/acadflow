@@ -69,6 +69,31 @@ export function auditAccounts(students = [], classes = []) {
   return { coverage, registeredCount: registered.length, flags }
 }
 
+// Accounts a "complete your profile" nudge can actually help: REACHABLE (the
+// student has claimed the account — registered, activated, off the temp password
+// — so they can sign in and see an in-app notification) AND has a gap the student
+// can FIX THEMSELVES in Edit Profile (awaiting verification, no photo, or a name
+// without a surname). Deliberately excludes the never-logged-in / temp-password
+// crowd: a notification can't reach them, and their gaps (course/year/section)
+// are teacher-owned and locked on the student side — those need the bulk
+// "Verify & activate" action instead. Pure + deterministic.
+export function nudgeTargets(students = []) {
+  const out = []
+  for (const s of students) {
+    const a = s.account || {}
+    const reachable = a.registered && a.activated && !a._tempPass
+    if (!reachable) continue
+
+    const reasons = []
+    if (isPendingVerification(s)) reasons.push('Awaiting verification — confirm your details')
+    if (!s.photo) reasons.push('No profile photo')
+    if (String(s.name || '').trim() && !String(s.name).includes(',')) reasons.push('Name is missing a surname')
+
+    if (reasons.length) out.push({ id: s.id, name: s.name || s.id, reasons })
+  }
+  return out
+}
+
 // IDs of grandfathered accounts — registered + active but never AI/teacher
 // verified — for the "mark all legacy accounts verified" bulk action.
 export function legacyActiveIds(students = []) {
