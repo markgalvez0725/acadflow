@@ -574,6 +574,7 @@ function rosterData(students, classes, semester) {
   const currentClasses = (classes || []).filter(c => isClassCurrent(c, semester))
   const allSubjects = [...new Set(currentClasses.flatMap(c => c.subjects || []))].filter(Boolean).sort()
   const courseShorts = [...new Set(COURSES.map(c => courseShort(c)).filter(Boolean))]
+  const yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year']
   const widths = [4, 14, 18, 18, 6, 20, 12, 40, 12]
   const fileName = `StudentRoster_${new Date().toISOString().slice(0, 10)}.xlsx`
   const pwGuide = [
@@ -583,13 +584,13 @@ function rosterData(students, classes, semester) {
     ['Requirements:'], ['  • At least 8 characters'],
     ['  • At least one uppercase letter'], ['  • At least one number'],
   ]
-  return { exportDate, total: sorted.length, headers, dataRows, allSubjects, courseShorts, widths, fileName, pwGuide }
+  return { exportDate, total: sorted.length, headers, dataRows, allSubjects, courseShorts, yearLevels, widths, fileName, pwGuide }
 }
 
-// ExcelJS writer — real dropdowns on Course (col F) + Class Subject (col H),
-// referencing a hidden "Lists" sheet (no inline-list length limit).
+// ExcelJS writer — real dropdowns on Course (col F), Year Level (col G) +
+// Class Subject (col H), referencing a "Lists" sheet (no inline-list length limit).
 async function rosterExcelJS(ExcelJS, ctx) {
-  const { exportDate, total, headers, dataRows, allSubjects, courseShorts, widths, fileName, pwGuide } = ctx
+  const { exportDate, total, headers, dataRows, allSubjects, courseShorts, yearLevels, widths, fileName, pwGuide } = ctx
   const wb = new ExcelJS.Workbook()
   const ws = wb.addWorksheet('Students', { views: [{ state: 'frozen', ySplit: 11 }] })
 
@@ -607,14 +608,16 @@ async function rosterExcelJS(ExcelJS, ctx) {
   ws.autoFilter = { from: { row: 11, column: 1 }, to: { row: lastDataRow, column: headers.length } }
 
   // Dropdowns over the data rows + trailing blanks (so new entries get them too).
-  // Both reference the VISIBLE "Lists" sheet (a hidden source stops Excel showing
+  // All reference the VISIBLE "Lists" sheet (a hidden source stops Excel showing
   // the dropdown): col A = the app's existing class subjects, col B = the four
-  // course codes only.
+  // course codes, col C = the four year levels.
   const dvLast = lastDataRow + 5
   const subjRef   = allSubjects.length  ? `Lists!$A$2:$A$${1 + allSubjects.length}`  : null
   const courseRef = courseShorts.length ? `Lists!$B$2:$B$${1 + courseShorts.length}` : null
+  const yearRef   = yearLevels.length   ? `Lists!$C$2:$C$${1 + yearLevels.length}`   : null
   for (let r = 12; r <= dvLast; r++) {
     if (courseRef) ws.getCell(r, 6).dataValidation = { type: 'list', allowBlank: true, showErrorMessage: false, formulae: [courseRef] }
+    if (yearRef)   ws.getCell(r, 7).dataValidation = { type: 'list', allowBlank: true, showErrorMessage: false, formulae: [yearRef] }
     if (subjRef)   ws.getCell(r, 8).dataValidation = { type: 'list', allowBlank: true, showErrorMessage: false, formulae: [subjRef] }
   }
 
@@ -624,11 +627,12 @@ async function rosterExcelJS(ExcelJS, ctx) {
 
   // Visible source sheet feeding the dropdowns (referenced above by name).
   const wsList = wb.addWorksheet('Lists')
-  wsList.addRow(['Class Subjects', 'Courses'])
-  const maxLen = Math.max(allSubjects.length, courseShorts.length)
-  for (let i = 0; i < maxLen; i++) wsList.addRow([allSubjects[i] || '', courseShorts[i] || ''])
+  wsList.addRow(['Class Subjects', 'Courses', 'Year Levels'])
+  const maxLen = Math.max(allSubjects.length, courseShorts.length, yearLevels.length)
+  for (let i = 0; i < maxLen; i++) wsList.addRow([allSubjects[i] || '', courseShorts[i] || '', yearLevels[i] || ''])
   wsList.getColumn(1).width = 44
   wsList.getColumn(2).width = 12
+  wsList.getColumn(3).width = 12
 
   const buf = await wb.xlsx.writeBuffer()
   downloadBlob(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), fileName)
