@@ -47,6 +47,26 @@ export function studentTag(student, classes = []) {
   return tag || student.id || ''
 }
 
+// "3rd" from "3rd Year" / "3" / "Year 3" — the year level as a clean ordinal.
+export function ordinalYear(year) {
+  const m = String(year || '').match(/\d+/)
+  if (!m) return ''
+  const n = parseInt(m[0], 10)
+  const n10 = n % 10, n100 = n % 100
+  const suf = (n10 === 1 && n100 !== 11) ? 'st'
+    : (n10 === 2 && n100 !== 12) ? 'nd'
+    : (n10 === 3 && n100 !== 13) ? 'rd' : 'th'
+  return `${n}${suf}`
+}
+
+// "BSEMC 3rd" — course short + ordinal year level, for a student's own profile
+// line. (Unlike studentTag, this omits the section and spells the year out, e.g.
+// "3rd" instead of "3", so the student sees their current year clearly.)
+export function studentYearTag(student) {
+  if (!student) return ''
+  return [courseShort(student.course), ordinalYear(student.year)].filter(Boolean).join(' ').trim()
+}
+
 export function isGroupMessage(m) {
   return m?.from === 'admin' && m?.type === 'announcement'
 }

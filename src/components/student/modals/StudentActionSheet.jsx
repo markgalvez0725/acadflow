@@ -4,7 +4,7 @@ import { Pencil, KeyRound, LogOut, Bell, BellRing, Moon, Sun, Lock, Fingerprint 
 import { isBiometricSupported } from '@/utils/biometric'
 import { useUI } from '@/context/UIContext'
 import { useData } from '@/context/DataContext'
-import { studentTag } from '@/utils/groupChat'
+import { studentYearTag } from '@/utils/groupChat'
 
 /**
  * Slide-up action sheet for the student portal.
@@ -153,7 +153,7 @@ export default function StudentActionSheet({
               <div style={{ fontSize: 11, color: 'var(--ink3)' }}>
                 {(() => {
                   const snum = student.snum || student.id
-                  const tag = studentTag(student, classes)
+                  const tag = studentYearTag(student)
                   return tag && tag !== snum ? `${tag} - ${snum}` : snum
                 })()}
               </div>
