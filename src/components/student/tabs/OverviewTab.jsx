@@ -730,6 +730,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
               student={s}
               classes={classes}
               activities={activities}
+              quizzes={quizzes}
               eqScale={eqScale}
             />
           ))}
@@ -784,7 +785,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
   )
 }
 
-function SubjectCard({ sub, student: s, classes, activities, eqScale }) {
+function SubjectCard({ sub, student: s, classes, activities, quizzes = [], eqScale }) {
   const [open, setOpen] = useState(false)
   const comp = s.gradeComponents?.[sub] || {}
   const midG = comp.midterm ?? null
@@ -800,6 +801,12 @@ function SubjectCard({ sub, student: s, classes, activities, eqScale }) {
   const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
   const panelActs = activities.filter(a => enrolledIds.includes(a.classId) && a.subject === sub)
   const hasGradedActs = panelActs.some(a => (a.submissions || {})[s.id]?.score != null)
+  // Reconcile cached activity scores against live activities — drop id-keyed
+  // scores whose activity the teacher deleted; keep positional (a1, a2…) only
+  // when there are no live activities to reconcile against (legacy entry).
+  const liveActIds = new Set(panelActs.map(a => a.id))
+  const cachedActEntries = (comp.activityScores ? Object.entries(comp.activityScores) : [])
+    .filter(([k]) => /^a\d+$/.test(k) ? !panelActs.length : liveActIds.has(k))
   if (hasGradedActs) {
     const scored = panelActs
       .map((a, i) => ({ num: i + 1, score: (a.submissions || {})[s.id]?.score ?? null, max: a.maxScore || 100 }))
@@ -814,12 +821,12 @@ function SubjectCard({ sub, student: s, classes, activities, eqScale }) {
         </div>
       )
     })
-  } else if (comp.activityScores && Object.keys(comp.activityScores).length) {
-    const isNumbered = Object.keys(comp.activityScores).every(k => /^a\d+$/.test(k))
-    const entries = isNumbered
-      ? Object.entries(comp.activityScores).sort((a, b) => parseInt(a[0].slice(1)) - parseInt(b[0].slice(1)))
-      : Object.entries(comp.activityScores).sort(([a], [b]) => a.localeCompare(b))
-    actContent = entries.map(([k, val], i) => {
+  } else if (cachedActEntries.length) {
+    const isNumbered = cachedActEntries.every(([k]) => /^a\d+$/.test(k))
+    const sorted = isNumbered
+      ? cachedActEntries.sort((a, b) => parseInt(a[0].slice(1)) - parseInt(b[0].slice(1)))
+      : cachedActEntries.sort(([a], [b]) => a.localeCompare(b))
+    actContent = sorted.map(([k, val], i) => {
       const num = isNumbered ? parseInt(k.slice(1)) : i + 1
       const col = val >= 75 ? 'var(--green)' : val >= 60 ? 'var(--yellow)' : 'var(--red)'
       return (
@@ -835,15 +842,22 @@ function SubjectCard({ sub, student: s, classes, activities, eqScale }) {
     actContent = '—'
   }
 
-  // Quiz cells — the student's own per-quiz results cache (with legacy fallback)
-  const myQuizResults = s.quizResults?.[sub]?.length ? s.quizResults[sub] : (Array.isArray(comp.quizzes) ? comp.quizzes : null)
+  // Quiz cells — the student's own per-quiz results cache, reconciled against the
+  // live quizzes so a quiz the teacher deleted no longer counts (with legacy
+  // fallback). id-keyed quizScores for deleted quizzes are dropped; positional
+  // ones survive only when there are no live quizzes.
+  const liveQuizIds = new Set(quizzes.map(q => q.id))
+  const myQuizResults = s.quizResults?.[sub]?.length
+    ? s.quizResults[sub].filter(e => !e?.quizId || liveQuizIds.has(e.quizId))
+    : (Array.isArray(comp.quizzes) ? comp.quizzes : null)
+  const cachedQzEntries = (comp.quizScores ? Object.entries(comp.quizScores) : [])
+    .filter(([k]) => /^q\d+$/.test(k) ? liveQuizIds.size === 0 : liveQuizIds.has(k))
   let qzContent = null
-  if (comp.quizScores && Object.keys(comp.quizScores).length) {
-    const qzRaw = Object.entries(comp.quizScores)
-    const isNumberedQz = qzRaw.every(([k]) => /^q\d+$/.test(k))
+  if (cachedQzEntries.length) {
+    const isNumberedQz = cachedQzEntries.every(([k]) => /^q\d+$/.test(k))
     const sorted = isNumberedQz
-      ? qzRaw.sort((a, b) => parseInt(a[0].slice(1)) - parseInt(b[0].slice(1)))
-      : qzRaw.sort(([a], [b]) => String(a).localeCompare(String(b)))
+      ? cachedQzEntries.sort((a, b) => parseInt(a[0].slice(1)) - parseInt(b[0].slice(1)))
+      : cachedQzEntries.sort(([a], [b]) => String(a).localeCompare(String(b)))
     qzContent = sorted.map(([k, val], i) => {
       const num = isNumberedQz ? parseInt(k.slice(1)) : i + 1
       const col = val >= 75 ? 'var(--green)' : val >= 60 ? 'var(--yellow)' : 'var(--red)'

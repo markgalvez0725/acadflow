@@ -9,7 +9,7 @@ import { neededFinalsForRemarks } from '@/utils/whatIf'
 import RegradeRequestModal from '@/components/student/modals/RegradeRequestModal'
 
 export default function GradesTab({ student: s, viewClassId, classes }) {
-  const { activities, students, eqScale, semester } = useData()
+  const { activities, quizzes, students, eqScale, semester } = useData()
   const [regradeOpen, setRegradeOpen] = useState(false)
 
   // Current, non-archived classes only — archived/ended/removed subjects drop off.
@@ -75,6 +75,7 @@ export default function GradesTab({ student: s, viewClassId, classes }) {
           student={s}
           classes={classes}
           activities={activities}
+          quizzes={quizzes}
           students={students}
           eqScale={eqScale}
         />
@@ -164,7 +165,7 @@ function TrailRow({ label, value, sub, isResult, isFinal }) {
   )
 }
 
-function SubjectCard({ sub, student: s, classes, activities, students, eqScale }) {
+function SubjectCard({ sub, student: s, classes, activities, quizzes = [], students, eqScale }) {
   const [showTrail, setShowTrail] = useState(false)
 
   const comp = s.gradeComponents?.[sub] || {}
@@ -195,9 +196,12 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
   // Get all enrolled class IDs for multi-subject support
   const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
 
-  // Activity display
-  const panelActs = activities
-    .filter(a => enrolledIds.includes(a.classId) && a.subject === sub)
+  // Activity display — reconciled against the *live* activities so an activity
+  // the teacher deletes stops counting toward the grade immediately (the cached
+  // gradeComponents.activityScores may still hold a stale id/positional key).
+  const liveActs = activities.filter(a => enrolledIds.includes(a.classId) && a.subject === sub)
+  const liveActIds = new Set(liveActs.map(a => a.id))
+  const panelActs = liveActs
     .map(a => ({ title: a.title, score: (a.submissions || {})[s.id]?.score ?? null, max: a.maxScore || 100 }))
   const hasGradedPanelActs = panelActs.some(a => a.score != null)
 
@@ -206,23 +210,21 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
     displayActs = panelActs.filter(a => a.score != null)
   } else if (comp.activityScores && Object.keys(comp.activityScores).length) {
     const entries = Object.entries(comp.activityScores)
-    const isNumbered = entries.every(([k]) => /^a\d+$/.test(k))
-    if (isNumbered) {
+    // Prefer id-keyed cached scores that still match a live activity.
+    const idKeyed = entries.filter(([k]) => liveActIds.has(k))
+    if (idKeyed.length) {
+      displayActs = idKeyed.map(([k, v]) => {
+        const a = liveActs.find(x => x.id === k)
+        return { title: a?.title || '', score: v, max: a?.maxScore || 100 }
+      })
+    } else if (!liveActs.length && entries.every(([k]) => /^a\d+$/.test(k))) {
+      // Legacy doc-less manual entry (teacher typed activity scores with no
+      // activity docs to delete) — safe to show the positional aggregate.
       displayActs = entries
         .sort((a, b) => parseInt(a[0].slice(1)) - parseInt(b[0].slice(1)))
         .map(([k, v]) => ({ title: '', score: v, max: 100 }))
-    } else {
-      const actList = activities.filter(a => enrolledIds.includes(a.classId) && a.subject === sub)
-      if (actList.length) {
-        displayActs = actList
-          .filter(a => comp.activityScores[a.id] != null)
-          .map(a => ({ title: a.title, score: comp.activityScores[a.id], max: a.maxScore || 100 }))
-      } else {
-        displayActs = entries
-          .sort(([a], [b]) => String(a).localeCompare(String(b)))
-          .map(([k, v]) => ({ title: '', score: v, max: 100 }))
-      }
     }
+    // Otherwise every cached score belongs to a deleted activity → show none.
   }
 
   // Normalize each activity to a percentage (score / its max * 100) before
@@ -238,9 +240,13 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
   // Attitude / Character grade
   const attitudeVal = comp.attitude ?? null
 
-  // Quiz display — prefer the student's own per-quiz results cache; fall back
-  // to legacy gradeComponents.quizzes (array) or the teacher's numeric aggregate.
-  const quizzesRaw = (s.quizResults?.[sub]?.length ? s.quizResults[sub] : comp.quizzes)
+  // Quiz display — prefer the student's own per-quiz results cache, but drop any
+  // entry whose quiz the teacher has since deleted (reconcile against the live
+  // quizzes). Fall back to legacy gradeComponents.quizzes / quizScores.
+  const liveQuizIds = new Set(quizzes.map(q => q.id))
+  const cachedQuizResults = (s.quizResults?.[sub] || [])
+    .filter(e => !e?.quizId || liveQuizIds.has(e.quizId))
+  const quizzesRaw = (cachedQuizResults.length ? cachedQuizResults : comp.quizzes)
   const quizzesIsArray = Array.isArray(quizzesRaw)
   const quizzesAvg = quizzesIsArray
     ? (quizzesRaw.length
@@ -252,7 +258,12 @@ function SubjectCard({ sub, student: s, classes, activities, students, eqScale }
   if (quizzesIsArray && quizzesRaw.length) {
     qzEntries = quizzesRaw.map((q, i) => [`q${i + 1}`, q.pct ?? (q.score != null && q.total ? Math.round(q.score / q.total * 100) : null), q.title ?? null])
   } else if (comp.quizScores && Object.keys(comp.quizScores).length) {
+    // Keyed quiz scores: keep id-keyed entries only when their quiz still
+    // exists; positional (q1, q2…) only survive when there are no live quizzes
+    // to reconcile against (legacy doc-less entry).
+    const hasLiveQuizzes = liveQuizIds.size > 0
     const qzRaw = Object.entries(comp.quizScores)
+      .filter(([k]) => /^q\d+$/.test(k) ? !hasLiveQuizzes : liveQuizIds.has(k))
     const isNumbered = qzRaw.every(([k]) => /^q\d+$/.test(k))
     const sorted = isNumbered
       ? qzRaw.sort((a, b) => parseInt(a[0].slice(1)) - parseInt(b[0].slice(1)))
