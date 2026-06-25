@@ -686,11 +686,12 @@ function ResetPasswordModal({ student, onClose }) {
 
 // ── CSV helpers ───────────────────────────────────────────────────────
 function exportRosterCSV(students, classes) {
-  const headers = ['Student No.', 'Surname', 'First Name', 'M.I.', 'Course', 'Year Level', 'Date of Birth', 'Mobile', 'Primary Class', 'Email', 'Account Status']
+  const headers = ['Student No.', 'Surname', 'First Name', 'M.I.', 'Course', 'Year Level', 'Date of Birth', 'Class Subject', 'Email', 'Account Status']
   const rows = students.map(s => {
-    const cls = classes.find(c => c.id === s.classId)
+    const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
+    const subjects = [...new Set(enrolledIds.flatMap(id => classes.find(c => c.id === id)?.subjects || []))].join(', ')
     const n = splitStudentName(s.name)
-    return [s.id, n.last, n.first, n.middle, s.course || '', s.year || '', s.dob || '', s.mobile || '', cls ? `${cls.name} ${cls.section}` : '', s.account?.email || '', accountStatus(s).label]
+    return [s.id, n.last, n.first, n.middle, s.course || '', s.year || '', s.dob || '', subjects, s.account?.email || '', accountStatus(s).label]
   })
   const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })

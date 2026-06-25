@@ -554,12 +554,11 @@ export function exportStudentRosterExcel({ students, classes }) {
     [''],
     [''],
   ]
-  const headers = ['#', 'Student No.', 'Surname', 'First Name', 'M.I.', 'Course', 'Year Level', 'Date of Birth', 'Mobile', 'Class', 'Section']
+  const headers = ['#', 'Student No.', 'Surname', 'First Name', 'M.I.', 'Course', 'Year Level', 'Date of Birth', 'Class Subject', 'Section']
   const dataRows = sorted.map((s, idx) => {
-    const cls = classes.find(c =>
-      (c.id === s.classId) ||
-      (s.classIds?.includes(c.id))
-    )
+    const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
+    const primary = classes.find(c => c.id === s.classId) || classes.find(c => enrolledIds.includes(c.id))
+    const subjects = [...new Set(enrolledIds.flatMap(id => classes.find(c => c.id === id)?.subjects || []))].join(', ')
     const n = splitStudentName(s.name)
     return [
       idx + 1,
@@ -570,9 +569,8 @@ export function exportStudentRosterExcel({ students, classes }) {
       s.course || '',
       s.year   || '',
       s.dob    || '',
-      s.mobile || '',
-      cls?.name    || '',
-      cls?.section || '',
+      subjects,
+      primary?.section || '',
     ]
   })
   const blankRows = Array.from({ length: 5 }, () => Array(headers.length).fill(''))
@@ -582,7 +580,7 @@ export function exportStudentRosterExcel({ students, classes }) {
 
   XLSX.utils.sheet_add_aoa(ws, [headers], { origin: 10 }) // row 11 (0-based row 10)
 
-  ws['!cols'] = [4, 14, 18, 18, 6, 20, 12, 14, 14, 20, 12].map(w => ({ wch: w }))
+  ws['!cols'] = [4, 14, 18, 18, 6, 20, 12, 14, 40, 12].map(w => ({ wch: w }))
   ws['!freeze'] = { xSplit: 0, ySplit: 11 }
 
   // Password Guide sheet
