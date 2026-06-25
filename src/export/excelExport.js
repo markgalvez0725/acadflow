@@ -605,23 +605,29 @@ async function rosterExcelJS(ExcelJS, ctx) {
   const lastDataRow = 11 + dataRows.length
   ws.autoFilter = { from: { row: 11, column: 1 }, to: { row: lastDataRow, column: headers.length } }
 
-  const wsList = wb.addWorksheet('Lists', { state: 'hidden' })
-  wsList.addRow(['Subjects', 'Courses'])
-  const maxLen = Math.max(allSubjects.length, courseShorts.length)
-  for (let i = 0; i < maxLen; i++) wsList.addRow([allSubjects[i] || '', courseShorts[i] || ''])
-
   // Dropdowns over the data rows + trailing blanks (so new entries get them too).
+  // Course is a short set → INLINE list (most compatible). Subjects can be many /
+  // long → a VISIBLE "Lists" sheet range. (A HIDDEN source sheet stops Excel from
+  // showing the dropdown — that was the earlier bug.)
   const dvLast = lastDataRow + 5
+  const courseInline = courseShorts.length ? `"${courseShorts.join(',')}"` : null
   const subjRef = allSubjects.length ? `Lists!$A$2:$A$${1 + allSubjects.length}` : null
-  const courseRef = courseShorts.length ? `Lists!$B$2:$B$${1 + courseShorts.length}` : null
   for (let r = 12; r <= dvLast; r++) {
-    if (courseRef) ws.getCell(r, 6).dataValidation = { type: 'list', allowBlank: true, showErrorMessage: false, formulae: [courseRef] }
-    if (subjRef)   ws.getCell(r, 9).dataValidation = { type: 'list', allowBlank: true, showErrorMessage: false, formulae: [subjRef] }
+    if (courseInline) ws.getCell(r, 6).dataValidation = { type: 'list', allowBlank: true, showErrorMessage: false, formulae: [courseInline] }
+    if (subjRef)      ws.getCell(r, 9).dataValidation = { type: 'list', allowBlank: true, showErrorMessage: false, formulae: [subjRef] }
   }
 
   const wsPw = wb.addWorksheet('Password Guide')
   pwGuide.forEach(r => wsPw.addRow(r))
   wsPw.getColumn(1).width = 60
+
+  // Visible source sheet for the subject dropdown (referenced above by name).
+  if (allSubjects.length) {
+    const wsList = wb.addWorksheet('Lists')
+    wsList.addRow(['Class Subjects (dropdown source — do not delete)'])
+    allSubjects.forEach(sub => wsList.addRow([sub]))
+    wsList.getColumn(1).width = 44
+  }
 
   const buf = await wb.xlsx.writeBuffer()
   downloadBlob(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), fileName)
