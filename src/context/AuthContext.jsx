@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react'
-import { signInWithEmailAndPassword, signOut } from 'firebase/auth'
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, deleteUser, signOut } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
-import { hashPassword } from '@/utils/crypto'
+import { hashPassword, verifyPassword } from '@/utils/crypto'
 import { genOTP, verifyOTP, consumeOTP } from '@/utils/otp'
 import { isLockedOut, recordFailedAttempt, clearAttempts } from '@/utils/validate'
 import { hasQuickPin, setQuickPin, verifyQuickPin, clearQuickPin } from '@/utils/quickPin'
@@ -20,6 +20,48 @@ function friendlyAuthError(e) {
   if (c.includes('user-disabled'))     return 'This account has been disabled. Please contact your teacher.'
   if (c.includes('operation-not-allowed')) return 'Sign-in is not enabled yet. Ask the admin to turn on Email/Password sign-in.'
   return 'Incorrect login details. Please try again.'
+}
+
+// Claim a teacher-PROVISIONED account on first sign-in.
+//
+// Add-Student / Import write a temporary-password HASH to the roster
+// (account.pass) and mark the account registered + _tempPass, but they do NOT
+// create a Firebase Auth user — so the very first sign-in has nothing to
+// authenticate against and fails. This creates that Auth user from the entered
+// password, but ONLY when the roster confirms it's a registered temp-password
+// account AND the entered password matches the stored hash — so a stranger can't
+// seize an unclaimed account with an arbitrary password. Returns true on success
+// (the student is now signed in); false leaves nothing behind to claim.
+async function claimTempPassAccount(auth, snum, password) {
+  const db = getDb()
+  if (!db) return false
+  let createdUser = null
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, studentEmail(snum), password)
+    createdUser = cred.user
+  } catch (err) {
+    // email-already-in-use → a real Auth user exists, so the original failure was
+    // a wrong password, not an unclaimed account. Any other error → can't claim.
+    return false
+  }
+  try {
+    try { await createdUser.getIdToken() } catch (e) { /* token mint best-effort */ }
+    const snap = await getDoc(doc(db, 'students', studentDocId(snum)))
+    const acct = snap.exists() ? (snap.data().account || null) : null
+    const legit = !!(acct && acct.registered && acct._tempPass && acct.pass &&
+                     await verifyPassword(password, acct.pass))
+    if (!legit) {
+      // Wrong password, or not a claimable account → undo the Auth user we made.
+      await deleteUser(createdUser).catch(() => {})
+      await signOut(auth).catch(() => {})
+      return false
+    }
+    return true
+  } catch (e) {
+    try { await deleteUser(createdUser) } catch (_) { /* leave for teacher reset */ }
+    try { await signOut(auth) } catch (_) {}
+    return false
+  }
 }
 
 const AuthContext = createContext(null)
@@ -181,8 +223,14 @@ export function AuthProvider({ children }) {
     try {
       await signInWithEmailAndPassword(auth, studentEmail(snum), password)
     } catch (e) {
-      recordFailedAttempt(key)
-      return { ok: false, msg: friendlyAuthError(e) }
+      // Sign-in failed. It may be a teacher-provisioned account that has never
+      // been claimed (roster has a temp-password hash but no Auth user yet) — try
+      // to claim it with the entered password before treating this as a failure.
+      const claimed = await claimTempPassAccount(auth, snum, password)
+      if (!claimed) {
+        recordFailedAttempt(key)
+        return { ok: false, msg: friendlyAuthError(e) }
+      }
     }
     clearAttempts(key)
 
