@@ -183,6 +183,19 @@ export default function StudentLayout() {
 
   // Profile / account sheet
   const [profileOpen, setProfileOpen] = useState(false)
+  const [profileForced, setProfileForced] = useState(false)
+
+  // After the temporary password is changed, a teacher-provisioned student must
+  // complete their profile once before using the portal. Gated behind !_tempPass
+  // so it runs only AFTER the password step (which forces a logout/re-login).
+  useEffect(() => {
+    const a = student?.account
+    if (a && a.needsProfileSetup === true && !a._tempPass) {
+      setProfileForced(true)
+      setProfileOpen(true)
+    }
+  }, [student?.account?.needsProfileSetup, student?.account?._tempPass])
+
   const [actionSheetOpen, setActionSheetOpen] = useState(false)
   const [notifPrefsOpen, setNotifPrefsOpen] = useState(false)
   const [pinModalOpen, setPinModalOpen] = useState(false)
@@ -219,11 +232,11 @@ export default function StudentLayout() {
   // First-run onboarding tour — once per device, never during a forced reset.
   const [tourOpen, setTourOpen] = useState(false)
   useEffect(() => {
-    if (!student?.id || forcePassOpen) return
+    if (!student?.id || forcePassOpen || profileForced) return
     let seen = true
     try { seen = !!localStorage.getItem(`onboarding_seen:${student.id}`) } catch (e) { /* ignore */ }
     if (!seen) setTourOpen(true)
-  }, [student?.id, forcePassOpen])
+  }, [student?.id, forcePassOpen, profileForced])
 
   // Web push (FCM) — opt-in per device, no-op when unsupported/unconfigured
   const push = usePushNotifications({ db, fbReady, ownerId: student?.id, role: 'student', toast })
@@ -559,7 +572,7 @@ export default function StudentLayout() {
       {/* Modals */}
       {profileOpen && (
         <Suspense fallback={null}>
-          <EditProfileModal student={student} onClose={() => setProfileOpen(false)} />
+          <EditProfileModal student={student} forced={profileForced} onClose={() => { setProfileOpen(false); setProfileForced(false) }} />
         </Suspense>
       )}
       {forcePassOpen && (

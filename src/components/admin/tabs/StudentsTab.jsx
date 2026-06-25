@@ -128,9 +128,9 @@ function AddStudentModal({ onClose }) {
       if (initPass.length < 8) { setPassErr('Password must be at least 8 characters.'); return }
       if (!/[A-Z]/.test(initPass) || !/[0-9]/.test(initPass)) { setPassErr('Password must include at least one uppercase letter and one number.'); return }
       if (initEmail && !initEmail.includes('@')) { setPassErr('Please enter a valid email address.'); return }
-      account = { registered: true, pass: await hashPassword(initPass), email: initEmail || '', _tempPass: true, verified: true, verification: { method: 'teacher', at: Date.now() } }
+      account = { registered: true, pass: await hashPassword(initPass), email: initEmail || '', _tempPass: true, needsProfileSetup: true, verified: true, verification: { method: 'teacher', at: Date.now() } }
     } else {
-      account = { registered: true, pass: await hashPassword(DEFAULT_PASS), email: '', _tempPass: true, verified: true, verification: { method: 'teacher', at: Date.now() } }
+      account = { registered: true, pass: await hashPassword(DEFAULT_PASS), email: '', _tempPass: true, needsProfileSetup: true, verified: true, verification: { method: 'teacher', at: Date.now() } }
     }
 
     const allClassIds = [...new Set([classId, ...extraIds].filter(Boolean))]
@@ -809,7 +809,7 @@ function ImportStudentsModal({ onClose }) {
         const id = r.id.toUpperCase()
         const allClassIds = []
         const grades = {}, attendance = {}, excuse = {}, gradeComponents = {}
-        return { id, name: (r.name || '').toUpperCase(), course: r.course, year: r.year || '1st Year', section: r.section || '', mobile: r.mobile || '', dob: r.dob || '', classId: null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account: { registered: true, pass: await hashPassword(DEFAULT_PASS), email: '', _tempPass: true, verified: true, verification: { method: 'teacher', at: Date.now() } } }
+        return { id, name: (r.name || '').toUpperCase(), course: r.course, year: r.year || '1st Year', section: r.section || '', mobile: r.mobile || '', dob: r.dob || '', classId: null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account: { registered: true, pass: await hashPassword(DEFAULT_PASS), email: '', _tempPass: true, needsProfileSetup: true, verified: true, verification: { method: 'teacher', at: Date.now() } } }
       }))
       await saveStudents([...students, ...newStudents], newStudents.map(s => s.id))
       toast(`Imported ${newStudents.length} student${newStudents.length !== 1 ? 's' : ''}!`, 'green')

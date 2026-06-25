@@ -44,9 +44,9 @@ function buildStudentName(surname, first, middle) {
   return (sur ? `${sur}, ${fm}`.replace(/,\s*$/, '') : fm).toUpperCase()
 }
 
-export default function EditProfileModal({ student: s, onClose }) {
+export default function EditProfileModal({ student: s, onClose, forced = false }) {
   const { students, saveStudents, db } = useData()
-  const { setCurrentStudent } = useAuth()
+  const { setCurrentStudent, logout } = useAuth()
   const { toast } = useUI()
 
   const _parsed = parseStudentName(s.name)
@@ -240,7 +240,7 @@ export default function EditProfileModal({ student: s, onClose }) {
         course: s.course || '',
         year: s.year || year,
         photo: photo || null,
-        account: { ...(s.account || {}), email: finalEmail, ...(pending ? { verified, verification } : {}) },
+        account: { ...(s.account || {}), email: finalEmail, needsProfileSetup: false, ...(pending ? { verified, verification } : {}) },
       }
 
       if (!snumLocked && finalSnum !== s.id) {
@@ -297,9 +297,14 @@ export default function EditProfileModal({ student: s, onClose }) {
   }
 
   return (
-    <Modal onClose={onClose}>
+    <Modal onClose={forced ? undefined : onClose}>
       <div>
-        <h3 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: 20, marginBottom: 20 }}>Edit Profile</h3>
+        <h3 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: 20, marginBottom: forced ? 6 : 20 }}>{forced ? 'Complete your profile' : 'Edit Profile'}</h3>
+        {forced && (
+          <p style={{ fontSize: 12.5, color: 'var(--ink2)', marginBottom: 18, lineHeight: 1.5 }}>
+            Review your details and add a photo to finish setting up your account. You can update these again later.
+          </p>
+        )}
 
         {/* Avatar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
@@ -490,9 +495,9 @@ export default function EditProfileModal({ student: s, onClose }) {
         )}
 
         <div className="flex gap-2 justify-end mt-4">
-          <button className="btn btn-ghost btn-sm" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => { if (forced) logout(); else onClose() }} disabled={saving}>{forced ? 'Sign out instead' : 'Cancel'}</button>
           <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving…' : <><Save size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />Save Profile</>}
+            {saving ? 'Saving…' : <><Save size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />{forced ? 'Save & continue' : 'Save Profile'}</>}
           </button>
         </div>
       </div>
