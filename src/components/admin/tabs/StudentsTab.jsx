@@ -822,14 +822,14 @@ function ImportStudentsModal({ onClose }) {
       {/* Template download */}
       <div className="bg-accent-l border border-accent/20 rounded-lg px-3 py-2.5 mb-4 flex items-center justify-between gap-3 flex-wrap">
         <div className="text-xs text-ink2">
-          <strong className="text-accent">Columns:</strong> Student No., Full Name, Course, Year Level, Section, Date of Birth, Mobile
+          <strong className="text-accent">Columns:</strong> Student No., Surname, First Name, M.I., Course, Year Level, Section
         </div>
         <div className="flex gap-2 shrink-0">
           <button className="btn btn-primary btn-sm" onClick={() => exportStudentImportTemplate({ classes })} title="Download a ready-to-fill Excel template">
             <Download size={13} /> Excel template
           </button>
           <button className="btn btn-ghost btn-sm" onClick={() => {
-            const csv = '"Student No.","Full Name","Course","Year Level","Section","Date of Birth","Mobile"\n"2024-10001","Juan dela Cruz","BS Computer Science","1st Year","2A","2005-06-15","+63 900 000 0000"\n'
+            const csv = '"Student No.","Surname","First Name","M.I.","Course","Year Level","Section"\n"2024-10001","Dela Cruz","Juan","S","BSCS","1st Year","2A"\n'
             const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
             const url = URL.createObjectURL(blob)
             const a = document.createElement('a'); a.href = url; a.download = 'students_template.csv'; a.click(); URL.revokeObjectURL(url)

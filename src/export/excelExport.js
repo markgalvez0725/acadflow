@@ -690,7 +690,7 @@ function ensureExcelJS() {
 // ── Student import template / parser (simple, fill-in Excel) ───────────────
 // Column order shared by the blank template and the parser so a teacher can
 // export the template, fill rows in, and re-import the same file.
-export const STUDENT_IMPORT_COLUMNS = ['Student No.', 'Surname', 'First Name', 'M.I.', 'Course', 'Year Level', 'Section', 'Date of Birth', 'Mobile']
+export const STUDENT_IMPORT_COLUMNS = ['Student No.', 'Surname', 'First Name', 'M.I.', 'Course', 'Year Level', 'Section']
 
 // Normalized header → field. Mirrors the CSV importer's aliases so either path
 // resolves the same columns. `name` (Full Name) is kept for backward-compat with
@@ -710,37 +710,105 @@ const STUDENT_COL_ALIASES = {
 
 /**
  * Downloads a clean, single-purpose .xlsx the teacher fills row by row.
- * Sheet 1 "Students": header on row 1, one example row, blank rows ready to type.
+ * Mirrors the roster export: separated name columns + per-cell Course and Year
+ * Level dropdowns (via ExcelJS, like the roster export; SheetJS fallback has no
+ * dropdowns). Sheet 1 "Students": header on row 1, an example row, blank rows.
  * Sheet 2 "Classes": reference list of class names + sections (no required input).
  */
-export function exportStudentImportTemplate({ classes = [] } = {}) {
+export async function exportStudentImportTemplate({ classes = [] } = {}) {
   const XLSX = window.XLSX
   if (!XLSX) { alert('SheetJS not loaded.'); return }
 
-  const example = ['2024-10001', 'Dela Cruz', 'Juan', 'S', 'BS Computer Science', '1st Year', '2A', '2005-06-15', '+63 900 000 0000']
-  const blanks  = Array.from({ length: 30 }, () => Array(STUDENT_IMPORT_COLUMNS.length).fill(''))
-  const ws = XLSX.utils.aoa_to_sheet([STUDENT_IMPORT_COLUMNS, example, ...blanks])
-  ws['!cols'] = [14, 18, 18, 6, 22, 12, 10, 14, 16].map(w => ({ wch: w }))
+  // Course shown as a short code (mirrors the export); the parser expands it back.
+  const example = ['2024-10001', 'Dela Cruz', 'Juan', 'S', 'BSCS', '1st Year', '2A']
+  const widths  = [14, 18, 18, 6, 14, 12, 10]
+  const courseShorts = [...new Set(COURSES.map(c => courseShort(c)).filter(Boolean))]
+  const yearLevels   = ['1st Year', '2nd Year', '3rd Year', '4th Year']
+
+  const active = (classes || []).filter(c => !c.archived)
+  const refRows = active.length
+    ? active.map(c => [c.name || '', c.section || '', (c.subjects || []).join(', ')])
+    : [['(no active classes yet)', '', '']]
+  const notes = [
+    'Notes:',
+    '• Required: "Student No." and "Surname" + "First Name" (M.I. optional). Course is recommended.',
+    '• Course & Year Level have dropdowns — pick from the list; Section drives class enrollment.',
+    '• Default password for imported students: Welcome@2026 (changed on first login).',
+    '• Keep or delete the example row — rows with errors are skipped on import.',
+  ]
+  const ctx = { columns: STUDENT_IMPORT_COLUMNS, example, widths, courseShorts, yearLevels, refRows, notes }
+
+  // ExcelJS gives real Course + Year Level dropdowns; fall back to SheetJS on ANY failure.
+  try {
+    const ExcelJS = await ensureExcelJS()
+    if (!ExcelJS) throw new Error('ExcelJS unavailable')
+    await importTemplateExcelJS(ExcelJS, ctx)
+  } catch (e) {
+    importTemplateSheetJS(XLSX, ctx)
+  }
+}
+
+// ExcelJS template writer — Course (col E) + Year Level (col F) dropdowns sourced
+// from a visible "Lists" sheet (same approach as the roster export).
+async function importTemplateExcelJS(ExcelJS, ctx) {
+  const { columns, example, widths, courseShorts, yearLevels, refRows, notes } = ctx
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('Students', { views: [{ state: 'frozen', ySplit: 1 }] })
+  ws.addRow(columns)                          // row 1
+  ws.addRow(example)                          // row 2
+  for (let i = 0; i < 30; i++) ws.addRow([])  // rows 3–32 (ready to type)
+  widths.forEach((w, i) => { ws.getColumn(i + 1).width = w })
+
+  // Dropdowns over the example + blank rows. Course = col 5, Year Level = col 6.
+  const courseRef = courseShorts.length ? `Lists!$A$2:$A$${1 + courseShorts.length}` : null
+  const yearRef   = yearLevels.length   ? `Lists!$B$2:$B$${1 + yearLevels.length}`   : null
+  for (let r = 2; r <= 32; r++) {
+    if (courseRef) ws.getCell(r, 5).dataValidation = { type: 'list', allowBlank: true, showErrorMessage: false, formulae: [courseRef] }
+    if (yearRef)   ws.getCell(r, 6).dataValidation = { type: 'list', allowBlank: true, showErrorMessage: false, formulae: [yearRef] }
+  }
+
+  // Reference sheet (active classes + notes).
+  const wsRef = wb.addWorksheet('Classes')
+  wsRef.addRow(['Reference — your active classes (informational only)'])
+  wsRef.addRow([])
+  wsRef.addRow(['Class Name', 'Section', 'Subjects'])
+  refRows.forEach(r => wsRef.addRow(r))
+  wsRef.addRow([])
+  notes.forEach(n => wsRef.addRow([n]))
+  wsRef.getColumn(1).width = 24
+  wsRef.getColumn(2).width = 12
+  wsRef.getColumn(3).width = 50
+
+  // Visible source sheet feeding the dropdowns.
+  const wsList = wb.addWorksheet('Lists')
+  wsList.addRow(['Courses', 'Year Levels'])
+  const maxLen = Math.max(courseShorts.length, yearLevels.length)
+  for (let i = 0; i < maxLen; i++) wsList.addRow([courseShorts[i] || '', yearLevels[i] || ''])
+  wsList.getColumn(1).width = 12
+  wsList.getColumn(2).width = 12
+
+  const buf = await wb.xlsx.writeBuffer()
+  downloadBlob(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `StudentImportTemplate_${new Date().toISOString().slice(0, 10)}.xlsx`)
+}
+
+// SheetJS template writer (fallback) — same layout + columns, no per-cell dropdowns.
+function importTemplateSheetJS(XLSX, ctx) {
+  const { columns, example, widths, refRows, notes } = ctx
+  const blanks = Array.from({ length: 30 }, () => Array(columns.length).fill(''))
+  const ws = XLSX.utils.aoa_to_sheet([columns, example, ...blanks])
+  ws['!cols'] = widths.map(w => ({ wch: w }))
   ws['!freeze'] = { xSplit: 0, ySplit: 1 }
 
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Students')
 
-  // Reference sheet so the teacher knows which classes/sections exist.
-  const active = (classes || []).filter(c => !c.archived)
-  const refRows = active.length
-    ? active.map(c => [c.name || '', c.section || '', (c.subjects || []).join(', ')])
-    : [['(no active classes yet)', '', '']]
   const wsRef = XLSX.utils.aoa_to_sheet([
     ['Reference — your active classes (informational only)'],
     [''],
     ['Class Name', 'Section', 'Subjects'],
     ...refRows,
     [''],
-    ['Notes:'],
-    ['• Required: "Student No." and "Surname" + "First Name" (M.I. optional). Course is recommended.'],
-    ['• Default password for imported students: Welcome@2026 (changed on first login).'],
-    ['• Keep or delete the example row — rows with errors are skipped on import.'],
+    ...notes.map(n => [n]),
   ])
   wsRef['!cols'] = [{ wch: 24 }, { wch: 12 }, { wch: 50 }]
   XLSX.utils.book_append_sheet(wb, wsRef, 'Classes')
