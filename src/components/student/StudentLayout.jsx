@@ -358,7 +358,7 @@ export default function StudentLayout() {
     )
   }
 
-  const badges = { act: openActivityCount, quiz: openQuizCount, notif: unreadNotifCount }
+  const badges = { act: openActivityCount, quiz: openQuizCount, notif: unreadNotifCount, msg: unreadMsgCount }
   const [title, subtitle] = TAB_TITLES[studentTab] || ['', '']
 
   function badgeFor(id) {

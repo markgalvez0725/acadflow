@@ -2,7 +2,7 @@ import React from 'react'
 import { useUI } from '@/context/UIContext'
 import { useData } from '@/context/DataContext'
 import { studentTag } from '@/utils/groupChat'
-import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Settings, LogOut, Library, ListChecks, MessageSquarePlus } from 'lucide-react'
+import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Settings, LogOut, Library, ListChecks, MessageSquarePlus, MessageSquare } from 'lucide-react'
 
 // Flat, Instagram-style nav list (no section headers).
 const NAV_ITEMS = [
@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { id: 'activities',    label: 'Activities',     badgeId: 'act',  Icon: ClipboardList },
   { id: 'assignments',   label: 'Assignments',    Icon: ListChecks },
   { id: 'quizzes',       label: 'Quizzes',        badgeId: 'quiz', Icon: FileQuestion },
+  { id: 'messages',      label: 'Messages',       badgeId: 'msg',  Icon: MessageSquare },
   { id: 'resources',     label: 'Resources',      Icon: Library },
   { id: 'calendar',      label: 'Calendar',       Icon: CalendarDays },
   { id: 'enrollment',    label: 'Enrollment',     Icon: ClipboardSignature },
@@ -28,6 +29,7 @@ export default function StudentSidebar({ student, badges = {}, onSettings, onLog
     if (badgeId === 'act')   return badges.act || 0
     if (badgeId === 'quiz')  return badges.quiz || 0
     if (badgeId === 'notif') return badges.notif || 0
+    if (badgeId === 'msg')   return badges.msg || 0
     return 0
   }
 
