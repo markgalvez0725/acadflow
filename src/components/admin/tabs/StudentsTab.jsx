@@ -13,7 +13,7 @@ import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
 import AccountAuditModal from '@/components/admin/modals/AccountAuditModal'
 import KebabMenu from '@/components/primitives/KebabMenu'
-import { Download, Upload, KeyRound, GraduationCap, CheckCircle2, Pencil, Plus, Save, BookOpen, Check, Users, ClipboardList, Hourglass, Send, AlertTriangle, ShieldCheck, XCircle } from 'lucide-react'
+import { Download, Upload, KeyRound, GraduationCap, CheckCircle2, Pencil, Plus, Save, BookOpen, Check, Users, ClipboardList, Hourglass, Send, AlertTriangle, ShieldCheck, XCircle, Search, Sparkles } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { buildStudentReportCard } from '@/export/reportCard'
 import { exportStudentRosterExcel, exportStudentImportTemplate, parseStudentImportExcel } from '@/export/excelExport'
@@ -22,10 +22,12 @@ import { classMatchesCourseYear } from '@/utils/enrollment'
 import { courseShort } from '@/utils/groupChat'
 import { activeSubjects } from '@/utils/active'
 import { splitStudentName, buildStudentName } from '@/utils/studentName'
+import { verifyImportRows } from '@/utils/importVerifyAI'
 
 const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
 
 const PER_PAGE = 50
+const IMPORT_PER_PAGE = 25   // import preview paginates once a file has more rows than this
 const DEFAULT_PASS = 'Welcome@2026'
 
 // ── Add / Edit Student Modal helpers ──────────────────────────────────
@@ -750,8 +752,12 @@ function ImportStudentsModal({ onClose }) {
   const fileRef = useRef(null)
   const [rows, setRows]     = useState([])
   const [errors, setErrors] = useState({})
+  const [warnings, setWarnings] = useState({})   // on-device "AI check" advisories (non-blocking)
   const [fileName, setFileName] = useState('')
   const [saving, setSaving] = useState(false)
+  const [page, setPage]     = useState(1)
+  const [filter, setFilter] = useState('all')    // all | valid | errors | review
+  const [query, setQuery]   = useState('')
 
   function validateRows(parsed) {
     const errs = {}
@@ -769,7 +775,14 @@ function ImportStudentsModal({ onClose }) {
     })
     setRows(parsed)
     setErrors(errs)
+    setWarnings(verifyImportRows(parsed, { classes }))  // on-device fill-out check
+    setPage(1)
+    setFilter('all')
+    setQuery('')
   }
+
+  // Reset to page 1 whenever the filter or search changes.
+  useEffect(() => { setPage(1) }, [filter, query])
 
   async function handleFile(e) {
     const file = e.target.files[0]
@@ -794,6 +807,40 @@ function ImportStudentsModal({ onClose }) {
 
   const validRows  = rows.filter((_, i) => !errors[i])
   const invalidRows = rows.filter((_, i) => errors[i])
+
+  // Rows annotated with original index + status, for filter/search/pagination.
+  const annotated = useMemo(() => rows.map((r, i) => {
+    const hasError = !!errors[i]
+    const warns = warnings[i] || []
+    return { r, i, hasError, warns, review: !hasError && warns.length > 0 }
+  }), [rows, errors, warnings])
+
+  const counts = useMemo(() => ({
+    total:  annotated.length,
+    valid:  annotated.filter(a => !a.hasError).length,
+    errors: annotated.filter(a => a.hasError).length,
+    review: annotated.filter(a => a.review).length,
+  }), [annotated])
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    let list = annotated
+    if (filter === 'valid')       list = list.filter(a => !a.hasError)
+    else if (filter === 'errors') list = list.filter(a => a.hasError)
+    else if (filter === 'review') list = list.filter(a => a.review)
+    if (q) list = list.filter(a => (a.r.name || '').toLowerCase().includes(q) || (a.r.id || '').toLowerCase().includes(q))
+    // In the "all" view, float problems to the top (errors first, then review).
+    if (filter === 'all') {
+      const rank = a => a.hasError ? 2 : a.review ? 1 : 0
+      list = [...list].sort((a, b) => rank(b) - rank(a))
+    }
+    return list
+  }, [annotated, filter, query])
+
+  const pageRows = useMemo(
+    () => filtered.slice((page - 1) * IMPORT_PER_PAGE, (page - 1) * IMPORT_PER_PAGE + IMPORT_PER_PAGE),
+    [filtered, page]
+  )
 
   async function handleImport() {
     if (!validRows.length) return
@@ -851,34 +898,87 @@ function ImportStudentsModal({ onClose }) {
         <input ref={fileRef} type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={handleFile} />
       </div>
 
-      {/* Preview */}
+      {/* Preview + on-device AI check */}
       {rows.length > 0 && (
         <div className="mb-4">
-          <div className="flex items-center gap-3 mb-2 text-xs font-semibold">
-            <span className="text-green-600">{validRows.length} valid</span>
-            {invalidRows.length > 0 && <span className="text-red-500">{invalidRows.length} with errors</span>}
+          {/* Filter tabs (with counts) + search */}
+          <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+            <div className="flex gap-1.5 flex-wrap">
+              {[
+                { key: 'all',    label: 'All',    n: counts.total,  cls: 'text-ink2' },
+                { key: 'valid',  label: 'Valid',  n: counts.valid,  cls: 'text-green-600' },
+                { key: 'errors', label: 'Errors', n: counts.errors, cls: 'text-red-500' },
+                { key: 'review', label: 'Review', n: counts.review, cls: 'text-amber-600' },
+              ].map(t => (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setFilter(t.key)}
+                  className={`btn btn-sm ${filter === t.key ? 'btn-primary' : 'btn-ghost'}`}
+                  title={`Show ${t.label.toLowerCase()} rows`}
+                >
+                  {t.label} <span className={filter === t.key ? 'opacity-80' : t.cls}>{t.n}</span>
+                </button>
+              ))}
+            </div>
+            <div className="relative">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink3 pointer-events-none" />
+              <input
+                type="text"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Search name or no."
+                style={{ paddingLeft: '1.75rem', width: '11rem', fontSize: '0.75rem' }}
+              />
+            </div>
           </div>
-          <div className="tbl-wrap max-h-52 overflow-y-auto">
+
+          {/* AI-check caption (on-device; never blocks import) */}
+          <div className="flex items-center gap-1.5 mb-2 text-xs text-ink3">
+            <Sparkles size={13} className="text-accent shrink-0" />
+            {counts.review > 0
+              ? <span>AI check flagged <strong className="text-amber-600">{counts.review}</strong> row{counts.review !== 1 ? 's' : ''} to review — advisory only, won’t block import.</span>
+              : <span>AI check: the filled-in file looks good.</span>}
+          </div>
+
+          {/* Paged preview table */}
+          <div className="tbl-wrap max-h-72 overflow-y-auto">
             <table className="tbl text-xs">
               <thead>
-                <tr><th>#</th><th>Student No.</th><th>Name</th><th>Course</th><th>Year</th><th>Status</th></tr>
+                <tr><th>#</th><th>Student No.</th><th>Name</th><th>Course</th><th>Year</th><th>Sec.</th><th>Status</th></tr>
               </thead>
               <tbody>
-                {rows.map((r, i) => (
-                  <tr key={i} className={errors[i] ? 'bg-red-50 dark:bg-red-950/20' : ''}>
+                {pageRows.map(({ r, i, hasError, warns, review }) => (
+                  <tr key={i} className={hasError ? 'bg-red-50 dark:bg-red-950/20' : review ? 'bg-amber-50 dark:bg-amber-950/20' : ''}>
                     <td className="text-ink3">{i + 2}</td>
                     <td className="font-mono">{r.id || '—'}</td>
                     <td>{r.name || '—'}</td>
                     <td>{r.course || '—'}</td>
                     <td>{r.year || '1st Year'}</td>
-                    <td>{errors[i] ? <span className="text-red-500">{errors[i]}</span> : <span className="text-green-600"><Check size={14} /> OK</span>}</td>
+                    <td>{r.section || '—'}</td>
+                    <td>
+                      {hasError
+                        ? <span className="text-red-500 inline-flex items-center gap-1"><AlertTriangle size={12} className="shrink-0" /> {errors[i]}</span>
+                        : review
+                          ? <span className="text-amber-600" title={warns.join('\n')}>
+                              <span className="inline-flex items-center gap-1"><Sparkles size={12} className="shrink-0" /> Needs review</span>
+                              <span className="block text-ink3 mt-0.5">{warns[0]}{warns.length > 1 ? ` (+${warns.length - 1} more)` : ''}</span>
+                            </span>
+                          : <span className="text-green-600 inline-flex items-center gap-1"><Check size={14} className="shrink-0" /> OK</span>}
+                    </td>
                   </tr>
                 ))}
+                {pageRows.length === 0 && (
+                  <tr><td colSpan={7} className="text-center text-ink3 py-4">No rows match this filter.</td></tr>
+                )}
               </tbody>
             </table>
           </div>
+
+          <Pagination page={page} total={filtered.length} perPage={IMPORT_PER_PAGE} onPageChange={setPage} />
+
           {invalidRows.length > 0 && (
-            <div className="text-xs text-ink3 mt-1.5">Rows with errors will be skipped. Fix the CSV and re-upload to include them.</div>
+            <div className="text-xs text-ink3 mt-1.5">Rows with errors are skipped on import. Fix them in the file and re-upload to include them.</div>
           )}
         </div>
       )}
