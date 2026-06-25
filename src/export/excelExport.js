@@ -13,6 +13,8 @@ import {
 } from '@/utils/grades.js'
 import { sortByLastName } from '@/utils/format.js'
 import { splitStudentName, buildStudentName } from '@/utils/studentName.js'
+import { courseShort } from '@/utils/groupChat.js'
+import { courseFromShort } from '@/constants/courses.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -534,12 +536,21 @@ export function exportCurrentGrades({ classId, subject, students, classes, activ
  *
  * @param {{ students: object[], classes: object[] }} opts
  */
-export function exportStudentRosterExcel({ students, classes }) {
+export async function exportStudentRosterExcel({ students, classes }) {
   const XLSX = window.XLSX
   if (!XLSX) { alert('SheetJS not loaded.'); return }
 
   const exportDate = new Date().toLocaleDateString('en-PH', { dateStyle: 'long' })
   const sorted = sortByLastName(students)
+
+  // Dropdown sources (a hidden "Lists" sheet the data-validations reference): every
+  // existing class subject, and the short course codes (BSEMC / BSIT / …).
+  const allSubjects = [...new Set((classes || []).flatMap(c => c.subjects || []))].filter(Boolean).sort()
+  const courseShorts = (() => {
+    const set = new Set((classes || []).map(c => courseShort(c.course || c.name)).filter(Boolean))
+    ;['BSEMC', 'BSIT', 'BSIS', 'BSCS'].forEach(cs => set.add(cs))
+    return [...set]
+  })()
 
   // 10 title rows
   const titleRows = [
@@ -566,7 +577,7 @@ export function exportStudentRosterExcel({ students, classes }) {
       n.last,
       n.first,
       n.middle,
-      s.course || '',
+      courseShort(s.course) || s.course || '',
       s.year   || '',
       s.dob    || '',
       subjects,
@@ -601,7 +612,75 @@ export function exportStudentRosterExcel({ students, classes }) {
   XLSX.utils.book_append_sheet(wb, ws,   'Students')
   XLSX.utils.book_append_sheet(wb, wsPw, 'Password Guide')
 
-  XLSX.writeFile(wb, `StudentRoster_${new Date().toISOString().slice(0, 10)}.xlsx`)
+  // Hidden "Lists" sheet feeding the Course + Class Subject dropdowns.
+  const maxLen = Math.max(allSubjects.length, courseShorts.length)
+  if (maxLen > 0) {
+    const listAoa = [['Subjects', 'Courses']]
+    for (let i = 0; i < maxLen; i++) listAoa.push([allSubjects[i] || '', courseShorts[i] || ''])
+    const wsList = XLSX.utils.aoa_to_sheet(listAoa)
+    XLSX.utils.book_append_sheet(wb, wsList, 'Lists')
+    wb.Workbook = { Sheets: wb.SheetNames.map(nm => ({ Hidden: nm === 'Lists' ? 1 : 0 })) }
+  }
+
+  const fileName = `StudentRoster_${new Date().toISOString().slice(0, 10)}.xlsx`
+
+  // Build the data-validation (dropdown) XML referencing the Lists ranges. Cover
+  // the data rows + the 5 trailing blank rows so new entries also get dropdowns.
+  const lastRow = 11 + dataRows.length + 5 // header is row 11; data starts row 12
+  const dvs = []
+  if (allSubjects.length) dvs.push(`<dataValidation type="list" allowBlank="1" showInputMessage="1" sqref="I12:I${lastRow}"><formula1>Lists!$A$2:$A$${1 + allSubjects.length}</formula1></dataValidation>`)
+  if (courseShorts.length) dvs.push(`<dataValidation type="list" allowBlank="1" showInputMessage="1" sqref="F12:F${lastRow}"><formula1>Lists!$B$2:$B$${1 + courseShorts.length}</formula1></dataValidation>`)
+  const dvXml = dvs.length ? `<dataValidations count="${dvs.length}">${dvs.join('')}</dataValidations>` : ''
+
+  // SheetJS (community) cannot write data-validations, so we post-inject them into
+  // the Students sheet XML via JSZip. Any failure falls back to a plain export —
+  // never a corrupt file.
+  try {
+    if (!dvXml) throw new Error('no dropdowns')
+    const JSZip = await ensureJSZip()
+    if (!JSZip) throw new Error('JSZip unavailable')
+    const arr = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+    const zip = await JSZip.loadAsync(arr)
+    const path = 'xl/worksheets/sheet1.xml' // Students is the first sheet
+    const file = zip.file(path)
+    if (!file) throw new Error('sheet xml not found')
+    let xml = await file.async('string')
+    // dataValidations must sit after sheetData and before pageMargins/printOptions.
+    const anchor = ['<pageMargins', '<printOptions', '<drawing', '</worksheet>'].find(t => xml.includes(t))
+    if (!anchor) throw new Error('no anchor')
+    xml = xml.replace(anchor, dvXml + anchor)
+    zip.file(path, xml)
+    const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    downloadBlob(blob, fileName)
+  } catch (e) {
+    XLSX.writeFile(wb, fileName) // robust fallback (no dropdowns, but always valid)
+  }
+}
+
+// Download a Blob as a file.
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = fileName
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+// Load JSZip on demand from the CDN (only when exporting a roster). Returns the
+// global or null if it can't be loaded — callers degrade gracefully.
+let _jszipLoading = null
+function ensureJSZip() {
+  if (window.JSZip) return Promise.resolve(window.JSZip)
+  if (_jszipLoading) return _jszipLoading
+  _jszipLoading = new Promise((resolve) => {
+    const s = document.createElement('script')
+    s.src = 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js'
+    s.onload = () => resolve(window.JSZip || null)
+    s.onerror = () => resolve(null)
+    document.head.appendChild(s)
+  })
+  return _jszipLoading
 }
 
 // ── Student import template / parser (simple, fill-in Excel) ───────────────
@@ -702,7 +781,7 @@ export function parseStudentImportExcel(workbook) {
     return {
       id:     get('id'),
       name:   composed || get('name'),
-      course: get('course'),
+      course: courseFromShort(get('course')), // expand short codes (BSEMC → full)
       year:   get('year'),
       section:get('section'),
       dob:    get('dob'),

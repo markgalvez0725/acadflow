@@ -19,3 +19,22 @@ export function courseOptions(current) {
   }
   return list
 }
+
+// Expand a short course code (BSEMC / BSIT / BSIS / BSCS) back to its full
+// canonical name. Used on import so a roster exported with short codes round-trips
+// to the real course name (enrollment matching needs the full name). A value that
+// is already a full/unknown course is returned unchanged. Mirrors courseShort().
+export function courseFromShort(value) {
+  const v = String(value || '').trim()
+  if (!v) return ''
+  const exact = COURSES.find(c => c.toLowerCase() === v.toLowerCase())
+  if (exact) return exact
+  const up = v.toUpperCase().replace(/[^A-Z]/g, '')
+  const SHORTS = { BSEMC: 'entertainment', BSIS: 'information system', BSCS: 'computer science', BSIT: 'information technology' }
+  const needle = SHORTS[up]
+  if (needle) {
+    const match = COURSES.find(c => c.toLowerCase().includes(needle))
+    if (match) return match
+  }
+  return v
+}

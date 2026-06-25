@@ -17,7 +17,7 @@ import { Download, Upload, KeyRound, GraduationCap, CheckCircle2, Pencil, Plus, 
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { buildStudentReportCard } from '@/export/reportCard'
 import { exportStudentRosterExcel, exportStudentImportTemplate, parseStudentImportExcel } from '@/export/excelExport'
-import { courseOptions } from '@/constants/courses'
+import { courseOptions, courseFromShort } from '@/constants/courses'
 import { classMatchesCourseYear } from '@/utils/enrollment'
 import { courseShort } from '@/utils/groupChat'
 import { splitStudentName, buildStudentName } from '@/utils/studentName'
@@ -691,7 +691,7 @@ function exportRosterCSV(students, classes) {
     const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
     const subjects = [...new Set(enrolledIds.flatMap(id => classes.find(c => c.id === id)?.subjects || []))].join(', ')
     const n = splitStudentName(s.name)
-    return [s.id, n.last, n.first, n.middle, s.course || '', s.year || '', s.dob || '', subjects, s.account?.email || '', accountStatus(s).label]
+    return [s.id, n.last, n.first, n.middle, courseShort(s.course) || s.course || '', s.year || '', s.dob || '', subjects, s.account?.email || '', accountStatus(s).label]
   })
   const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
@@ -737,7 +737,7 @@ function parseCSV(text) {
     const get = k => idxs[k] >= 0 ? (v[idxs[k]] || '').trim() : ''
     // Separate Surname / First / M.I. columns win; fall back to a single Full Name.
     const composed = buildStudentName(get('surname'), get('firstname'), get('mi'))
-    return { id: get('id'), name: composed || get('name'), course: get('course'), year: get('year'), dob: get('dob'), mobile: get('mobile') }
+    return { id: get('id'), name: composed || get('name'), course: courseFromShort(get('course')), year: get('year'), dob: get('dob'), mobile: get('mobile') }
   }).filter(r => Object.values(r).some(v => v))
 }
 
