@@ -60,6 +60,7 @@ const FeedbackTab      = lazy(() => import('./tabs/FeedbackTab'))
 
 // Lazy-load modals
 const EditProfileModal         = lazy(() => import('./modals/EditProfileModal'))
+const AccountVerifiedModal     = lazy(() => import('./modals/AccountVerifiedModal'))
 const ForceChangePasswordModal = lazy(() => import('./modals/ForceChangePasswordModal'))
 const StudentActionSheet       = lazy(() => import('./modals/StudentActionSheet'))
 const NotifPrefsModal          = lazy(() => import('./modals/NotifPrefsModal'))
@@ -184,6 +185,7 @@ export default function StudentLayout() {
   // Profile / account sheet
   const [profileOpen, setProfileOpen] = useState(false)
   const [profileForced, setProfileForced] = useState(false)
+  const [verifiedCelebrate, setVerifiedCelebrate] = useState(false)
 
   // After the temporary password is changed, a teacher-provisioned student must
   // complete their profile once before using the portal. Gated behind !_tempPass
@@ -572,7 +574,24 @@ export default function StudentLayout() {
       {/* Modals */}
       {profileOpen && (
         <Suspense fallback={null}>
-          <EditProfileModal student={student} forced={profileForced} onClose={() => { setProfileOpen(false); setProfileForced(false) }} />
+          <EditProfileModal
+            student={student}
+            forced={profileForced}
+            onClose={() => {
+              const wasForced = profileForced
+              setProfileOpen(false)
+              setProfileForced(false)
+              // Reaching onClose in forced mode means the profile was saved
+              // (it can't be dismissed otherwise) → onboarding is complete.
+              if (wasForced) setVerifiedCelebrate(true)
+            }}
+          />
+        </Suspense>
+      )}
+
+      {verifiedCelebrate && (
+        <Suspense fallback={null}>
+          <AccountVerifiedModal studentName={student?.name} onClose={() => setVerifiedCelebrate(false)} />
         </Suspense>
       )}
       {forcePassOpen && (
