@@ -10,7 +10,7 @@ import { KeyRound, Check, X } from 'lucide-react'
 // reauthenticate with the current password, then update to the new one.
 export default function ForceChangePasswordModal({ student: s, onClose, forced = false }) {
   const { toast } = useUI()
-  const { markAccountActive } = useData()
+  const { students, saveStudents } = useData()
   const { logout } = useAuth()
 
   const [oldPass, setOldPass] = useState('')
@@ -18,17 +18,45 @@ export default function ForceChangePasswordModal({ student: s, onClose, forced =
   const [pass2,   setPass2]   = useState('')
   const [error,   setError]   = useState('')
   const [saving,  setSaving]  = useState(false)
+  // True once the Firebase Auth password is changed but the account-status write
+  // hasn't confirmed yet — lets the user retry the sync WITHOUT re-doing (and
+  // failing) the one-time password change.
+  const [pwDone, setPwDone] = useState(false)
+  const pwChangedRef = useRef(false)
   const inputRef = useRef(null)
 
   useEffect(() => { setTimeout(() => inputRef.current?.focus(), 100) }, [])
 
+  // Clear the temporary-password flag in Firebase. This MUST land, or the forced
+  // prompt returns on the next sign-in. We write through saveStudents DIRECTLY
+  // (not the idempotent markAccountActive) so every retry genuinely re-hits
+  // Firestore — saveStudents updates local state optimistically, so an
+  // idempotency check would otherwise short-circuit a retry after a failed write.
+  async function persistActive() {
+    let lastErr
+    for (let i = 0; i < 3; i++) {
+      try {
+        const base = students.find(x => x.id === s.id) || s
+        const patched = { ...base, account: { ...(base.account || {}), registered: true, activated: true, _tempPass: false } }
+        const updated = students.some(x => x.id === s.id)
+          ? students.map(x => (x.id === s.id ? patched : x))
+          : [...students, patched]
+        await saveStudents(updated, [s.id])
+        return
+      } catch (e) { lastErr = e; await new Promise(r => setTimeout(r, 500)) }
+    }
+    throw lastErr || new Error('Could not save account status.')
+  }
+
   async function handleSubmitPassword() {
     setError('')
-    if (!oldPass) { setError('Please enter your current password.'); return }
-    if (pass.length < 8) { setError('Password must be at least 8 characters.'); return }
-    if (!/[A-Z]/.test(pass) || !/[0-9]/.test(pass)) { setError('Password must include at least one uppercase letter and one number.'); return }
-    if (oldPass === pass) { setError('New password must be different from your current password.'); return }
-    if (pass !== pass2) { setError('Passwords do not match.'); return }
+    if (!pwChangedRef.current) {
+      if (!oldPass) { setError('Please enter your current password.'); return }
+      if (pass.length < 8) { setError('Password must be at least 8 characters.'); return }
+      if (!/[A-Z]/.test(pass) || !/[0-9]/.test(pass)) { setError('Password must include at least one uppercase letter and one number.'); return }
+      if (oldPass === pass) { setError('New password must be different from your current password.'); return }
+      if (pass !== pass2) { setError('Passwords do not match.'); return }
+    }
 
     const auth = getFbAuth()
     const user = auth?.currentUser
@@ -36,21 +64,29 @@ export default function ForceChangePasswordModal({ student: s, onClose, forced =
 
     setSaving(true)
     try {
-      const cred = EmailAuthProvider.credential(user.email, oldPass)
-      try {
-        await reauthenticateWithCredential(user, cred)
-      } catch (e) {
-        setSaving(false)
-        return setError('Your current password is incorrect.')
+      if (!pwChangedRef.current) {
+        const cred = EmailAuthProvider.credential(user.email, oldPass)
+        try {
+          await reauthenticateWithCredential(user, cred)
+        } catch (e) {
+          setSaving(false)
+          return setError('Your current password is incorrect.')
+        }
+        await updatePassword(user, pass)
+        // Auth password is now changed — never re-run it (a retry would fail on
+        // "new must differ from current"). Only the status sync below may retry.
+        pwChangedRef.current = true
+        setPwDone(true)
       }
-      await updatePassword(user, pass)
-      // The student now owns their password → promote the account to Active
-      // (clears the teacher-set temporary-password flag). Idempotent & best-effort.
-      try { await markAccountActive?.(s.id) } catch (e) { /* non-fatal */ }
+      // Promote the account to Active (clears `_tempPass`) and confirm it persisted
+      // to Firebase, so a later logout → sign-in does NOT re-prompt.
+      await persistActive()
       toast('Password changed successfully!', 'success')
       onClose()
     } catch (e) {
-      setError('Failed to change password: ' + (e?.message || 'unknown error'))
+      setError(pwChangedRef.current
+        ? 'Your new password is saved, but syncing your account didn’t finish. Check your connection and tap “Finish” to retry.'
+        : 'Failed to change password: ' + (e?.message || 'unknown error'))
     } finally {
       setSaving(false)
     }
@@ -84,6 +120,7 @@ export default function ForceChangePasswordModal({ student: s, onClose, forced =
             className="input"
             placeholder="Your current password"
             value={oldPass}
+            disabled={pwDone}
             onChange={e => setOldPass(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSubmitPassword()}
           />
@@ -96,6 +133,7 @@ export default function ForceChangePasswordModal({ student: s, onClose, forced =
             className="input"
             placeholder="Min. 8 chars, 1 uppercase, 1 number"
             value={pass}
+            disabled={pwDone}
             onChange={e => setPass(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSubmitPassword()}
           />
@@ -108,6 +146,7 @@ export default function ForceChangePasswordModal({ student: s, onClose, forced =
             className="input"
             placeholder="Repeat your new password"
             value={pass2}
+            disabled={pwDone}
             onChange={e => setPass2(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSubmitPassword()}
           />
@@ -119,7 +158,7 @@ export default function ForceChangePasswordModal({ student: s, onClose, forced =
           onClick={handleSubmitPassword}
           disabled={saving}
         >
-          {saving ? 'Saving…' : <><Check size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />Change password</>}
+          {saving ? 'Saving…' : <><Check size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />{pwDone ? 'Finish' : 'Change password'}</>}
         </button>
 
         <button
