@@ -39,7 +39,7 @@ Do not add URL routes or `<Route>` components. Navigation between tabs is handle
 
 Two distinct storage patterns coexist; know which one you're touching:
 
-- **Per-document collections** — one doc per record: `students`, `activities`, `quizzes`, `announcements`, `meetings`, `messages`, `notifications`, `auditLog`, `attendanceSessions`, `excuseRequests`.
+- **Per-document collections** — one doc per record: `students`, `activities`, `quizzes`, `announcements`, `onlineMeetings`, `messages`, `notifications`, `auditLog`, `attendanceSessions`, `excuseRequests`, `resources`, `studentFeedback`, `pushTokens`.
 - **Singleton docs under `portal/*`** — read-modify-write a whole document: `portal/classes` (holds the class list in a `list` array), `portal/config`, `portal/settings`, `portal/admin`. Editing one class means rewriting the `list` array.
 
 Two serialization quirks to preserve:
@@ -50,9 +50,10 @@ Two serialization quirks to preserve:
 
 The only server-side code. Functions are dependency-free (Node built-ins only) and degrade gracefully (e.g. AI endpoints return `501` when their key is unset so the client falls back to on-device behavior). Files prefixed `_` are shared helpers, not routes.
 
-- `_guard.js` — CORS allowlist + per-IP rate limiting; `_fbadmin.js` — Firebase Admin via service-account OAuth + Firestore/Identity Toolkit REST.
-- `ai-generate.js`, `generate-quiz-gemini.js`, `generate-quiz.js`, `validate-photo.js` — Gemini-backed AI (gated by `GEMINI_API_KEY`).
+- `_guard.js` — CORS allowlist + per-IP rate limiting; `_fbadmin.js` — Firebase Admin via service-account OAuth + Firestore/Identity Toolkit REST; `_identity.js` — Identity Toolkit helpers.
+- `generate-quiz.js` — Gemini-backed AI quiz generation (gated by `GEMINI_API_KEY`; returns `501` when unset so the client falls back to on-device generation).
 - `send-push.js` — FCM HTTP v1 web push; `cron-reminders.js` — Vercel Cron (see `vercel.json` `crons`) that web-pushes deadline reminders for activities due within 24h, marking each with `reminderSentAt` to avoid repeats.
+- `verify-account.js` — server-side account verification (the `verified` flag is only ever set here).
 - `admin-open-reset-session.js` / `claim-reset.js` — teacher-coordinated student password reset (no plaintext password leaves the student's own device).
 
 ## Path Alias

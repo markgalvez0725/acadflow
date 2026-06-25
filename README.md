@@ -12,37 +12,46 @@ AcadFlow is a web-based school portal that provides a unified platform to manage
 
 ### Admin Portal
 - **Dashboard** — class-wide KPIs, GWA/attendance charts, at-risk student monitoring
-- **Students** — roster management with grades and attendance overview
-- **Classes** — class and subject definitions
-- **Grades** — input and manage grades per subject and assessment type; Save All Grades button for bulk updates
-- **Attendance** — calendar-based daily attendance tracking (Present / Absent / Excuse); import from file
-- **Activities** — post assignments with deadlines, rubric builder, and grade submissions; students are notified when graded
-- **Quiz** — create and manage quizzes; AI-generated questions via Vercel serverless function; export template
-- **Stream** — class activity feed showing announcements, grades, activities, quizzes, and attendance in one view; rich-text announcements with comments and replies
+- **Students** — roster management with grades and attendance overview; account verification (none → pending → active)
+- **Classes** — class and subject definitions (active vs. archived/past-semester)
+- **Grades** — fast spreadsheet-style entry (keyboard grid nav, search-as-you-type jump, undo/redo + autosave, speed-grading mode), missing/invalid-grade detector, and a single color-coded Excel template that computes grades in-sheet exactly as the app does. Imported "+ Activity / + Quiz" columns are **additive** (never overwrite app activities/quizzes), and a popup preview runs on-device AI verification of imported grades.
+- **Grade Integrity** — auditor that recomputes each stored grade from live components and flags mismatches (e.g. tampering or stale imports)
+- **Attendance** — calendar-based daily attendance tracking (Present / Absent / Excuse); excuse-request triage; import from file
+- **Activities** — post assignments with deadlines, rubric builder + reusable rubric library, and grade submissions; students are notified when graded
+- **Quiz** — create and manage quizzes; AI-generated questions; answer-key manager with fuzzy text auto-scoring and partial credit; quiz→gradebook auto-post; suspicious-submission flagging; distractor-quality auditor; clone quiz
+- **Stream** — class activity feed (announcements, grades, activities, quizzes, attendance) with rich-text announcements, comments, replies, and @mentions
 - **Calendar** — monthly calendar view of activities, quizzes, and announcements
 - **Online Classes** — schedule and manage Google Meet sessions; start/end/cancel meetings
-- **Messages** — one-on-one and broadcast messaging to students
+- **Resources** — share lesson files and links per class
+- **Messages** — one-on-one and broadcast messaging with @mentions, smart-lock for sensitive messages, and screenshot logging
+- **Feedback Hub** — collect and review student feedback submissions
+- **Audit Log** — chronological record of sensitive admin/account actions
 - **Notifications** — system-wide alerts and activity updates
 - **Settings** — admin credentials, EmailJS config, equivalence scale, Firebase config
 
 ### Student Portal
-- **Overview** — personal GWA, attendance rate, active announcements (with meeting and module links), and recent activity
-- **Grades** — view grades per subject with assessment breakdowns
-- **Attendance** — personal attendance calendar and summary
-- **Activities** — view and submit assignments; edit submission link before deadline
+- **Overview** — personal GWA, attendance rate, active announcements (with meeting and module links), recent activity, and per-subject Final Grade / Attendance charts
+- **Grades** — view grades per subject with assessment breakdowns and what-if projection
+- **Attendance** — personal attendance calendar and summary; submit excuse requests
+- **Activities / Assignments** — view and submit assignments; edit submission link before deadline
 - **Quiz** — take quizzes with auto-grading
-- **Stream** — class activity feed with announcement comments and replies
-- **Calendar** — personal calendar view of upcoming events
+- **Stream** — class activity feed with announcement comments, replies, and @mentions
+- **Calendar** — personal calendar view of upcoming events; export to `.ics`
 - **Online Classes** — view and join scheduled Google Meet sessions
+- **Resources** — browse class lesson files and links
 - **Enrollment** — manage class enrollment
-- **Messages** — direct messaging with admin/teacher
+- **Messages** — direct messaging with admin/teacher (smart-lock + screenshot guard)
+- **Feedback** — submit feedback to the teacher/staff
 - **Notifications** — personal notification feed with badge for unread items
 
 ### General
 - Real-time sync via Firebase Firestore
-- Push notifications to students on grade posts, activity grading, and announcements
-- EmailJS OTP for password resets
-- Excel (.xlsx) and PDF export for grades and attendance
+- Push notifications (Firebase Cloud Messaging) on grade posts, activity grading, announcements, and deadline reminders — fired both client-side (while open) and via a Vercel Cron job (while closed)
+- On-device AI ($0, no data leaves the browser): grade-import verification, distractor auditing, excuse triage, identity/impersonation checks, and answer-key improvement, with optional Gemini-backed server endpoints that degrade gracefully when unconfigured
+- Biometric quick sign-in (Face ID / fingerprint via WebAuthn) as an opt-in convenience layer; password always remains the fallback
+- EmailJS OTP and teacher-coordinated reset for student passwords
+- Excel (.xlsx) and PDF export for grades, attendance, and report cards
+- Installable PWA with offline app shell
 - Light and dark mode
 - 30-minute inactivity session timeout with tab-focus expiry check
 
@@ -53,9 +62,10 @@ AcadFlow is a web-based school portal that provides a unified platform to manage
 | Framework | React 19 + Vite 6 |
 | Routing | Role-based state routing (no URL router — tab state in `UIContext`) |
 | Styling | Tailwind CSS v4 |
-| Backend | Firebase Firestore (modular SDK v10, long-poll) |
+| Data | Firebase Firestore (modular SDK v10, long-poll) |
+| Server | Vercel serverless functions in `api/` (Node built-ins only) — AI, web push, password reset, cron reminders |
 | Email | EmailJS (`@emailjs/browser`) |
-| Exports | SheetJS (Excel), jsPDF + AutoTable (PDF) via CDN |
+| Exports | SheetJS + ExcelJS (Excel), jsPDF + AutoTable (PDF) via CDN |
 
 ## Getting Started
 
@@ -121,59 +131,79 @@ The root path `/` shows the student login screen. Students log in with their Stu
 ## Project Structure
 
 ```
+api/                 # Vercel serverless functions (Node built-ins only)
+  _guard.js          # CORS allowlist + per-IP rate limiting
+  _fbadmin.js        # Firebase Admin via service-account OAuth + Firestore/Identity REST
+  generate-quiz.js   # Gemini-backed AI quiz generation (gated by GEMINI_API_KEY)
+  send-push.js       # FCM HTTP v1 web push
+  cron-reminders.js  # Vercel Cron: deadline reminders for the closed app
+  verify-account.js  # Server-side account verification
+  admin-open-reset-session.js / claim-reset.js  # Teacher-coordinated password reset
 src/
   components/
     admin/           # Admin layout, sidebar, tabs, modals
-    auth/            # Login screens, PIN/OTP modals
+    auth/            # Login screens, PIN/OTP/biometric modals
     canvas/          # Animated background scenes
     charts/          # BarChart, DonutChart
-    primitives/      # Shared UI: Badge, Modal, Dialog, Toast, etc.
+    primitives/      # Shared UI: Badge, Modal, Dialog, Toast, CommandPalette, Pagination, etc.
     student/         # Student layout, tabs, modals
   context/
     AuthContext.jsx  # Session management, login/logout, OTP helpers
     DataContext.jsx  # Firebase bootstrap, real-time listeners, persistence
     UIContext.jsx    # Toast, theme, UI state
   export/
-    excelExport.js   # SheetJS Excel export
+    excelExport.js   # Shared Excel helpers (SheetJS) + master grading report
+    gradingSheet.js  # Color-coded teacher grading template (ExcelJS) + import parser
     pdfExport.js     # jsPDF PDF export
+    reportCard.js    # Per-student PDF report card
   firebase/
     firebaseInit.js  # App/Firestore init, write-timeout wrapper
-    listeners.js     # Real-time Firestore listeners
+    listeners.js     # Real-time Firestore listeners (owns the _fbWriting echo guard)
     persistence.js   # Firestore write helpers
     settings.js      # Settings and EJS config sync
-  hooks/
-    usePagination.js  # Generic paginator (page, pageCount, paginated, setPage)
-    useSession.js     # Thin wrapper around useAuth for session state
-    useTheme.js       # Theme state + toggleTheme, isDark flag
-    useTypingEffect.js # Looping typewriter effect through multiple phrases
-  utils/
-    attendance.js    # Attendance calculation and serialization
-    crypto.js        # SHA-256 hashing, AES encryption (EJS config, FB config)
-    format.js        # Display formatting helpers
-    grades.js        # GWA computation, equivalence scale
-    otp.js           # OTP generation and verification
-    validate.js      # Login lockout logic
+    attendanceExtras.js / pushTokens.js  # Attendance/excuse writes, web-push tokens
+  hooks/             # usePushNotifications, useReminders, useScreenshotGuard, useInstallPrompt, …
+  pwa/               # Service-worker registration + web push client
+  utils/             # grades, gradeEngine, attendance, crypto, mentions, biometric, on-device AI helpers, …
   App.jsx            # Context provider tree
   AppRouter.jsx      # Role-based routing
   main.jsx           # Vite entry point
-index.html           # CDN scripts: SheetJS, jsPDF, jspdf-autotable
+public/
+  sw.js              # Hand-rolled service worker (PWA shell cache + background push)
+  manifest.webmanifest
+index.html           # CDN scripts: SheetJS, ExcelJS, jsPDF, jspdf-autotable
 ```
 
-## Firestore Collections
+## Firestore Data Model
+
+Two storage patterns coexist:
+
+**Per-document collections** (one doc per record):
 
 | Collection | Purpose |
 |---|---|
-| `students` | One document per student (doc ID = student ID) |
-| `classes` | Class/subject definitions with grade records |
-| `messages` | In-app messaging |
+| `students` | One document per student (doc ID = student ID); holds grades, attendance, account |
 | `activities` | Assignments with deadlines, rubrics, and submissions |
-| `announcements` | No-class / online-class notices with optional meeting and module links |
-| `notifications` | Per-student notification feed (doc ID = student ID) |
-| `adminNotifs` | Admin-side notifications |
-| `quizzes` | Quiz definitions and student responses |
-| `meetings` | Scheduled Google Meet sessions |
-| `admin` | Admin credentials (hashed password, email, reset PIN) |
-| `config` | EmailJS config (encrypted), portal settings |
+| `quizzes` | Quiz definitions and student submissions |
+| `announcements` | Stream announcements with optional meeting and module links |
+| `messages` | In-app messaging threads |
+| `onlineMeetings` | Scheduled Google Meet sessions |
+| `attendanceSessions` | Per-session attendance records |
+| `excuseRequests` | Student excuse submissions for attendance |
+| `resources` | Shared class lesson files and links |
+| `studentFeedback` | Student feedback submissions |
+| `notifications` | Per-user notification feed (`items` array; doc ID = user ID, `admin` for staff) |
+| `auditLog` | Sensitive admin/account actions |
+| `pushTokens` | Per-device FCM web-push tokens |
+
+**Singleton documents under `portal/*`** (read-modify-write the whole doc):
+
+| Document | Purpose |
+|---|---|
+| `portal/classes` | Class list (a `list` array — editing one class rewrites the array) |
+| `portal/config` | EmailJS config (encrypted), equivalence scale, portal settings |
+| `portal/settings` | Portal-wide settings |
+| `portal/admin` | Admin credentials (hashed password, email, reset PIN) |
 
 ## Security Notes
 
@@ -222,6 +252,14 @@ The student Overview shows per-subject **Final Grade** and **Attendance** bar
 charts derived from existing data. The student Calendar adds **Add to Calendar**,
 exporting deadlines, quiz closings, and announcements as a standard `.ics` file
 (`src/utils/ics.js`) that subscribes into Google, Apple, or Outlook Calendar.
+
+## Mobile App
+
+AcadFlow installs as a PWA on iOS and Android today, and can be wrapped as a native app via Capacitor for the App Store / Play Store. See [MOBILE_APP_GUIDE.md](MOBILE_APP_GUIDE.md).
+
+## License
+
+Released under the [MIT License](LICENSE).
 
 ---
 

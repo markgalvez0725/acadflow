@@ -34,7 +34,7 @@ UIProvider → DataProvider → AuthProvider → AppRouter
 ```
 
 - **`UIContext`** — toast, theme (light/dark), `adminTab`, `studentTab`, dialog (replaces `alert`/`confirm`), loading bar
-- **`DataContext`** — Firebase bootstrap (`_bootstrap()`), all real-time Firestore listeners, all app data (`students`, `classes`, `messages`, `activities`, `announcements`, `meetings`, `quizzes`), all write helpers
+- **`DataContext`** — Firebase bootstrap (`_bootstrap()`), all real-time Firestore listeners, all app data (`students`, `classes`, `messages`, `activities`, `announcements`, `onlineMeetings`, `quizzes`, `resources`, `studentFeedback`, …), all write helpers
 - **`AuthContext`** — session (`sessionRole`), login/logout, OTP helpers, inactivity timeout
 
 **Never read Firestore directly from components.** All data flows through `DataContext`.
