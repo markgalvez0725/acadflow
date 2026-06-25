@@ -3361,72 +3361,22 @@ textarea.input { resize: vertical; }
 
 
 /* ── Scene-responsive right panel glassmorphism ─────────────────────────── */
-.login-panel {
-  --panel-tint: rgba(255, 255, 255, 0.82);
-  /* MacBook glass base — scene rules below override background/border-color */
-  backdrop-filter: blur(40px) saturate(1.8) brightness(1.02);
-  -webkit-backdrop-filter: blur(40px) saturate(1.8) brightness(1.02);
-  background: rgba(255, 255, 255, 0.76);
-  border-left: 1px solid rgba(255, 255, 255, 0.50);
-  box-shadow:
-    0 0 0 0.5px rgba(255, 255, 255, 0.32) inset,
-    -2px 0 28px rgba(0, 20, 80, 0.09);
-  /* @property transitions animate --panel-tint smoothly between scenes */
-  transition:
-    --panel-tint   3s ease,
-    background     3s ease,
-    border-color   3s ease,
-    box-shadow     3s ease;
-}
+
 
 /* Night / dark sky scenes */
-[data-scene="midnight"] .login-panel,
-[data-scene="night"]    .login-panel,
-[data-scene="evening"]  .login-panel {
-  --panel-tint: rgba(4, 8, 22, 0.82);
-  background:   color-mix(in oklch, var(--surface) 78%, transparent) !important;
-  border-color: rgba(44, 60, 200, 0.16) !important;
-  box-shadow:   0 0 0 1px rgba(44, 60, 200, 0.10) inset,
-                0 24px 60px rgba(0, 0, 12, 0.60) !important;
-}
+
 
 /* Pre-dawn */
-[data-scene="rooster"]  .login-panel {
-  --panel-tint: rgba(8, 2, 18, 0.80);
-  background:   color-mix(in oklch, var(--surface) 76%, transparent) !important;
-  border-color: rgba(198, 24, 50, 0.14) !important;
-  box-shadow:   0 0 0 1px rgba(220, 40, 60, 0.08) inset,
-                0 24px 60px rgba(0, 0, 6, 0.55) !important;
-}
+
 
 /* Sunrise / sunset — golden warmth */
-[data-scene="sunrise"]  .login-panel,
-[data-scene="sunset"]   .login-panel {
-  --panel-tint: rgba(10, 3, 22, 0.76);
-  background:   color-mix(in oklch, var(--surface) 74%, transparent) !important;
-  border-color: rgba(240, 114, 40, 0.14) !important;
-  box-shadow:   0 0 0 1px rgba(255, 160, 80, 0.10) inset,
-                0 24px 60px rgba(0, 0, 4, 0.48) !important;
-}
+
 
 /* Day scenes — light frosted glass */
-[data-scene="morning"]   .login-panel,
-[data-scene="midday"]    .login-panel,
-[data-scene="afternoon"] .login-panel {
-  --panel-tint: rgba(248, 252, 255, 0.88);
-  background:   color-mix(in oklch, var(--surface) 86%, transparent) !important;
-  border-color: rgba(36, 144, 202, 0.20) !important;
-  box-shadow:   0 0 0 1px rgba(255, 255, 255, 0.58) inset,
-                0 24px 60px rgba(0, 30, 80, 0.14) !important;
-}
+
 
 /* Dark theme overrides: always keep dark surface */
-[data-theme="dark"] .login-panel {
-  background:   color-mix(in oklch, var(--surface) 80%, transparent) !important;
-  border-color: rgba(255, 255, 255, 0.07) !important;
-  box-shadow:   0 0 0 1px rgba(255, 255, 255, 0.04) inset,
-                0 24px 60px rgba(0, 0, 0, 0.6) !important;
-}
+
 
 /* ── Smooth scene transition on the WeatherScene background ─────────────── */
 
@@ -3442,32 +3392,10 @@ textarea.input { resize: vertical; }
   0%   { background-position: 0 -100%; }
   100% { background-position: 0 200%; }
 }
-[data-weather="rain"]       .login-panel::before,
-[data-weather="heavy_rain"] .login-panel::before,
-[data-weather="thunderstorm"] .login-panel::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: repeating-linear-gradient(
-    180deg,
-    transparent           0px,
-    transparent           18px,
-    rgba(160,200,240,0.04) 18px,
-    rgba(160,200,240,0.04) 19px
-  );
-  background-size: 100% 38px;
-  animation: td-panel-rain-drip 2.5s linear infinite;
-  pointer-events: none;
-  z-index: 0;
-}
+
 
 /* ── Fog soft-focus on login background ─────────────────────────────────── */
-[data-weather="fog"] #login-screen > *:not(.login-panel):not(.login-scene-overlay),
-[data-weather="fog"] #admin-login-screen > *:not(.login-panel):not(.login-scene-overlay) {
-  filter: blur(0.5px) saturate(0.85);
-  transition: filter 3s ease;
-}
+
 
 /* ── Ensure AcadFlow wordmark always renders above weather overlays ──────── */
 /* Ensure wordmark sits in its own compositing layer (safe to keep) */
@@ -3497,34 +3425,10 @@ textarea.input { resize: vertical; }
 
 
 /* Glass card tab switcher — active pill */
-.glass-tab-bar {
-  background: rgba(0, 0, 0, 0.06);
-  border-radius: 12px;
-  padding: 3px;
-}
-[data-theme="dark"] .glass-tab-bar,
-[data-scene="midnight"] .glass-tab-bar,
-[data-scene="night"]    .glass-tab-bar,
-[data-scene="evening"]  .glass-tab-bar,
-[data-scene="rooster"]  .glass-tab-bar,
-[data-scene="sunrise"]  .glass-tab-bar,
-[data-scene="sunset"]   .glass-tab-bar {
-  background: rgba(255, 255, 255, 0.07);
-}
-.glass-tab-active {
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14);
-}
-[data-theme="dark"] .glass-tab-active,
-[data-scene="midnight"] .glass-tab-active,
-[data-scene="night"]    .glass-tab-active,
-[data-scene="evening"]  .glass-tab-active,
-[data-scene="rooster"]  .glass-tab-active,
-[data-scene="sunrise"]  .glass-tab-active,
-[data-scene="sunset"]   .glass-tab-active {
-  background: rgba(255, 255, 255, 0.14);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
-}
+
+
+
+
 
 /* Rain shimmer on glass card (same as login-panel) */
 
@@ -3967,136 +3871,174 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 }
 
 /* Right form panel: clean light surface */
-#login-screen .login-panel, #admin-login-screen .login-panel {
-  background: var(--surface);
-}
-@media (min-width: 1024px) {
-  #login-screen .login-panel, #admin-login-screen .login-panel {
-    flex: 1;
-    max-width: none;
-  }
-  /* keep the form a comfortable width, centered in the white area */
-  #login-screen .login-panel > *, #admin-login-screen .login-panel > * {
-    width: 100%;
-    max-width: 360px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-}
+
+
 
 /* Desktop navy branding panel (left, ~46%) */
-#login-screen .auth-brand, #admin-login-screen .auth-brand {
-  background: linear-gradient(160deg, #1a4a9e 0%, #0d2f6e 100%);
-  --ink:  #ffffff;
-  --ink2: rgba(255,255,255,.86);
-  --ink3: rgba(255,255,255,.72);
-  --accent:   #ffffff;
-  --accent-l: rgba(255,255,255,.16);
-  --grad-brand: linear-gradient(90deg, #dce9fb, #ffffff);
-}
-@media (min-width: 1024px) {
-  #login-screen .auth-brand, #admin-login-screen .auth-brand { flex: 0 0 46%; }
-}
+
+
 
 /* Mobile navy branding card (sits inside the white panel) */
-#login-screen .auth-brand-mobile, #admin-login-screen .auth-brand-mobile {
-  background: linear-gradient(160deg, #1a4a9e 0%, #0d2f6e 100%);
-  --ink:  #ffffff;
-  --ink3: rgba(255,255,255,.80);
-  --accent: #ffffff;
-  color: #ffffff;
-  border-radius: 18px;
-  padding: 22px 18px;
-  margin: 4px 0 18px;
-  box-shadow: var(--shadow-lg);
-}
+
 
 /* ── Plan A: brand-panel depth + enrichments ────────────────────────────── */
-#login-screen .auth-brand, #admin-login-screen .auth-brand { overflow: hidden; }
+
 /* Keep all real content above the decorative orbs/grid */
-.auth-brand > *:not(.auth-orb):not(.auth-grid) { position: relative; z-index: 1; }
 
-.auth-orb {
-  position: absolute;
-  border-radius: 50%;
-  pointer-events: none;
-  filter: blur(6px);
-  z-index: 0;
-}
-.auth-orb-1 { top: -80px; right: -60px; width: 260px; height: 260px;
-  background: radial-gradient(circle, rgba(120,160,255,.45), transparent 68%); }
-.auth-orb-2 { bottom: -70px; left: -50px; width: 200px; height: 200px;
-  background: radial-gradient(circle, rgba(60,200,180,.28), transparent 70%); }
-.auth-grid {
-  position: absolute; inset: 0; pointer-events: none; z-index: 0;
-  background-image: radial-gradient(rgba(255,255,255,.14) 1px, transparent 1px);
-  background-size: 24px 24px;
-  opacity: .35;
-}
 
-.auth-eyebrow {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 0.7813rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
-  color: rgba(255,255,255,.72);
-  margin-bottom: 14px;
-}
 
-.auth-highlight {
-  display: flex; align-items: center; gap: 12px;
-  max-width: 320px;
-  margin-top: 20px;
-  padding: 12px 14px;
-  background: rgba(255,255,255,.09);
-  border: 1px solid rgba(255,255,255,.14);
-  border-radius: 14px;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-.auth-highlight-ic {
-  flex-shrink: 0;
-  width: 36px; height: 36px;
-  border-radius: 10px;
-  background: rgba(255,255,255,.16);
-  color: #fff;
-  display: flex; align-items: center; justify-content: center;
-}
-.auth-highlight-t { font-size: 0.9063rem; font-weight: 600; color: #fff; line-height: 1.3; }
-.auth-highlight-s { font-size: 0.7813rem; color: rgba(255,255,255,.70); }
 
-.auth-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.auth-chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 0.7813rem; font-weight: 600;
-  color: rgba(255,255,255,.85);
-  background: rgba(255,255,255,.08);
-  border: 1px solid rgba(255,255,255,.12);
-  padding: 5px 10px;
-  border-radius: 9px;
-}
+
+
+
+
+
+
+
+
+
+
+
+
 
 /* Welcome badge above the form heading (right panel) */
-.auth-form-badge {
-  width: 40px; height: 40px;
-  border-radius: 12px;
-  background: var(--accent-l);
-  color: var(--accent);
-  display: flex; align-items: center; justify-content: center;
-  margin-bottom: 12px;
-}
+
 
 /* Encrypted/trust footer */
-.auth-trust {
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  font-size: 0.7813rem; font-weight: 500;
-  color: var(--ink3);
-  border-top: 1px solid var(--border);
-  margin-top: 16px;
-  padding-top: 13px;
-}
-.auth-trust svg { color: var(--green); }
+
+
 
 /* Help (FAQ) button — sits to the left of the theme toggle on login screens */
 #login-screen .help-btn, #admin-login-screen .help-btn { right: 60px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AUTH v2 — centered academic sign-in (Facebook/Instagram-style)
+   One layout that scales identically from installed-PWA mobile → desktop.
+   Everything reads live theme tokens, so dark mode + the academic theme
+   follow automatically. Replaces the old split brand-panel / form-panel.
+═══════════════════════════════════════════════════════════════════════════ */
+.auth2 {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg);
+  overflow-x: hidden;
+}
+/* Full-page decorative backdrop (orbs + dot grid), clipped, never scrolls */
+.auth2-bg { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.auth2-orb { position: absolute; border-radius: 50%; filter: blur(10px); }
+.auth2-orb-1 {
+  top: -140px; right: -90px; width: 420px; height: 420px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 22%, transparent), transparent 68%);
+}
+.auth2-orb-2 {
+  bottom: -150px; left: -100px; width: 360px; height: 360px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent-m) 18%, transparent), transparent 70%);
+}
+.auth2-grid {
+  position: absolute; inset: 0;
+  background-image: radial-gradient(color-mix(in srgb, var(--accent) 14%, transparent) 1px, transparent 1px);
+  background-size: 26px 26px; opacity: .55;
+  -webkit-mask-image: radial-gradient(ellipse 72% 62% at 50% 42%, #000, transparent 78%);
+          mask-image: radial-gradient(ellipse 72% 62% at 50% 42%, #000, transparent 78%);
+}
+
+.auth2-inner {
+  position: relative; z-index: 1;
+  min-height: 100dvh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 44px 18px;
+}
+@media (min-width: 1024px) {
+  .auth2-inner {
+    flex-direction: row; align-items: center; justify-content: center;
+    gap: 72px; max-width: 1080px; margin: 0 auto; padding: 44px 40px;
+  }
+}
+
+/* ── Brand column (desktop only) ── */
+.auth2-brand { display: none; }
+@media (min-width: 1024px) {
+  .auth2-brand { display: block; flex: 1 1 0; max-width: 440px; }
+}
+.auth2-eyebrow {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.75rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--accent); background: var(--accent-l);
+  padding: 6px 12px; border-radius: 999px;
+  margin: 24px 0 16px;
+}
+.auth2-headline {
+  font-family: var(--font-display);
+  font-size: 2.6rem; line-height: 1.12; font-weight: 700;
+  letter-spacing: -.02em; color: var(--ink);
+  margin-bottom: 14px;
+}
+.auth2-headline .grad {
+  background: var(--grad-brand);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.auth2-tagline {
+  font-size: 1.0625rem; line-height: 1.55; color: var(--ink2);
+  max-width: 350px; margin-bottom: 30px;
+}
+.auth2-feats { display: flex; flex-direction: column; gap: 14px; }
+.auth2-feat { display: flex; align-items: center; gap: 12px; }
+.auth2-feat-ic {
+  flex-shrink: 0; width: 38px; height: 38px; border-radius: 11px;
+  background: var(--accent-l); color: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+}
+.auth2-feat-t { font-size: 0.9375rem; color: var(--ink); font-weight: 500; }
+
+/* ── Brand top (mobile / tablet only) ── */
+.auth2-brandtop { text-align: center; margin-bottom: 26px; }
+@media (min-width: 1024px) { .auth2-brandtop { display: none; } }
+.auth2-brandtop .auth2-tagline { max-width: 320px; margin: 12px auto 0; font-size: 0.9375rem; }
+
+/* ── Form column ── */
+.auth2-main { width: 100%; max-width: 400px; }
+@media (min-width: 1024px) { .auth2-main { flex: 0 0 380px; max-width: 380px; } }
+
+.auth2-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 30px 28px;
+  box-shadow: var(--shadow-lg);
+}
+.auth2-title {
+  font-family: var(--font-display);
+  font-size: 1.55rem; font-weight: 700; letter-spacing: -.01em;
+  color: var(--ink); margin-bottom: 4px;
+}
+.auth2-sub-text { font-size: 0.875rem; color: var(--ink2); margin-bottom: 22px; }
+
+.auth2-or {
+  display: flex; align-items: center; gap: 12px;
+  margin: 18px 0 14px; color: var(--ink3); font-size: 0.75rem; text-transform: uppercase; letter-spacing: .08em;
+}
+.auth2-or::before, .auth2-or::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+.auth2-subcard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 15px;
+  text-align: center;
+  font-size: 0.875rem; color: var(--ink2);
+  margin-top: 14px;
+}
+.auth2-trust {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  font-size: 0.75rem; font-weight: 500; color: var(--ink3);
+  margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border);
+}
+.auth2-trust svg { color: var(--green); }
+.auth2-foot { text-align: center; font-size: 0.75rem; color: var(--ink3); margin-top: 18px; }
+.auth2-foot .link-btn { font-size: 0.75rem; }
 
 /* ── FAQ / About modal ──────────────────────────────────────────────────── */
 .faq-intro {

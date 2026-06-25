@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react'
-import { Eye, EyeOff, ShieldCheck, BookOpen, Users, CalendarCheck, BarChart2, TrendingUp, Mail, Lock, HelpCircle } from 'lucide-react'
+import { Eye, EyeOff, ShieldCheck, BookOpen, Users, CalendarCheck, BarChart2, Mail, Lock, HelpCircle } from 'lucide-react'
 import AcadFlowLogo from '@/components/primitives/AcadFlowLogo'
 import { useTypingEffect } from '@/hooks/useTypingEffect'
 import { useAuth } from '@/context/AuthContext'
@@ -74,7 +74,7 @@ export default function AdminLoginScreen() {
     : { '--ink': '#0d1526', '--ink2': '#52637a', '--ink3': '#8b9ab0' }
 
   return (
-    <div className="min-h-screen flex relative overflow-hidden" id="admin-login-screen">
+    <div className="auth2" id="admin-login-screen">
       <button
         type="button"
         className="theme-btn help-btn"
@@ -86,19 +86,19 @@ export default function AdminLoginScreen() {
       </button>
       <ThemeToggle />
 
-      {/* ── Left branding panel (desktop only) ── */}
-      <div className="auth-brand hidden lg:flex flex-col justify-between flex-1 relative z-10 p-10 pointer-events-none select-none">
-        {/* Depth layers */}
-        <div className="auth-orb auth-orb-1" aria-hidden="true" />
-        <div className="auth-orb auth-orb-2" aria-hidden="true" />
-        <div className="auth-grid" aria-hidden="true" />
+      {/* Full-page decorative backdrop (orbs + dot grid) */}
+      <div className="auth2-bg" aria-hidden="true">
+        <div className="auth2-orb auth2-orb-1" />
+        <div className="auth2-orb auth2-orb-2" />
+        <div className="auth2-grid" />
+      </div>
 
-        <AcadFlowLogo size="sm" />
-        <div>
-          <div className="auth-eyebrow">
-            <ShieldCheck size={13} /> Teacher portal
-          </div>
-          <p className="text-4xl font-display font-bold text-ink leading-tight mb-4" style={{ letterSpacing: '-.03em' }}>
+      <div className="auth2-inner">
+        {/* ── Brand column (desktop only) ── */}
+        <div className="auth2-brand">
+          <AcadFlowLogo size="lg" />
+          <div className="auth2-eyebrow"><ShieldCheck size={13} /> Faculty portal</div>
+          <h1 className="auth2-headline">
             {typedLine1}
             {!typed[1] && (
               <span className="typing-cursor" aria-hidden="true" />
@@ -106,55 +106,41 @@ export default function AdminLoginScreen() {
             {typed[1] !== undefined && (
               <>
                 <br />
-                <span style={{ background: 'var(--grad-brand)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                  {typedLine2}
-                </span>
+                <span className="grad">{typedLine2}</span>
                 {!typingDone && (
                   <span className="typing-cursor" aria-hidden="true" style={{ WebkitTextFillColor: 'var(--ink)', background: 'none' }} />
                 )}
               </>
             )}
-          </p>
-          <p className="text-sm text-ink2 max-w-xs leading-relaxed">
+          </h1>
+          <p className="auth2-tagline">
             Full control over grades, attendance, quizzes, announcements and student records — all from one dashboard.
           </p>
-
-          <div className="auth-highlight">
-            <div className="auth-highlight-ic"><TrendingUp size={18} /></div>
-            <div>
-              <div className="auth-highlight-t">Your classroom, in command</div>
-              <div className="auth-highlight-s">Grades, attendance &amp; quizzes, live</div>
-            </div>
-          </div>
-
-          <div className="auth-chips">
+          <div className="auth2-feats">
             {ADMIN_FEATURES.map(({ Icon, label }) => (
-              <span key={label} className="auth-chip"><Icon size={13} /> {label}</span>
+              <div className="auth2-feat" key={label}>
+                <span className="auth2-feat-ic"><Icon size={18} /></span>
+                <span className="auth2-feat-t">{label}</span>
+              </div>
             ))}
           </div>
         </div>
-        <p className="text-xs text-ink3">© {new Date().getFullYear()} AcadFlow. All rights reserved.</p>
-      </div>
 
-      {/* ── Right glass panel ── */}
-      <div className="login-panel relative z-10 flex flex-col justify-center w-full lg:max-w-[460px] lg:min-h-screen px-4 py-8 lg:px-12">
-        {/* Mobile branding */}
-        <div className="auth-brand-mobile text-center mb-6 lg:hidden">
-          <AcadFlowLogo variant="stacked" size="lg" className="justify-center mb-1" />
-          <p className="text-xs text-ink3 mt-2">Teacher / Admin Portal</p>
-        </div>
+        {/* ── Form column ── */}
+        <div className="auth2-main">
+          {/* Brand (mobile / tablet only) */}
+          <div className="auth2-brandtop">
+            <AcadFlowLogo variant="stacked" size="lg" className="justify-center" />
+            <p className="auth2-tagline">Run your classroom from one live dashboard.</p>
+          </div>
 
-        {/* Desktop welcome text */}
-        <div className="hidden lg:block mb-7">
-          <div className="auth-form-badge"><ShieldCheck size={22} /></div>
-          <h2 className="text-2xl font-bold text-ink mb-1" style={{ letterSpacing: '-.02em' }}>{modeTitle}</h2>
-          <p className="text-sm text-ink3">{modeSub}</p>
-        </div>
+          <div className="auth2-card">
+            <div className="auth2-title">{modeTitle}</div>
+            <p className="auth2-sub-text">{modeSub}</p>
 
-        {err   && <div className="err-msg" style={{ display: 'block' }}>{err}</div>}
-        {okMsg && <div className="ok-msg"  style={{ display: 'block' }}>{okMsg}</div>}
+            {err   && <div className="err-msg" style={{ display: 'block' }}>{err}</div>}
+            {okMsg && <div className="ok-msg"  style={{ display: 'block' }}>{okMsg}</div>}
 
-          {/* ── Login ──────────────────────────────────────────────────── */}
             <form onSubmit={handleLogin}>
               <div className="field-float field-float--icon">
                 <span className="ff-icon" aria-hidden="true"><Mail size={16} /></span>
@@ -190,11 +176,15 @@ export default function AdminLoginScreen() {
               </button>
             </form>
 
-        <div className="auth-trust"><ShieldCheck size={13} /> Encrypted &amp; secure</div>
-        <p className="text-center text-xs text-ink3 mt-3">
-          <button type="button" className="link-btn" onClick={() => setFaqOpen(true)}>Why AcadFlow?</button>
-        </p>
-      </div>
+            <div className="auth2-trust"><ShieldCheck size={13} /> Encrypted &amp; secure · faculty access only</div>
+          </div>{/* /auth2-card */}
+
+          <div className="auth2-foot">
+            <button type="button" className="link-btn" onClick={() => setFaqOpen(true)}>Why AcadFlow?</button>
+            {' · '}© {new Date().getFullYear()} AcadFlow
+          </div>
+        </div>{/* /auth2-main */}
+      </div>{/* /auth2-inner */}
 
       {pinResetOpen && (
         <Suspense fallback={null}>

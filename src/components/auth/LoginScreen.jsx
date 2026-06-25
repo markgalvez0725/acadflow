@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react'
-import { Eye, EyeOff, BarChart2, CalendarCheck, Rss, MessageSquare, KeyRound, Check, ShieldCheck, TrendingUp, GraduationCap, UserCircle, IdCard, Lock, HelpCircle, Fingerprint } from 'lucide-react'
+import { Eye, EyeOff, BarChart2, CalendarCheck, Rss, MessageSquare, KeyRound, Check, ShieldCheck, GraduationCap, IdCard, Lock, HelpCircle, Fingerprint } from 'lucide-react'
 import AcadFlowLogo from '@/components/primitives/AcadFlowLogo'
 import { useTypingEffect } from '@/hooks/useTypingEffect'
 import { useAuth } from '@/context/AuthContext'
@@ -467,7 +467,7 @@ export default function LoginScreen({ onRevealFaculty }) {
     : { '--ink': '#0d1526', '--ink2': '#52637a', '--ink3': '#8b9ab0' }
 
   return (
-    <div className="min-h-screen flex relative overflow-hidden" id="login-screen">
+    <div className="auth2" id="login-screen">
       <button
         type="button"
         className="theme-btn help-btn"
@@ -479,19 +479,19 @@ export default function LoginScreen({ onRevealFaculty }) {
       </button>
       <ThemeToggle />
 
-      {/* ── Left branding panel (desktop only) ── */}
-      <div className="auth-brand hidden lg:flex flex-col justify-between flex-1 relative z-10 p-10 pointer-events-none select-none">
-        {/* Depth layers */}
-        <div className="auth-orb auth-orb-1" aria-hidden="true" />
-        <div className="auth-orb auth-orb-2" aria-hidden="true" />
-        <div className="auth-grid" aria-hidden="true" />
+      {/* Full-page decorative backdrop (orbs + dot grid) */}
+      <div className="auth2-bg" aria-hidden="true">
+        <div className="auth2-orb auth2-orb-1" />
+        <div className="auth2-orb auth2-orb-2" />
+        <div className="auth2-grid" />
+      </div>
 
-        <span onClick={handleLogoTap}><AcadFlowLogo size="sm" /></span>
-        <div>
-          <div className="auth-eyebrow">
-            <GraduationCap size={13} /> Student portal
-          </div>
-          <p className="text-4xl font-display font-bold text-ink leading-tight mb-4" style={{ letterSpacing: '-.03em' }}>
+      <div className="auth2-inner">
+        {/* ── Brand column (desktop only) ── */}
+        <div className="auth2-brand">
+          <span onClick={handleLogoTap}><AcadFlowLogo size="lg" /></span>
+          <div className="auth2-eyebrow"><GraduationCap size={13} /> Student portal</div>
+          <h1 className="auth2-headline">
             {typedLine1}
             {!typed[1] && (
               <span className="typing-cursor" aria-hidden="true" />
@@ -499,72 +499,44 @@ export default function LoginScreen({ onRevealFaculty }) {
             {typed[1] !== undefined && (
               <>
                 <br />
-                <span style={{ background: 'var(--grad-brand)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                  {typedLine2}
-                </span>
+                <span className="grad">{typedLine2}</span>
                 {!typingDone && (
                   <span className="typing-cursor" aria-hidden="true" style={{ WebkitTextFillColor: 'var(--ink)', background: 'none' }} />
                 )}
               </>
             )}
-          </p>
-          <p className="text-sm text-ink2 max-w-xs leading-relaxed">
+          </h1>
+          <p className="auth2-tagline">
             Grades, attendance, announcements, and messages — one calm place for your whole semester.
           </p>
-
-          <div className="auth-highlight">
-            <div className="auth-highlight-ic"><TrendingUp size={18} /></div>
-            <div>
-              <div className="auth-highlight-t">Everything in one portal</div>
-              <div className="auth-highlight-s">Grades, attendance &amp; messages, live</div>
-            </div>
-          </div>
-
-          <div className="auth-chips">
+          <div className="auth2-feats">
             {STUDENT_FEATURES.map(({ Icon, label }) => (
-              <span key={label} className="auth-chip"><Icon size={13} /> {label}</span>
+              <div className="auth2-feat" key={label}>
+                <span className="auth2-feat-ic"><Icon size={18} /></span>
+                <span className="auth2-feat-t">{label}</span>
+              </div>
             ))}
           </div>
         </div>
-        <p className="text-xs text-ink3">© {new Date().getFullYear()} AcadFlow. All rights reserved.</p>
-      </div>
 
-      {/* ── Right glass panel ── */}
-      <div className="login-panel relative z-10 flex flex-col justify-center w-full lg:max-w-[460px] lg:min-h-screen px-4 py-8 lg:px-12">
-        {/* Mobile branding (hidden on desktop) */}
-        <div className="auth-brand-mobile text-center mb-6 lg:hidden">
-          <span onClick={handleLogoTap}><AcadFlowLogo variant="stacked" size="lg" className="justify-center mb-1" /></span>
-          <p className="text-xs text-ink3 mt-2">Academic Management System</p>
-        </div>
-
-        {/* Desktop welcome text */}
-        <div className="hidden lg:block mb-7">
-          <div className="auth-form-badge"><UserCircle size={22} /></div>
-          <h2 className="text-2xl font-bold text-ink mb-1" style={{ letterSpacing: '-.02em' }}>
-            {mode === 'student' ? 'Welcome back' : mode === 'register' ? 'Create account' : 'Account recovery'}
-          </h2>
-          <p className="text-sm text-ink3">
-            {mode === 'student' ? 'Sign in to your student portal.' : mode === 'register' ? 'Register your AcadFlow student account.' : 'Recover access to your account.'}
-          </p>
-        </div>
-
-        {/* Mode tabs — only on sign-in / register screens */}
-        {(mode === 'student' || mode === 'register') && (
-          <div className="glass-tab-bar flex mb-5">
-            {[['student', 'Sign In'], ['register', 'Register']].map(([m, label]) => (
-              <button
-                key={m}
-                className={`flex-1 py-2 rounded-[9px] text-sm font-semibold transition-all ${mode === m ? 'glass-tab-active text-ink' : 'text-ink2 hover:text-ink'}`}
-                onClick={() => { setMode(m); clearMessages() }}
-              >
-                {label}
-              </button>
-            ))}
+        {/* ── Form column ── */}
+        <div className="auth2-main">
+          {/* Brand (mobile / tablet only) */}
+          <div className="auth2-brandtop">
+            <span onClick={handleLogoTap}><AcadFlowLogo variant="stacked" size="lg" className="justify-center" /></span>
+            <p className="auth2-tagline">Grades, attendance, and messages — live, in one calm place.</p>
           </div>
-        )}
 
-        {err   && <div className="err-msg" role="alert" style={{ display: 'block' }}>{err}</div>}
-        {okMsg && <div className="ok-msg"  role="status" aria-live="polite" style={{ display: 'block' }}>{okMsg}</div>}
+          <div className="auth2-card">
+            {(mode === 'student' || mode === 'register') && (
+              <>
+                <div className="auth2-title">{mode === 'student' ? 'Welcome back' : 'Create account'}</div>
+                <p className="auth2-sub-text">{mode === 'student' ? 'Sign in to your student portal.' : 'Register your AcadFlow student account.'}</p>
+              </>
+            )}
+
+            {err   && <div className="err-msg" role="alert" style={{ display: 'block' }}>{err}</div>}
+            {okMsg && <div className="ok-msg"  role="status" aria-live="polite" style={{ display: 'block' }}>{okMsg}</div>}
 
           {/* ── Student Login ─────────────────────────────────────────── */}
           {mode === 'student' && (
@@ -598,14 +570,17 @@ export default function LoginScreen({ onRevealFaculty }) {
               <LoadingButton loading={loading} loadingText="Signing in…" className="btn btn-primary btn-full mt-2">
                 Sign In
               </LoadingButton>
-              {bioOffered && (
-                <button type="button" className="btn btn-ghost btn-full mt-2" onClick={handleBiometricLogin} disabled={loading}>
-                  <Fingerprint size={16} className="inline-block mr-1 align-text-bottom" />Sign in with Face ID / fingerprint
-                </button>
-              )}
               <button type="button" className="link-btn w-full text-center mt-3" onClick={() => { setMode('forgot'); clearMessages() }}>
                 Forgot Password?
               </button>
+              {bioOffered && (
+                <>
+                  <div className="auth2-or">or</div>
+                  <button type="button" className="btn btn-ghost btn-full" onClick={handleBiometricLogin} disabled={loading}>
+                    <Fingerprint size={16} className="inline-block mr-1 align-text-bottom" />Use Face ID / fingerprint
+                  </button>
+                </>
+              )}
             </form>
           )}
 
@@ -901,15 +876,30 @@ export default function LoginScreen({ onRevealFaculty }) {
             )
           })()}
 
-        {(mode === 'student' || mode === 'register') && (
-          <>
-            <div className="auth-trust"><ShieldCheck size={13} /> Encrypted &amp; secure</div>
-            <p className="text-center text-xs text-ink3 mt-3">
-              <button type="button" className="link-btn" onClick={() => setFaqOpen(true)}>Why AcadFlow?</button>
-            </p>
-          </>
-        )}
-      </div>
+          </div>{/* /auth2-card */}
+
+          {/* Mode switch — Instagram-style secondary card */}
+          {mode === 'student' && (
+            <div className="auth2-subcard">
+              New here?{' '}
+              <button type="button" className="link-btn" onClick={() => { setMode('register'); clearMessages() }}>Create a student account</button>
+            </div>
+          )}
+          {mode === 'register' && (
+            <div className="auth2-subcard">
+              Already have an account?{' '}
+              <button type="button" className="link-btn" onClick={() => { setMode('student'); clearMessages() }}>Sign in</button>
+            </div>
+          )}
+
+          <div className="auth2-foot">
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><ShieldCheck size={11} style={{ color: 'var(--green)' }} /> Encrypted &amp; secure</span>
+            {' · '}
+            <button type="button" className="link-btn" onClick={() => setFaqOpen(true)}>Why AcadFlow?</button>
+            {' · '}© {new Date().getFullYear()} AcadFlow
+          </div>
+        </div>{/* /auth2-main */}
+      </div>{/* /auth2-inner */}
 
       {faqOpen && (
         <Suspense fallback={null}>
