@@ -890,9 +890,6 @@ export default function LoginScreen() {
             <div className="auth-trust"><ShieldCheck size={13} /> Encrypted &amp; secure</div>
             <p className="text-center text-xs text-ink3 mt-3">
               <button type="button" className="link-btn" onClick={() => setFaqOpen(true)}>Why AcadFlow?</button>
-              {' · '}
-              Are you a teacher?{' '}
-              <a href="/admin" className="text-accent-m underline">Admin Login →</a>
             </p>
           </>
         )}

@@ -15,7 +15,9 @@ export default function AppRouter() {
   const { sessionRole, pinLocked } = useAuth()
   const { fbReady }     = useData()
   const { startLoading, stopLoading } = useUI()
-  const isAdminPath = window.location.pathname.startsWith('/admin')
+  // Faculty/admin sign-in is reached via the /faculty path (not linked from the
+  // student login — enter the URL directly).
+  const isAdminPath = window.location.pathname.startsWith('/faculty')
 
   // Show loading bar while Firebase is initializing
   useEffect(() => {
