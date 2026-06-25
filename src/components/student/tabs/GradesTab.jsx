@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import { gradeInfo, combineEquiv } from '@/utils/grades'
-import { computeSubjectGrade } from '@/utils/gradeEngine'
+import { computeSubjectGrade, auditSubjectGrade, explainGradeText } from '@/utils/gradeEngine'
 import { useData } from '@/context/DataContext'
 import { BookOpen, Clock, ChevronDown, ChevronUp, Award, Check, RefreshCw, Target } from 'lucide-react'
 import { activeClassIds, activeSubjects } from '@/utils/active'
@@ -174,7 +174,11 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
   // one GradeEngine, so the student page agrees with the teacher's gradebook and
   // the exports to the last decimal. Components are reconciled against the live
   // activities/quizzes/attendance, so a deleted item never lingers.
-  const gr = computeSubjectGrade(s, sub, { activities, quizzes, students, classes, eqScale, enrolledIds })
+  const engineCtx = { activities, quizzes, students, classes, eqScale, enrolledIds }
+  const gr = computeSubjectGrade(s, sub, engineCtx)
+  // Plain-language summary + live verified status (grounded in engine numbers).
+  const explanation = explainGradeText(gr)
+  const audit = gr.published ? auditSubjectGrade(s, sub, engineCtx) : null
 
   const midG = gr.midterm          // midterm TERM grade %
   const finG = gr.finals           // finals  TERM grade %
@@ -318,6 +322,26 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
 
           {showTrail && (
             <div className="sg-trail-body">
+              {/* Plain-language explanation — generated from the engine's exact
+                  numbers, so it can never disagree with the figures below. */}
+              {explanation && (
+                <p style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--ink2)', background: 'var(--bg2)', borderRadius: 12, padding: '10px 12px', margin: '0 0 12px' }}>
+                  {explanation}
+                </p>
+              )}
+              {audit && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 600,
+                  borderRadius: 10, padding: '8px 11px', margin: '0 0 12px',
+                  color: audit.drift ? 'var(--yellow)' : 'var(--green)',
+                  background: audit.drift ? 'rgba(234,179,8,.12)' : 'rgba(34,197,94,.10)',
+                }}>
+                  {audit.drift ? <RefreshCw size={14} /> : <Check size={14} />}
+                  {audit.drift
+                    ? 'Some items changed after this grade was posted — your teacher will re-sync it.'
+                    : 'Verified — this grade matches your current activities, quizzes, and attendance.'}
+                </div>
+              )}
               {/* Step 1: Class Standing */}
               {(actVal != null || quizzesAvg != null || attitudeVal != null) && (
                 <div className="sg-trail-step">
