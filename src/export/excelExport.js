@@ -15,6 +15,7 @@ import { sortByLastName } from '@/utils/format.js'
 import { splitStudentName, buildStudentName } from '@/utils/studentName.js'
 import { courseShort } from '@/utils/groupChat.js'
 import { courseFromShort, COURSES } from '@/constants/courses.js'
+import { isClassCurrent, activeSubjects } from '@/utils/active.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -536,11 +537,11 @@ export function exportCurrentGrades({ classId, subject, students, classes, activ
  *
  * @param {{ students: object[], classes: object[] }} opts
  */
-export async function exportStudentRosterExcel({ students, classes }) {
+export async function exportStudentRosterExcel({ students, classes, semester }) {
   const XLSX = window.XLSX
   if (!XLSX) { alert('SheetJS not loaded.'); return }
 
-  const ctx = rosterData(students, classes)
+  const ctx = rosterData(students, classes, semester)
 
   // ExcelJS gives real per-cell dropdowns (Course + Class Subject); SheetJS can't.
   // Try ExcelJS first and fall back to a plain SheetJS export on ANY failure, so
@@ -555,21 +556,23 @@ export async function exportStudentRosterExcel({ students, classes }) {
 }
 
 // Shared roster data for both the ExcelJS and SheetJS writers.
-function rosterData(students, classes) {
+function rosterData(students, classes, semester) {
   const exportDate = new Date().toLocaleDateString('en-PH', { dateStyle: 'long' })
   const sorted = sortByLastName(students)
   const headers = ['#', 'Student No.', 'Surname', 'First Name', 'M.I.', 'Course', 'Year Level', 'Date of Birth', 'Class Subject', 'Section']
   const dataRows = sorted.map((s, idx) => {
     const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
     const primary = classes.find(c => c.id === s.classId) || classes.find(c => enrolledIds.includes(c.id))
-    const subjects = [...new Set(enrolledIds.flatMap(id => classes.find(c => c.id === id)?.subjects || []))].join(', ')
+    // Only CURRENT-semester (non-archived) subjects — past/archived classes drop off.
+    const subjects = activeSubjects(s, classes, semester).join(', ')
     const n = splitStudentName(s.name)
     return [idx + 1, s.id, n.last, n.first, n.middle, courseShort(s.course) || s.course || '', s.year || '', s.dob || '', subjects, primary?.section || '']
   })
-  // Dropdown sources — NOT the column data. Subjects = the distinct subjects that
-  // actually exist across the app's classes. Courses = the canonical short codes
-  // only (BSEMC / BSIT / BSIS / BSCS), derived from the official course list.
-  const allSubjects = [...new Set((classes || []).flatMap(c => c.subjects || []))].filter(Boolean).sort()
+  // Dropdown sources — NOT the column data. Subjects = the distinct subjects across
+  // the app's CURRENT-semester (non-archived) classes only. Courses = the canonical
+  // short codes (BSEMC / BSIT / BSIS / BSCS) from the official course list.
+  const currentClasses = (classes || []).filter(c => isClassCurrent(c, semester))
+  const allSubjects = [...new Set(currentClasses.flatMap(c => c.subjects || []))].filter(Boolean).sort()
   const courseShorts = [...new Set(COURSES.map(c => courseShort(c)).filter(Boolean))]
   const widths = [4, 14, 18, 18, 6, 20, 12, 14, 40, 12]
   const fileName = `StudentRoster_${new Date().toISOString().slice(0, 10)}.xlsx`

@@ -20,6 +20,7 @@ import { exportStudentRosterExcel, exportStudentImportTemplate, parseStudentImpo
 import { courseOptions, courseFromShort } from '@/constants/courses'
 import { classMatchesCourseYear } from '@/utils/enrollment'
 import { courseShort } from '@/utils/groupChat'
+import { activeSubjects } from '@/utils/active'
 import { splitStudentName, buildStudentName } from '@/utils/studentName'
 
 const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
@@ -685,11 +686,11 @@ function ResetPasswordModal({ student, onClose }) {
 }
 
 // ── CSV helpers ───────────────────────────────────────────────────────
-function exportRosterCSV(students, classes) {
+function exportRosterCSV(students, classes, semester) {
   const headers = ['Student No.', 'Surname', 'First Name', 'M.I.', 'Course', 'Year Level', 'Date of Birth', 'Class Subject', 'Email', 'Account Status']
   const rows = students.map(s => {
-    const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
-    const subjects = [...new Set(enrolledIds.flatMap(id => classes.find(c => c.id === id)?.subjects || []))].join(', ')
+    // Only current-semester (non-archived) subjects.
+    const subjects = activeSubjects(s, classes, semester).join(', ')
     const n = splitStudentName(s.name)
     return [s.id, n.last, n.first, n.middle, courseShort(s.course) || s.course || '', s.year || '', s.dob || '', subjects, s.account?.email || '', accountStatus(s).label]
   })
@@ -1074,7 +1075,7 @@ export default function StudentsTab() {
   function clearSelection() { setSelected(new Set()) }
 
   function handleExportSelected() {
-    exportRosterCSV(students.filter(s => selected.has(s.id)), classes)
+    exportRosterCSV(students.filter(s => selected.has(s.id)), classes, semester)
   }
 
   // Verify + Activate a set of registered students in one write. They keep their
@@ -1161,10 +1162,10 @@ export default function StudentsTab() {
           <div className="stu-panel-sub">{students.length} student{students.length !== 1 ? 's' : ''} total</div>
         </div>
         <div className="stu-panel-actions">
-          <button className="btn btn-ghost btn-sm" onClick={() => exportStudentRosterExcel({ students: sorted, classes })} title="Export student roster as Excel (.xlsx)">
+          <button className="btn btn-ghost btn-sm" onClick={() => exportStudentRosterExcel({ students: sorted, classes, semester })} title="Export student roster as Excel (.xlsx)">
             <Download size={13} /> Excel
           </button>
-          <button className="btn btn-ghost btn-sm" onClick={() => exportRosterCSV(sorted, classes)} title="Export student roster as CSV">
+          <button className="btn btn-ghost btn-sm" onClick={() => exportRosterCSV(sorted, classes, semester)} title="Export student roster as CSV">
             <Download size={13} /> CSV
           </button>
           <button className="btn btn-ghost btn-sm" onClick={() => setShowImport(true)} title="Import students from Excel or CSV">
