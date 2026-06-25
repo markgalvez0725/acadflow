@@ -643,16 +643,38 @@ function GradeEntryModal({ classId, subject, onClose }) {
       const records = parseGradingSheetImport(wb)
       const recById = {}
       records.forEach(rec => { recById[String(rec.studentId).toLowerCase()] = rec })
+
+      // Widen the grid if the file carries more activity/quiz columns than are
+      // currently shown (e.g. "+ Activity" extras) so none are silently dropped.
+      const lastFilled = key => records.reduce((m, rec) => {
+        const arr = rec[key] || []
+        let last = 0
+        arr.forEach((v, i) => { if (v != null) last = i + 1 })
+        return Math.max(m, last)
+      }, 0)
+      const needAct = lastFilled('actScores')
+      const needQz  = lastFilled('qzScores')
+      const growAct = Math.max(0, needAct - actInputCount)
+      const growQz  = Math.max(0, needQz - quizInputCount)
+      if (growAct) setManualActExtra(n => n + growAct)
+      if (growQz)  setManualQzExtra(n => n + growQz)
+
       let matched = 0
       setRows(prev => prev.map((r, i) => {
         const rec = recById[String(studs[i].id).toLowerCase()]
         if (!rec) return r
         matched++
         const nr = { ...r }
-        if (Array.isArray(rec.actScores) && rec.actScores.length)
-          nr.actInputs = r.actInputs.map((v, idx) => (rec.actScores[idx] != null ? String(rec.actScores[idx]) : v))
-        if (Array.isArray(rec.qzScores) && rec.qzScores.length)
-          nr.qzInputs = r.qzInputs.map((v, idx) => (rec.qzScores[idx] != null ? String(rec.qzScores[idx]) : v))
+        if (Array.isArray(rec.actScores) && rec.actScores.length) {
+          const base = r.actInputs.slice()
+          while (base.length < needAct) base.push('')
+          nr.actInputs = base.map((v, idx) => (rec.actScores[idx] != null ? String(rec.actScores[idx]) : v))
+        }
+        if (Array.isArray(rec.qzScores) && rec.qzScores.length) {
+          const base = r.qzInputs.slice()
+          while (base.length < needQz) base.push('')
+          nr.qzInputs = base.map((v, idx) => (rec.qzScores[idx] != null ? String(rec.qzScores[idx]) : v))
+        }
         if (rec.attitude != null) nr.attitude = String(rec.attitude)
         if (rec.mtExam != null) nr.midtermExam = String(rec.mtExam)
         if (rec.ftExam != null) nr.finalsExam = String(rec.ftExam)
