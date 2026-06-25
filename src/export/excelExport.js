@@ -14,7 +14,7 @@ import {
 import { sortByLastName } from '@/utils/format.js'
 import { splitStudentName, buildStudentName } from '@/utils/studentName.js'
 import { courseShort } from '@/utils/groupChat.js'
-import { courseFromShort } from '@/constants/courses.js'
+import { courseFromShort, COURSES } from '@/constants/courses.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -566,13 +566,11 @@ function rosterData(students, classes) {
     const n = splitStudentName(s.name)
     return [idx + 1, s.id, n.last, n.first, n.middle, courseShort(s.course) || s.course || '', s.year || '', s.dob || '', subjects, primary?.section || '']
   })
-  // Dropdown sources.
+  // Dropdown sources — NOT the column data. Subjects = the distinct subjects that
+  // actually exist across the app's classes. Courses = the canonical short codes
+  // only (BSEMC / BSIT / BSIS / BSCS), derived from the official course list.
   const allSubjects = [...new Set((classes || []).flatMap(c => c.subjects || []))].filter(Boolean).sort()
-  const courseShorts = (() => {
-    const set = new Set((classes || []).map(c => courseShort(c.course || c.name)).filter(Boolean))
-    ;['BSEMC', 'BSIT', 'BSIS', 'BSCS'].forEach(cs => set.add(cs))
-    return [...set]
-  })()
+  const courseShorts = [...new Set(COURSES.map(c => courseShort(c)).filter(Boolean))]
   const widths = [4, 14, 18, 18, 6, 20, 12, 14, 40, 12]
   const fileName = `StudentRoster_${new Date().toISOString().slice(0, 10)}.xlsx`
   const pwGuide = [
@@ -606,28 +604,28 @@ async function rosterExcelJS(ExcelJS, ctx) {
   ws.autoFilter = { from: { row: 11, column: 1 }, to: { row: lastDataRow, column: headers.length } }
 
   // Dropdowns over the data rows + trailing blanks (so new entries get them too).
-  // Course is a short set → INLINE list (most compatible). Subjects can be many /
-  // long → a VISIBLE "Lists" sheet range. (A HIDDEN source sheet stops Excel from
-  // showing the dropdown — that was the earlier bug.)
+  // Both reference the VISIBLE "Lists" sheet (a hidden source stops Excel showing
+  // the dropdown): col A = the app's existing class subjects, col B = the four
+  // course codes only.
   const dvLast = lastDataRow + 5
-  const courseInline = courseShorts.length ? `"${courseShorts.join(',')}"` : null
-  const subjRef = allSubjects.length ? `Lists!$A$2:$A$${1 + allSubjects.length}` : null
+  const subjRef   = allSubjects.length  ? `Lists!$A$2:$A$${1 + allSubjects.length}`  : null
+  const courseRef = courseShorts.length ? `Lists!$B$2:$B$${1 + courseShorts.length}` : null
   for (let r = 12; r <= dvLast; r++) {
-    if (courseInline) ws.getCell(r, 6).dataValidation = { type: 'list', allowBlank: true, showErrorMessage: false, formulae: [courseInline] }
-    if (subjRef)      ws.getCell(r, 9).dataValidation = { type: 'list', allowBlank: true, showErrorMessage: false, formulae: [subjRef] }
+    if (courseRef) ws.getCell(r, 6).dataValidation = { type: 'list', allowBlank: true, showErrorMessage: false, formulae: [courseRef] }
+    if (subjRef)   ws.getCell(r, 9).dataValidation = { type: 'list', allowBlank: true, showErrorMessage: false, formulae: [subjRef] }
   }
 
   const wsPw = wb.addWorksheet('Password Guide')
   pwGuide.forEach(r => wsPw.addRow(r))
   wsPw.getColumn(1).width = 60
 
-  // Visible source sheet for the subject dropdown (referenced above by name).
-  if (allSubjects.length) {
-    const wsList = wb.addWorksheet('Lists')
-    wsList.addRow(['Class Subjects (dropdown source — do not delete)'])
-    allSubjects.forEach(sub => wsList.addRow([sub]))
-    wsList.getColumn(1).width = 44
-  }
+  // Visible source sheet feeding the dropdowns (referenced above by name).
+  const wsList = wb.addWorksheet('Lists')
+  wsList.addRow(['Class Subjects', 'Courses'])
+  const maxLen = Math.max(allSubjects.length, courseShorts.length)
+  for (let i = 0; i < maxLen; i++) wsList.addRow([allSubjects[i] || '', courseShorts[i] || ''])
+  wsList.getColumn(1).width = 44
+  wsList.getColumn(2).width = 12
 
   const buf = await wb.xlsx.writeBuffer()
   downloadBlob(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), fileName)
