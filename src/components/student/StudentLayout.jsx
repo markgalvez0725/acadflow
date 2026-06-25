@@ -18,7 +18,29 @@ import { activeClasses, activeClassIds, activeSubjects } from '@/utils/active'
 import { studentSeesMessage } from '@/utils/studentMessages'
 import { computePassedSubjects } from '@/utils/passedSubjects'
 import { isNotifAllowed } from '@/utils/notifPrefs'
-import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare, Library, ListChecks, MessageSquarePlus } from 'lucide-react'
+import { isPendingVerification } from '@/utils/accountStatus'
+import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare, Library, ListChecks, MessageSquarePlus, ShieldCheck, Hourglass } from 'lucide-react'
+
+// Tabs hidden until a self-registered student is verified (grade-bearing only).
+const PENDING_GATED_TABS = new Set(['grades', 'quizzes', 'activities', 'assignments'])
+
+// Shown in place of a gated tab while a student is awaiting verification.
+function PendingVerificationGate({ onContact }) {
+  return (
+    <div className="empty" style={{ padding: '40px 16px', textAlign: 'center', maxWidth: 460, margin: '0 auto' }}>
+      <div className="empty-icon" style={{ color: 'var(--yellow)' }}><Hourglass size={40} /></div>
+      <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--ink)', marginTop: 4 }}>Awaiting verification</div>
+      <p style={{ fontSize: 13.5, color: 'var(--ink2)', lineHeight: 1.6, marginTop: 8 }}>
+        Your account is being verified against the class roster. Grades, quizzes,
+        and activities unlock as soon as your teacher confirms you — usually quick.
+        You can keep using the rest of the portal in the meantime.
+      </p>
+      <button className="btn btn-ghost btn-sm" style={{ marginTop: 14 }} onClick={onContact}>
+        <MessageSquare size={14} /> Message your teacher
+      </button>
+    </div>
+  )
+}
 
 // Lazy-load tabs
 const StreamTab        = lazy(() => import('./tabs/StreamTab'))
@@ -106,6 +128,9 @@ export default function StudentLayout() {
   // Multi-class: track which class is being viewed. Only current-semester,
   // non-archived classes appear — previous/ended semesters are hidden.
   const enrolledClasses = student ? activeClasses(student, classes, semester) : []
+
+  // Self-registered, not yet verified → limited access (grade tabs gated).
+  const pendingVerify = isPendingVerification(student)
 
   const [viewClassId, setViewClassId] = useState(null)
   const effectiveClassId = viewClassId || enrolledClasses[0]?.id || null
@@ -427,8 +452,18 @@ export default function StudentLayout() {
         {/* Tab content */}
         <main className="admin-body" id="main-content" tabIndex={-1}>
           <InstallPrompt />
+          {pendingVerify && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', marginBottom: 14, borderRadius: 12, border: '1px solid var(--border)', background: 'rgba(234,179,8,.12)', color: 'var(--ink)' }}>
+              <Hourglass size={16} style={{ color: 'var(--yellow)', flexShrink: 0 }} />
+              <span style={{ fontSize: 13, lineHeight: 1.5 }}>
+                <strong>Account awaiting verification.</strong> You have limited access until your teacher confirms you — grades, quizzes and activities unlock then.
+              </span>
+            </div>
+          )}
           <TabErrorBoundary key={studentTab}>
             <Suspense fallback={<SkeletonRows />}>
+              {pendingVerify && PENDING_GATED_TABS.has(studentTab) && <PendingVerificationGate onContact={() => setStudentTab('messages')} />}
+              {(!pendingVerify || !PENDING_GATED_TABS.has(studentTab)) && <>
               {studentTab === 'stream'        && <StreamTab        student={student} viewClassId={effectiveClassId} classes={classes} />}
               {studentTab === 'overview'      && <OverviewTab      student={student} viewClassId={effectiveClassId} classes={classes} />}
               {studentTab === 'grades'        && <GradesTab        student={student} viewClassId={effectiveClassId} classes={classes} />}
@@ -443,6 +478,7 @@ export default function StudentLayout() {
               {studentTab === 'messages'      && <MessagesTab      student={student} messages={messages} />}
               {studentTab === 'resources'     && <ResourcesTab     student={student} viewClassId={effectiveClassId} classes={classes} />}
               {studentTab === 'feedback'      && <FeedbackTab      student={student} />}
+              </>}
             </Suspense>
           </TabErrorBoundary>
         </main>
