@@ -28,11 +28,30 @@ export const ACCOUNT_STATUS = {
 }
 
 // The state key for a student: 'none' | 'pending' | 'active'.
+//
+// A self-registered account is now also gated on IDENTITY VERIFICATION: it is
+// Active only once `account.verified` is true (set server-side by the AI gate or
+// by a teacher) AND the student owns their password. Legacy accounts have no
+// `verified` field — they are grandfathered (treated as verified) so existing
+// students never flip back to Pending. Only `verified === false` (a brand-new
+// self-registration awaiting verification) holds an account in Pending.
 export function accountStatusKey(student) {
   const a = student?.account
   if (!a?.registered) return 'none'
-  if (a.activated && !a._tempPass) return 'active'
+  const verifiedOk = a.verified !== false // true OR undefined(legacy) → ok
+  if (a.activated && !a._tempPass && verifiedOk) return 'active'
   return 'pending'
+}
+
+// True when a student is registered but is specifically awaiting identity
+// verification (vs. a teacher-temp-password pending). Drives the teacher queue.
+export function isPendingVerification(student) {
+  return student?.account?.registered === true && student?.account?.verified === false
+}
+
+// The stored AI/teacher verification record, or null.
+export function verificationInfo(student) {
+  return student?.account?.verification || null
 }
 
 // Full descriptor { key, label, variant, rank } for a student.
