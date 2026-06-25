@@ -62,6 +62,18 @@ service cloud.firestore {
              .affectedKeys().hasAny(['grades', 'gradeComponents']);
     }
 
+    // True when a write does NOT change account.verified. Identity verification
+    // is server/teacher authority only — a student's own device must never be
+    // able to flip itself to "verified" (that gate guards portal access). The
+    // new value must equal the prior value (defaulting false), so a student can
+    // create/update their account but can't set verified=true themselves.
+    function accountVerifyUntouched() {
+      return !('account' in request.resource.data)
+        || request.resource.data.account.get('verified', false) ==
+           ((resource != null && 'account' in resource.data)
+              ? resource.data.account.get('verified', false) : false);
+    }
+
     // ── Student records ───────────────────────────────────────────────────
     // Read: any signed-in user (the app listens to the whole collection).
     // Create/Delete: teacher only (prevents forging or wiping records).
@@ -72,7 +84,7 @@ service cloud.firestore {
       allow read:   if signedIn();
       allow create: if isAdmin();
       allow delete: if isAdmin();
-      allow update: if isAdmin() || (signedIn() && gradeFieldsUntouched());
+      allow update: if isAdmin() || (signedIn() && gradeFieldsUntouched() && accountVerifyUntouched());
     }
 
     // ── Teacher-only configuration ────────────────────────────────────────

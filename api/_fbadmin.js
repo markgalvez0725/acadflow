@@ -228,6 +228,59 @@ export async function deleteResetSession(projectId, accessToken, docId) {
   return true
 }
 
+// Read a students/{docId} roster doc → { name, course, year, section, account }
+// (only the fields the identity scorer needs). null if the doc doesn't exist.
+export async function getStudentRoster(projectId, accessToken, docId) {
+  const r = await fetch(`${fsBase(projectId)}/students/${encodeURIComponent(docId)}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (r.status === 404) return null
+  const data = await r.json()
+  if (!r.ok) throw new Error(data?.error?.message || 'Student read failed')
+  const f = data.fields || {}
+  const str = x => (x && typeof x.stringValue === 'string') ? x.stringValue : null
+  const acct = f.account?.mapValue?.fields || {}
+  return {
+    name: str(f.name), course: str(f.course), year: str(f.year), section: str(f.section),
+    account: {
+      registered: acct.registered?.booleanValue === true,
+      verified: acct.verified?.booleanValue,
+    },
+  }
+}
+
+// Set account.verified + account.verification on a student doc (admin write,
+// bypasses rules). Uses field-path masks so the rest of the account map is kept.
+export async function patchStudentVerification(projectId, accessToken, docId, { verified, verification }) {
+  const vfFields = {}
+  for (const k of ['name', 'course', 'year', 'section']) {
+    if (verification?.fields && verification.fields[k] != null) {
+      vfFields[k] = { integerValue: String(verification.fields[k]) }
+    }
+  }
+  const verificationValue = {
+    mapValue: { fields: {
+      method: { stringValue: String(verification?.method || 'ai') },
+      confidence: { integerValue: String(verification?.confidence ?? 0) },
+      at: { integerValue: String(verification?.at ?? Date.now()) },
+      fields: { mapValue: { fields: vfFields } },
+    } },
+  }
+  const url = `${fsBase(projectId)}/students/${encodeURIComponent(docId)}`
+    + `?updateMask.fieldPaths=account.verified&updateMask.fieldPaths=account.verification`
+  const r = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ fields: { account: { mapValue: { fields: {
+      verified: { booleanValue: !!verified },
+      verification: verificationValue,
+    } } } } }),
+  })
+  const data = await r.json()
+  if (!r.ok) throw new Error(data?.error?.message || 'Verification write failed')
+  return true
+}
+
 // ── Temp password generator (policy: 8 chars, upper + lower + digit) ───────
 export function generateTempPassword() {
   const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
