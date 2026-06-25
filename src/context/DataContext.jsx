@@ -307,16 +307,17 @@ export function DataProvider({ children }) {
     return sentIds.length
   }, [students, saveStudents])
 
-  // Re-verify incomplete active accounts: demote each selected account back to
-  // PENDING (account.verified = false) AND nudge it to finish the profile, in one
-  // pass. Demotion is coupled to a SUCCESSFUL nudge — an account is only sent to
-  // pending if its notification was delivered, so a student never silently loses
-  // grade access without being told why. When they complete the profile, the
+  // Re-verify incomplete active accounts: demote each selected REGISTERED account
+  // back to PENDING (account.verified = false) AND nudge it to finish the profile.
+  // The demotion is the primary action and always runs — the student sees the
+  // in-app pending gate explaining the paused access, so it is never truly silent.
+  // The notification is best-effort: it is NOT gated on delivery (the per-day
+  // dedup in fbPushReminderNotif would otherwise wrongly block the demotion when a
+  // student was already nudged today). When the student completes the profile, the
   // Edit-Profile save re-runs the AI check and can auto-activate them. Returns the
-  // number demoted+nudged. Admin-only.
+  // number demoted. Admin-only.
   const bulkDemoteAndNudge = useCallback(async (ids) => {
     const db = dbRef.current
-    if (!db) return 0
     const idSet = new Set((ids || []).filter(Boolean))
     if (!idSet.size) return 0
     const now = Date.now()
@@ -328,18 +329,17 @@ export function DataProvider({ children }) {
       body: 'Some details are incomplete, so full access is paused. Tap to update your profile — it can be restored automatically.',
       link: 'profile',
     }
-    const sentIds = []
-    for (const id of idSet) {
-      try { if (await fbPushReminderNotif(db, id, rem)) sentIds.push(id) } catch (_) { /* leave active — retry later */ }
-    }
-    if (!sentIds.length) return 0
-    const sent = new Set(sentIds)
-    const updated = students.map(s => (sent.has(s.id) && s.account?.registered)
+    const targetIds = students.filter(s => idSet.has(s.id) && s.account?.registered).map(s => s.id)
+    if (!targetIds.length) return 0
+    const target = new Set(targetIds)
+    const updated = students.map(s => target.has(s.id)
       ? { ...s, account: { ...s.account, verified: false, profileNudgedAt: now,
           verification: { ...(s.account.verification || {}), method: 'teacher-recheck', reason: 'incomplete-profile', at: now } } }
       : s)
-    await saveStudents(updated, sentIds)
-    return sentIds.length
+    await saveStudents(updated, targetIds)
+    // Best-effort notify — does not affect the demotion result.
+    if (db) for (const id of targetIds) { try { await fbPushReminderNotif(db, id, rem) } catch (_) { /* in-app pending gate still informs them */ } }
+    return targetIds.length
   }, [students, saveStudents])
 
   // Append an entry to the admin audit log. Fire-and-forget — callers should

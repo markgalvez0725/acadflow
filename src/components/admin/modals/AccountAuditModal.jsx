@@ -71,7 +71,7 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
     setBusy(true)
     try {
       const n = await bulkDemoteAndNudge(demoteList.map(t => t.id))
-      toast(n ? `${n} account${n > 1 ? 's' : ''} set to pending and nudged.` : 'Could not reach those students — nothing changed.', n ? 'green' : 'blue')
+      toast(n ? `${n} account${n > 1 ? 's' : ''} set to pending and nudged.` : 'No eligible accounts to update.', n ? 'green' : 'blue')
     } catch (e) { toast('Failed: ' + e.message, 'red') } finally { setBusy(false) }
   }
 
