@@ -62,16 +62,17 @@ service cloud.firestore {
              .affectedKeys().hasAny(['grades', 'gradeComponents']);
     }
 
-    // True when a write does NOT change account.verified. Identity verification
-    // is server/teacher authority only — a student's own device must never be
-    // able to flip itself to "verified" (that gate guards portal access). The
-    // new value must equal the prior value (defaulting false), so a student can
-    // create/update their account but can't set verified=true themselves.
-    function accountVerifyUntouched() {
+    // Identity verification is server/teacher authority only — a student's own
+    // device must never be able to FORGE itself to "verified" (that gate guards
+    // portal access). We block only the upgrade to verified=true when it wasn't
+    // already true; leaving it false/absent or keeping an existing true is fine.
+    // (Allowing harmless "downgrades" avoids denying ordinary student writes that
+    // carry a slightly stale local copy of the account.)
+    function accountVerifyNotForged() {
       return !('account' in request.resource.data)
-        || request.resource.data.account.get('verified', false) ==
-           ((resource != null && 'account' in resource.data)
-              ? resource.data.account.get('verified', false) : false);
+        || request.resource.data.account.get('verified', false) != true
+        || (resource != null && 'account' in resource.data
+            && resource.data.account.get('verified', false) == true);
     }
 
     // ── Student records ───────────────────────────────────────────────────
@@ -84,7 +85,7 @@ service cloud.firestore {
       allow read:   if signedIn();
       allow create: if isAdmin();
       allow delete: if isAdmin();
-      allow update: if isAdmin() || (signedIn() && gradeFieldsUntouched() && accountVerifyUntouched());
+      allow update: if isAdmin() || (signedIn() && gradeFieldsUntouched() && accountVerifyNotForged());
     }
 
     // ── Teacher-only configuration ────────────────────────────────────────
