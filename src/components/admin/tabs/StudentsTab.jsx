@@ -727,6 +727,7 @@ function parseCSV(text) {
     name:      ['fullname', 'name', 'studentname'],
     course:    ['course', 'courseprogram', 'program', 'coursename'],
     year:      ['yearlevel', 'year', 'yearlvl'],
+    section:   ['section', 'sec'],
     dob:       ['dateofbirth', 'dob', 'birthdate', 'birthday'],
     mobile:    ['mobile', 'mobilenumber', 'phone', 'contact'],
   }
@@ -738,7 +739,7 @@ function parseCSV(text) {
     const get = k => idxs[k] >= 0 ? (v[idxs[k]] || '').trim() : ''
     // Separate Surname / First / M.I. columns win; fall back to a single Full Name.
     const composed = buildStudentName(get('surname'), get('firstname'), get('mi'))
-    return { id: get('id'), name: composed || get('name'), course: courseFromShort(get('course')), year: get('year'), dob: get('dob'), mobile: get('mobile') }
+    return { id: get('id'), name: composed || get('name'), course: courseFromShort(get('course')), year: get('year'), section: get('section'), dob: get('dob'), mobile: get('mobile') }
   }).filter(r => Object.values(r).some(v => v))
 }
 

@@ -732,7 +732,7 @@ export async function exportStudentImportTemplate({ classes = [] } = {}) {
   const notes = [
     'Notes:',
     '• Required: "Student No." and "Surname" + "First Name" (M.I. optional). Course is recommended.',
-    '• Course & Year Level have dropdowns — pick from the list; Section drives class enrollment.',
+    '• Course & Year Level have dropdowns — pick from the list. Course + Year + Section decide which classes a student can be enrolled in.',
     '• Default password for imported students: Welcome@2026 (changed on first login).',
     '• Keep or delete the example row — rows with errors are skipped on import.',
   ]
