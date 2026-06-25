@@ -3,7 +3,7 @@ import { ShieldCheck, AlertTriangle, CheckCircle2, ChevronRight, BellRing } from
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { auditAccounts, legacyActiveIds, nudgeTargets } from '@/utils/accountAudit'
+import { auditAccounts, legacyActiveIds, nudgeTargets, incompleteProfiles } from '@/utils/accountAudit'
 
 // Teacher-side analyzer for EXISTING accounts (the AI identity check only runs at
 // registration). Shows verification coverage + flags integrity anomalies, with a
@@ -15,7 +15,11 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
 
   const { coverage, registeredCount, flags } = useMemo(() => auditAccounts(students, classes), [students, classes])
   const legacyIds = useMemo(() => legacyActiveIds(students), [students])
-  const nudgeList = useMemo(() => nudgeTargets(students), [students])
+  // Whole-roster scan (active accounts included): every incomplete profile, and
+  // the subset eligible to nudge right now (the rest are within their cooldown).
+  const incomplete = useMemo(() => incompleteProfiles(students), [students])
+  const nudgeList  = useMemo(() => nudgeTargets(students), [students])
+  const alreadyNudged = incomplete.length - nudgeList.length
 
   async function markLegacyVerified() {
     if (!legacyIds.length) return
@@ -43,7 +47,7 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
     setBusy(true)
     try {
       const n = await bulkNudgeProfiles(nudgeList.map(t => t.id))
-      toast(n ? `Nudge sent to ${n} student${n > 1 ? 's' : ''}.` : 'Everyone was already nudged today.', n ? 'green' : 'blue')
+      toast(n ? `Nudge sent to ${n} student${n > 1 ? 's' : ''}.` : 'Everyone was already nudged.', n ? 'green' : 'blue')
     } catch (e) { toast('Failed: ' + e.message, 'red') } finally { setBusy(false) }
   }
 
@@ -67,18 +71,33 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
         ))}
       </div>
 
-      {(legacyIds.length > 0 || nudgeList.length > 0) && (
-        <div className="flex flex-wrap gap-2 mb-3">
+      {(legacyIds.length > 0 || incomplete.length > 0) && (
+        <div className="flex flex-wrap items-center gap-2 mb-3">
           {legacyIds.length > 0 && (
             <button className="btn btn-ghost btn-sm" disabled={busy} onClick={markLegacyVerified}>
               <ShieldCheck size={14} /> Mark all {legacyIds.length} legacy account{legacyIds.length > 1 ? 's' : ''} verified
             </button>
           )}
-          {nudgeList.length > 0 && (
-            <button className="btn btn-ghost btn-sm" disabled={busy} onClick={nudgeProfiles}>
-              <BellRing size={14} /> Nudge {nudgeList.length} student{nudgeList.length > 1 ? 's' : ''} to finish profile
+          {incomplete.length > 0 && (
+            <button
+              className="btn btn-ghost btn-sm"
+              disabled={busy || nudgeList.length === 0}
+              onClick={nudgeProfiles}
+              title={nudgeList.length === 0 ? 'Everyone with an incomplete profile has already been nudged.' : undefined}
+            >
+              <BellRing size={14} /> {nudgeList.length > 0
+                ? `Nudge ${nudgeList.length} student${nudgeList.length > 1 ? 's' : ''} to finish profile`
+                : 'All flagged students nudged'}
             </button>
           )}
+        </div>
+      )}
+
+      {incomplete.length > 0 && (
+        <div className="text-[11px] text-ink3 mb-3" style={{ marginTop: -4 }}>
+          {incomplete.length} incomplete profile{incomplete.length !== 1 ? 's' : ''} across the roster
+          {alreadyNudged > 0 && <> · {alreadyNudged} already nudged (re-eligible after a week if still incomplete)</>}
+          {nudgeList.length > 0 && <> · {nudgeList.length} awaiting a nudge</>}
         </div>
       )}
 

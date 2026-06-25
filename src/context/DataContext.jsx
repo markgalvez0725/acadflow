@@ -274,14 +274,18 @@ export function DataProvider({ children }) {
 
   // Bulk "complete your profile" nudge. Writes an in-app notification to each
   // student that deep-links straight into Edit Profile, where saving re-runs the
-  // AI identity check and can auto-activate them. Idempotent per day (a stable
-  // remKey dedups same-day double clicks). Returns how many were newly sent.
+  // AI identity check and can auto-activate them. Each successfully-notified
+  // student is stamped with account.profileNudgedAt, which drops them out of the
+  // nudge target set (so the button disables once everyone flagged is notified)
+  // until the cooldown elapses. Students that failed to notify are NOT stamped,
+  // so they remain eligible for a retry. Returns how many were notified.
   const bulkNudgeProfiles = useCallback(async (ids) => {
     const db = dbRef.current
     if (!db) return 0
     const idList = [...new Set((ids || []).filter(Boolean))]
     if (!idList.length) return 0
-    const dayKey = new Date().toISOString().slice(0, 10)
+    const now = Date.now()
+    const dayKey = new Date(now).toISOString().slice(0, 10)
     const rem = {
       remKey: `profile-verify-${dayKey}`,
       type: 'profile',
@@ -289,12 +293,19 @@ export function DataProvider({ children }) {
       body: 'Tap to review your profile. Confirming your details can unlock full access automatically.',
       link: 'profile',
     }
-    let sent = 0
+    const sentIds = []
     for (const id of idList) {
-      try { if (await fbPushReminderNotif(db, id, rem)) sent++ } catch (_) { /* best-effort */ }
+      try { if (await fbPushReminderNotif(db, id, rem)) sentIds.push(id) } catch (_) { /* best-effort — leave unstamped to retry */ }
     }
-    return sent
-  }, [])
+    if (sentIds.length) {
+      const sent = new Set(sentIds)
+      const updated = students.map(s => sent.has(s.id)
+        ? { ...s, account: { ...(s.account || {}), profileNudgedAt: now } }
+        : s)
+      await saveStudents(updated, sentIds)
+    }
+    return sentIds.length
+  }, [students, saveStudents])
 
   // Append an entry to the admin audit log. Fire-and-forget — callers should
   // not await this in a way that blocks the primary action.

@@ -69,29 +69,55 @@ export function auditAccounts(students = [], classes = []) {
   return { coverage, registeredCount: registered.length, flags }
 }
 
-// Accounts a "complete your profile" nudge can actually help: REACHABLE (the
-// student has claimed the account — registered, activated, off the temp password
-// — so they can sign in and see an in-app notification) AND has a gap the student
-// can FIX THEMSELVES in Edit Profile (awaiting verification, no photo, or a name
-// without a surname). Deliberately excludes the never-logged-in / temp-password
-// crowd: a notification can't reach them, and their gaps (course/year/section)
-// are teacher-owned and locked on the student side — those need the bulk
-// "Verify & activate" action instead. Pure + deterministic.
-export function nudgeTargets(students = []) {
+// Re-nudge cooldown: once a student is nudged we stamp account.profileNudgedAt
+// and exclude them from the target set until this window elapses. That makes the
+// teacher's "Nudge" button disable as soon as everyone flagged has been notified,
+// and re-enable later only for students who are NEW (never stamped) or who are
+// still incomplete after the cooldown. Tunable in one place.
+export const NUDGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
+
+// Whether a notification can even reach this account: the student has claimed it
+// (registered + activated + off the temp password) so they can sign in and see an
+// in-app notification. The never-logged-in / temp-password crowd is unreachable.
+export function isReachable(s) {
+  const a = s?.account || {}
+  return !!(a.registered && a.activated && !a._tempPass)
+}
+
+// The profile gaps a student can FIX THEMSELVES in Edit Profile — awaiting
+// verification, no photo, or a name without a surname. (Course/year/section are
+// teacher-owned and locked on the student side, so they are NOT listed here.)
+// Empty array → nothing for the student to do. Pure + deterministic.
+export function profileGapReasons(s) {
+  const reasons = []
+  if (isPendingVerification(s)) reasons.push('Awaiting verification — confirm your details')
+  if (!s.photo) reasons.push('No profile photo')
+  if (String(s.name || '').trim() && !String(s.name).includes(',')) reasons.push('Name is missing a surname')
+  return reasons
+}
+
+// EVERY reachable account with a self-fixable gap — scanned across the WHOLE
+// roster, active accounts included (an active student can still be missing a
+// photo). This is the "audit" view: how many profiles are incomplete right now,
+// regardless of whether they've been nudged. Each entry carries `nudgedAt` so the
+// UI can show who is still awaiting a first nudge vs. already notified.
+export function incompleteProfiles(students = []) {
   const out = []
   for (const s of students) {
-    const a = s.account || {}
-    const reachable = a.registered && a.activated && !a._tempPass
-    if (!reachable) continue
-
-    const reasons = []
-    if (isPendingVerification(s)) reasons.push('Awaiting verification — confirm your details')
-    if (!s.photo) reasons.push('No profile photo')
-    if (String(s.name || '').trim() && !String(s.name).includes(',')) reasons.push('Name is missing a surname')
-
-    if (reasons.length) out.push({ id: s.id, name: s.name || s.id, reasons })
+    if (!isReachable(s)) continue
+    const reasons = profileGapReasons(s)
+    if (reasons.length) out.push({ id: s.id, name: s.name || s.id, reasons, nudgedAt: s.account?.profileNudgedAt || 0 })
   }
   return out
+}
+
+// The accounts the Nudge button should actually message right now: incomplete
+// profiles MINUS anyone nudged within the cooldown. Empty → button disables
+// (everyone flagged has been notified). New/changed students with no recent stamp
+// flow back in automatically on the next (live) audit pass. `now` is injectable
+// for testing. Pure + deterministic.
+export function nudgeTargets(students = [], now = Date.now()) {
+  return incompleteProfiles(students).filter(t => !(t.nudgedAt && now - t.nudgedAt < NUDGE_COOLDOWN_MS))
 }
 
 // IDs of grandfathered accounts — registered + active but never AI/teacher
