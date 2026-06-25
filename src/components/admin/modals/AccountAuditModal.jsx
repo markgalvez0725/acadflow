@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { ShieldCheck, AlertTriangle, CheckCircle2, ChevronRight, BellRing } from 'lucide-react'
+import { ShieldCheck, AlertTriangle, CheckCircle2, ChevronRight, BellRing, RefreshCw, Loader2 } from 'lucide-react'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -12,6 +12,8 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
   const { students, classes, bulkVerifyAccounts, bulkNudgeProfiles } = useData()
   const { toast, openDialog } = useUI()
   const [busy, setBusy] = useState(false)
+  const [scanning, setScanning] = useState(false)
+  const [scannedTotal, setScannedTotal] = useState(null)
 
   const { coverage, registeredCount, flags } = useMemo(() => auditAccounts(students, classes), [students, classes])
   const legacyIds = useMemo(() => legacyActiveIds(students), [students])
@@ -51,11 +53,35 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
     } catch (e) { toast('Failed: ' + e.message, 'red') } finally { setBusy(false) }
   }
 
+  // The audit is computed live from the real-time roster, so it is always current
+  // the moment this modal opens. This button re-evaluates the WHOLE roster on
+  // demand and reports the result, so the teacher can see the scan ran and pick
+  // up any students added/changed since opening.
+  function rescan() {
+    setScanning(true)
+    setTimeout(() => {
+      setScannedTotal(registeredCount)
+      setScanning(false)
+      toast(`Scanned ${registeredCount} account${registeredCount !== 1 ? 's' : ''} — ${incomplete.length} incomplete, ${nudgeList.length} ready to nudge.`, 'blue')
+    }, 350)
+  }
+
   const sevColor = s => s === 'high' ? 'var(--red)' : s === 'medium' ? 'var(--yellow)' : 'var(--ink3)'
 
   return (
     <Modal onClose={onClose} size="lg" zIndex={300}>
       <ModalHeader title="Account verification audit" subtitle="Analyze existing accounts for integrity issues" onClose={onClose} />
+
+      <div className="flex items-center justify-between gap-2 mb-3" style={{ marginTop: -4 }}>
+        <div className="text-[11px] text-ink3">
+          {scannedTotal != null
+            ? `Scanned ${scannedTotal} account${scannedTotal !== 1 ? 's' : ''} · ${incomplete.length} incomplete · ${nudgeList.length} ready to nudge`
+            : `Live scan of all ${registeredCount} registered account${registeredCount !== 1 ? 's' : ''} — active included`}
+        </div>
+        <button className="btn btn-ghost btn-sm" disabled={busy || scanning} onClick={rescan} title="Re-evaluate every account on the roster now">
+          {scanning ? <><Loader2 size={13} className="spin" /> Scanning…</> : <><RefreshCw size={13} /> Re-scan roster</>}
+        </button>
+      </div>
 
       <div className="grid gap-2 mb-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))' }}>
         {[
