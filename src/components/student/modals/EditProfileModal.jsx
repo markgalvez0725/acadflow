@@ -17,13 +17,22 @@ const YEAR_OPTIONS = ['1st Year', '2nd Year', '3rd Year', '4th Year']
 
 // Names are stored canonically as "Surname, First Middle". Split a stored name
 // back into parts for editing, and rebuild that exact structure on save.
+// The middle is an initial by convention, so only a trailing single-letter token
+// (e.g. the "G" in "Stephen Andrei G") is treated as the middle — the rest stays
+// in the first name, keeping two-word first names like "Stephen Andrei" intact.
 function parseStudentName(full) {
   const raw = (full || '').trim()
   if (!raw) return { surname: '', first: '', middle: '' }
   if (raw.includes(',')) {
     const [sur, rest = ''] = raw.split(/,(.+)/) // split on the FIRST comma only
     const parts = rest.trim().split(/\s+/).filter(Boolean)
-    return { surname: sur.trim(), first: parts[0] || '', middle: parts.slice(1).join(' ') }
+    let firstParts = parts, middle = ''
+    const lastTok = parts[parts.length - 1] || ''
+    if (parts.length >= 2 && /^[A-Za-z]\.?$/.test(lastTok)) {
+      middle = lastTok.replace(/\.$/, '') // trailing single letter → middle initial
+      firstParts = parts.slice(0, -1)
+    }
+    return { surname: sur.trim(), first: firstParts.join(' '), middle }
   }
   // No comma — structure unknown; seed the first-name field so nothing is lost.
   return { surname: '', first: raw, middle: '' }
