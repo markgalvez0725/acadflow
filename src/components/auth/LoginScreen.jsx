@@ -13,6 +13,7 @@ import { studentEmail, studentDocId } from '@/constants/auth'
 import { hashPassword, verifyPassword } from '@/utils/crypto'
 import { validateSnum, sanitizeSnum } from '@/utils/validate'
 import { SECURITY_QUESTIONS } from '@/utils/securityQuestions'
+import { scoreIdentity, describeFields } from '@/utils/identityVerify'
 import { courseOptions } from '@/constants/courses'
 import LoadingButton from '@/components/primitives/LoadingButton'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
@@ -81,7 +82,6 @@ export default function LoginScreen({ onRevealFaculty }) {
   const [regCourse,  setRegCourse]  = useState('')
   const [regYear,    setRegYear]    = useState('1st Year')
   const [regSection, setRegSection] = useState('')
-  const [regEmail,   setRegEmail]   = useState('')
   const [regPass,    setRegPass]    = useState('')
   const [regPass2,   setRegPass2]   = useState('')
 
@@ -271,7 +271,6 @@ export default function LoginScreen({ onRevealFaculty }) {
     const nameVal = `${surname}, ${given}`
     if (!regCourse.trim()) return setErr('Please enter your course/program.')
     if (!regSection.trim()) return setErr('Please enter your section.')
-    if (!regEmail.includes('@')) return setErr('Please enter a valid email address.')
     if (regPass.length < 8) return setErr('Password must be at least 8 characters.')
     if (!/[A-Z]/.test(regPass) || !/[0-9]/.test(regPass))
       return setErr('Password must include at least one uppercase letter and one number.')
@@ -315,28 +314,26 @@ export default function LoginScreen({ onRevealFaculty }) {
         return setErr('⛔ An account already exists for this student number. Switch to "Sign In".')
       }
 
-      // 3) Verify identity against the roster (name + course + year + section).
-      const norm        = v => (v == null ? '' : String(v)).trim().toLowerCase().replace(/\s+/g, ' ')
-      const normName    = v => norm(v).replace(/\s*,\s*/g, ', ')   // forgiving on spacing/comma, strict on order
-      const normSection = v => norm(v).replace(/[\s\-_]/g, '')
-      const yearDigit   = v => { const m = String(v ?? '').match(/(\d)/); return m ? m[1] : null }
-      const rosterSection = roster.section || ''
-      const mismatch =
-        (roster.name   && normName(roster.name) !== normName(nameVal)) ? 'name' :
-        (roster.course && norm(roster.course) !== norm(regCourse)) ? 'course' :
-        (roster.year && yearDigit(roster.year) && yearDigit(roster.year) !== yearDigit(regYear)) ? 'year level' :
-        (rosterSection && normSection(rosterSection) !== normSection(regSection)) ? 'section' : null
-      if (mismatch) {
+      // 3) Score the entered identity against the roster (fuzzy, multi-signal).
+      const entered = { name: nameVal, course: regCourse.trim(), year: regYear, section: regSection.trim() }
+      const score = scoreIdentity(entered, roster)
+      if (score.verdict === 'block') {
         await deleteUser(createdUser).catch(() => {})
         await signOut(auth).catch(() => {})
-        return setErr(`⛔ The ${mismatch} you entered does not match our records for this student number. Please check your details or contact your teacher.`)
+        const detail = describeFields(score.fields)
+        return setErr(`⛔ Your details don't match our records for this student number${detail ? ` (${detail})` : ''}. Please check your name, course, year, and section, or contact your teacher.`)
       }
 
-      // 4) Mark the roster record registered + fill any blanks (authenticated write).
+      // 4) Create the account on the roster record. It starts PENDING:
+      //    `verified` is set to true only by the server gate below (strong match)
+      //    or by a teacher — never by this device. Writing it explicitly false
+      //    keeps the account pending even if the server is unreachable.
       const patch = {
         'account.registered': true,
         'account.activated': true,
-        'account.email': regEmail.trim(),
+        'account._tempPass': false,
+        'account.verified': false,
+        'account.verification': { method: 'ai', confidence: score.confidence ?? 0, fields: score.fields, at: Date.now() },
       }
       if (!roster.name)    patch.name    = nameVal
       if (!roster.course)  patch.course  = regCourse.trim()
@@ -344,10 +341,27 @@ export default function LoginScreen({ onRevealFaculty }) {
       if (!roster.section) patch.section = regSection.trim()
       await updateDoc(ref, patch)
 
-      // 5) Sign out so they sign in cleanly with their new password.
+      // 5) Server-side verification (authoritative). On a strong match the server
+      //    flips account.verified=true → the student is Active immediately. If the
+      //    endpoint is unconfigured/unreachable, the account stays Pending for the
+      //    teacher to approve — the student is never blocked.
+      let verified = false
+      try {
+        const idToken = await createdUser.getIdToken()
+        const resp = await fetch('/api/verify-account', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken, studentNumber: regSnum, ...entered }),
+        })
+        if (resp.ok) { const d = await resp.json().catch(() => ({})); verified = !!d.verified }
+      } catch (_) { /* leave pending — teacher will verify */ }
+
+      // 6) Sign out so they sign in cleanly with their new password.
       await signOut(auth).catch(() => {})
-      setOkMsg('✅ Account created! You can now sign in with your student number.')
-      setTimeout(() => { setMode('student'); clearMessages() }, 1800)
+      setOkMsg(verified
+        ? '✅ Verified! Sign in with your student number.'
+        : '✅ Account created. You can sign in now — full access unlocks once your teacher verifies you.')
+      setTimeout(() => { setMode('student'); clearMessages() }, 2400)
     } catch (err) {
       if (createdUser) { try { await deleteUser(createdUser) } catch (_) {} }
       try { await signOut(auth) } catch (_) {}
@@ -635,10 +649,6 @@ export default function LoginScreen({ onRevealFaculty }) {
 
               <div className="auth-section-label">Create your login</div>
 
-              <div className="field-float">
-                <input type="email" placeholder=" " value={regEmail} onChange={e => setRegEmail(e.target.value)} autoComplete="email" />
-                <label>Email Address</label>
-              </div>
               <div className="field-float">
                 <input
                   type={showRegPass ? 'text' : 'password'}
