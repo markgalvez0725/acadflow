@@ -42,6 +42,7 @@ export function deriveActivities(s, sub, activities = [], enrolledIds = enrolled
   const liveActs = (activities || []).filter(a => enrolledIds.includes(a.classId) && a.subject === sub)
   const liveActIds = new Set(liveActs.map(a => a.id))
 
+  const hadScores = !!(comp.activityScores && Object.keys(comp.activityScores).length)
   const panel = liveActs.map(a => ({
     id: a.id, title: a.title,
     score: (a.submissions || {})[s.id]?.score ?? null,
@@ -49,7 +50,7 @@ export function deriveActivities(s, sub, activities = [], enrolledIds = enrolled
   }))
   let items = panel.filter(a => a.score != null)
 
-  if (!items.length && comp.activityScores && Object.keys(comp.activityScores).length) {
+  if (!items.length && hadScores) {
     const entries = Object.entries(comp.activityScores)
     const idKeyed = entries.filter(([k]) => liveActIds.has(k))
     if (idKeyed.length) {
@@ -66,8 +67,11 @@ export function deriveActivities(s, sub, activities = [], enrolledIds = enrolled
   }
 
   const raw = items.length ? scoredPercent(items.map(i => ({ score: i.score, maxScore: i.max }))) : null
-  // Fall back to the teacher's stored aggregate only when nothing is derivable.
-  const pct = raw != null ? r2(raw) : (typeof comp.activities === 'number' ? comp.activities : null)
+  // Aggregate fallback ONLY when there was never per-activity data to reconcile.
+  // If there WAS (live submissions or cached per-activity scores) but it now
+  // reconciles to empty, the activities were deleted → no activity component.
+  const pct = raw != null ? r2(raw)
+    : (hadScores ? null : (typeof comp.activities === 'number' ? comp.activities : null))
   return { pct, items }
 }
 
@@ -79,6 +83,8 @@ export function deriveQuizzes(s, sub, quizzes = []) {
   const comp = s.gradeComponents?.[sub] || {}
   const liveQuizIds = new Set((quizzes || []).map(q => q.id))
 
+  const hadResults = (s.quizResults?.[sub] || []).length > 0
+  const hadScores = !!(comp.quizScores && Object.keys(comp.quizScores).length)
   const cached = (s.quizResults?.[sub] || [])
     .filter(e => !e?.quizId || liveQuizIds.has(e.quizId))
   let items = []
@@ -88,7 +94,7 @@ export function deriveQuizzes(s, sub, quizzes = []) {
       id: q.quizId || null, title: q.title || '',
       pct: q.pct ?? (q.score != null && q.total ? Math.round((q.score / q.total) * 100) : null),
     })).filter(q => q.pct != null)
-  } else if (comp.quizScores && Object.keys(comp.quizScores).length) {
+  } else if (hadScores) {
     const hasLive = liveQuizIds.size > 0
     const entries = Object.entries(comp.quizScores)
       .filter(([k]) => /^q\d+$/.test(k) ? !hasLive : liveQuizIds.has(k))
@@ -98,7 +104,11 @@ export function deriveQuizzes(s, sub, quizzes = []) {
   const raw = items.length
     ? items.reduce((t, q) => t + q.pct, 0) / items.length
     : null
-  const pct = raw != null ? r2(raw) : (typeof comp.quizzes === 'number' ? comp.quizzes : null)
+  // Aggregate fallback ONLY when there was never per-quiz data to reconcile. If
+  // there WAS (quiz results or per-quiz scores) but it reconciles to empty, the
+  // quizzes were deleted → no quiz component.
+  const pct = raw != null ? r2(raw)
+    : ((hadResults || hadScores) ? null : (typeof comp.quizzes === 'number' ? comp.quizzes : null))
   return { pct, items }
 }
 
@@ -211,4 +221,84 @@ function buildTrace({ act, qz, att, attitude, midtermExam, finalsExam, live, mid
     formula: overridden ? 'manual grade set by teacher' : 'average of Midterm Term and Finals Term' })
   steps.push({ key: 'equiv', label: 'Equivalent', value: equiv.eq, remark: equiv.rem })
   return steps
+}
+
+// ── Integrity auditor ──────────────────────────────────────────────────────
+// Compare the teacher's PUBLISHED grade against a fresh LIVE recompute. Drift
+// means the saved grade no longer matches the current inputs (e.g. a quiz was
+// deleted, an activity graded, attendance recorded) — the teacher should
+// recompute & re-publish. Only meaningful for already-published subjects.
+export function auditSubjectGrade(s, sub, ctx = {}) {
+  const published = computeSubjectGrade(s, sub, ctx, { mode: 'published' })
+  const live = computeSubjectGrade(s, sub, ctx, { mode: 'live' })
+  const stored = published.final
+  const fresh = live.final
+  const drift = published.published && stored != null && fresh != null
+    && Math.abs(stored - fresh) > 0.01
+
+  // Explain which component moved (stored teacher value vs live recompute).
+  const comp = s.gradeComponents?.[sub] || {}
+  const reasons = []
+  const cmp = (label, was, now) => {
+    if (was != null && now != null && Math.abs(was - now) > 0.01) reasons.push(`${label} changed (${was}% → ${now}%)`)
+    else if (was != null && now == null) reasons.push(`${label} removed`)
+    else if (was == null && now != null) reasons.push(`${label} now graded (${now}%)`)
+  }
+  cmp('Activities', comp.activities, live.components.activities)
+  cmp('Quizzes', comp.quizzes, live.components.quizzes)
+  cmp('Attendance', comp.attendance, live.components.attendance)
+
+  return {
+    drift,
+    published: published.published,
+    stored, live: fresh,
+    delta: (stored != null && fresh != null) ? r2(Math.abs(stored - fresh)) : null,
+    reasons,
+    publishedResult: published,
+    liveResult: live,
+  }
+}
+
+// Stable hash of the inputs that produced a grade — lets a published snapshot
+// detect when its inputs later changed (drift), and proves reproducibility.
+export function gradeInputHash(result) {
+  const c = result?.components || {}
+  const norm = v => (v == null ? '∅' : Number(v).toFixed(4))
+  const base = [c.activities, c.quizzes, c.attendance, c.attitude, result?.midterm, result?.finals, result?.final]
+    .map(norm).join(',')
+  let h = 0
+  for (let k = 0; k < base.length; k++) { h = (h * 31 + base.charCodeAt(k)) | 0 }
+  return 'g_' + (h >>> 0).toString(36)
+}
+
+// Deterministic, plain-language summary of a computed grade — grounded strictly
+// in the engine's numbers (no model, no invented values), so it can never
+// disagree with the figures shown. Powers the student "explain my grade" view.
+export function explainGradeText(result) {
+  if (!result) return ''
+  const c = result.components
+  const parts = []
+  if (c.activities != null) parts.push(`activities ${c.activities}%`)
+  if (c.quizzes != null)    parts.push(`quizzes ${c.quizzes}%`)
+  if (c.attendance != null) parts.push(`attendance ${c.attendance}%`)
+  if (c.attitude != null)   parts.push(`attitude ${c.attitude}%`)
+  let txt = ''
+  if (parts.length && result.cs != null) {
+    txt += `Your Class Standing is the average of ${parts.join(', ')} — that comes to ${result.cs}%. `
+  }
+  if (result.midterm != null && result.finals != null) {
+    txt += `Your Midterm Term (${result.midterm}%) and Finals Term (${result.finals}%) each average that Class Standing with the matching exam, and your Final Grade (${result.final}%) is the average of those two terms`
+  } else if (result.midterm != null) {
+    txt += `So far only the midterm is in: your Midterm Term is ${result.midterm}%`
+  } else if (result.final != null) {
+    txt += `Your current standing is ${result.final}%`
+  } else {
+    return 'Your grade has not been computed yet — no components have been recorded.'
+  }
+  if (result.equiv?.eq && result.equiv.eq !== '—') {
+    txt += `, equivalent to ${result.equiv.eq}${result.equiv.rem && result.equiv.rem !== 'No Grade' ? ` (${result.equiv.rem})` : ''}.`
+  } else {
+    txt += '.'
+  }
+  return txt
 }
