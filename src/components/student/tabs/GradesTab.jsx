@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react'
-import {
-  gradeInfo, combineEquiv, computeFinalGradeFromTerms,
-} from '@/utils/grades'
+import { gradeInfo, combineEquiv } from '@/utils/grades'
+import { computeSubjectGrade } from '@/utils/gradeEngine'
 import { useData } from '@/context/DataContext'
 import { BookOpen, Clock, ChevronDown, ChevronUp, Award, Check, RefreshCw, Target } from 'lucide-react'
 import { activeClassIds, activeSubjects } from '@/utils/active'
@@ -169,15 +168,21 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
   const [showTrail, setShowTrail] = useState(false)
 
   const comp = s.gradeComponents?.[sub] || {}
-  const midG = comp.midterm ?? null      // midterm TERM grade %
-  const finG = comp.finals  ?? null      // finals  TERM grade %
+  const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
+
+  // Single source of truth: every number shown for this subject comes from the
+  // one GradeEngine, so the student page agrees with the teacher's gradebook and
+  // the exports to the last decimal. Components are reconciled against the live
+  // activities/quizzes/attendance, so a deleted item never lingers.
+  const gr = computeSubjectGrade(s, sub, { activities, quizzes, students, classes, eqScale, enrolledIds })
+
+  const midG = gr.midterm          // midterm TERM grade %
+  const finG = gr.finals           // finals  TERM grade %
   const midExamRaw = comp.midtermExam ?? null  // raw midterm exam score
   const finExamRaw = comp.finalsExam  ?? null  // raw finals  exam score
-  const ts   = s.gradeUploadedAt?.[sub]
-
-  const gradeFullyUploaded = midG != null && finG != null && ts
-  const derivedFinalPct = computeFinalGradeFromTerms(midG, finG)
-  const g = derivedFinalPct ?? s.grades?.[sub] ?? null
+  const ts   = gr.uploadedAt
+  const gradeFullyUploaded = gr.published
+  const g = gr.final
 
   const tsLabel = ts
     ? <span className="sg-upload-status sg-upload-status--done">
@@ -185,113 +190,24 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
       </span>
     : <span className="sg-upload-status">Pending upload</span>
 
-  const { eq, ltr, rem } = gradeFullyUploaded
-    ? combineEquiv(gradeInfo(midG, eqScale).eq, gradeInfo(finG, eqScale).eq)
-    : (midG != null && finG != null)
-      ? { ...combineEquiv(gradeInfo(midG, eqScale).eq, gradeInfo(finG, eqScale).eq), rem: 'Pending' }
-      : { eq: '—', ltr: '—', rem: 'Pending' }
-
+  const eq  = gr.equiv.eq
+  const ltr = gr.equiv.ltr
+  const rem = gradeFullyUploaded ? gr.equiv.rem : 'Pending'
   const remarksColor = rem === 'Passed' ? 'badge-green' : rem === 'Conditional' ? 'badge-yellow' : rem === 'Failed' ? 'badge-red' : 'badge-gray'
 
-  // Get all enrolled class IDs for multi-subject support
-  const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
+  // Class-standing components — all straight from the engine.
+  const actVal      = gr.components.activities
+  const quizzesAvg  = gr.components.quizzes
+  const attRate     = gr.components.attendance
+  const attitudeVal = gr.components.attitude
+  const cs          = gr.cs
+  const midEq = gr.equiv.midEq === '—' ? null : gr.equiv.midEq
+  const finEq = gr.equiv.finEq === '—' ? null : gr.equiv.finEq
 
-  // Activity display — reconciled against the *live* activities so an activity
-  // the teacher deletes stops counting toward the grade immediately (the cached
-  // gradeComponents.activityScores may still hold a stale id/positional key).
-  const liveActs = activities.filter(a => enrolledIds.includes(a.classId) && a.subject === sub)
-  const liveActIds = new Set(liveActs.map(a => a.id))
-  const panelActs = liveActs
-    .map(a => ({ title: a.title, score: (a.submissions || {})[s.id]?.score ?? null, max: a.maxScore || 100 }))
-  const hasGradedPanelActs = panelActs.some(a => a.score != null)
-
-  let displayActs = []
-  if (hasGradedPanelActs) {
-    displayActs = panelActs.filter(a => a.score != null)
-  } else if (comp.activityScores && Object.keys(comp.activityScores).length) {
-    const entries = Object.entries(comp.activityScores)
-    // Prefer id-keyed cached scores that still match a live activity.
-    const idKeyed = entries.filter(([k]) => liveActIds.has(k))
-    if (idKeyed.length) {
-      displayActs = idKeyed.map(([k, v]) => {
-        const a = liveActs.find(x => x.id === k)
-        return { title: a?.title || '', score: v, max: a?.maxScore || 100 }
-      })
-    } else if (!liveActs.length && entries.every(([k]) => /^a\d+$/.test(k))) {
-      // Legacy doc-less manual entry (teacher typed activity scores with no
-      // activity docs to delete) — safe to show the positional aggregate.
-      displayActs = entries
-        .sort((a, b) => parseInt(a[0].slice(1)) - parseInt(b[0].slice(1)))
-        .map(([k, v]) => ({ title: '', score: v, max: 100 }))
-    }
-    // Otherwise every cached score belongs to a deleted activity → show none.
-  }
-
-  // Normalize each activity to a percentage (score / its max * 100) before
-  // averaging — otherwise activities graded out of a max other than 100 (rubric
-  // totals) drag the average to raw points and disagree with the per-row %.
-  const scoredActs = displayActs.filter(a => a.score != null)
-  const panelActAvg = scoredActs.length
-    ? parseFloat((scoredActs.reduce((t, a) => t + (a.score / (a.max || 100)) * 100, 0)
-        / scoredActs.length).toFixed(2))
-    : null
-  const actVal = panelActAvg ?? comp.activities ?? null
-
-  // Attitude / Character grade
-  const attitudeVal = comp.attitude ?? null
-
-  // Quiz display — prefer the student's own per-quiz results cache, but drop any
-  // entry whose quiz the teacher has since deleted (reconcile against the live
-  // quizzes). Fall back to legacy gradeComponents.quizzes / quizScores.
-  const liveQuizIds = new Set(quizzes.map(q => q.id))
-  const cachedQuizResults = (s.quizResults?.[sub] || [])
-    .filter(e => !e?.quizId || liveQuizIds.has(e.quizId))
-  const quizzesRaw = (cachedQuizResults.length ? cachedQuizResults : comp.quizzes)
-  const quizzesIsArray = Array.isArray(quizzesRaw)
-  const quizzesAvg = quizzesIsArray
-    ? (quizzesRaw.length
-        ? parseFloat((quizzesRaw.reduce((t, q) => t + (q.pct ?? (q.score != null && q.total ? Math.round(q.score / q.total * 100) : 0)), 0) / quizzesRaw.length).toFixed(2))
-        : null)
-    : (typeof quizzesRaw === 'number' ? quizzesRaw : null)
-
-  let qzEntries = []
-  if (quizzesIsArray && quizzesRaw.length) {
-    qzEntries = quizzesRaw.map((q, i) => [`q${i + 1}`, q.pct ?? (q.score != null && q.total ? Math.round(q.score / q.total * 100) : null), q.title ?? null])
-  } else if (comp.quizScores && Object.keys(comp.quizScores).length) {
-    // Keyed quiz scores: keep id-keyed entries only when their quiz still
-    // exists; positional (q1, q2…) only survive when there are no live quizzes
-    // to reconcile against (legacy doc-less entry).
-    const hasLiveQuizzes = liveQuizIds.size > 0
-    const qzRaw = Object.entries(comp.quizScores)
-      .filter(([k]) => /^q\d+$/.test(k) ? !hasLiveQuizzes : liveQuizIds.has(k))
-    const isNumbered = qzRaw.every(([k]) => /^q\d+$/.test(k))
-    const sorted = isNumbered
-      ? qzRaw.sort((a, b) => parseInt(a[0].slice(1)) - parseInt(b[0].slice(1)))
-      : qzRaw.sort(([a], [b]) => String(a).localeCompare(String(b)))
-    qzEntries = sorted.map(([k, v]) => [k, v, null])
-  }
-
-  // Subject attendance rate
-  const attSet = s.attendance?.[sub] || new Set()
-  const excSet = s.excuse?.[sub] || new Set()
-  const classMates = enrolledIds.length ? students.filter(x => {
-    const xEnrolledIds = x.classIds?.length ? x.classIds : (x.classId ? [x.classId] : [])
-    return xEnrolledIds.some(id => enrolledIds.includes(id))
-  }) : []
-  const held = [...classMates, s].reduce((mx, x) => {
-    const sz = (x.attendance?.[sub] || new Set()).size + (x.excuse?.[sub] || new Set()).size
-    return Math.max(mx, sz)
-  }, 0)
-  const attRate = held > 0 ? parseFloat(((attSet.size / held) * 100).toFixed(1)) : 0
-
-  // Compute class standing (CS) for the computation trail
-  const csParts = [actVal, quizzesAvg, attRate, attitudeVal].filter(x => x != null)
-  const cs = csParts.length
-    ? parseFloat((csParts.reduce((t, x) => t + x, 0) / csParts.length).toFixed(2))
-    : comp.midtermCS ?? null
-
-  const midEq = midG != null ? gradeInfo(midG, eqScale).eq : null
-  const finEq = finG != null ? gradeInfo(finG, eqScale).eq : null
+  // Per-activity / per-quiz detail rows — sourced from the same engine
+  // derivation as the averages above, so rows and averages can never disagree.
+  const displayActs = gr.detail.activityItems.map(i => ({ title: i.title, score: i.score, max: i.max }))
+  const qzEntries   = gr.detail.quizItems.map((q, i) => [`q${i + 1}`, q.pct, q.title || null])
 
   const hasAny = actVal != null || quizzesAvg != null || attitudeVal != null || midG != null || finG != null
   const hasTrailData = (midG != null || finG != null)
