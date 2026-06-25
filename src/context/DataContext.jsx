@@ -21,6 +21,7 @@ import {
 } from '@/firebase/attendanceExtras'
 import { loadFbConfigFromStorage, readStoredEJS } from '@/utils/crypto'
 import { DEFAULT_EQ_SCALE } from '@/utils/grades'
+import { computeSubjectGrade, gradeInputHash } from '@/utils/gradeEngine'
 import { ADMIN_EMAIL } from '@/constants/auth'
 
 // The audit log is teacher-only (its Firestore rule denies students). Only
@@ -656,6 +657,51 @@ export function DataProvider({ children }) {
     if (changed.length) await saveStudents(updated, changed)
   }, [students, saveStudents])
 
+  // ── Verified Grading: recompute & sync drifted grades ────────────────────
+  // Re-run the GradeEngine live for the given student×subject pairs and write
+  // the fresh components + term grades + final, plus a signed snapshot (hash of
+  // the inputs) so the published grade provably matches the current data again.
+  // Admin-only write path (the Firestore rule blocks students from touching
+  // grade fields). `pairs`: [{ studentId, subject }].
+  const syncDriftedGrades = useCallback(async (pairs) => {
+    if (!pairs?.length) return 0
+    let updated = students
+    const changed = new Set()
+    const now = Date.now()
+    for (const { studentId, subject } of pairs) {
+      const s = updated.find(x => x.id === studentId)
+      if (!s) continue
+      const live = computeSubjectGrade(
+        s, subject,
+        { activities, quizzes, students: updated, classes, eqScale },
+        { mode: 'live' }
+      )
+      if (live.final == null && live.midterm == null && live.finals == null) continue
+      const prev = s.gradeComponents?.[subject] || {}
+      const comp = {
+        ...prev,
+        activities: live.components.activities,
+        quizzes:    live.components.quizzes,
+        attendance: live.components.attendance,
+        midterm:    live.midterm,
+        finals:     live.finals,
+      }
+      const snapshot = {
+        final: live.final, midterm: live.midterm, finals: live.finals,
+        components: live.components, hash: gradeInputHash(live), at: now,
+      }
+      updated = updated.map(x => x.id === studentId ? {
+        ...x,
+        gradeComponents: { ...(x.gradeComponents || {}), [subject]: comp },
+        grades:          { ...(x.grades || {}), [subject]: live.final },
+        gradeSnapshots:  { ...(x.gradeSnapshots || {}), [subject]: snapshot },
+      } : x)
+      changed.add(studentId)
+    }
+    if (changed.size) await saveStudents(updated, [...changed])
+    return changed.size
+  }, [students, activities, quizzes, classes, eqScale, saveStudents])
+
   // Save a Meet link for a class. When `subject` is given, the link is stored
   // per-subject in meetLinks[subject]; otherwise it sets the class-wide link.
   const saveMeetLink = useCallback(async (classId, meetLink, subject) => {
@@ -1003,6 +1049,7 @@ export function DataProvider({ children }) {
       resources, setResources, saveResource, deleteResource,
       rubricLibrary, saveRubricToLibrary, deleteLibraryRubric,
       purgeQuizFromStudents,
+      syncDriftedGrades,
       meetings, setMeetings,
       liveMeetings: meetings.filter(m => m.status === 'live'),
       saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting,

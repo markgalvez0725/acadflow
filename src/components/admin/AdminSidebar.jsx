@@ -2,7 +2,7 @@ import React from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { LayoutDashboard, School, Users, BookOpen, CalendarCheck, Bell, ClipboardList, Settings, LogOut, FileQuestion, Rss, CalendarDays, Video, History, Library, MessageSquare, MessageSquarePlus } from 'lucide-react'
+import { LayoutDashboard, School, Users, BookOpen, CalendarCheck, Bell, ClipboardList, Settings, LogOut, FileQuestion, Rss, CalendarDays, Video, History, Library, MessageSquare, MessageSquarePlus, ShieldCheck } from 'lucide-react'
 
 // Flat, Instagram-style nav list (no section headers).
 const NAV_ITEMS = [
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { id: 'classes',        label: 'Classes',        Icon: School },
   { id: 'students',       label: 'Students',       Icon: Users },
   { id: 'grades',         label: 'Grades',         Icon: BookOpen },
+  { id: 'integrity',      label: 'Grade Integrity', Icon: ShieldCheck },
   { id: 'attendance',     label: 'Attendance',     Icon: CalendarCheck },
   { id: 'quizzes',        label: 'Quizzes',        Icon: FileQuestion },
   { id: 'activities',     label: 'Activities',     badgeId: 'act',   Icon: ClipboardList },

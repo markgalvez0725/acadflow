@@ -11,7 +11,7 @@ import SemesterCalendarChip from '@/components/primitives/SemesterCalendarChip'
 import CommandPaletteButton from '@/components/primitives/CommandPaletteButton'
 import ConnectionStatus from '@/components/primitives/ConnectionStatus'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
-import { Rss, LayoutDashboard, School, Users, BookOpen, CalendarCheck, FileQuestion, CalendarDays, Bell, ClipboardList, Video, Settings, LogOut, Menu, MessageSquare, Library, MessageSquarePlus } from 'lucide-react'
+import { Rss, LayoutDashboard, School, Users, BookOpen, CalendarCheck, FileQuestion, CalendarDays, Bell, ClipboardList, Video, Settings, LogOut, Menu, MessageSquare, Library, MessageSquarePlus, ShieldCheck } from 'lucide-react'
 
 // Mobile bottom-nav: 5 primary destinations + "More" (opens a tidy sheet).
 const MOBILE_NAV = [
@@ -24,6 +24,7 @@ const MOBILE_NAV = [
 // Secondary destinations shown in the "More" bottom sheet on phones.
 const MORE_NAV = [
   { id: 'stream',        Icon: Rss,          label: 'Stream' },
+  { id: 'integrity',     Icon: ShieldCheck,  label: 'Grade Integrity' },
   { id: 'classes',       Icon: School,       label: 'Classes' },
   { id: 'attendance',    Icon: CalendarCheck, label: 'Attendance' },
   { id: 'quizzes',       Icon: FileQuestion, label: 'Quizzes' },
@@ -50,6 +51,7 @@ const MessagesTab       = lazy(() => import('./tabs/MessagesTab'))
 const AuditLogTab       = lazy(() => import('./tabs/AuditLogTab'))
 const ResourcesTab      = lazy(() => import('./tabs/ResourcesTab'))
 const FeedbackHubTab    = lazy(() => import('./tabs/FeedbackHubTab'))
+const GradeIntegrityTab = lazy(() => import('./tabs/GradeIntegrityTab'))
 
 // Modals (lazy)
 const AdminSettingsModal     = lazy(() => import('./modals/AdminSettingsModal'))
@@ -62,6 +64,7 @@ const TAB_TITLES = {
   classes:       ['Classes',       'Manage classes and subjects'],
   students:      ['Students',      'Student roster'],
   grades:        ['Grades',        'Record and manage grades'],
+  integrity:     ['Grade Integrity', 'Verify every published grade matches the live data'],
   attendance:    ['Attendance',    'Track student attendance'],
   activities:    ['Activities',    'Post activities, collect submissions, and auto-grade'],
   quizzes:       ['Quizzes',       'AI-generated quizzes with auto-grading'],
@@ -177,6 +180,7 @@ export default function AdminLayout() {
               {adminTab === 'classes'       && <ClassesTab />}
               {adminTab === 'students'      && <StudentsTab />}
               {adminTab === 'grades'        && <GradesTab />}
+              {adminTab === 'integrity'     && <GradeIntegrityTab />}
               {adminTab === 'attendance'    && <AttendanceTab />}
               {adminTab === 'activities'    && <ActivitiesTab />}
               {adminTab === 'quizzes'        && <QuizTab />}
