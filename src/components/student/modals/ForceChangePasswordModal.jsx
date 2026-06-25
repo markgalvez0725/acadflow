@@ -81,8 +81,16 @@ export default function ForceChangePasswordModal({ student: s, onClose, forced =
       // Promote the account to Active (clears `_tempPass`) and confirm it persisted
       // to Firebase, so a later logout → sign-in does NOT re-prompt.
       await persistActive()
-      toast('Password changed successfully!', 'success')
-      onClose()
+      if (forced) {
+        // First-time temp-password change → sign out so the student signs in
+        // cleanly with their new password (confirms it works). The _tempPass
+        // clear is already persisted above, so re-login won't re-prompt.
+        toast('Password set! Please sign in with your new password.', 'success')
+        logout()
+      } else {
+        toast('Password changed successfully!', 'success')
+        onClose()
+      }
     } catch (e) {
       setError(pwChangedRef.current
         ? 'Your new password is saved, but syncing your account didn’t finish. Check your connection and tap “Finish” to retry.'
