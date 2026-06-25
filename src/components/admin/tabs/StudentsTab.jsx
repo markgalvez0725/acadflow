@@ -37,13 +37,23 @@ function classSubjectsLabel(cls) {
 
 // Names are stored canonically as "SURNAME, First Middle". Split a stored name
 // into parts for editing, and rebuild that exact structure on save.
+// The middle is an INITIAL by convention, so only a trailing single-letter token
+// (e.g. the "G" in "STEPHEN ANDREI G") is treated as the middle initial — the
+// rest stays in the first name. This keeps multi-word first names like "STEPHEN
+// ANDREI" intact instead of pushing the second word into the M.I. field.
 function splitStudentName(full) {
   const raw = (full || '').trim()
   if (!raw) return { last: '', first: '', middle: '' }
   if (raw.includes(',')) {
     const [sur, rest = ''] = raw.split(/,(.+)/) // split on the FIRST comma only
     const parts = rest.trim().split(/\s+/).filter(Boolean)
-    return { last: sur.trim(), first: parts[0] || '', middle: parts.slice(1).join(' ') }
+    let firstParts = parts, middle = ''
+    const lastTok = parts[parts.length - 1] || ''
+    if (parts.length >= 2 && /^[A-Za-z]\.?$/.test(lastTok)) {
+      middle = lastTok.replace(/\.$/, '') // trailing single letter → middle initial
+      firstParts = parts.slice(0, -1)
+    }
+    return { last: sur.trim(), first: firstParts.join(' '), middle }
   }
   return { last: '', first: raw, middle: '' } // no comma — keep it in the first-name slot
 }
