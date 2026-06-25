@@ -1738,12 +1738,14 @@ export default function GradesTab() {
     }
   }
 
-  function handleExport(sub) {
-    exportGradingSheet({ classId: effectiveId, subject: sub, students, classes, activities, quizzes, eqScale })
+  async function handleExport(sub) {
+    const res = await exportGradingSheet({ classId: effectiveId, subject: sub, students, classes, activities, quizzes, eqScale })
+    if (res?.reason === 'empty') toast(`No students are enrolled in ${cls?.name || 'this class'} yet — add students before exporting grades.`, 'red')
   }
 
-  function handleExportGrades(sub) {
-    exportCurrentGrades({ classId: effectiveId, subject: sub, students, classes, activities, quizzes, eqScale })
+  async function handleExportGrades(sub) {
+    const res = await exportCurrentGrades({ classId: effectiveId, subject: sub, students, classes, activities, quizzes, eqScale })
+    if (res?.reason === 'empty') toast(`No students are enrolled in ${cls?.name || 'this class'} yet — add students before exporting grades.`, 'red')
   }
 
   async function handleImportFile(e) {

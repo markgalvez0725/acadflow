@@ -18,7 +18,7 @@
 // records the column map so the importer reads the file back reliably.
 
 import {
-  CL, getClassStudents, fgIF, remarkIF, ensureExcelJS, downloadBlob,
+  CL, fgIF, remarkIF, ensureExcelJS, downloadBlob,
 } from '@/export/excelExport.js'
 import { getHeldDays, round2, DEFAULT_EQ_SCALE } from '@/utils/grades.js'
 import { sortByLastName } from '@/utils/format.js'
@@ -27,11 +27,11 @@ const EXTRA_COLS = 3                  // blank "+ Activity/Quiz" columns
 const DATA_ROW = 5                    // 1-based first student row (rows 1–4 = headers)
 const SHEET_PW = 'acadflow'
 
-// Fills (ARGB) — light tints matching the in-app preview legend.
-const FILL_GREY  = 'FFF1EFE8'
-const FILL_GREEN = 'FFEAF3DE'
-const FILL_BLUE  = 'FFE6F1FB'
-const FILL_HEAD  = 'FFE8E6DF'
+// Fills (ARGB) — clearly distinguishable tints (readable with black text).
+const FILL_GREY  = 'FFE0DED5'  // locked / prefilled from the app
+const FILL_GREEN = 'FFCDEBB0'  // teacher fills in
+const FILL_BLUE  = 'FFC2DEF7'  // auto-computed formula
+const FILL_HEAD  = 'FFCBC8BC'  // header row
 
 // ── Percent → equivalency, driven by the actual eqScale (not hardcoded) ──────
 function equivIFScale(ref, eqScale) {
@@ -49,7 +49,9 @@ function buildGradingCtx({ classId, subject, students, classes, activities, quiz
   const cls = classes.find(c => c.id === classId)
   if (!cls) return null
 
-  const roster   = sortByLastName(getClassStudents(classId, students))
+  // Same membership test the grade table uses (classId OR classIds) — a stricter
+  // "classIds-only" filter can wrongly drop students and produce an empty sheet.
+  const roster   = sortByLastName((students || []).filter(s => s.classId === classId || s.classIds?.includes(classId)))
   const panelActs = (activities || []).filter(a => a.classId === classId && a.subject === subject)
   const panelQz   = (quizzes || []).filter(q => q.classIds?.includes(classId) && q.subject === subject)
   const nApp = panelActs.length
@@ -352,7 +354,8 @@ export async function exportGradingSheet({ classId, subject, students, classes, 
   const XLSX = window.XLSX
   if (!XLSX) { alert('SheetJS not loaded.'); return }
   const ctx = buildGradingCtx({ classId, subject, students, classes, activities, quizzes, eqScale, prefilled })
-  if (!ctx) return
+  if (!ctx) return { ok: false, reason: 'no-class' }
+  if (!ctx.rows.length) return { ok: false, reason: 'empty' }
   try {
     const ExcelJS = await ensureExcelJS()
     if (!ExcelJS) throw new Error('ExcelJS unavailable')
@@ -360,6 +363,7 @@ export async function exportGradingSheet({ classId, subject, students, classes, 
   } catch {
     gradingSheetJS(XLSX, ctx)
   }
+  return { ok: true }
 }
 
 /** Export the currently stored grades (prefilled), re-importable via parseGradingSheetImport. */
