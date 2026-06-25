@@ -11,6 +11,7 @@ import { notifyStudentsBroadcast } from '@/firebase/messageNotify'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
+import AccountAuditModal from '@/components/admin/modals/AccountAuditModal'
 import KebabMenu from '@/components/primitives/KebabMenu'
 import { Download, Upload, KeyRound, GraduationCap, CheckCircle2, Pencil, Plus, Save, BookOpen, Check, Users, ClipboardList, Hourglass, Send, AlertTriangle, ShieldCheck, XCircle } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
@@ -845,6 +846,7 @@ export default function StudentsTab() {
   const [sortDir, setSortDir]     = useState('asc')
   const [showAdd, setShowAdd]             = useState(false)
   const [showImport, setShowImport]       = useState(false)
+  const [showAudit, setShowAudit]         = useState(false)
   const [editStudent, setEditStudent]     = useState(null)
   const [exportStudent, setExportStudent] = useState(null)
   const [resetStudent, setResetStudent]   = useState(null)
@@ -1015,6 +1017,9 @@ export default function StudentsTab() {
           </button>
           <button className="btn btn-ghost btn-sm" onClick={() => setShowImport(true)} title="Import students from Excel or CSV">
             <Upload size={13} /> Import
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowAudit(true)} title="Analyze existing accounts for verification & integrity issues">
+            <ShieldCheck size={13} /> Audit
           </button>
           <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}><Plus size={16} /> Add Student</button>
         </div>
@@ -1299,6 +1304,7 @@ export default function StudentsTab() {
       {/* Modals */}
       {showAdd      && <AddStudentModal onClose={() => setShowAdd(false)} />}
       {showImport   && <ImportStudentsModal onClose={() => setShowImport(false)} />}
+      {showAudit    && <AccountAuditModal onClose={() => setShowAudit(false)} onOpenStudent={(id) => { const s = students.find(x => x.id === id); if (s) setEditStudent(s) }} />}
       {showMessage  && <MessageSelectedModal recipients={students.filter(s => selected.has(s.id))} onClose={() => setShowMessage(false)} />}
       {editStudent  && <EditStudentModal student={editStudent} onClose={() => setEditStudent(null)} />}
       {resetStudent && <ResetPasswordModal student={resetStudent} onClose={() => setResetStudent(null)} />}

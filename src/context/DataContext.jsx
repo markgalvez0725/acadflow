@@ -241,6 +241,19 @@ export function DataProvider({ children }) {
     if (changed) await saveStudents(updated, [studentId])
   }, [students, saveStudents])
 
+  // Stamp many accounts as teacher-verified in one write (used by the account
+  // audit's "mark all legacy accounts verified"). Admin-only.
+  const bulkVerifyAccounts = useCallback(async (ids) => {
+    const idSet = new Set(ids || [])
+    if (!idSet.size) return 0
+    const now = Date.now()
+    const updated = students.map(s => idSet.has(s.id)
+      ? { ...s, account: { ...(s.account || {}), verified: true, verification: { ...(s.account?.verification || {}), method: 'teacher', at: now } } }
+      : s)
+    await saveStudents(updated, [...idSet])
+    return idSet.size
+  }, [students, saveStudents])
+
   // Append an entry to the admin audit log. Fire-and-forget — callers should
   // not await this in a way that blocks the primary action.
   const logAudit = useCallback((entry) => {
@@ -1081,6 +1094,7 @@ export function DataProvider({ children }) {
       purgeQuizFromStudents,
       syncDriftedGrades,
       verifyStudentAccount,
+      bulkVerifyAccounts,
       meetings, setMeetings,
       liveMeetings: meetings.filter(m => m.status === 'live'),
       saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting,
