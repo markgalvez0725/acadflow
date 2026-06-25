@@ -227,6 +227,20 @@ export function DataProvider({ children }) {
     if (changed) await saveStudents(updated, [studentId])
   }, [students, saveStudents])
 
+  // Teacher approves/rejects a self-registered account's identity verification.
+  // Admin-only write (the Firestore rule blocks students from setting verified).
+  // Approve → verified:true (Active); reject → verified:false (stays Pending).
+  const verifyStudentAccount = useCallback(async (studentId, approved = true) => {
+    let changed = false
+    const updated = students.map(s => {
+      if (s.id !== studentId) return s
+      const a = s.account || {}
+      changed = true
+      return { ...s, account: { ...a, verified: !!approved, verification: { ...(a.verification || {}), method: 'teacher', at: Date.now() } } }
+    })
+    if (changed) await saveStudents(updated, [studentId])
+  }, [students, saveStudents])
+
   // Append an entry to the admin audit log. Fire-and-forget — callers should
   // not await this in a way that blocks the primary action.
   const logAudit = useCallback((entry) => {
@@ -1066,6 +1080,7 @@ export function DataProvider({ children }) {
       rubricLibrary, saveRubricToLibrary, deleteLibraryRubric,
       purgeQuizFromStudents,
       syncDriftedGrades,
+      verifyStudentAccount,
       meetings, setMeetings,
       liveMeetings: meetings.filter(m => m.status === 'live'),
       saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting,

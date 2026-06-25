@@ -4,14 +4,15 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { hashPassword } from '@/utils/crypto'
 import { validateSnum } from '@/utils/validate'
-import { accountStatus, accountStatusKey, accountStatusRank } from '@/utils/accountStatus'
+import { accountStatus, accountStatusKey, accountStatusRank, isPendingVerification, verificationInfo } from '@/utils/accountStatus'
+import { describeFields } from '@/utils/identityVerify'
 import { getFbAuth } from '@/firebase/firebaseInit'
 import { notifyStudentsBroadcast } from '@/firebase/messageNotify'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
 import KebabMenu from '@/components/primitives/KebabMenu'
-import { Download, Upload, KeyRound, GraduationCap, CheckCircle2, Pencil, Plus, Save, BookOpen, Check, Users, ClipboardList, Hourglass, Send, AlertTriangle } from 'lucide-react'
+import { Download, Upload, KeyRound, GraduationCap, CheckCircle2, Pencil, Plus, Save, BookOpen, Check, Users, ClipboardList, Hourglass, Send, AlertTriangle, ShieldCheck, XCircle } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { buildStudentReportCard } from '@/export/reportCard'
 import { exportStudentRosterExcel, exportStudentImportTemplate, parseStudentImportExcel } from '@/export/excelExport'
@@ -66,9 +67,9 @@ function AddStudentModal({ onClose }) {
       if (initPass.length < 8) { setPassErr('Password must be at least 8 characters.'); return }
       if (!/[A-Z]/.test(initPass) || !/[0-9]/.test(initPass)) { setPassErr('Password must include at least one uppercase letter and one number.'); return }
       if (initEmail && !initEmail.includes('@')) { setPassErr('Please enter a valid email address.'); return }
-      account = { registered: true, pass: await hashPassword(initPass), email: initEmail || '', _tempPass: true }
+      account = { registered: true, pass: await hashPassword(initPass), email: initEmail || '', _tempPass: true, verified: true, verification: { method: 'teacher', at: Date.now() } }
     } else {
-      account = { registered: true, pass: await hashPassword(DEFAULT_PASS), email: '', _tempPass: true }
+      account = { registered: true, pass: await hashPassword(DEFAULT_PASS), email: '', _tempPass: true, verified: true, verification: { method: 'teacher', at: Date.now() } }
     }
 
     const allClassIds = [...new Set([classId, ...extraIds].filter(Boolean))]
@@ -205,7 +206,7 @@ function AddStudentModal({ onClose }) {
 
 // ── Edit Student Modal ────────────────────────────────────────────────
 function EditStudentModal({ student, onClose }) {
-  const { classes, students, saveStudents, deleteStudent } = useData()
+  const { classes, students, saveStudents, deleteStudent, verifyStudentAccount } = useData()
   const { toast } = useUI()
 
   const [name, setName]       = useState(student.name || '')
@@ -393,8 +394,29 @@ function EditStudentModal({ student, onClose }) {
           {(() => {
             const k = accountStatusKey(student)
             if (k === 'none')   return <Badge variant="gray">No account yet</Badge>
-            if (k === 'active') return <Badge variant="green"><CheckCircle2 size={14} /> Active ({student.account.email || '—'})</Badge>
+            if (k === 'active') return <Badge variant="green"><CheckCircle2 size={14} /> Active{student.account.email ? ` (${student.account.email})` : ''}</Badge>
+            if (isPendingVerification(student)) return <Badge variant="yellow"><Hourglass size={14} /> Pending — awaiting verification</Badge>
             return <Badge variant="yellow"><Hourglass size={14} /> Pending — not yet activated</Badge>
+          })()}
+          {isPendingVerification(student) && (() => {
+            const v = verificationInfo(student)
+            const detail = v?.fields ? describeFields(v.fields) : ''
+            return (
+              <div className="mt-2 p-2.5 rounded-lg" style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}>
+                <div className="text-xs text-ink2" style={{ lineHeight: 1.5 }}>
+                  Self-registered. AI identity match: <strong style={{ color: 'var(--ink)' }}>{v?.confidence != null ? `${v.confidence}%` : '—'}</strong>
+                  {detail ? <> · <span className="text-ink3">{detail}</span></> : null}
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <button type="button" className="btn btn-primary btn-sm" onClick={async () => { try { await verifyStudentAccount(student.id, true); toast('Verified — account is now active.', 'green') } catch (e) { toast('Failed: ' + e.message, 'red') } }}>
+                    <ShieldCheck size={14} /> Approve
+                  </button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={async () => { try { await verifyStudentAccount(student.id, false); toast('Left pending.', 'gray') } catch (e) { toast('Failed: ' + e.message, 'red') } }}>
+                    <XCircle size={14} /> Reject
+                  </button>
+                </div>
+              </div>
+            )
           })()}
           {student.account?.firstLoginAt && (
             <div className="text-xs text-ink3 mt-1">
@@ -647,7 +669,7 @@ function ImportStudentsModal({ onClose }) {
         const id = r.id.toUpperCase()
         const allClassIds = []
         const grades = {}, attendance = {}, excuse = {}, gradeComponents = {}
-        return { id, name: (r.name || '').toUpperCase(), course: r.course, year: r.year || '1st Year', section: r.section || '', mobile: r.mobile || '', dob: r.dob || '', classId: null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account: { registered: true, pass: await hashPassword(DEFAULT_PASS), email: '', _tempPass: true } }
+        return { id, name: (r.name || '').toUpperCase(), course: r.course, year: r.year || '1st Year', section: r.section || '', mobile: r.mobile || '', dob: r.dob || '', classId: null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account: { registered: true, pass: await hashPassword(DEFAULT_PASS), email: '', _tempPass: true, verified: true, verification: { method: 'teacher', at: Date.now() } } }
       }))
       await saveStudents([...students, ...newStudents], newStudents.map(s => s.id))
       toast(`Imported ${newStudents.length} student${newStudents.length !== 1 ? 's' : ''}!`, 'green')
@@ -837,14 +859,15 @@ export default function StudentsTab() {
   }
 
   const counts = useMemo(() => {
-    let assigned = 0, active = 0, pending = 0
+    let assigned = 0, active = 0, pending = 0, verify = 0
     students.forEach(s => {
       if (isAssigned(s)) assigned++
       const k = accountStatusKey(s)
       if (k === 'active') active++
       else if (k === 'pending') pending++
+      if (isPendingVerification(s)) verify++
     })
-    return { all: students.length, assigned, unassigned: students.length - assigned, active, pending }
+    return { all: students.length, assigned, unassigned: students.length - assigned, active, pending, verify }
   }, [students, classes])
 
   const filtered = useMemo(() => {
@@ -854,6 +877,7 @@ export default function StudentsTab() {
       if (statusFilter === 'unassigned' &&  isAssigned(s)) return false
       if (statusFilter === 'active'     && accountStatusKey(s) !== 'active')  return false
       if (statusFilter === 'pending'    && accountStatusKey(s) !== 'pending') return false
+      if (statusFilter === 'verify'     && !isPendingVerification(s)) return false
       return (
         s.name?.toLowerCase().includes(q) ||
         s.id?.toLowerCase().includes(q) ||
@@ -1033,6 +1057,19 @@ export default function StudentsTab() {
           </button>
         )}
       </div>
+
+      {/* Verification queue — self-registered students awaiting identity approval */}
+      {counts.verify > 0 && (
+        <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg flex-wrap" style={{ background: 'rgba(234,179,8,.12)', border: '1px solid var(--yellow, #ca8a04)' }}>
+          <ShieldCheck size={16} className="shrink-0" style={{ color: 'var(--yellow-d, #854d0e)' }} />
+          <span className="text-sm" style={{ color: 'var(--ink)', flex: '1 1 200px' }}>
+            <strong>{counts.verify}</strong> self-registered {counts.verify === 1 ? 'student is' : 'students are'} awaiting identity verification.
+          </span>
+          {statusFilter !== 'verify'
+            ? <button className="btn btn-primary btn-sm" onClick={() => { setStatusFilter('verify'); setPage(1) }}>Review</button>
+            : <button className="btn btn-ghost btn-sm" onClick={() => { setStatusFilter('all'); setPage(1) }}>Show all</button>}
+        </div>
+      )}
 
       {/* Attention banner — surfaces students needing placement or activation */}
       {(counts.unassigned > 0 || counts.pending > 0) && (
