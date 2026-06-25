@@ -78,7 +78,7 @@ SheetJS and jsPDF are loaded via CDN in `index.html` and accessed as `window.XLS
 ## Security
 
 - Passwords: SHA-256 + salt via `hashPassword()` / `verifyPassword()` in `src/utils/crypto.js`. Never store plaintext.
-- Firebase config and EmailJS credentials: AES-encrypted with `encryptFbConfig()` / `encryptEJS()` before writing to `localStorage`.
+- Firebase config: AES-encrypted with `encryptFbConfig()` before writing to `localStorage`.
 - Login lockout: `recordFailedAttempt()` / `isLockedOut()` in `src/utils/validate.js`.
 
 ## Adding Features

@@ -76,7 +76,7 @@ SheetJS and jsPDF are loaded via CDN in `index.html`:
 ### Security — Non-Negotiable Rules
 
 - **Passwords:** SHA-256 + salt via `hashPassword()` / `verifyPassword()` in `src/utils/crypto.js`. Never store plaintext.
-- **Firebase config + EmailJS credentials:** AES-encrypted with `encryptFbConfig()` / `encryptEJS()` before writing to `localStorage`. Plaintext config is removed 3 s after init.
+- **Firebase config:** AES-encrypted with `encryptFbConfig()` before writing to `localStorage`. Plaintext config is removed 3 s after init.
 - **Login lockout:** `recordFailedAttempt()` / `isLockedOut()` in `src/utils/validate.js`.
 - **User-generated HTML:** Always sanitize with DOMPurify before rendering. Safe tag whitelist: `b, i, u, em, strong, mark, p, br, ul, ol, li, h3, h4`.
 - **Comment/reply IDs:** Use UUID v4 (`import { v4 as uuidv4 } from 'uuid'`) — never `Date.now()` or weak generation.

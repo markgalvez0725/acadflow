@@ -27,7 +27,7 @@ AcadFlow is a web-based school portal that provides a unified platform to manage
 - **Feedback Hub** — collect and review student feedback submissions
 - **Audit Log** — chronological record of sensitive admin/account actions
 - **Notifications** — system-wide alerts and activity updates
-- **Settings** — admin credentials, EmailJS config, equivalence scale, Firebase config
+- **Settings** — admin credentials + recovery PIN, equivalence scale, semester, late-penalty policy, notifications, backup/restore, Firebase config
 
 ### Student Portal
 - **Overview** — personal GWA, attendance rate, active announcements (with meeting and module links), recent activity, and per-subject Final Grade / Attendance charts
@@ -49,7 +49,7 @@ AcadFlow is a web-based school portal that provides a unified platform to manage
 - Push notifications (Firebase Cloud Messaging) on grade posts, activity grading, announcements, and deadline reminders — fired both client-side (while open) and via a Vercel Cron job (while closed)
 - On-device AI ($0, no data leaves the browser): grade-import verification, distractor auditing, excuse triage, identity/impersonation checks, and answer-key improvement, with optional Gemini-backed server endpoints that degrade gracefully when unconfigured
 - Biometric quick sign-in (Face ID / fingerprint via WebAuthn) as an opt-in convenience layer; password always remains the fallback
-- EmailJS OTP and teacher-coordinated reset for student passwords
+- Teacher-coordinated student password reset (no plaintext password leaves the student's device) and admin recovery-PIN reset
 - Excel (.xlsx) and PDF export for grades, attendance, and report cards
 - Installable PWA with offline app shell
 - Light and dark mode
@@ -64,7 +64,6 @@ AcadFlow is a web-based school portal that provides a unified platform to manage
 | Styling | Tailwind CSS v4 |
 | Data | Firebase Firestore (modular SDK v10, long-poll) |
 | Server | Vercel serverless functions in `api/` (Node built-ins only) — AI, web push, password reset, cron reminders |
-| Email | EmailJS (`@emailjs/browser`) |
 | Exports | SheetJS + ExcelJS (Excel), jsPDF + AutoTable (PDF) via CDN |
 
 ## Getting Started
@@ -142,7 +141,7 @@ api/                 # Vercel serverless functions (Node built-ins only)
 src/
   components/
     admin/           # Admin layout, sidebar, tabs, modals
-    auth/            # Login screens, PIN/OTP/biometric modals
+    auth/            # Login screens, recovery-PIN reset, biometric quick-unlock
     canvas/          # Animated background scenes
     charts/          # BarChart, DonutChart
     primitives/      # Shared UI: Badge, Modal, Dialog, Toast, CommandPalette, Pagination, etc.
@@ -201,14 +200,14 @@ Two storage patterns coexist:
 | Document | Purpose |
 |---|---|
 | `portal/classes` | Class list (a `list` array — editing one class rewrites the array) |
-| `portal/config` | EmailJS config (encrypted), equivalence scale, portal settings |
+| `portal/config` | Equivalence scale, semester, late-penalty policy, portal settings |
 | `portal/settings` | Portal-wide settings |
 | `portal/admin` | Admin credentials (hashed password, email, reset PIN) |
 
 ## Security Notes
 
 - Passwords are SHA-256 hashed with a salt before storage — never stored in plaintext.
-- Firebase config and EmailJS credentials are AES-encrypted in `localStorage`.
+- Firebase config is AES-encrypted in `localStorage`.
 - Plaintext Firebase config is removed from `localStorage` 3 seconds after init.
 - Login has per-key brute-force lockout tracked in `sessionStorage`.
 - Sessions expire after 30 minutes of inactivity; expiry is also checked on tab focus.
