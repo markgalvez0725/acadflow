@@ -19,14 +19,14 @@ import { isClassCurrent, activeSubjects } from '@/utils/active.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-function getClassStudents(classId, students) {
+export function getClassStudents(classId, students) {
   return students.filter(s =>
     (s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])).includes(classId)
   )
 }
 
 /** Column index (1-based) → Excel letter(s). */
-function CL(c) {
+export function CL(c) {
   let s = ''
   while (c > 0) {
     const r = (c - 1) % 26
@@ -34,31 +34,6 @@ function CL(c) {
     c = Math.floor((c - 1) / 26)
   }
   return s
-}
-
-/** Cross-sheet cell reference, e.g. xref("Activities", 3, 5) → "Activities!C5" */
-function xref(sheet, col, row) {
-  return `'${sheet}'!${CL(col)}${row}`
-}
-
-/**
- * Nested Excel IF formula: percent → equivalency string.
- * ref is an Excel cell address string, e.g. "C5".
- */
-function equivIF(ref) {
-  return (
-    `IF(${ref}="","—",` +
-    `IF(${ref}>=99,"1.00",` +
-    `IF(${ref}>=96,"1.25",` +
-    `IF(${ref}>=93,"1.50",` +
-    `IF(${ref}>=90,"1.75",` +
-    `IF(${ref}>=87,"2.00",` +
-    `IF(${ref}>=84,"2.25",` +
-    `IF(${ref}>=81,"2.50",` +
-    `IF(${ref}>=78,"2.75",` +
-    `IF(${ref}>=75,"3.00",` +
-    `IF(${ref}>=72,"4.00","5.00")))))))))))`
-  )
 }
 
 // EQUIV_COMBINE_TABLE: midterm equiv × finals equiv → final grade string
@@ -80,7 +55,7 @@ const EQUIV_COMBINE_TABLE = {
  * Nested Excel IF formula: (midtermEquivCell, finalsEquivCell) → combined final grade.
  * Uses a fully-inlined version of EQUIV_COMBINE_TABLE.
  */
-function fgIF(mtRef, ftRef) {
+export function fgIF(mtRef, ftRef) {
   // Build one level of nesting per midterm row
   function ftLookup(row) {
     const keys = ['1.00','1.25','1.50','1.75','2.00','2.25','2.50','2.75','3.00','4.00','5.00']
@@ -104,429 +79,12 @@ function fgIF(mtRef, ftRef) {
 /**
  * Nested Excel IF formula: final-grade equiv cell → Passed/Failed/Conditional/Pending.
  */
-function remarkIF(fgRef) {
+export function remarkIF(fgRef) {
   return (
     `IF(${fgRef}="—","Pending",` +
     `IF(${fgRef}="5.00","Failed",` +
     `IF(${fgRef}="4.00","Conditional","Passed")))`
   )
-}
-
-// ── exportGradingSheet ────────────────────────────────────────────────────
-/**
- * Exports a 5-tab XLSX grading workbook for one subject.
- * Tabs: Activities | Quizzes | Exams & Attendance | Grading Sheet | Instructions
- * The Grading Sheet tab is protected with password "acadflow".
- *
- * @param {{ classId: string, subject: string, students: object[], classes: object[], eqScale?: object[] }} opts
- */
-export function exportGradingSheet({ classId, subject, students, classes, activities = [], eqScale = DEFAULT_EQ_SCALE, prefilled = false }) {
-  const XLSX = window.XLSX
-  if (!XLSX) { alert('SheetJS not loaded.'); return }
-
-  const cls = classes.find(c => c.id === classId)
-  if (!cls) return
-  const roster = sortByLastName(getClassStudents(classId, students))
-  const n = roster.length
-  const DATA = 4 // first student data row (1-based); rows 1–3 are headers
-
-  // ── Column layout constants ──────────────────────────────────────────────
-  // Activities sheet
-  const A_NAME = 1, A_SNUM = 2
-  const actCount  = 5
-  const A_MT = Array.from({ length: actCount }, (_, i) => 3 + i)           // cols 3..7 midterm acts
-  const A_FT = Array.from({ length: actCount }, (_, i) => 3 + actCount + i) // cols 8..12 finals acts
-  const A_MTAVG = 3 + actCount * 2 + 0  // col 13
-  const A_FTAVG = 3 + actCount * 2 + 1  // col 14
-
-  // Quizzes sheet
-  const Q_NAME = 1, Q_SNUM = 2
-  const qzCount  = 5
-  const Q_QZ = Array.from({ length: qzCount }, (_, i) => 3 + i)  // cols 3..7 quizzes
-  const Q_AVG = 3 + qzCount  // col 8
-
-  // Exams & Attendance sheet
-  const E_NAME = 1, E_SNUM = 2
-  const E_MT_ATT = 3, E_MT_EX = 4, E_FT_ATT = 5, E_FT_EX = 6
-  const E_MT_EXAM = 9   // MT Exam score column in Exams & Attendance sheet
-  const E_FT_EXAM = 10  // FT Exam score column in Exams & Attendance sheet
-
-  // Grading Sheet columns (1-based)
-  const G_NAME = 1, G_SNUM = 2, G_COURSE = 3, G_YEAR = 4
-  const G_ACT   = 5   // Class Standing component: Activities avg
-  const G_QZ    = 6   // Class Standing component: Quizzes avg
-  const G_ATT   = 7   // Attendance score
-  const G_CS    = 8   // Class Standing avg
-  const G_MT_EX = 9   // Midterm exam score
-  const G_FT_EX = 10  // Finals exam score
-  const G_MT    = 11  // Midterm term grade
-  const G_FT    = 12  // Finals term grade
-  const G_FIN   = 13  // Final grade %
-  const G_MT_EQ = 14  // Midterm equiv (lookup)
-  const G_FT_EQ = 15  // Finals equiv (lookup)
-  const G_FG    = 16  // Final grade equiv (combine table)
-  const G_LTR   = 17  // Letter grade
-  const G_REM   = 18  // Remark
-  const G_NOTE  = 19  // Notes
-
-  // ── Sheet builder helpers ────────────────────────────────────────────────
-  function mkWS(aoa) {
-    const ws = XLSX.utils.aoa_to_sheet(aoa)
-    return ws
-  }
-
-  function setColWidths(ws, widths) {
-    ws['!cols'] = widths.map(w => ({ wch: w }))
-  }
-
-  function freeze(ws, xSplit, ySplit) {
-    ws['!freeze'] = { xSplit, ySplit }
-  }
-
-  // ── Row builders ─────────────────────────────────────────────────────────
-  function headerRow1(label, actLabels, ftLabels, extras) {
-    return [label, 'Student No.', ...actLabels, ...ftLabels, ...extras]
-  }
-
-  // Panel activities for pre-filled mode
-  const panelActs = (activities || []).filter(a => a.classId === classId && a.subject === subject)
-
-  // ── Activities Sheet ──────────────────────────────────────────────────────
-  const actHdr1 = ['Student Name', 'Student No.',
-    ...A_MT.map((_, i) => `Midterm Act ${i + 1}`),
-    ...A_FT.map((_, i) => `Finals Act ${i + 1}`),
-    'MT Avg', 'FT Avg',
-  ]
-  const actRows = [
-    [`ACTIVITIES — ${subject}`, '', ...Array(actCount * 2 + 2).fill('')],
-    [`Class: ${cls.name || cls.id}`, `Section: ${cls.section || ''}`, ...Array(actCount * 2 + 2).fill('')],
-    actHdr1,
-  ]
-  roster.forEach((s, idx) => {
-    const r = DATA + idx
-    const comp = s.gradeComponents?.[subject] || {}
-
-    // Resolve per-activity scores for this student
-    function getActScore(i) {
-      if (!prefilled) return ''
-      // Try panel activity submission first
-      if (panelActs[i]) {
-        const a = panelActs[i]
-        const sc = (a.submissions || {})[s.id]?.score
-        if (sc != null) return sc
-        const stored = comp.activityScores
-        if (stored) {
-          const val = stored[a.id] ?? stored[`a${i + 1}`]
-          if (val != null) return val
-        }
-      }
-      // Fallback to positional activityScores key
-      const v = comp.activityScores?.[`a${i + 1}`]
-      return v != null ? v : ''
-    }
-
-    const mtVals = A_MT.map((_, i) => getActScore(i))
-    const ftVals = A_FT.map((_, i) => getActScore(actCount + i))
-
-    const row = [
-      s.name, s.id,
-      ...mtVals,
-      ...ftVals,
-      { f: `IFERROR(AVERAGE(${CL(A_MT[0])}${r}:${CL(A_MT[actCount - 1])}${r}),"")` },
-      { f: `IFERROR(AVERAGE(${CL(A_FT[0])}${r}:${CL(A_FT[actCount - 1])}${r}),"")` },
-    ]
-    actRows.push(row)
-  })
-  const wsAct = mkWS(actRows)
-  setColWidths(wsAct, [28, 14, ...Array(actCount * 2).fill(12), 10, 10])
-  freeze(wsAct, 2, 3)
-
-  // ── Quizzes Sheet ─────────────────────────────────────────────────────────
-  const qzHdr1 = ['Student Name', 'Student No.', ...Q_QZ.map((_, i) => `Quiz ${i + 1}`), 'Average']
-  const qzRows = [
-    [`QUIZZES — ${subject}`],
-    [`Class: ${cls.name || cls.id}`],
-    qzHdr1,
-  ]
-  roster.forEach((s, idx) => {
-    const r = DATA + idx
-    const comp = s.gradeComponents?.[subject] || {}
-    const qzScoresMap = comp.quizScores || {}
-    const row = [
-      s.name,
-      s.id,
-      ...Q_QZ.map((_, i) => {
-        if (!prefilled) return ''
-        const v = qzScoresMap[`q${i + 1}`]
-        return v != null ? v : ''
-      }),
-      { f: `IFERROR(AVERAGE(${CL(Q_QZ[0])}${r}:${CL(Q_QZ[qzCount - 1])}${r}),"")` },
-    ]
-    qzRows.push(row)
-  })
-  const wsQz = mkWS(qzRows)
-  setColWidths(wsQz, [28, 14, ...Array(qzCount).fill(10), 10])
-  freeze(wsQz, 2, 3)
-
-  // ── Exams & Attendance Sheet ──────────────────────────────────────────────
-  const examHdr = ['Student Name', 'Student No.',
-    'MT Attendance', 'MT Excused',
-    'FT Attendance', 'FT Excused',
-    'MT Att Score',  'FT Att Score',
-    'MT Exam',       'FT Exam',
-  ]
-  const examRows = [
-    [`EXAMS & ATTENDANCE — ${subject}`],
-    [`Class: ${cls.name || cls.id}`],
-    examHdr,
-  ]
-  roster.forEach((s, idx) => {
-    const r = DATA + idx
-    const comp   = s.gradeComponents?.[subject] || {}
-    const attSet = s.attendance?.[subject] || new Set()
-    const exSet  = s.excuse?.[subject]     || new Set()
-    const held   = getHeldDays(classId, subject, students)
-    const attPct = held > 0 ? Math.round(((attSet.size) / held) * 100) : ''
-    const exPct  = held > 0 ? Math.round(((exSet.size)  / held) * 100) : ''
-    examRows.push([
-      s.name, s.id,
-      attSet.size, exSet.size,
-      attSet.size, exSet.size,
-      attPct,      attPct,
-      prefilled ? (comp.midtermExam ?? '') : '',
-      prefilled ? (comp.finalsExam  ?? '') : '',
-    ])
-  })
-  const wsExam = mkWS(examRows)
-  setColWidths(wsExam, [28, 14, 13, 12, 13, 12, 13, 13, 10, 10])
-  freeze(wsExam, 2, 3)
-
-  // ── Grading Sheet ─────────────────────────────────────────────────────────
-  const gsHdr = [
-    'Student Name', 'Student No.', 'Course', 'Year Level',
-    'Activities', 'Quizzes', 'Attendance',
-    'Class Standing',
-    'Midterm Exam', 'Finals Exam',
-    'Midterm Term', 'Finals Term',
-    'Final Grade (%)',
-    'Midterm Equiv', 'Finals Equiv', 'Final Equiv',
-    'Letter', 'Remark', 'Notes',
-  ]
-  const gsTitle  = `GRADING SHEET — ${subject}`
-  const gsMeta   = `Class: ${cls.name || cls.id}  |  Section: ${cls.section || ''}  |  S.Y. ${cls.sy || ''}`
-  const gsRows   = [
-    [gsTitle],
-    [gsMeta],
-    gsHdr,
-  ]
-
-  roster.forEach((s, idx) => {
-    const r = DATA + idx
-    // Cross-sheet references
-    const actRef  = xref('Activities', A_MTAVG, r)
-    const actFRef = xref('Activities', A_FTAVG, r)
-    const qzRef   = xref('Quizzes',   Q_AVG,   r)
-    const attRef  = `${CL(G_ATT)}${r}`
-    const csRef   = `${CL(G_CS)}${r}`
-    const mtExRef = `${CL(G_MT_EX)}${r}`
-    const ftExRef = `${CL(G_FT_EX)}${r}`
-    const mtRef   = `${CL(G_MT)}${r}`
-    const ftRef   = `${CL(G_FT)}${r}`
-    const finRef  = `${CL(G_FIN)}${r}`
-    const mtEqRef = `${CL(G_MT_EQ)}${r}`
-    const ftEqRef = `${CL(G_FT_EQ)}${r}`
-    const fgRef   = `${CL(G_FG)}${r}`
-
-    const comp   = s.gradeComponents?.[subject] || {}
-    const attSet = s.attendance?.[subject] || new Set()
-    const exSet  = s.excuse?.[subject]     || new Set()
-    const held   = getHeldDays(classId, subject, students)
-    const attScore = held > 0
-      ? Math.min(100, parseFloat(((attSet.size / held) * 100).toFixed(2)))
-      : ''
-
-    gsRows.push([
-      s.name,
-      s.id,
-      s.course || '',
-      s.year   || '',
-      { f: `IFERROR(${actRef},"")` },   // Activities (cross-sheet)
-      { f: `IFERROR(${qzRef},"")` },    // Quizzes (cross-sheet)
-      attScore,                          // Attendance score (static)
-      // Class Standing: average of available components
-      { f: `IFERROR(AVERAGE(IF(ISNUMBER(${CL(G_ACT)}${r}),${CL(G_ACT)}${r}),IF(ISNUMBER(${CL(G_QZ)}${r}),${CL(G_QZ)}${r}),IF(ISNUMBER(${attRef}),${attRef})),"")` },
-      { f: `IFERROR(${xref('Exams & Attendance', E_MT_EXAM, r)},"")` },  // Midterm exam (from Exams sheet)
-      { f: `IFERROR(${xref('Exams & Attendance', E_FT_EXAM, r)},"")` },  // Finals exam (from Exams sheet)
-      // Midterm term: avg(CS, MT Exam)
-      { f: `IFERROR(AVERAGE(${csRef},${mtExRef}),"")` },
-      // Finals term: avg(CS, FT Exam)
-      { f: `IFERROR(AVERAGE(${csRef},${ftExRef}),"")` },
-      // Final grade %: avg(midterm, finals)
-      { f: `IFERROR(AVERAGE(${mtRef},${ftRef}),"")` },
-      // Midterm equiv
-      { f: equivIF(mtRef) },
-      // Finals equiv
-      { f: equivIF(ftRef) },
-      // Final equiv (combine table)
-      { f: fgIF(mtEqRef, ftEqRef) },
-      // Letter
-      { f: `IF(${fgRef}="—","—",IF(${fgRef}="5.00","F",IF(${fgRef}="4.00","D",IF(${fgRef}<="1.25","A+",IF(${fgRef}<="1.50","A",IF(${fgRef}<="1.75","A-",IF(${fgRef}<="2.00","B+",IF(${fgRef}<="2.25","B+",IF(${fgRef}<="2.50","B",IF(${fgRef}<="2.75","B-","C"))))))))))` },
-      // Remark
-      { f: remarkIF(fgRef) },
-      '',  // Notes
-    ])
-  })
-
-  const wsGs = mkWS(gsRows)
-  setColWidths(wsGs, [28, 14, 16, 10, 11, 10, 11, 12, 12, 11, 12, 12, 13, 13, 12, 12, 8, 12, 20])
-  freeze(wsGs, 4, 3)
-
-  // Protect the grading sheet
-  wsGs['!protect'] = { password: 'acadflow', sheet: true, insertRows: false, deleteRows: false }
-
-  // ── Instructions Sheet ────────────────────────────────────────────────────
-  const wsInstr = mkWS([
-    ['AcadFlow Grading Sheet — Instructions'],
-    [''],
-    ['This workbook was auto-generated by AcadFlow.'],
-    [''],
-    ['• Activities tab   — Enter scores for each activity (midterm & finals columns).'],
-    ['• Quizzes tab      — Enter quiz scores.'],
-    ['• Exams tab        — Enter Midterm Exam and Finals Exam scores in the MT Exam / FT Exam columns.'],
-    ['                     Attendance data is pre-filled from the portal.'],
-    ['• Grading Sheet    — Protected. All grades auto-compute from your inputs above.'],
-    ['                     Class Standing = AVG(Activities, Quizzes)'],
-    ['                     Midterm Grade  = AVG(Class Standing, Midterm Exam)'],
-    ['                     Finals Grade   = AVG(Class Standing, Finals Exam)'],
-    ['                     Final Grade    = AVG(Midterm Grade, Finals Grade)'],
-    ['  Password: acadflow'],
-    [''],
-    ['Grade Scale:'],
-    ['  99–100 → 1.00 | 96–98 → 1.25 | 93–95 → 1.50 | 90–92 → 1.75 | 87–89 → 2.00'],
-    ['  84–86 → 2.25 | 81–83 → 2.50 | 78–80 → 2.75 | 75–77 → 3.00 | 72–74 → 4.00 | ≤71 → 5.00'],
-  ])
-  setColWidths(wsInstr, [80])
-
-  // ── Assemble workbook ─────────────────────────────────────────────────────
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, wsAct,   'Activities')
-  XLSX.utils.book_append_sheet(wb, wsQz,    'Quizzes')
-  XLSX.utils.book_append_sheet(wb, wsExam,  'Exams & Attendance')
-  XLSX.utils.book_append_sheet(wb, wsGs,    'Grading Sheet')
-  XLSX.utils.book_append_sheet(wb, wsInstr, 'Instructions')
-
-  const safeSub  = subject.replace(/[/\\:*?[\]]/g, '_').slice(0, 28)
-  const safeDate = new Date().toISOString().slice(0, 10)
-  const prefix   = prefilled ? 'Grades' : 'GradingSheet'
-  XLSX.writeFile(wb, `${prefix}_${safeSub}_${safeDate}.xlsx`)
-}
-
-// ── parseGradingSheetImport ───────────────────────────────────────────────
-/**
- * Reads a grading-sheet XLSX workbook (produced by exportGradingSheet) and
- * extracts per-student score data for re-import into the system.
- *
- * Column layout (0-based indices, post-fix layout):
- *   Activities:         0=name, 1=studentId, 2–6=MT acts, 7–11=FT acts, 12=MT avg, 13=FT avg
- *   Quizzes:            0=name, 1=studentId, 2–6=quiz scores, 7=avg
- *   Exams & Attendance: 0=name, 1=studentId, 8=MT exam, 9=FT exam
- *
- * Data rows start at 0-based row index 3 (rows 0–2 are title/header rows).
- *
- * @param {object} workbook — SheetJS workbook object
- * @returns {{ studentId:string, actAvg:number|null, qzAvg:number|null, mtExam:number|null, ftExam:number|null }[]}
- */
-export function parseGradingSheetImport(workbook) {
-  const XLSX = window.XLSX
-  if (!XLSX) throw new Error('SheetJS not loaded')
-
-  const DATA_ROW = 3
-
-  function toAoa(sheetName) {
-    const ws = workbook.Sheets[sheetName]
-    if (!ws) return []
-    return XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
-  }
-
-  function toN(v) {
-    const n = parseFloat(v)
-    return isNaN(n) ? null : n
-  }
-
-  function avgNonNull(vals) {
-    const nums = vals.map(toN).filter(x => x !== null)
-    if (!nums.length) return null
-    return parseFloat((nums.reduce((s, x) => s + x, 0) / nums.length).toFixed(2))
-  }
-
-  const actRows  = toAoa('Activities').slice(DATA_ROW)
-  const qzRows   = toAoa('Quizzes').slice(DATA_ROW)
-  const examRows = toAoa('Exams & Attendance').slice(DATA_ROW)
-
-  if (!examRows.length) throw new Error('Missing required sheet "Exams & Attendance"')
-  if (!actRows.length)  throw new Error('Missing required sheet "Activities"')
-
-  // Build lookup maps keyed by studentId
-  const actMap  = {}
-  const qzMap   = {}
-  const examMap = {}
-
-  // Activities: cols 2–6 = MT acts, 7–11 = FT acts; fallback to formula cells at 12/13
-  for (const row of actRows) {
-    const id = String(row[1] ?? '').trim()
-    if (!id) continue
-    const allActs = row.slice(2, 12)       // MT acts (2–6) + FT acts (7–11)
-    const scores  = allActs.map(toN)
-    const computed = avgNonNull(allActs)
-    actMap[id] = {
-      avg:    computed !== null ? computed : (toN(row[12]) ?? toN(row[13]) ?? null),
-      scores,                              // individual per-column scores (may contain nulls)
-    }
-  }
-
-  // Quizzes: cols 2–6 = quiz scores; fallback to formula cell at col 7
-  for (const row of qzRows) {
-    const id = String(row[1] ?? '').trim()
-    if (!id) continue
-    const scores  = row.slice(2, 7).map(toN)
-    const computed = avgNonNull(row.slice(2, 7))
-    qzMap[id] = {
-      avg:    computed !== null ? computed : (toN(row[7]) ?? null),
-      scores,
-    }
-  }
-
-  // Exams & Attendance: col 8 = MT exam, col 9 = FT exam (static values)
-  for (const row of examRows) {
-    const id = String(row[1] ?? '').trim()
-    if (!id) continue
-    examMap[id] = { mtExam: toN(row[8]), ftExam: toN(row[9]) }
-  }
-
-  const allIds = new Set([...Object.keys(actMap), ...Object.keys(qzMap), ...Object.keys(examMap)])
-
-  return [...allIds].map(studentId => ({
-    studentId,
-    actAvg:    actMap[studentId]?.avg    ?? null,
-    actScores: actMap[studentId]?.scores ?? [],   // individual activity scores array
-    qzAvg:     qzMap[studentId]?.avg     ?? null,
-    qzScores:  qzMap[studentId]?.scores  ?? [],   // individual quiz scores array
-    mtExam:    examMap[studentId]?.mtExam ?? null,
-    ftExam:    examMap[studentId]?.ftExam ?? null,
-  }))
-}
-
-// ── exportCurrentGrades ───────────────────────────────────────────────────
-/**
- * Exports the currently stored grade data for one class+subject as an XLSX.
- * Includes per-student: activity scores, quiz scores, attendance, exams, computed terms, final grade.
- *
- * @param {{ classId: string, subject: string, students: object[], classes: object[], activities: object[], eqScale?: object[] }} opts
- */
-export function exportCurrentGrades({ classId, subject, students, classes, activities = [], eqScale = DEFAULT_EQ_SCALE }) {
-  // Delegate to exportGradingSheet with pre-filled data — produces the same
-  // multi-sheet workbook format so it can be re-imported via parseGradingSheetImport.
-  exportGradingSheet({ classId, subject, students, classes, activities, eqScale, prefilled: true })
 }
 
 // ── exportStudentRosterExcel ──────────────────────────────────────────────
@@ -662,7 +220,7 @@ function rosterSheetJS(XLSX, ctx) {
 }
 
 // Download a Blob as a file.
-function downloadBlob(blob, fileName) {
+export function downloadBlob(blob, fileName) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -674,7 +232,7 @@ function downloadBlob(blob, fileName) {
 // Load ExcelJS on demand from the CDN (only when exporting a roster). Resolves to
 // the global, or null if it can't load — the caller falls back to SheetJS.
 let _exceljsLoading = null
-function ensureExcelJS() {
+export function ensureExcelJS() {
   if (window.ExcelJS) return Promise.resolve(window.ExcelJS)
   if (_exceljsLoading) return _exceljsLoading
   _exceljsLoading = new Promise((resolve) => {

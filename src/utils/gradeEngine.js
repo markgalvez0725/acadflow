@@ -74,13 +74,23 @@ export function deriveActivities(s, sub, activities = [], enrolledIds = enrolled
           const max = a?.maxScore || 100
           return { id: k, title: a?.title || '', score: v, max, pct: withFloor(norm(v, max)), missing: false }
         })
-      } else if (!liveActs.length && entries.every(([k]) => /^a\d+$/.test(k))) {
-        // Legacy doc-less manual entry (teacher typed scores with no activity docs).
-        items = entries
+      } else if (!liveActs.length) {
+        // Doc-less manual entry (teacher typed scores with no activity docs).
+        const aKeyed = entries.filter(([k]) => /^a\d+$/.test(k))
+        items = aKeyed
           .sort((a, b) => parseInt(a[0].slice(1)) - parseInt(b[0].slice(1)))
           .map(([k, v]) => ({ id: k, title: '', score: v, max: 100, pct: withFloor(v), missing: false }))
       }
     }
+  }
+
+  // Imported "extra" activity columns (keys x1, x2…) always count on top of the
+  // app's own activities — they came from an Excel import, not a live doc.
+  if (hadScores) {
+    const extra = Object.entries(comp.activityScores)
+      .filter(([k]) => /^x\d+$/.test(k))
+      .map(([k, v]) => ({ id: k, title: 'Imported', score: Number(v), max: 100, pct: withFloor(Number(v)), missing: false }))
+    if (extra.length) items = [...items, ...extra]
   }
 
   const raw = items.length ? items.reduce((t, i) => t + i.pct, 0) / items.length : null
@@ -130,6 +140,15 @@ export function deriveQuizzes(s, sub, quizzes = [], enrolledIds = enrolledIdsOf(
         .filter(([k]) => /^q\d+$/.test(k) ? !hasLive : liveQuizIds.has(k))
       items = entries.map(([k, v]) => ({ id: /^q\d+$/.test(k) ? null : k, title: '', pct: withFloor(v), missing: false }))
     }
+  }
+
+  // Imported "extra" quiz columns (keys xq1, xq2…) always count on top of the
+  // app's own quizzes — they came from an Excel import, not a live quiz.
+  if (hadScores) {
+    const extra = Object.entries(comp.quizScores)
+      .filter(([k]) => /^xq\d+$/.test(k))
+      .map(([k, v]) => ({ id: k, title: 'Imported', pct: withFloor(Number(v)), missing: false }))
+    if (extra.length) items = [...items, ...extra]
   }
 
   const raw = items.length ? items.reduce((t, q) => t + q.pct, 0) / items.length : null

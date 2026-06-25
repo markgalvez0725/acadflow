@@ -6,15 +6,18 @@ import {
   gradeInfo, combineEquiv, computeTerms, scoredPercent, round2,
   getHeldDays, gradeInfoForStudent, getGradeScaleLabel,
 } from '@/utils/grades'
-import { exportGradingSheet, parseGradingSheetImport, exportCurrentGrades, exportMasterGradingReport } from '@/export/excelExport'
+import { exportMasterGradingReport } from '@/export/excelExport'
+import { exportGradingSheet, parseGradingSheetImport, exportCurrentGrades } from '@/export/gradingSheet'
+import { verifyGradeRows } from '@/utils/gradeImportVerifyAI'
 import { classTag } from '@/utils/groupChat'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import KebabMenu from '@/components/primitives/KebabMenu'
-import { Clock, Pencil, BarChart2, Upload, Download, Trash2, BarChart, RefreshCw, Archive, ArchiveRestore, FileSpreadsheet, Plus, ChevronDown, Sparkles, Undo2, Redo2, Check, Maximize2, AlertTriangle } from 'lucide-react'
+import { Clock, Pencil, BarChart2, Upload, Download, Trash2, BarChart, RefreshCw, Archive, ArchiveRestore, FileSpreadsheet, Plus, ChevronDown, Sparkles, Undo2, Redo2, Check, Maximize2, AlertTriangle, Search } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const GRADE_PER_PAGE = 10
+const GRADE_IMPORT_PER_PAGE = 25
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function toNum(v) {
@@ -79,37 +82,65 @@ function GradeEntryModal({ classId, subject, onClose }) {
     [quizzes, classId, subject]
   )
 
-  // Max activity count: prefer panel acts count, fallback to stored activityScores keys
-  const actInputCount = useMemo(() => {
-    if (panelActs.length > 0) return panelActs.length
-    const max = studs.reduce((m, s) => {
-      const sc = s.gradeComponents?.[subject]?.activityScores || {}
-      // Count only positional keys like a1, a2, …
-      const positional = Object.keys(sc).filter(k => /^a\d+$/.test(k))
-      return Math.max(m, positional.length)
-    }, 0)
-    return Math.max(max, 1)
-  }, [studs, subject, panelActs])
+  // Manual "+ column" extras the teacher adds in-modal (beyond app/imported ones).
+  const [manualActExtra, setManualActExtra] = useState(0)
+  const [manualQzExtra,  setManualQzExtra]  = useState(0)
 
-  // Max quiz count: prefer panel quizzes count, fallback to stored quizScores keys
-  const quizInputCount = useMemo(() => {
-    if (panelQuizzes.length > 0) return panelQuizzes.length
-    const max = studs.reduce((m, s) => {
-      const qz = s.gradeComponents?.[subject]?.quizScores || {}
-      // Count only positional keys like q1, q2, … (avoid id-based duplicate keys)
-      const positional = Object.keys(qz).filter(k => /^q\d+$/.test(k))
-      return Math.max(m, positional.length)
-    }, 0)
-    return Math.max(max, 1)
-  }, [studs, subject, panelQuizzes])
+  // Unified activity columns, left→right: app activities (live, by id) OR manual
+  // positional columns (a-keys), then any IMPORTED extra columns (x-keys) so
+  // grades imported from Excel show as their own columns next to the app's, then
+  // any in-modal "+ column" extras. Each carries { key, label, max, act? }.
+  const actCols = useMemo(() => {
+    const cols = []
+    if (panelActs.length > 0) {
+      panelActs.forEach((a, i) => cols.push({ key: a.id, label: a.title || `Activity ${i + 1}`, max: a.maxScore || 100, act: a }))
+    } else {
+      let n = 0
+      studs.forEach(s => {
+        const sc = s.gradeComponents?.[subject]?.activityScores || {}
+        n = Math.max(n, Object.keys(sc).filter(k => /^a\d+$/.test(k)).length)
+      })
+      for (let i = 0; i < Math.max(n, 1); i++) cols.push({ key: `a${i + 1}`, label: `Activity ${i + 1}`, max: 100 })
+    }
+    const xset = new Set()
+    studs.forEach(s => Object.keys(s.gradeComponents?.[subject]?.activityScores || {}).forEach(k => { if (/^x\d+$/.test(k)) xset.add(k) }))
+    const xsorted = [...xset].sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)))
+    xsorted.forEach((k, i) => cols.push({ key: k, label: `Extra ${i + 1}`, max: 100 }))
+    const xBase = xsorted.length
+    for (let i = 0; i < manualActExtra; i++) cols.push({ key: `x${xBase + i + 1}`, label: `Extra ${xBase + i + 1}`, max: 100 })
+    return cols
+  }, [studs, subject, panelActs, manualActExtra])
 
-  // Activity average as a percentage: each panel activity input is normalized
-  // by its own maxScore (rubric activities may be out of ≠100). In manual mode
-  // (no panel) inputs are treated as percentages (maxScore 100). Full precision.
+  const qzCols = useMemo(() => {
+    const cols = []
+    if (panelQuizzes.length > 0) {
+      panelQuizzes.forEach((q, i) => cols.push({ key: q.id, label: q.title || `Quiz ${i + 1}`, max: 100, quiz: q }))
+    } else {
+      let n = 0
+      studs.forEach(s => {
+        const sc = s.gradeComponents?.[subject]?.quizScores || {}
+        n = Math.max(n, Object.keys(sc).filter(k => /^q\d+$/.test(k)).length)
+      })
+      for (let i = 0; i < Math.max(n, 1); i++) cols.push({ key: `q${i + 1}`, label: `Quiz ${i + 1}`, max: 100 })
+    }
+    const xset = new Set()
+    studs.forEach(s => Object.keys(s.gradeComponents?.[subject]?.quizScores || {}).forEach(k => { if (/^xq\d+$/.test(k)) xset.add(k) }))
+    const xsorted = [...xset].sort((a, b) => parseInt(a.slice(2)) - parseInt(b.slice(2)))
+    xsorted.forEach((k, i) => cols.push({ key: k, label: `Extra ${i + 1}`, max: 100 }))
+    const xBase = xsorted.length
+    for (let i = 0; i < manualQzExtra; i++) cols.push({ key: `xq${xBase + i + 1}`, label: `Extra ${xBase + i + 1}`, max: 100 })
+    return cols
+  }, [studs, subject, panelQuizzes, manualQzExtra])
+
+  const actInputCount  = actCols.length
+  const quizInputCount = qzCols.length
+
+  // Activity average as a percentage: each input is normalized by its column's
+  // maxScore (rubric activities may be out of ≠100; extras are out of 100).
   function actAvgFromInputs(actInputs) {
     const items = actInputs.map((v, i) => {
       const sc = toNum(v)
-      return sc === null ? null : { score: sc, maxScore: panelActs[i]?.maxScore || 100 }
+      return sc === null ? null : { score: sc, maxScore: actCols[i]?.max || 100 }
     }).filter(Boolean)
     return scoredPercent(items)
   }
@@ -119,50 +150,32 @@ function GradeEntryModal({ classId, subject, onClose }) {
     return studs.map(s => {
       const comp = s.gradeComponents?.[subject] || {}
 
-      // Per-activity scores — from panel submissions, fallback to stored activityScores
-      const actInputs = panelActs.length > 0
-        ? panelActs.map((a, idx) => {
-            const sc = (a.submissions || {})[s.id]?.score
-            if (sc != null) return String(sc)
-            // Fallback: check stored activityScores by activity id or positional key
-            const stored = comp.activityScores
-            if (stored) {
-              const byId  = stored[a.id]
-              const byIdx = stored[`a${idx + 1}`]
-              const val   = byId ?? byIdx
-              if (val != null) return String(val)
-            }
-            return ''
-          })
-        : Array.from({ length: actInputCount }, (_, i) => {
-            const v = comp.activityScores?.[`a${i + 1}`]
-            return v != null ? String(v) : ''
-          })
+      // Per-activity scores — one per unified column (app submission / stored key).
+      const actInputs = actCols.map(c => {
+        if (c.act) {
+          const sc = (c.act.submissions || {})[s.id]?.score
+          if (sc != null) return String(sc)
+        }
+        const v = comp.activityScores?.[c.key]
+        return v != null ? String(v) : ''
+      })
 
       // Compute activity avg from inputs (normalized by each activity's maxScore)
       const actAvg = round2(actAvgFromInputs(actInputs))
 
-      // Per-quiz scores — from panel submissions, fallback to stored quizScores
+      // Per-quiz scores — one per unified column (app submission % / stored key).
       const qzScoresMap = comp.quizScores || {}
-      const qzInputs = panelQuizzes.length > 0
-        ? panelQuizzes.map((q, idx) => {
-            // Check quiz submission for auto-graded score (convert raw score to %)
-            const sub = (q.submissions || {})[s.id]
-            if (sub?.score != null) {
-              const total = (sub.total ?? q.totalPoints ?? q.questions?.length) || 1
-              const pct = parseFloat(((sub.score / total) * 100).toFixed(1))
-              return String(pct)
-            }
-            // Fallback to stored quizScores by quiz id or positional key
-            const byId  = qzScoresMap[q.id]
-            const byIdx = qzScoresMap[`q${idx + 1}`]
-            const val   = byId ?? byIdx
-            return val != null ? String(val) : ''
-          })
-        : Array.from({ length: quizInputCount }, (_, i) => {
-            const v = qzScoresMap[`q${i + 1}`]
-            return v != null ? String(v) : ''
-          })
+      const qzInputs = qzCols.map(c => {
+        if (c.quiz) {
+          const sub = (c.quiz.submissions || {})[s.id]
+          if (sub?.score != null) {
+            const total = (sub.total ?? c.quiz.totalPoints ?? c.quiz.questions?.length) || 1
+            return String(parseFloat(((sub.score / total) * 100).toFixed(1)))
+          }
+        }
+        const v = qzScoresMap[c.key]
+        return v != null ? String(v) : ''
+      })
       const qzNums = qzInputs.map(v => toNum(v)).filter(v => v !== null)
       const qzAvg  = qzNums.length > 0
         ? parseFloat((qzNums.reduce((a, b) => a + b, 0) / qzNums.length).toFixed(2))
@@ -198,7 +211,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
         equivPreview: eqPreview,
       }
     })
-  }, [studs, subject, classId, panelActs, panelQuizzes, students, eqScale, actInputCount, quizInputCount])
+  }, [studs, subject, classId, actCols, qzCols, students, eqScale])
 
   const [rows, setRows] = useState(initRows)
   const [saving, setSaving] = useState(false)
@@ -332,11 +345,13 @@ function GradeEntryModal({ classId, subject, onClose }) {
 
   // Add an extra activity column (manual mode only — when no panel activities)
   function addActColumn() {
+    setManualActExtra(n => n + 1)
     setRows(prev => prev.map(r => recomputeRow({ ...r, actInputs: [...r.actInputs, ''] })))
   }
 
   // Add an extra quiz column (manual mode only — when no panel quizzes)
   function addQzColumn() {
+    setManualQzExtra(n => n + 1)
     setRows(prev => prev.map(r => recomputeRow({ ...r, qzInputs: [...r.qzInputs, ''] })))
   }
 
@@ -377,45 +392,23 @@ function GradeEntryModal({ classId, subject, onClose }) {
       if (midExamV !== null) { comp.midtermCS = round2(cs); comp.midterm = round2(midterm) }
       if (finExamV !== null) { comp.finalsCS  = round2(cs); comp.finals  = round2(finals) }
 
-      // Sync activityScores from individual inputs or panel
-      if (panelActs.length > 0) {
-        const actScoresMap = {}
-        panelActs.forEach((a, idx) => {
-          const sc = toNum(r.actInputs[idx])
-          if (sc != null) {
-            actScoresMap['a' + (idx + 1)] = sc
-            actScoresMap[a.id] = sc
-          }
-        })
-        if (Object.keys(actScoresMap).length) comp.activityScores = actScoresMap
-      } else {
-        const actScoresMap = {}
-        r.actInputs.forEach((v, idx) => {
-          const sc = toNum(v)
-          if (sc != null) actScoresMap[`a${idx + 1}`] = sc
-        })
-        if (Object.keys(actScoresMap).length) comp.activityScores = actScoresMap
-      }
+      // Sync per-column scores by their stable key (panel id / a-key / x-extra),
+      // so app, manual, and imported columns all round-trip.
+      const actScoresMap = {}
+      actCols.forEach((c, idx) => {
+        const sc = toNum(r.actInputs[idx])
+        if (sc != null) actScoresMap[c.key] = sc
+      })
+      if (Object.keys(actScoresMap).length) comp.activityScores = actScoresMap
+      else delete comp.activityScores
 
-      // Sync quizScores from individual inputs
-      if (r.qzInputs.length > 0) {
-        const qzMap = {}
-        if (panelQuizzes.length > 0) {
-          panelQuizzes.forEach((q, idx) => {
-            const sc = toNum(r.qzInputs[idx])
-            if (sc != null) {
-              qzMap[`q${idx + 1}`] = sc
-              qzMap[q.id] = sc
-            }
-          })
-        } else {
-          r.qzInputs.forEach((v, idx) => {
-            const sc = toNum(v)
-            if (sc != null) qzMap[`q${idx + 1}`] = sc
-          })
-        }
-        if (Object.keys(qzMap).length) comp.quizScores = qzMap
-      }
+      const qzMap = {}
+      qzCols.forEach((c, idx) => {
+        const sc = toNum(r.qzInputs[idx])
+        if (sc != null) qzMap[c.key] = sc
+      })
+      if (Object.keys(qzMap).length) comp.quizScores = qzMap
+      else delete comp.quizScores
 
       // Final Grade % = avg(Midterm Term, Finals Term) — full precision, rounded once.
       const finalGrade = (comp.midterm != null || comp.finals != null) ? final : null
@@ -660,6 +653,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
           nr.actInputs = r.actInputs.map((v, idx) => (rec.actScores[idx] != null ? String(rec.actScores[idx]) : v))
         if (Array.isArray(rec.qzScores) && rec.qzScores.length)
           nr.qzInputs = r.qzInputs.map((v, idx) => (rec.qzScores[idx] != null ? String(rec.qzScores[idx]) : v))
+        if (rec.attitude != null) nr.attitude = String(rec.attitude)
         if (rec.mtExam != null) nr.midtermExam = String(rec.mtExam)
         if (rec.ftExam != null) nr.finalsExam = String(rec.ftExam)
         return recomputeRow(nr)
@@ -788,13 +782,13 @@ function GradeEntryModal({ classId, subject, onClose }) {
                 <div className="flex flex-wrap gap-2">
                   {r.actInputs.map((val, ai) => (
                     <label key={`a${ai}`} className="text-xs" style={{ width: 84 }}>
-                      <span className="text-ink3" title={panelActs[ai]?.title || `Activity ${ai + 1}`}>{(panelActs[ai]?.title || `Act ${ai + 1}`).slice(0, 8)}</span>
+                      <span className="text-ink3" title={actCols[ai]?.label || `Activity ${ai + 1}`}>{(actCols[ai]?.label || `Act ${ai + 1}`).slice(0, 8)}</span>
                       <input className="grade-input" type="number" min="0" max="100" value={val} placeholder="—" onChange={e => updateActInput(i, ai, e.target.value)} />
                     </label>
                   ))}
                   {r.qzInputs.map((val, qi) => (
                     <label key={`q${qi}`} className="text-xs" style={{ width: 84 }}>
-                      <span className="text-ink3" title={panelQuizzes[qi]?.title || `Quiz ${qi + 1}`}>{(panelQuizzes[qi]?.title || `Quiz ${qi + 1}`).slice(0, 8)}</span>
+                      <span className="text-ink3" title={qzCols[qi]?.label || `Quiz ${qi + 1}`}>{(qzCols[qi]?.label || `Quiz ${qi + 1}`).slice(0, 8)}</span>
                       <input className="grade-input" type="number" min="0" max="100" value={val} placeholder="—" onChange={e => updateQzInput(i, qi, e.target.value)} />
                     </label>
                   ))}
@@ -846,26 +840,16 @@ function GradeEntryModal({ classId, subject, onClose }) {
             </tr>
             {/* Row 2: individual activity and quiz columns */}
             <tr>
-              {panelActs.length > 0
-                ? panelActs.map((a, i) => (
-                    <th key={a.id} title={a.title || `Activity ${i + 1}`}>
-                      {a.title ? a.title.length > 10 ? a.title.slice(0, 10) + '…' : a.title : `Act ${i + 1}`}
-                    </th>
-                  ))
-                : Array.from({ length: actInputCount }, (_, i) => (
-                    <th key={i}>Activity {i + 1}</th>
-                  ))
-              }
-              {panelQuizzes.length > 0
-                ? panelQuizzes.map((q, i) => (
-                    <th key={q.id} title={q.title || `Quiz ${i + 1}`}>
-                      {q.title ? q.title.length > 10 ? q.title.slice(0, 10) + '…' : q.title : `Quiz ${i + 1}`}
-                    </th>
-                  ))
-                : Array.from({ length: quizInputCount }, (_, i) => (
-                    <th key={i}>Quiz {i + 1}</th>
-                  ))
-              }
+              {actCols.map((c, i) => (
+                <th key={c.key || i} title={c.label}>
+                  {c.label.length > 10 ? c.label.slice(0, 10) + '…' : c.label}
+                </th>
+              ))}
+              {qzCols.map((c, i) => (
+                <th key={c.key || i} title={c.label}>
+                  {c.label.length > 10 ? c.label.slice(0, 10) + '…' : c.label}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -893,7 +877,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
                       <input className="grade-input" type="number" min="0" max="100"
                         data-cell={`${i}-${ai}`}
                         value={val} placeholder="—"
-                        title={panelActs[ai]?.title || `Activity ${ai + 1}`}
+                        title={actCols[ai]?.label || `Activity ${ai + 1}`}
                         onChange={e => updateActInput(i, ai, e.target.value)} />
                     </td>
                   ))}
@@ -910,7 +894,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
                       <input className="grade-input" type="number" min="0" max="100"
                         data-cell={`${i}-${actInputCount + qi}`}
                         value={val} placeholder="—"
-                        title={panelQuizzes[qi]?.title || `Quiz ${qi + 1}`}
+                        title={qzCols[qi]?.label || `Quiz ${qi + 1}`}
                         onChange={e => updateQzInput(i, qi, e.target.value)} />
                     </td>
                   ))}
@@ -1434,8 +1418,154 @@ function SubjectCard({ cls, sub, studs, allStuds = [], eqScale, readOnly, onEdit
 }
 
 // ── GradesTab ─────────────────────────────────────────────────────────────────
+// ── Grade-import preview (opens after a file is picked, before anything saves) ──
+function GradeImportPreviewModal({ preview, cls, onCancel, onConfirm }) {
+  const { sub, verify, fileName } = preview
+  const { rows, summary } = verify
+  const [page, setPage]     = useState(1)
+  const [filter, setFilter] = useState('all') // all | review | ok | error
+  const [query, setQuery]   = useState('')
+  React.useEffect(() => { setPage(1) }, [filter, query])
+
+  const filtered = useMemo(() => {
+    let list = rows
+    if (filter === 'review')     list = rows.filter(r => r.matched && r.level === 'review')
+    else if (filter === 'ok')    list = rows.filter(r => r.matched && r.level === 'ok')
+    else if (filter === 'error') list = rows.filter(r => !r.matched)
+    const q = query.trim().toLowerCase()
+    if (q) list = list.filter(r => String(r.name).toLowerCase().includes(q) || String(r.studentId).toLowerCase().includes(q))
+    if (filter === 'all') {
+      const rank = r => (!r.matched ? 0 : r.level === 'review' ? 1 : 2)
+      list = [...list].sort((a, b) => rank(a) - rank(b))
+    }
+    return list
+  }, [rows, filter, query])
+
+  const pageRows = filtered.slice((page - 1) * GRADE_IMPORT_PER_PAGE, page * GRADE_IMPORT_PER_PAGE)
+  const fmt = v => (v === null || v === undefined ? '—' : v)
+
+  const Tab = ({ id, label, count, color }) => (
+    <button
+      type="button"
+      onClick={() => setFilter(id)}
+      className="btn btn-sm"
+      style={{
+        borderRadius: 999,
+        background: filter === id ? 'var(--accent-l)' : 'transparent',
+        borderColor: filter === id ? 'var(--accent)' : 'var(--border)',
+        color: color || 'var(--ink)',
+      }}
+    >
+      {label} {count}
+    </button>
+  )
+
+  return (
+    <Modal onClose={onCancel} wide>
+      <div className="flex items-start justify-between flex-wrap gap-2 mb-1">
+        <div>
+          <h3 className="mb-0"><Sparkles size={16} className="inline-block mr-1 align-text-bottom" style={{ color: 'var(--accent)' }} />Review import — {sub}</h3>
+          <p className="modal-sub mb-0">{cls?.name} {cls?.section} · <span className="text-ink3">{fileName}</span></p>
+        </div>
+      </div>
+
+      <p className="text-xs text-ink3 mb-3" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <Sparkles size={12} style={{ color: 'var(--accent)' }} />
+        On-device check — grades recomputed the same way the app does. Warnings are advisory; only valid rows import.
+      </p>
+
+      {/* Summary */}
+      <div className="flex flex-wrap gap-2 mb-3">
+        <span className="badge badge-green">{summary.matched} matched</span>
+        {summary.flagged > 0 && <span className="badge" style={{ background: 'var(--warn-l, #FAEEDA)', color: '#854F0B' }}>{summary.flagged} need review</span>}
+        {summary.unmatched > 0 && <span className="badge badge-red">{summary.unmatched} not in class</span>}
+      </div>
+
+      {/* Filter tabs + search */}
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+        <div className="flex flex-wrap gap-1">
+          <Tab id="all"    label="All"          count={rows.length} />
+          <Tab id="review" label="Needs review" count={summary.flagged} color="#854F0B" />
+          <Tab id="ok"     label="OK"           count={summary.matched - summary.flagged} color="#3B6D11" />
+          {summary.unmatched > 0 && <Tab id="error" label="Not in class" count={summary.unmatched} color="#A32D2D" />}
+        </div>
+        <div style={{ position: 'relative' }}>
+          <Search size={14} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--ink3)' }} />
+          <input
+            className="input"
+            style={{ width: 200, paddingLeft: 28 }}
+            placeholder="Search name or ID…"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Preview table */}
+      <div style={{ maxHeight: '46vh', overflow: 'auto' }}>
+        <table className="tbl text-xs">
+          <thead>
+            <tr>
+              <th>#</th><th>Student</th>
+              <th className="text-center">Act</th><th className="text-center">Qz</th>
+              <th className="text-center">Att</th><th className="text-center">MT</th><th className="text-center">FT</th>
+              <th className="text-center">Final</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pageRows.length === 0 && (
+              <tr><td colSpan={9} className="text-center text-ink3" style={{ padding: 16 }}>No rows match.</td></tr>
+            )}
+            {pageRows.map((r, i) => (
+              <tr key={r.studentId + i} style={{ opacity: r.matched ? 1 : 0.6 }}>
+                <td className="text-ink3">{(page - 1) * GRADE_IMPORT_PER_PAGE + i + 1}</td>
+                <td>
+                  <div>{r.name}</div>
+                  <div className="text-ink3" style={{ fontSize: 10 }}>{r.studentId}</div>
+                </td>
+                <td className="text-center">{fmt(r.actAvg)}</td>
+                <td className="text-center">{fmt(r.qzAvg)}</td>
+                <td className="text-center">{fmt(r.attend)}</td>
+                <td className="text-center">{fmt(r.mtExam)}</td>
+                <td className="text-center">{fmt(r.ftExam)}</td>
+                <td className="text-center" style={{ fontWeight: 600 }}>
+                  {fmt(r.final)}{r.final != null && r.equiv && r.equiv !== '—' ? <span className="text-ink3" style={{ fontWeight: 400 }}> · {r.equiv}</span> : null}
+                </td>
+                <td>
+                  {!r.matched ? (
+                    <span style={{ color: '#A32D2D', display: 'inline-flex', alignItems: 'center', gap: 4 }} title={r.warnings[0]}>
+                      <AlertTriangle size={12} /> Not in class
+                    </span>
+                  ) : r.level === 'review' ? (
+                    <span style={{ color: '#854F0B', display: 'inline-flex', alignItems: 'center', gap: 4 }} title={r.warnings.join('\n')}>
+                      <AlertTriangle size={12} /> {r.warnings[0]}
+                    </span>
+                  ) : (
+                    <span style={{ color: '#3B6D11', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <Check size={12} /> OK
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <Pagination page={page} total={filtered.length} perPage={GRADE_IMPORT_PER_PAGE} onPageChange={setPage} />
+
+      <div className="flex items-center justify-end gap-2 mt-3">
+        <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+        <button className="btn btn-primary" onClick={onConfirm} disabled={summary.matched === 0}>
+          <Upload size={14} className="inline-block mr-1" />Import {summary.matched} student{summary.matched === 1 ? '' : 's'}
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
 export default function GradesTab() {
-  const { classes, students, activities, eqScale, saveStudents, fbReady } = useData()
+  const { classes, students, activities, quizzes, eqScale, saveStudents, fbReady, gradeFloor } = useData()
   const { toast, openDialog } = useUI()
 
   const [showArchived, setShowArchived] = useState(false)
@@ -1447,6 +1577,7 @@ export default function GradesTab() {
   const [search,     setSearch]     = useState('')
   const [editModal,  setEditModal]  = useState(null) // subject string
   const [importSub,  setImportSub]  = useState(null) // subject string for import
+  const [importPreview, setImportPreview] = useState(null) // { sub, entries, verify, fileName }
   const importFileRef = useRef(null)
 
   // One selectable option per (class, subject) pair, labelled
@@ -1586,11 +1717,11 @@ export default function GradesTab() {
   }
 
   function handleExport(sub) {
-    exportGradingSheet({ classId: effectiveId, subject: sub, students, classes, eqScale })
+    exportGradingSheet({ classId: effectiveId, subject: sub, students, classes, activities, quizzes, eqScale })
   }
 
   function handleExportGrades(sub) {
-    exportCurrentGrades({ classId: effectiveId, subject: sub, students, classes, activities, eqScale })
+    exportCurrentGrades({ classId: effectiveId, subject: sub, students, classes, activities, quizzes, eqScale })
   }
 
   async function handleImportFile(e) {
@@ -1616,95 +1747,90 @@ export default function GradesTab() {
       return
     }
 
-    const sub = importSub
-    const ok  = await openDialog({
-      title: `Import grades for "${sub}"?`,
-      msg: `${entries.length} student record(s) found. Grade components will be updated and grades recomputed for matched students in ${cls?.name} ${cls?.section}.\n\nThis will overwrite existing grade data.`,
-      type: 'warning',
-      confirmLabel: 'Import Grades',
-      showCancel: true,
-    })
-    if (!ok) { setImportSub(null); return }
+    // Recompute every row the way the app does and surface anything off before
+    // anything is written — the teacher reviews + confirms in the preview panel.
+    const verify = verifyGradeRows(entries, { students, classId: effectiveId, subject: importSub, eqScale, gradeFloor })
+    setImportPreview({ sub: importSub, entries, verify, fileName: file.name })
+  }
 
-    const now       = Date.now()
-    const entryMap  = Object.fromEntries(entries.map(en => [en.studentId, en]))
-    const clamp     = v => v !== null ? Math.min(100, Math.max(0, v)) : null
+  async function applyGradeImport(preview) {
+    const { sub, entries } = preview
+    const now      = Date.now()
+    const entryMap = Object.fromEntries(entries.map(en => [String(en.studentId).toLowerCase(), en]))
+    const clampV   = v => (v !== null && v !== undefined && !isNaN(v)) ? Math.min(100, Math.max(0, v)) : null
 
     const updatedStudents = students.map(s => {
       if (s.classId !== effectiveId && !s.classIds?.includes(effectiveId)) return s
-      const entry = entryMap[s.id]
+      const entry = entryMap[String(s.id).toLowerCase()]
       if (!entry) return s
 
       const ns   = { ...s, grades: { ...s.grades }, gradeComponents: { ...(s.gradeComponents || {}) }, gradeUploadedAt: { ...(s.gradeUploadedAt || {}) } }
       const comp = { ...(ns.gradeComponents[sub] || {}) }
 
-      // Attendance — auto from records (matches system formula)
+      // Attendance — auto from records (matches the system formula).
       const attSet = s.attendance?.[sub] || new Set()
       const held   = getHeldDays(effectiveId, sub, students)
-      const attV   = held > 0 ? Math.min(100, parseFloat(((attSet.size / held) * 100).toFixed(2))) : null
+      const attV   = held > 0 ? Math.min(100, round2((attSet.size / held) * 100)) : null
 
-      // Score components — from import file; fall back to existing stored values
-      const actV     = entry.actAvg !== null ? clamp(entry.actAvg)  : (comp.activities   ?? null)
-      const qzV      = entry.qzAvg  !== null ? clamp(entry.qzAvg)   : (typeof comp.quizzes === 'number' ? comp.quizzes : null)
-      const midExamV = entry.mtExam !== null ? clamp(entry.mtExam)  : (comp.midtermExam  ?? null)
-      const finExamV = entry.ftExam !== null ? clamp(entry.ftExam)  : (comp.finalsExam   ?? null)
+      // The "+ Activity" / "+ Quiz" extra columns import as their own columns
+      // (keys x1.. / xq1..) — additive, never overwriting the app's own activities
+      // and quizzes (which stay locked + submission-driven in the sheet).
+      const extraAct = (entry.actScores || []).slice(entry.nApp || 0)
+      if (extraAct.some(v => v != null)) {
+        const map = {}
+        Object.entries(comp.activityScores || {}).forEach(([k, v]) => { if (!/^x\d+$/.test(k)) map[k] = v })
+        extraAct.forEach((v, i) => { if (v != null) map[`x${i + 1}`] = v })
+        comp.activityScores = map
+      }
+      const extraQz = (entry.qzScores || []).slice(entry.nAppQz || 0)
+      if (extraQz.some(v => v != null)) {
+        const map = {}
+        Object.entries(comp.quizScores || {}).forEach(([k, v]) => { if (!/^xq\d+$/.test(k)) map[k] = v })
+        extraQz.forEach((v, i) => { if (v != null) map[`xq${i + 1}`] = v })
+        comp.quizScores = map
+      }
 
-      // Persist raw inputs
+      // Component percentages — the activity/quiz averages from the sheet already
+      // fold in the extra columns; fall back to stored values when a cell is blank.
+      const actV     = entry.actAvg   != null ? clampV(entry.actAvg)   : (comp.activities ?? null)
+      const qzV      = entry.qzAvg    != null ? clampV(entry.qzAvg)    : (typeof comp.quizzes === 'number' ? comp.quizzes : null)
+      const attitude = entry.attitude != null ? clampV(entry.attitude) : (comp.attitude ?? null)
+      const midExamV = entry.mtExam   != null ? clampV(entry.mtExam)   : (comp.midtermExam ?? null)
+      const finExamV = entry.ftExam   != null ? clampV(entry.ftExam)   : (comp.finalsExam ?? null)
+
       if (actV     != null) comp.activities  = actV
       if (qzV      != null) comp.quizzes     = qzV
+      if (attitude != null) comp.attitude    = attitude
       if (midExamV != null) comp.midtermExam = midExamV
       if (finExamV != null) comp.finalsExam  = finExamV
 
-      // Persist individual activity scores so the edit modal knows the count and values
-      if (entry.actScores?.length) {
-        const actSc = { ...(comp.activityScores || {}) }
-        entry.actScores.forEach((score, i) => {
-          if (score !== null) actSc[`a${i + 1}`] = score
-        })
-        if (Object.keys(actSc).length) comp.activityScores = actSc
-      } else if (actV !== null && !comp.activityScores?.a1) {
-        // No individual scores in the sheet — store the avg as a single slot
-        comp.activityScores = { ...(comp.activityScores || {}), a1: actV }
-      }
-
-      // Persist individual quiz scores so the edit modal knows the count and values
-      if (entry.qzScores?.length) {
-        const qzSc = { ...(comp.quizScores || {}) }
-        entry.qzScores.forEach((score, i) => {
-          if (score !== null) qzSc[`q${i + 1}`] = score
-        })
-        if (Object.keys(qzSc).length) comp.quizScores = qzSc
-      } else if (qzV !== null && !comp.quizScores?.q1) {
-        // No individual scores in the sheet — store the avg as a single slot
-        comp.quizScores = { ...(comp.quizScores || {}), q1: qzV }
-      }
-
-      // Canonical computation — Class Standing now includes Attitude (preserved
-      // from existing data); intermediates full precision, final rounded once.
+      // Canonical computation — Class Standing includes Attitude; intermediates
+      // full precision, final rounded once.
       const { cs, midterm, finals, final } = computeTerms({
         activities: actV, quizzes: qzV, attendance: attV,
-        attitude: comp.attitude ?? null, midtermExam: midExamV, finalsExam: finExamV,
+        attitude, midtermExam: midExamV, finalsExam: finExamV,
       })
       if (midExamV !== null) { comp.midtermCS = round2(cs); comp.midterm = round2(midterm) }
       if (finExamV !== null) { comp.finalsCS  = round2(cs); comp.finals  = round2(finals) }
 
       const finalGrade = (comp.midterm != null || comp.finals != null) ? final : null
-
       ns.grades[sub]          = finalGrade
       ns.gradeComponents[sub] = comp
       if (finalGrade !== null) ns.gradeUploadedAt[sub] = now
-
       return ns
     })
 
     const studsInClass = students.filter(s => s.classId === effectiveId || s.classIds?.includes(effectiveId))
     const changedIds   = studsInClass.map(s => s.id)
+    const idsLower     = new Set(studsInClass.map(s => String(s.id).toLowerCase()))
+    const matched      = entries.filter(en => idsLower.has(String(en.studentId).toLowerCase())).length
     try {
       await saveStudents(updatedStudents, changedIds)
-      toast(`Grades imported for "${sub}"!`, 'green')
+      toast(`Grades imported for ${matched} student${matched === 1 ? '' : 's'} in "${sub}".`, 'green')
     } catch (err) {
       toast('Saved locally — Firebase sync failed: ' + err.message, 'red')
     }
+    setImportPreview(null)
     setImportSub(null)
   }
 
@@ -1805,6 +1931,15 @@ export default function GradesTab() {
         style={{ display: 'none' }}
         onChange={handleImportFile}
       />
+
+      {importPreview && (
+        <GradeImportPreviewModal
+          preview={importPreview}
+          cls={cls}
+          onCancel={() => { setImportPreview(null); setImportSub(null) }}
+          onConfirm={() => applyGradeImport(importPreview)}
+        />
+      )}
     </div>
   )
 }
