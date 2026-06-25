@@ -193,9 +193,6 @@ export default function AdminLoginScreen() {
         <div className="auth-trust"><ShieldCheck size={13} /> Encrypted &amp; secure</div>
         <p className="text-center text-xs text-ink3 mt-3">
           <button type="button" className="link-btn" onClick={() => setFaqOpen(true)}>Why AcadFlow?</button>
-          {' · '}
-          Student?{' '}
-          <a href="/" className="text-accent-m underline">Student Login →</a>
         </p>
       </div>
 
