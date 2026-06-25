@@ -38,7 +38,11 @@ export function resolveMentions(text, candidates) {
 }
 
 // Filter candidates for the dropdown by the current query (case-insensitive).
-export function matchCandidates(query, candidates, limit = 6) {
+// The list is already scoped to the post's audience (everyone for an "all" post,
+// otherwise just the class's enrolled students), so the cap is generous — the
+// whole class shows on a bare "@", and the scrollable dropdown + type-to-filter
+// reach anyone in a large "all" post.
+export function matchCandidates(query, candidates, limit = 50) {
   const q = (query || '').toLowerCase().trim()
   const list = candidates || []
   if (!q) return list.slice(0, limit)

@@ -58,7 +58,7 @@ export default function MentionInput({
             position: 'absolute', bottom: 'calc(100% + 4px)', left: 0, right: 0,
             background: 'var(--surface)', border: '1px solid var(--border)',
             borderRadius: 10, boxShadow: 'var(--shadow-lg, 0 8px 24px rgba(0,0,0,.15))',
-            zIndex: 50, overflow: 'hidden', maxHeight: 200, overflowY: 'auto',
+            zIndex: 50, overflow: 'hidden', maxHeight: 280, overflowY: 'auto',
           }}
         >
           {suggestions.map((c, i) => (
