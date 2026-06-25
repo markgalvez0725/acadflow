@@ -536,77 +536,144 @@ export function exportCurrentGrades({ classId, subject, students, classes, activ
  *
  * @param {{ students: object[], classes: object[] }} opts
  */
-export function exportStudentRosterExcel({ students, classes }) {
+export async function exportStudentRosterExcel({ students, classes }) {
   const XLSX = window.XLSX
   if (!XLSX) { alert('SheetJS not loaded.'); return }
 
+  const ctx = rosterData(students, classes)
+
+  // ExcelJS gives real per-cell dropdowns (Course + Class Subject); SheetJS can't.
+  // Try ExcelJS first and fall back to a plain SheetJS export on ANY failure, so
+  // the export always works even if the library can't load.
+  try {
+    const ExcelJS = await ensureExcelJS()
+    if (!ExcelJS) throw new Error('ExcelJS unavailable')
+    await rosterExcelJS(ExcelJS, ctx)
+  } catch (e) {
+    rosterSheetJS(XLSX, ctx)
+  }
+}
+
+// Shared roster data for both the ExcelJS and SheetJS writers.
+function rosterData(students, classes) {
   const exportDate = new Date().toLocaleDateString('en-PH', { dateStyle: 'long' })
   const sorted = sortByLastName(students)
-
-  // 10 title rows
-  const titleRows = [
-    ['AcadFlow — Student Roster'],
-    [`Exported: ${exportDate}`],
-    [''],
-    ['Total Students:', sorted.length],
-    [''],
-    [''],
-    [''],
-    [''],
-    [''],
-    [''],
-  ]
   const headers = ['#', 'Student No.', 'Surname', 'First Name', 'M.I.', 'Course', 'Year Level', 'Date of Birth', 'Class Subject', 'Section']
   const dataRows = sorted.map((s, idx) => {
     const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
     const primary = classes.find(c => c.id === s.classId) || classes.find(c => enrolledIds.includes(c.id))
     const subjects = [...new Set(enrolledIds.flatMap(id => classes.find(c => c.id === id)?.subjects || []))].join(', ')
     const n = splitStudentName(s.name)
-    return [
-      idx + 1,
-      s.id,
-      n.last,
-      n.first,
-      n.middle,
-      courseShort(s.course) || s.course || '',
-      s.year   || '',
-      s.dob    || '',
-      subjects,
-      primary?.section || '',
-    ]
+    return [idx + 1, s.id, n.last, n.first, n.middle, courseShort(s.course) || s.course || '', s.year || '', s.dob || '', subjects, primary?.section || '']
   })
+  // Dropdown sources.
+  const allSubjects = [...new Set((classes || []).flatMap(c => c.subjects || []))].filter(Boolean).sort()
+  const courseShorts = (() => {
+    const set = new Set((classes || []).map(c => courseShort(c.course || c.name)).filter(Boolean))
+    ;['BSEMC', 'BSIT', 'BSIS', 'BSCS'].forEach(cs => set.add(cs))
+    return [...set]
+  })()
+  const widths = [4, 14, 18, 18, 6, 20, 12, 14, 40, 12]
+  const fileName = `StudentRoster_${new Date().toISOString().slice(0, 10)}.xlsx`
+  const pwGuide = [
+    ['AcadFlow — Password Guide'], [''],
+    ['Default student password: Welcome@2026'],
+    ['Students must change their password on first login.'], [''],
+    ['Requirements:'], ['  • At least 8 characters'],
+    ['  • At least one uppercase letter'], ['  • At least one number'],
+  ]
+  return { exportDate, total: sorted.length, headers, dataRows, allSubjects, courseShorts, widths, fileName, pwGuide }
+}
+
+// ExcelJS writer — real dropdowns on Course (col F) + Class Subject (col I),
+// referencing a hidden "Lists" sheet (no inline-list length limit).
+async function rosterExcelJS(ExcelJS, ctx) {
+  const { exportDate, total, headers, dataRows, allSubjects, courseShorts, widths, fileName, pwGuide } = ctx
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('Students', { views: [{ state: 'frozen', ySplit: 11 }] })
+
+  ws.addRow(['AcadFlow — Student Roster'])
+  ws.addRow([`Exported: ${exportDate}`])
+  ws.addRow([])
+  ws.addRow(['Total Students:', total])
+  for (let i = 0; i < 6; i++) ws.addRow([]) // rows 5–10
+  ws.addRow(headers)                          // row 11
+  dataRows.forEach(r => ws.addRow(r))         // rows 12+
+  for (let i = 0; i < 5; i++) ws.addRow([])   // 5 trailing blanks
+  widths.forEach((w, i) => { ws.getColumn(i + 1).width = w })
+
+  const lastDataRow = 11 + dataRows.length
+  ws.autoFilter = { from: { row: 11, column: 1 }, to: { row: lastDataRow, column: headers.length } }
+
+  const wsList = wb.addWorksheet('Lists', { state: 'hidden' })
+  wsList.addRow(['Subjects', 'Courses'])
+  const maxLen = Math.max(allSubjects.length, courseShorts.length)
+  for (let i = 0; i < maxLen; i++) wsList.addRow([allSubjects[i] || '', courseShorts[i] || ''])
+
+  // Dropdowns over the data rows + trailing blanks (so new entries get them too).
+  const dvLast = lastDataRow + 5
+  const subjRef = allSubjects.length ? `Lists!$A$2:$A$${1 + allSubjects.length}` : null
+  const courseRef = courseShorts.length ? `Lists!$B$2:$B$${1 + courseShorts.length}` : null
+  for (let r = 12; r <= dvLast; r++) {
+    if (courseRef) ws.getCell(r, 6).dataValidation = { type: 'list', allowBlank: true, showErrorMessage: false, formulae: [courseRef] }
+    if (subjRef)   ws.getCell(r, 9).dataValidation = { type: 'list', allowBlank: true, showErrorMessage: false, formulae: [subjRef] }
+  }
+
+  const wsPw = wb.addWorksheet('Password Guide')
+  pwGuide.forEach(r => wsPw.addRow(r))
+  wsPw.getColumn(1).width = 60
+
+  const buf = await wb.xlsx.writeBuffer()
+  downloadBlob(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), fileName)
+}
+
+// SheetJS writer (fallback) — same layout + AutoFilter, no per-cell dropdowns.
+function rosterSheetJS(XLSX, ctx) {
+  const { exportDate, total, headers, dataRows, widths, fileName, pwGuide } = ctx
+  const titleRows = [
+    ['AcadFlow — Student Roster'], [`Exported: ${exportDate}`], [''],
+    ['Total Students:', total], [''], [''], [''], [''], [''], [''],
+  ]
   const blankRows = Array.from({ length: 5 }, () => Array(headers.length).fill(''))
-
-  const aoa = [...titleRows, headers, ...dataRows, ...blankRows]
-  const ws  = XLSX.utils.aoa_to_sheet(aoa)
-
-  XLSX.utils.sheet_add_aoa(ws, [headers], { origin: 10 }) // row 11 (0-based row 10)
-
-  ws['!cols'] = [4, 14, 18, 18, 6, 20, 12, 14, 40, 12].map(w => ({ wch: w }))
+  const ws = XLSX.utils.aoa_to_sheet([...titleRows, headers, ...dataRows, ...blankRows])
+  XLSX.utils.sheet_add_aoa(ws, [headers], { origin: 10 })
+  ws['!cols'] = widths.map(w => ({ wch: w }))
   ws['!freeze'] = { xSplit: 0, ySplit: 11 }
-  // Native Excel AutoFilter on the header + data range — a built-in, reliable
-  // filter dropdown on every column header (SheetJS writes this natively).
   ws['!autofilter'] = { ref: `A11:J${11 + dataRows.length}` }
 
-  // Password Guide sheet
-  const wsPw = XLSX.utils.aoa_to_sheet([
-    ['AcadFlow — Password Guide'],
-    [''],
-    ['Default student password: Welcome@2026'],
-    ['Students must change their password on first login.'],
-    [''],
-    ['Requirements:'],
-    ['  • At least 8 characters'],
-    ['  • At least one uppercase letter'],
-    ['  • At least one number'],
-  ])
+  const wsPw = XLSX.utils.aoa_to_sheet(pwGuide)
   wsPw['!cols'] = [{ wch: 60 }]
 
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws,   'Students')
   XLSX.utils.book_append_sheet(wb, wsPw, 'Password Guide')
+  XLSX.writeFile(wb, fileName)
+}
 
-  XLSX.writeFile(wb, `StudentRoster_${new Date().toISOString().slice(0, 10)}.xlsx`)
+// Download a Blob as a file.
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = fileName
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+// Load ExcelJS on demand from the CDN (only when exporting a roster). Resolves to
+// the global, or null if it can't load — the caller falls back to SheetJS.
+let _exceljsLoading = null
+function ensureExcelJS() {
+  if (window.ExcelJS) return Promise.resolve(window.ExcelJS)
+  if (_exceljsLoading) return _exceljsLoading
+  _exceljsLoading = new Promise((resolve) => {
+    const s = document.createElement('script')
+    s.src = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js'
+    s.onload = () => resolve(window.ExcelJS || null)
+    s.onerror = () => resolve(null)
+    document.head.appendChild(s)
+  })
+  return _exceljsLoading
 }
 
 // ── Student import template / parser (simple, fill-in Excel) ───────────────
