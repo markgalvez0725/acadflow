@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useUI } from '@/context/UIContext'
 import { useData } from '@/context/DataContext'
+import { useAuth } from '@/context/AuthContext'
 import { getFbAuth } from '@/firebase/firebaseInit'
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth'
 import { KeyRound, Check, X } from 'lucide-react'
@@ -10,6 +11,7 @@ import { KeyRound, Check, X } from 'lucide-react'
 export default function ForceChangePasswordModal({ student: s, onClose, forced = false }) {
   const { toast } = useUI()
   const { markAccountActive } = useData()
+  const { logout } = useAuth()
 
   const [oldPass, setOldPass] = useState('')
   const [pass,    setPass]    = useState('')
@@ -60,9 +62,11 @@ export default function ForceChangePasswordModal({ student: s, onClose, forced =
 
         <div style={{ textAlign: 'center', marginBottom: 18 }}>
           <div style={{ marginBottom: 8, color: 'var(--accent)' }}><KeyRound size={40} style={{ display: 'inline-block' }} /></div>
-          <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: 6 }}>Change your password</h3>
+          <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: 6 }}>{forced ? 'Set your own password' : 'Change your password'}</h3>
           <p style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.5 }}>
-            Enter your current password, then choose a new one.
+            {forced
+              ? 'Your account uses a temporary password. For your security, set your own password before continuing.'
+              : 'Enter your current password, then choose a new one.'}
           </p>
         </div>
 
@@ -121,10 +125,10 @@ export default function ForceChangePasswordModal({ student: s, onClose, forced =
         <button
           className="btn"
           style={{ width: '100%', padding: 10, fontSize: 14, marginTop: 8 }}
-          onClick={onClose}
+          onClick={() => { if (forced) logout(); else onClose() }}
           disabled={saving}
         >
-          <X size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />Cancel
+          <X size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />{forced ? 'Sign out instead' : 'Cancel'}
         </button>
       </div>
     </div>

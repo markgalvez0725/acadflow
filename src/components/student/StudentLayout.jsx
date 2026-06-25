@@ -171,6 +171,16 @@ export default function StudentLayout() {
   const [forcePassOpen,    setForcePassOpen]    = useState(false)
   const [forcePassIsForced, setForcePassIsForced] = useState(false)
 
+  // Teacher-provisioned accounts (Add Student / Import) start on a temporary
+  // password. Force a change before they use the portal — the modal can't be
+  // dismissed until they set their own password (which clears `_tempPass`).
+  useEffect(() => {
+    if (student?.account?._tempPass) {
+      setForcePassIsForced(true)
+      setForcePassOpen(true)
+    }
+  }, [student?.account?._tempPass])
+
   // Profile / account sheet
   const [profileOpen, setProfileOpen] = useState(false)
   const [actionSheetOpen, setActionSheetOpen] = useState(false)
