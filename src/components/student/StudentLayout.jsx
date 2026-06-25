@@ -19,7 +19,7 @@ import { studentSeesMessage } from '@/utils/studentMessages'
 import { computePassedSubjects } from '@/utils/passedSubjects'
 import { isNotifAllowed } from '@/utils/notifPrefs'
 import { isPendingVerification } from '@/utils/accountStatus'
-import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare, Library, ListChecks, MessageSquarePlus, ShieldCheck, Hourglass } from 'lucide-react'
+import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare, Library, ListChecks, MessageSquarePlus, Hourglass } from 'lucide-react'
 
 // Tabs hidden until a self-registered student is verified (grade-bearing only).
 const PENDING_GATED_TABS = new Set(['grades', 'quizzes', 'activities', 'assignments'])
