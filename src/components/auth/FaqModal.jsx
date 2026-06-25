@@ -17,7 +17,7 @@ const FAQ_ITEMS = [
   },
   {
     q: 'What problem does it solve?',
-    a: `It replaces the patchwork of spreadsheets, paper logs, and group chats with one source of truth. Grades, attendance, activities, quizzes, announcements, online classes, and messages all update live — students always see their real standing, and teachers spend less time on busywork.`,
+    a: `It replaces the patchwork of spreadsheets, paper logs, and group chats with one source of truth. Grades, attendance, activities, quizzes, announcements, online classes, and messages all update live — students always see their real standing, and teachers spend less time on busywork. Because everything syncs in real time, there's no refreshing or re-sending: a grade or announcement posted on one device shows up everywhere within seconds.`,
   },
   {
     q: 'Who is AcadFlow for?',
@@ -25,11 +25,17 @@ const FAQ_ITEMS = [
   },
   {
     q: 'Is my data private and secure?',
-    a: `Yes. Passwords are never stored in plain text — they're hashed before saving, and sensitive configuration is encrypted. Students can only ever see their own records, and password recovery is coordinated with your teacher so no password is exposed along the way.`,
+    a: `Yes. Passwords are never stored in plain text — they're hashed before saving, and sensitive configuration is encrypted. The app is served only over a secure (HTTPS) connection. Students can only ever see their own records, and password recovery is coordinated with your teacher so no password is exposed along the way. On your own device you can also enable a PIN or fingerprint/Face ID quick-unlock for faster, private sign-ins.`,
   },
   {
-    q: 'Do I need to install anything?',
-    a: `No. AcadFlow runs in any modern browser. It's also a Progressive Web App, so you can optionally "Add to Home Screen" on your phone for an app-like experience and push notifications for deadlines and announcements.`,
+    q: 'How do I install AcadFlow as an app?',
+    a: `You don't have to — AcadFlow runs in any modern browser. But because it's a Progressive Web App, you can add it to your device for an app-like experience with its own icon, a full-screen view, and push notifications for deadlines and announcements:
+
+• iPhone / iPad (Safari): tap the Share button, then "Add to Home Screen."
+• Android (Chrome): tap the ⋮ menu, then "Install app" (or "Add to Home Screen").
+• Desktop (Chrome / Edge): click the install icon in the address bar, or open the ⋮ menu and choose "Install AcadFlow."
+
+Once installed, just open it like any other app — your login and data stay exactly the same.`,
   },
   {
     q: 'How do I get an account?',
@@ -37,7 +43,7 @@ const FAQ_ITEMS = [
   },
   {
     q: 'How much does it cost?',
-    a: `AcadFlow is a focused, self-contained project — there are no ads, and nothing to buy to sign in and use the portal.`,
+    a: `Nothing. AcadFlow is a focused, self-contained project — there are no ads, no subscriptions, and nothing to buy to sign in and use the portal.`,
   },
 ]
 

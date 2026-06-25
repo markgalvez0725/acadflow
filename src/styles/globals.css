@@ -4140,6 +4140,7 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 .faq-a {
   padding: 0 15px 14px;
   font-size: 0.9063rem; line-height: 1.65; color: var(--ink2);
+  white-space: pre-line; /* honor intentional line breaks in answers (e.g. install steps) */
 }
 .faq-foot { display: flex; justify-content: flex-end; margin-top: 18px; }
 
