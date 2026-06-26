@@ -9,30 +9,41 @@ import { sendPushToOwners } from '@/firebase/pushTokens'
 import { computeAssessmentStats } from '@/utils/assessmentStats'
 import { sortByLastName } from '@/utils/format'
 import Badge from '@/components/primitives/Badge'
-import Pagination from '@/components/primitives/Pagination'
-import BarChart from '@/components/charts/BarChart'
 import DonutChart from '@/components/charts/DonutChart'
-import SmartInsights from '@/components/primitives/SmartInsights'
-import { generateClassInsights } from '@/utils/insights'
-import { Users, School, BookOpen, CalendarCheck, ShieldCheck, AlertTriangle, BarChart2, Activity, ArrowRight, Plus, Download, Home, Radar, Bell, ChevronRight } from 'lucide-react'
+import AiAnalyzer from '@/components/ds/AiAnalyzer'
+import {
+  Users, CalendarCheck, AlertTriangle, BarChart2, TrendingUp, CheckCircle2,
+  ClipboardList, Bell, ChevronDown, Download, Home, PieChart,
+} from 'lucide-react'
 import { SkeletonDashboard } from '@/components/primitives/SkeletonLoader'
 import PageHeader from '@/components/ds/PageHeader'
 import MetricCard from '@/components/ds/MetricCard'
 import EmptyState from '@/components/ds/EmptyState'
 
 const PER_PAGE = 10
+const RISK_PER_PAGE = 6
+const ABSENCE_THRESHOLD = 3
+
+// Avatar tint per status/level — uses the soft "-l" fills so the initial chip
+// reads as a quiet status dot, not a loud block.
+const TINT = {
+  green:  { bg: 'var(--green-l)',  fg: 'var(--green)' },
+  orange: { bg: 'var(--yellow-l)', fg: 'var(--gold-var, #ca8a04)' },
+  red:    { bg: 'var(--red-l)',    fg: 'var(--red)' },
+  gray:   { bg: 'var(--bg)',       fg: 'var(--ink3)' },
+}
+
+const initials = name =>
+  (name || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase()
 
 export default function DashboardTab() {
   const { students, classes, activities = [], quizzes = [], fbReady, admin, semester, db } = useData()
   const { setAdminTab, toast, openStudentProfile } = useUI()
   const [nudged, setNudged] = useState({})
-  const [riskPage, setRiskPage]     = useState(1)
-  const [lowAttPage, setLowAttPage] = useState(1)
-  const [absPage, setAbsPage]       = useState(1)
-  const [allPage, setAllPage]       = useState(1)
+  const [visAll, setVisAll]   = useState(PER_PAGE)
+  const [visRisk, setVisRisk] = useState(RISK_PER_PAGE)
 
   // Consecutive-absence early warning (3+ missed sessions in a row).
-  const ABSENCE_THRESHOLD = 3
   const absenceAlerts = useMemo(
     () => findAbsenceAlerts(students, classes, semester, ABSENCE_THRESHOLD),
     [students, classes, semester]
@@ -58,19 +69,14 @@ export default function DashboardTab() {
     })
   }, [absenceAlerts, fbReady])
 
-  const absSlice = absenceAlerts.slice((absPage - 1) * PER_PAGE, absPage * PER_PAGE)
-
   // ── At-risk radar: one fused risk score per student ─────────────────────────
   const risk = useMemo(
     () => computeRiskScores(students, { classes, students, activities, quizzes, semester }),
     [students, classes, activities, quizzes, semester]
   )
-  const [riskRadarPage, setRiskRadarPage] = useState(1)
-  const radarSlice = risk.list.slice((riskRadarPage - 1) * PER_PAGE, riskRadarPage * PER_PAGE)
 
-  // Send a one-tap check-in nudge (in-app notif + best-effort push). Unlike the
-  // automatic absence alert, a manual nudge is repeatable — the remKey carries a
-  // timestamp so a teacher can re-send if needed.
+  // Send a one-tap check-in nudge (in-app notif + best-effort push). The remKey
+  // carries a timestamp so a teacher can re-send if needed.
   const nudgeStudent = (r) => {
     if (!db?.current) return
     const top = r.reasons[0]?.text || 'your recent activity'
@@ -99,14 +105,13 @@ export default function DashboardTab() {
     return {
       total:    students.length,
       classes:  classes.length,
-      subjects: classes.reduce((a, c) => a + (c.subjects?.length || 0), 0),
       regCount: students.filter(s => s.account?.registered).length,
       avgGwa:   gwas.length ? (gwas.reduce((a, b) => a + b, 0) / gwas.length).toFixed(1) : '—',
       avgAtt:   atts.length ? (atts.reduce((a, b) => a + b, 0) / atts.length).toFixed(1) + '%' : '—',
     }
   }, [students, classes])
 
-  const atRisk = useMemo(() => sortByLastName(students.filter(s => {
+  const atRisk = useMemo(() => students.filter(s => {
     const g = getGWA(s, classes)
     if (g === null) return false
     const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
@@ -116,9 +121,9 @@ export default function DashboardTab() {
       return comp.midterm != null && comp.finals != null
     })
     return hasComplete && g < 75
-  })), [students, classes])
+  }), [students, classes])
 
-  const lowAtt = useMemo(() => sortByLastName(students.filter(s => {
+  const lowAtt = useMemo(() => students.filter(s => {
     const r = getAttRate(s, students, classes)
     if (r === null) return false
     const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
@@ -128,22 +133,12 @@ export default function DashboardTab() {
       return att && Object.keys(att).length > 0
     })
     return hasRecords && r < 80
-  })), [students, classes])
-
-  const allStudents = useMemo(() => sortByLastName(students), [students])
-  const recent = useMemo(() => allStudents.slice(0, 5), [allStudents])
-
-  const classInsights = useMemo(() => generateClassInsights(students, classes), [students, classes])
-
-  const assess = useMemo(() => computeAssessmentStats(activities, students, classes), [activities, students, classes])
-
-  // Chart data
-  const barData = useMemo(() => classes.filter(c => !c.archived).map(cls => {
-    const enrolled = students.filter(s => s.classId === cls.id || s.classIds?.includes(cls.id))
-    const gwas = enrolled.map(s => getGWA(s, classes)).filter(g => g !== null)
-    return { label: cls.name + ' ' + cls.section, value: gwas.length ? gwas.reduce((a, b) => a + b, 0) / gwas.length : 0 }
   }), [students, classes])
 
+  const allStudents = useMemo(() => sortByLastName(students), [students])
+  const assess = useMemo(() => computeAssessmentStats(activities, students, classes), [activities, students, classes])
+
+  // Grade distribution for the "At a glance" donut.
   const grade = useMemo(() => {
     let passed = 0, conditional = 0, failed = 0
     students.forEach(s => {
@@ -157,16 +152,13 @@ export default function DashboardTab() {
   }, [students, classes])
 
   const donutData = [
-    { label: 'Passed', value: grade.passed, color: '#1a7a4a' },
-    { label: 'Conditional', value: grade.conditional, color: '#d97706' },
-    { label: 'Failed', value: grade.failed, color: '#b93232' },
+    { label: 'Passing',     value: grade.passed,      color: 'var(--green)' },
+    { label: 'Conditional', value: grade.conditional, color: 'var(--gold-var, #ca8a04)' },
+    { label: 'At risk',     value: grade.failed,      color: 'var(--red)' },
   ]
+  const gradedTotal = grade.passed + grade.conditional + grade.failed
 
   if (!fbReady) return <SkeletonDashboard />
-
-  const riskSlice  = atRisk.slice((riskPage - 1) * PER_PAGE, riskPage * PER_PAGE)
-  const lowSlice   = lowAtt.slice((lowAttPage - 1) * PER_PAGE, lowAttPage * PER_PAGE)
-  const allSlice   = allStudents.slice((allPage - 1) * PER_PAGE, allPage * PER_PAGE)
 
   const adminName = admin?.name || admin?.displayName || 'Teacher'
   const hr = new Date().getHours()
@@ -174,24 +166,66 @@ export default function DashboardTab() {
 
   const gwaNum = parseFloat(stats.avgGwa)
   const attNum = parseFloat(stats.avgAtt)
-  const pct = v => Math.round((v / (stats.total || 1)) * 100) + '%'
-  const initials = name => (name || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase()
+
+  // ── Build the AI analyzer's findings — all derived from the real numbers above,
+  // so the analyzer can never contradict the cards on the page. ───────────────
+  const scrollToNeeds = () => document.getElementById('needs-attention')?.scrollIntoView({ behavior: 'smooth' })
+  const findings = []
+  if (risk.counts.high)
+    findings.push({ sev: 'danger', Icon: AlertTriangle, source: 'Grades + Attendance', actionLabel: 'Review', onAction: scrollToNeeds,
+      text: <><b>{risk.counts.high}</b> student{risk.counts.high > 1 ? 's' : ''} at high risk — low grades, absences and missing work</> })
+  if (grade.failed)
+    findings.push({ sev: 'danger', Icon: BarChart2, source: 'Grades', actionLabel: 'Grades', onAction: () => setAdminTab('grades'),
+      text: <><b>{grade.failed}</b> below passing (GWA under 71)</> })
+  if (assess.awaitingGrading)
+    findings.push({ sev: 'warning', Icon: ClipboardList, source: 'Activities', actionLabel: 'Grade', onAction: () => setAdminTab('activities'),
+      text: <><b>{assess.awaitingGrading}</b> submission{assess.awaitingGrading > 1 ? 's' : ''} awaiting grading</> })
+  if (assess.overdueMissing)
+    findings.push({ sev: 'warning', Icon: ClipboardList, source: 'Activities', actionLabel: 'Open', onAction: () => setAdminTab('activities'),
+      text: <><b>{assess.overdueMissing}</b> overdue missing submission{assess.overdueMissing > 1 ? 's' : ''}</> })
+  if (lowAtt.length)
+    findings.push({ sev: 'warning', Icon: CalendarCheck, source: 'Attendance', actionLabel: 'Open', onAction: () => setAdminTab('attendance'),
+      text: <><b>{lowAtt.length}</b> student{lowAtt.length > 1 ? 's' : ''} below 80% attendance</> })
+  if (absenceAlerts.length)
+    findings.push({ sev: 'warning', Icon: AlertTriangle, source: 'Attendance', actionLabel: 'Open', onAction: () => setAdminTab('attendance'),
+      text: <><b>{absenceAlerts.length}</b> on a {ABSENCE_THRESHOLD}+ session absence streak</> })
+  if (!isNaN(gwaNum) && gwaNum >= 75)
+    findings.push({ sev: 'success', Icon: TrendingUp, source: 'Grades', text: <>Class average <b>{stats.avgGwa}</b> — above passing</> })
+  if (gradedTotal && !assess.awaitingGrading && !assess.overdueMissing)
+    findings.push({ sev: 'success', Icon: CheckCircle2, source: 'Activities', text: 'All caught up on grading' })
+  if (!isNaN(attNum) && attNum >= 80)
+    findings.push({ sev: 'success', Icon: CheckCircle2, source: 'Attendance', text: <>Attendance healthy at <b>{stats.avgAtt}</b></> })
+
+  const flagged = risk.list.length
+  const headline = stats.total === 0
+    ? 'Add students to your roster to start seeing analysis here.'
+    : flagged === 0
+      ? 'Everything looks healthy — no students are flagged for grades, attendance, or missing work right now.'
+      : `${flagged} student${flagged > 1 ? 's' : ''} need${flagged > 1 ? '' : 's'} a closer look. The analyzer scanned grades, attendance, activities, and quizzes across your classes.`
+
+  // Status helper for a student card.
+  const statusOf = (gwa) => {
+    if (gwa === null) return { label: '—', variant: 'gray' }
+    if (gwa >= 75)    return { label: 'Passing',     variant: 'green' }
+    if (gwa >= 71)    return { label: 'Conditional', variant: 'orange' }
+    return { label: 'At risk', variant: 'red' }
+  }
+
+  const riskSlice = risk.list.slice(0, visRisk)
+  const allSlice  = allStudents.slice(0, visAll)
 
   return (
     <div>
-      {/* Page header */}
+      {/* Page header — Export only (New Activity removed) */}
       <PageHeader
         crumb={<><Home size={13} /> Home <span>›</span> Dashboard</>}
         title={`${greeting}, ${adminName}`}
         subtitle={`${stats.total} students · ${stats.classes} classes`}
-        actions={<>
-          <button className="btn" onClick={() => setAdminTab('grades')}><Download size={16} /> Export</button>
-          <button className="btn btn-primary" onClick={() => setAdminTab('activities')}><Plus size={16} /> New Activity</button>
-        </>}
+        actions={<button className="btn" onClick={() => setAdminTab('grades')}><Download size={16} /> Export</button>}
       />
 
-      {/* Smart Insights (on-device, no external AI) */}
-      <SmartInsights title="Class Insights" insights={classInsights} />
+      {/* On-device AI analyzer (replaces Class Insights) */}
+      <AiAnalyzer headline={headline} findings={findings} />
 
       {/* Metric cards */}
       <div className="stat-grid mb-4">
@@ -205,268 +239,123 @@ export default function DashboardTab() {
           trend={atRisk.length ? { dir: 'down', text: 'Needs review' } : { dir: 'up', text: 'All clear' }} />
       </div>
 
-      {/* At-risk radar — fused early-intervention watchlist */}
+      {/* At a glance — large grade-distribution donut */}
       <div className="card card-pad mb-4">
         <div className="sec-hdr">
-          <div className="sec-title sec-title-ic"><Radar /> At-risk radar</div>
-          <span className="text-xs text-ink2">
-            {risk.counts.high} high · {risk.counts.watch} watch · updated live
-          </span>
+          <div className="sec-title sec-title-ic"><PieChart /> At a glance</div>
+          <span className="text-xs text-ink2">{gradedTotal} of {stats.total} with grades</span>
         </div>
-        {!risk.list.length ? (
-          <EmptyState Icon={Radar} title="No students at risk" text="No combined grade, attendance, or missing-work signals are firing right now." />
+        {gradedTotal === 0 ? (
+          <EmptyState Icon={PieChart} title="No grades yet" text="Once midterm and finals are entered, the grade distribution shows up here." />
+        ) : (
+          <div className="ds-glance">
+            <DonutChart data={donutData} size={190} total={gradedTotal} />
+          </div>
+        )}
+      </div>
+
+      {/* Needs attention — at-risk students as clickable cards (Nudge + View) */}
+      {risk.list.length > 0 && (
+        <div className="card card-pad mb-4" id="needs-attention">
+          <div className="sec-hdr">
+            <div className="sec-title sec-title-ic"><AlertTriangle /> Needs attention</div>
+            <span className="text-xs text-ink2">{risk.counts.high} high · {risk.counts.watch} watch · live</span>
+          </div>
+          <div className="ds-stud-grid">
+            {riskSlice.map(r => {
+              const cls = classes.find(c => c.id === (r.student.classId || r.student.classIds?.[0]))
+              const tint = r.level === 'high' ? TINT.red : TINT.orange
+              return (
+                <div
+                  className="ds-stud"
+                  key={r.student.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Open profile of ${r.student.name}`}
+                  onClick={() => openStudentProfile(r.student.id)}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openStudentProfile(r.student.id) } }}
+                >
+                  <div className="ds-stud-av" style={{ background: tint.bg, color: tint.fg }}>{initials(r.student.name)}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.student.name}</div>
+                    <div className="ds-stud-id">{r.student.id}{cls ? ` · ${cls.name} ${cls.section}` : ''}</div>
+                    <div style={{ fontSize: 11, color: 'var(--ink2)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {r.reasons.slice(0, 2).map(rs => rs.text).join(' · ')}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flex: 'none' }}>
+                    <Badge variant={r.level === 'high' ? 'red' : 'orange'}>Risk {r.score}</Badge>
+                    <button
+                      className="btn btn-sm"
+                      disabled={nudged[r.student.id]}
+                      onClick={e => { e.stopPropagation(); nudgeStudent(r) }}
+                    >
+                      <Bell size={13} /> {nudged[r.student.id] ? 'Sent' : 'Nudge'}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          {visRisk < risk.list.length && (
+            <div style={{ textAlign: 'center', marginTop: 13 }}>
+              <button className="btn" onClick={() => setVisRisk(v => v + RISK_PER_PAGE)}>
+                <ChevronDown size={15} /> See more ({risk.list.length - visRisk})
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* All students — clickable cards, 10 shown, load 10 more inline */}
+      <div className="card card-pad">
+        <div className="sec-hdr">
+          <div className="sec-title sec-title-ic"><Users /> All students</div>
+          <span className="text-xs text-ink2">{students.length} total · showing {Math.min(visAll, allStudents.length)}</span>
+        </div>
+        {!allStudents.length ? (
+          <EmptyState Icon={Users} title="No students yet" text="Add students to your roster to see them here." />
         ) : (
           <>
-            <div className="risk-radar-list">
-              {radarSlice.map(r => {
-                const lvlVar = r.level === 'high' ? 'red' : r.level === 'watch' ? 'orange' : 'gray'
-                const cls = classes.find(c => c.id === (r.student.classId || r.student.classIds?.[0]))
+            <div className="ds-stud-grid">
+              {allSlice.map(s => {
+                const gwa = getGWA(s, classes)
+                const att = getAttRate(s, students, classes)
+                const cls = classes.find(c => c.id === s.classId)
+                const st = statusOf(gwa)
+                const tint = TINT[st.variant] || TINT.gray
                 return (
-                  <div className={`risk-row risk-${r.level}`} key={r.student.id}>
-                    <div className="ds-la">{initials(r.student.name)}</div>
-                    <div className="risk-main">
-                      <div className="risk-name">
-                        {r.student.name}
-                        <small className="text-ink2"> · {r.student.id}{cls ? ` · ${cls.name} ${cls.section}` : ''}</small>
-                      </div>
-                      <div className="risk-reasons">
-                        {r.reasons.map((rs, i) => (
-                          <Badge key={i} variant={rs.sev === 'danger' ? 'red' : 'orange'}>{rs.text}</Badge>
-                        ))}
-                      </div>
+                  <div
+                    className="ds-stud"
+                    key={s.id}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Open profile of ${s.name}`}
+                    onClick={() => openStudentProfile(s.id)}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openStudentProfile(s.id) } }}
+                  >
+                    <div className="ds-stud-av" style={{ background: tint.bg, color: tint.fg }}>{initials(s.name)}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
+                      <div className="ds-stud-id">{s.id}{cls ? ` · ${cls.name} ${cls.section}` : ''}</div>
                     </div>
-                    <div className="risk-actions">
-                      <Badge variant={lvlVar}>Risk {r.score}</Badge>
-                      <button
-                        className="btn btn-sm"
-                        disabled={nudged[r.student.id]}
-                        onClick={() => nudgeStudent(r)}
-                      >
-                        <Bell size={14} /> {nudged[r.student.id] ? 'Sent' : 'Nudge'}
-                      </button>
-                      <button className="btn btn-sm" onClick={() => openStudentProfile(r.student.id)}>
-                        View <ChevronRight size={14} />
-                      </button>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flex: 'none' }}>
+                      <Badge variant={st.variant}>{gwa !== null ? gwa.toFixed(1) : '—'}</Badge>
+                      <span style={{ fontSize: 11, color: 'var(--ink2)' }}>{att !== null ? att.toFixed(0) + '% att' : 'no att'}</span>
                     </div>
                   </div>
                 )
               })}
             </div>
-            <Pagination total={risk.list.length} perPage={PER_PAGE} page={riskRadarPage} onChange={setRiskRadarPage} />
-          </>
-        )}
-      </div>
-
-      {/* Recent students + At a glance */}
-      <div className="grid-2 mb-4">
-        <div className="ds-card">
-          <div className="ds-card-h">
-            <h3><Users /> Recent students</h3>
-            <button className="sec-link" onClick={() => setAdminTab('students')}>View all <ArrowRight /></button>
-          </div>
-          {!recent.length ? (
-            <EmptyState Icon={Users} title="No students yet" text="Add students to your roster to see them here." />
-          ) : recent.map(s => {
-            const gwa = getGWA(s, classes)
-            const cls = classes.find(c => c.id === s.classId)
-            return (
-              <div className="ds-list-row" key={s.id}>
-                <div className="ds-la">{initials(s.name)}</div>
-                <div style={{ minWidth: 0 }}>
-                  <div className="ds-ln">{s.name}</div>
-                  <div className="ds-ls">{s.id}{cls ? ` · ${cls.name} ${cls.section}` : ''}</div>
-                </div>
-                <div className="ds-lr">
-                  {!s.account?.registered
-                    ? <Badge variant="orange">Pending</Badge>
-                    : (gwa !== null ? gwa.toFixed(1) : '—')}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-
-        <div className="ds-card">
-          <div className="ds-card-h"><h3><Activity /> At a glance</h3></div>
-          <div className="ds-statline">
-            <div className="t"><span>Passing (GWA ≥ 75)</span><b>{grade.passed} / {stats.total}</b></div>
-            <div className="ds-bar"><i style={{ width: pct(grade.passed), background: 'var(--green)' }} /></div>
-          </div>
-          <div className="ds-statline">
-            <div className="t"><span>Conditional / failing</span><b>{grade.conditional + grade.failed}</b></div>
-            <div className="ds-bar"><i style={{ width: pct(grade.conditional + grade.failed), background: 'var(--yellow)' }} /></div>
-          </div>
-          <div className="ds-statline">
-            <div className="t"><span>Low attendance (&lt; 80%)</span><b>{lowAtt.length}</b></div>
-            <div className="ds-bar"><i style={{ width: pct(lowAtt.length), background: 'var(--red)' }} /></div>
-          </div>
-        </div>
-      </div>
-
-      {/* Charts */}
-      <div className="grid-2 mb-4 ds-desktop-only">
-        <div className="chart-wrap">
-          <div className="chart-title">Class Grade Overview</div>
-          <BarChart data={barData} height={160} />
-        </div>
-        <div className="chart-wrap">
-          <div className="chart-title">School-wide Grade Status</div>
-          <div className="donut-wrap">
-            <DonutChart data={donutData} size={130} />
-          </div>
-        </div>
-      </div>
-
-      {/* At-risk + Low attendance */}
-      <div className="grid-2 mb-4 ds-desktop-only">
-        <div>
-          <div className="sec-hdr"><div className="sec-title sec-title-ic"><ShieldCheck /> Students at Risk (below 75%)</div></div>
-          {!atRisk.length ? (
-            <EmptyState Icon={ShieldCheck} title="No students at risk" text="Everyone with complete grades is passing. Nice work." />
-          ) : (
-            <>
-              <div className="tbl-wrap">
-                <table className="tbl">
-                  <thead><tr><th>Name</th><th>GWA</th></tr></thead>
-                  <tbody>
-                    {riskSlice.map(s => (
-                      <tr key={s.id}>
-                        <td>{s.name}<br/><small className="text-ink2">{s.id}</small></td>
-                        <td><Badge variant="red">{getGWA(s, classes)?.toFixed(1)}</Badge></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <Pagination total={atRisk.length} perPage={PER_PAGE} page={riskPage} onChange={setRiskPage} />
-            </>
-          )}
-        </div>
-        <div>
-          <div className="sec-hdr"><div className="sec-title sec-title-ic"><CalendarCheck /> Low Attendance (&lt; 80%)</div></div>
-          {!lowAtt.length ? (
-            <EmptyState Icon={CalendarCheck} title="Attendance looks healthy" text="No students are below the 80% attendance threshold." />
-          ) : (
-            <>
-              <div className="tbl-wrap">
-                <table className="tbl">
-                  <thead><tr><th>Name</th><th>Rate</th></tr></thead>
-                  <tbody>
-                    {lowSlice.map(s => (
-                      <tr key={s.id}>
-                        <td>{s.name}<br/><small className="text-ink2">{s.id}</small></td>
-                        <td><Badge variant="orange">{getAttRate(s, students, classes)?.toFixed(1)}%</Badge></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <Pagination total={lowAtt.length} perPage={PER_PAGE} page={lowAttPage} onChange={setLowAttPage} />
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Consecutive-absence early warning */}
-      {absenceAlerts.length > 0 && (
-        <div className="card card-pad mb-4">
-          <div className="sec-hdr">
-            <div className="sec-title sec-title-ic"><AlertTriangle /> Consecutive Absences ({ABSENCE_THRESHOLD}+ in a row)</div>
-            <button className="sec-link" onClick={() => setAdminTab('attendance')}>Go to Attendance <ArrowRight /></button>
-          </div>
-          <div className="tbl-wrap">
-            <table className="tbl">
-              <thead><tr><th>Name</th><th>Subject</th><th>Missed in a row</th></tr></thead>
-              <tbody>
-                {absSlice.map(a => (
-                  <tr key={`${a.student.id}_${a.classId}_${a.subject}`}>
-                    <td>{a.student.name}<br/><small className="text-ink2">{a.student.id}</small></td>
-                    <td>{a.subject}</td>
-                    <td><Badge variant="red">{a.streak} sessions</Badge></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <Pagination total={absenceAlerts.length} perPage={PER_PAGE} page={absPage} onChange={setAbsPage} />
-        </div>
-      )}
-
-      {/* Assessment completion analytics */}
-      <div className="card card-pad mb-4">
-        <div className="sec-hdr">
-          <div className="sec-title sec-title-ic"><BookOpen /> Grading &amp; Submissions</div>
-          <button className="sec-link" onClick={() => setAdminTab('activities')}>Go to Activities <ArrowRight /></button>
-        </div>
-        {!assess.awaitingGrading && !assess.overdueMissing ? (
-          <EmptyState Icon={BookOpen} title="All caught up" text="No submissions are awaiting grading and nothing is overdue." />
-        ) : (
-          <>
-            <div className="grid-2 mb-3">
-              <div className="ds-statline">
-                <div className="t"><span>Submissions awaiting grading</span><b>{assess.awaitingGrading}</b></div>
-              </div>
-              <div className="ds-statline">
-                <div className="t"><span>Overdue missing submissions</span><b style={{ color: assess.overdueMissing ? 'var(--red)' : 'inherit' }}>{assess.overdueMissing}</b></div>
-              </div>
-            </div>
-            {assess.needsGrading.length > 0 && (
-              <div className="tbl-wrap">
-                <table className="tbl">
-                  <thead><tr><th>Activity</th><th>Subject</th><th>Awaiting grading</th></tr></thead>
-                  <tbody>
-                    {assess.needsGrading.slice(0, 8).map(a => (
-                      <tr key={a.id} style={{ cursor: 'pointer' }} onClick={() => setAdminTab('activities')}>
-                        <td><strong>{a.title}</strong></td>
-                        <td>{a.subject || '—'}</td>
-                        <td><Badge variant="orange">{a.ungraded} of {a.submitted}</Badge></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            {visAll < allStudents.length && (
+              <div style={{ textAlign: 'center', marginTop: 13 }}>
+                <button className="btn" onClick={() => setVisAll(v => v + PER_PAGE)}>
+                  <ChevronDown size={15} /> See more students ({allStudents.length - visAll})
+                </button>
               </div>
             )}
           </>
         )}
-      </div>
-
-      {/* All students overview */}
-      <div className="card card-pad ds-desktop-only">
-        <div className="sec-hdr">
-          <div className="sec-title sec-title-ic"><Users /> All Students Overview</div>
-          <span className="text-xs text-ink2">{students.length} total</span>
-        </div>
-        <div className="tbl-wrap">
-          <table className="tbl">
-            <thead>
-              <tr><th>Student</th><th>Stn. No.</th><th>Class</th><th>GWA</th><th>Attendance</th><th>Status</th></tr>
-            </thead>
-            <tbody>
-              {allSlice.map(s => {
-                const gwa = getGWA(s, classes)
-                const att = getAttRate(s, students, classes)
-                const cls = classes.find(c => c.id === s.classId)
-                let status = '—', variant = 'gray'
-                if (gwa !== null) {
-                  if (gwa >= 75)      { status = 'Passing';     variant = 'green' }
-                  else if (gwa >= 71) { status = 'Conditional'; variant = 'orange' }
-                  else                { status = 'At Risk';     variant = 'red' }
-                }
-                return (
-                  <tr key={s.id}>
-                    <td><strong>{s.name}</strong></td>
-                    <td>{s.id}</td>
-                    <td>{cls ? cls.name + ' ' + cls.section : '—'}</td>
-                    <td><Badge variant={gwa !== null ? (gwa >= 75 ? 'green' : gwa >= 71 ? 'orange' : 'red') : 'gray'}>{gwa !== null ? gwa.toFixed(1) : '—'}</Badge></td>
-                    <td><Badge variant={att !== null ? (att >= 80 ? 'green' : 'orange') : 'gray'}>{att !== null ? att.toFixed(1) + '%' : '—'}</Badge></td>
-                    <td><Badge variant={variant}>{status}</Badge></td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-        <Pagination total={allStudents.length} perPage={PER_PAGE} page={allPage} onChange={setAllPage} />
       </div>
     </div>
   )

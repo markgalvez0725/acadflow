@@ -4,7 +4,7 @@ import React, { useState } from 'react'
  * SVG arc donut chart.
  * @param {{ data: Array<{label:string, value:number, color:string}>, size?: number, total?: number }} props
  */
-export default function DonutChart({ data = [], size = 130, total }) {
+export default function DonutChart({ data = [], size = 130, total, unit = 'students' }) {
   const [hovered, setHovered] = useState(null)
 
   const filteredData = data.filter(d => d.value > 0)
@@ -67,7 +67,7 @@ export default function DonutChart({ data = [], size = 130, total }) {
           {sum}
         </text>
         <text x={cx} y={cy + 12} textAnchor="middle" fontSize="9" fill="var(--ink3)">
-          students
+          {unit}
         </text>
       </svg>
 

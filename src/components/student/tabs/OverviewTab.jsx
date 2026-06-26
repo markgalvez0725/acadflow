@@ -9,11 +9,11 @@ import { SkeletonDashboard } from '@/components/primitives/SkeletonLoader'
 import { useUI } from '@/context/UIContext'
 import PageHeader from '@/components/ds/PageHeader'
 import MetricCard from '@/components/ds/MetricCard'
-import { Home, CalendarCheck, Award, ClipboardList, FileQuestion, Radio } from 'lucide-react'
+import { Home, CalendarCheck, Award, ClipboardList, FileQuestion, Radio, CheckCircle2, AlertTriangle, PieChart } from 'lucide-react'
 import { pendingItems, humanLeft } from '@/utils/reminders'
 import BarChart from '@/components/charts/BarChart'
-import SmartInsights from '@/components/primitives/SmartInsights'
-import { generateStudentInsights } from '@/utils/insights'
+import DonutChart from '@/components/charts/DonutChart'
+import AiAnalyzer from '@/components/ds/AiAnalyzer'
 import { buildStudentReportCard } from '@/export/reportCard'
 import { FileDown } from 'lucide-react'
 import { activeClassIds, activeSubjects } from '@/utils/active'
@@ -454,8 +454,6 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
     return held ? { label: sub, value: Math.round((present / held) * 100) } : null
   }).filter(Boolean)
 
-  const studentInsights = generateStudentInsights(s, { classes, students, activities, quizzes })
-
   // Greeting + metric-card derivations
   const hr = new Date().getHours()
   const greeting = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening'
@@ -507,6 +505,57 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
     { key: 'quizzes', Icon: FileQuestion, color: openQuizCount ? 'var(--purple)' : 'var(--ink3)', value: openQuizCount, label: openQuizCount === 1 ? 'open quiz' : 'open quizzes', tab: 'quizzes' },
     { key: 'announce', Icon: MessageSquare, color: activeAnnouncements.length ? 'var(--accent)' : 'var(--ink3)', value: activeAnnouncements.length, label: 'announcements', tab: 'stream' },
   ]
+
+  // ── On-device study analyzer (replaces Study Coach) — every finding is derived
+  // from the real numbers above, so it can't contradict the cards below it. ──
+  const subjectGrades = subs.map(sub => {
+    const comp = s.gradeComponents?.[sub] || {}
+    const val = computeFinalGradeFromTerms(comp.midterm ?? null, comp.finals ?? null) ?? s.grades?.[sub] ?? null
+    return { sub, val }
+  })
+  const gradedSubs  = subjectGrades.filter(x => x.val != null)
+  const passingSubs = gradedSubs.filter(x => x.val >= 75)
+  const condSubs    = gradedSubs.filter(x => x.val >= 71 && x.val < 75)
+  const failingSubs = gradedSubs.filter(x => x.val < 71)
+  const standingDonut = [
+    { label: 'Passing',     value: passingSubs.length, color: 'var(--green)' },
+    { label: 'Conditional', value: condSubs.length,    color: 'var(--gold-var, #ca8a04)' },
+    { label: 'At risk',     value: failingSubs.length, color: 'var(--red)' },
+  ]
+  const lowAttSub = attBars.filter(b => b.value < 80).sort((a, b) => a.value - b.value)[0]
+
+  const sFindings = []
+  if (gradedSubs.length && passingSubs.length === gradedSubs.length)
+    sFindings.push({ sev: 'success', Icon: CheckCircle2, source: 'Grades',
+      text: <>You're passing all <b>{gradedSubs.length}</b> subject{gradedSubs.length > 1 ? 's' : ''}{gwa != null ? <> — GWA <b>{gwa.toFixed(1)}</b></> : ''}</> })
+  failingSubs.slice(0, 2).forEach(x =>
+    sFindings.push({ sev: 'danger', Icon: AlertTriangle, source: 'Grades', actionLabel: 'Grades', onAction: () => setStudentTab('grades'),
+      text: <><b>{x.sub}</b> is below passing ({Math.round(x.val)})</> }))
+  if (!failingSubs.length) condSubs.slice(0, 1).forEach(x =>
+    sFindings.push({ sev: 'warning', Icon: AlertTriangle, source: 'Grades', actionLabel: 'Grades', onAction: () => setStudentTab('grades'),
+      text: <><b>{x.sub}</b> is borderline ({Math.round(x.val)}) — push for passing</> }))
+  if (overdueCount > 0)
+    sFindings.push({ sev: 'warning', Icon: Clock, source: 'Activities', actionLabel: 'Open', onAction: () => setStudentTab('activities'),
+      text: <><b>{overdueCount}</b> overdue task{overdueCount > 1 ? 's' : ''} — clear {overdueCount > 1 ? 'them' : 'it'} first</> })
+  else if (dueSoonCount > 0)
+    sFindings.push({ sev: 'warning', Icon: Clock, source: 'Activities', actionLabel: 'Open', onAction: () => setStudentTab('activities'),
+      text: <><b>{dueSoonCount}</b> task{dueSoonCount > 1 ? 's' : ''} due within 48 hours</> })
+  if (lowAttSub)
+    sFindings.push({ sev: 'warning', Icon: CalendarCheck, source: 'Attendance', actionLabel: 'View', onAction: () => setStudentTab('attendance'),
+      text: <>Your <b>{lowAttSub.label}</b> attendance is {lowAttSub.value}%</> })
+  if (openQuizCount > 0)
+    sFindings.push({ sev: 'info', Icon: FileQuestion, source: 'Quizzes', actionLabel: 'Open', onAction: () => setStudentTab('quizzes'),
+      text: <><b>{openQuizCount}</b> open quiz{openQuizCount > 1 ? 'zes' : ''} ready to take</> })
+  if (rate != null && rate >= 90)
+    sFindings.push({ sev: 'success', Icon: CheckCircle2, source: 'Attendance', text: <>Attendance strong at <b>{rate.toFixed(0)}%</b></> })
+
+  const sHeadline = overdueCount > 0
+    ? `You have ${overdueCount} overdue task${overdueCount > 1 ? 's' : ''} — clear ${overdueCount > 1 ? 'them' : 'it'} first, then you're in good shape.`
+    : dueSoonCount > 0
+      ? `You're on track — ${dueSoonCount} deadline${dueSoonCount > 1 ? 's' : ''} need${dueSoonCount > 1 ? '' : 's'} attention in the next two days.`
+      : gwa != null
+        ? `You're ${statusText.toLowerCase()} with a GWA of ${gwa.toFixed(1)}. Nothing urgent right now.`
+        : 'Your study analyzer updates as grades, tasks, and quizzes come in.'
 
   if (!fbReady) return <SkeletonDashboard />
 
@@ -642,8 +691,21 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
           trend={{ dir: 'flat', text: statusSub }} />
       </div>
 
-      {/* Study Coach — on-device insights, no external AI */}
-      <SmartInsights title="Study Coach" insights={studentInsights} />
+      {/* Study analyzer — on-device, no external AI */}
+      <AiAnalyzer title="Study analyzer" headline={sHeadline} findings={sFindings} />
+
+      {/* At a glance — subject standing donut */}
+      {gradedSubs.length > 0 && (
+        <div className="card card-pad mb-4">
+          <div className="sec-hdr">
+            <div className="sec-title sec-title-ic"><PieChart /> At a glance</div>
+            <span className="text-xs text-ink2">{gradedSubs.length} of {subs.length} subjects graded</span>
+          </div>
+          <div className="ds-glance">
+            <DonutChart data={standingDonut} size={190} total={gradedSubs.length} unit="subjects" />
+          </div>
+        </div>
+      )}
 
       {/* Live now — online classes currently in session */}
       {liveNow.length > 0 && (
