@@ -4,10 +4,12 @@ import { useUI } from '@/context/UIContext'
 import { getIdToken } from '@/firebase/firebaseInit'
 import { ScanFace, Lock, Check, Loader2, AlertTriangle, RefreshCw } from 'lucide-react'
 import {
-  loadFaceModels, startCamera, stopStream, detectOnce, videoReady,
-  eyeAspect, headYaw, descriptorArray, averageDescriptors, friendlyCameraError,
-  LIVENESS, SAMPLES, CHALLENGES, TIMING,
+  loadFaceModels, startCamera, stopStream, detectOnce, videoReady, headYaw,
+  descriptorArray, averageDescriptors, friendlyCameraError, createLivenessTracker,
+  SAMPLES, TIMING,
 } from '@/utils/faceId'
+
+const LIVENESS_PROMPT = 'Slowly turn your head a little, or blink'
 
 export default function FaceEnrollModal({ student, onClose }) {
   const { toast } = useUI()
@@ -16,28 +18,19 @@ export default function FaceEnrollModal({ student, onClose }) {
   const loopRef = useRef(null)
   const busyRef = useRef(false)
   const stateRef = useRef('init')
-  const runIdRef = useRef(0) // abort token — supersedes any in-flight begin()
-
-  // liveness + capture accumulators + timers (refs so the loop reads fresh values)
-  const sawOpenRef = useRef(false)
-  const blinkRef = useRef(0)
-  const yawSeenRef = useRef(false)
+  const runIdRef = useRef(0)
+  const liveRef = useRef(createLivenessTracker())
   const samplesRef = useRef([])
   const loopStartRef = useRef(0)
-  const challengeStartRef = useRef(0)
-  const switchedRef = useRef(false)
-  const challengeRef = useRef(CHALLENGES[Math.floor(Math.random() * CHALLENGES.length)])
 
   const [phase, setPhase] = useState('init') // init|position|challenge|capturing|saving|done|error
   const [msg, setMsg] = useState('Loading face models…')
   const [err, setErr] = useState('')
-  const [, setChallengeLabel] = useState(challengeRef.current.prompt)
 
   const go = (p) => { stateRef.current = p; setPhase(p) }
-  const setChallenge = (ch) => { challengeRef.current = ch; setChallengeLabel(ch.prompt) }
 
   const cleanup = useCallback(() => {
-    runIdRef.current++ // any in-flight begin() is now stale and must bail
+    runIdRef.current++
     if (loopRef.current) { clearInterval(loopRef.current); loopRef.current = null }
     stopStream(streamRef.current); streamRef.current = null
   }, [])
@@ -71,7 +64,7 @@ export default function FaceEnrollModal({ student, onClose }) {
     busyRef.current = true
     try {
       if (Date.now() - loopStartRef.current > TIMING.OVERALL_MS) {
-        setErr('Couldn’t complete the scan in time. Make sure your face is well-lit and centered, then try again.')
+        setErr('Couldn’t complete the scan in time. Move somewhere brighter, center your face, and try again.')
         go('error'); return
       }
       const v = videoRef.current
@@ -86,34 +79,19 @@ export default function FaceEnrollModal({ student, onClose }) {
         return
       }
 
-      if (st === 'position') { challengeStartRef.current = Date.now(); go('challenge'); setMsg(challengeRef.current.prompt); return }
+      if (st === 'position') { liveRef.current.reset(); go('challenge'); setMsg(LIVENESS_PROMPT); return }
 
       if (st === 'challenge') {
-        if (!switchedRef.current && Date.now() - challengeStartRef.current > TIMING.CHALLENGE_SWITCH_MS) {
-          switchedRef.current = true
-          const other = CHALLENGES.find(c => c.key !== challengeRef.current.key) || challengeRef.current
-          setChallenge(other)
-          sawOpenRef.current = false; blinkRef.current = 0; yawSeenRef.current = false
-          challengeStartRef.current = Date.now()
-          setMsg('Let’s try another check — ' + other.prompt)
-          return
-        }
-        if (challengeRef.current.key === 'blink') {
-          const ear = eyeAspect(det.landmarks)
-          if (ear > LIVENESS.EAR_OPEN) sawOpenRef.current = true
-          else if (sawOpenRef.current && ear < LIVENESS.EAR_CLOSED) { blinkRef.current += 1; sawOpenRef.current = false }
-          if (blinkRef.current >= 2) { go('capturing'); setMsg('Great — hold still…') }
-        } else {
-          const yaw = Math.abs(headYaw(det.landmarks))
-          if (yaw > LIVENESS.YAW_TURN) yawSeenRef.current = true
-          else if (yawSeenRef.current && yaw < LIVENESS.YAW_BACK) { go('capturing'); setMsg('Great — hold still…') }
-        }
+        const r = liveRef.current.update(det.landmarks)
+        if (r.passed) { samplesRef.current = []; go('capturing'); setMsg('Great — look straight ahead and hold still…') }
         return
       }
 
-      // capturing
-      const arr = descriptorArray(det)
-      if (arr) samplesRef.current.push(arr)
+      // capturing — keep only near-frontal frames for a clean signature
+      if (Math.abs(headYaw(det.landmarks)) < 0.16) {
+        const arr = descriptorArray(det)
+        if (arr) samplesRef.current.push(arr)
+      }
       if (samplesRef.current.length >= SAMPLES) await save(averageDescriptors(samplesRef.current))
     } catch { /* transient frame error — keep looping */ }
     finally { busyRef.current = false }
@@ -122,16 +100,14 @@ export default function FaceEnrollModal({ student, onClose }) {
   const begin = useCallback(async () => {
     cleanup()
     const myRun = ++runIdRef.current
-    sawOpenRef.current = false; blinkRef.current = 0; yawSeenRef.current = false; samplesRef.current = []
-    switchedRef.current = false
+    liveRef.current.reset(); samplesRef.current = []
     setErr(''); go('init'); setMsg('Loading face models…')
-    setChallenge(CHALLENGES[Math.floor(Math.random() * CHALLENGES.length)])
     try {
       await loadFaceModels()
       if (myRun !== runIdRef.current) return
       setMsg('Starting camera…')
       const stream = await startCamera(videoRef.current)
-      if (myRun !== runIdRef.current) { stopStream(stream); return } // superseded mid-await → don't leak
+      if (myRun !== runIdRef.current) { stopStream(stream); return }
       streamRef.current = stream
       loopStartRef.current = Date.now()
       go('position'); setMsg('Center your face in the circle')

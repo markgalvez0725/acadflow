@@ -86,6 +86,32 @@ export function headYaw(landmarks) {
   } catch { return 0 }
 }
 
+// Adaptive, forgiving liveness — fixes the brittle "blink exactly twice" check.
+// It calibrates to THIS person/camera instead of using fixed thresholds, and
+// passes on ANY clear sign of life: a small head turn (yaw range) OR a blink
+// measured relative to the person's own open-eye baseline. A static photo can't
+// produce either. Drive it by calling update(landmarks) each frame.
+export function createLivenessTracker() {
+  let yawMin = Infinity, yawMax = -Infinity
+  let earBase = 0, earMin = Infinity
+  let frames = 0
+  return {
+    reset() { yawMin = Infinity; yawMax = -Infinity; earBase = 0; earMin = Infinity; frames = 0 },
+    update(landmarks) {
+      frames++
+      const yaw = headYaw(landmarks)
+      const ear = eyeAspect(landmarks)
+      if (yaw < yawMin) yawMin = yaw
+      if (yaw > yawMax) yawMax = yaw
+      if (ear > earBase) earBase = ear   // running open-eye baseline (per person)
+      if (ear < earMin) earMin = ear
+      const moved   = (yawMax - yawMin) > 0.14              // any clear head turn
+      const blinked = earBase > 0.10 && earMin < earBase * 0.6 // a blink vs. their own baseline
+      return { passed: frames >= 4 && (moved || blinked), moved, blinked }
+    },
+  }
+}
+
 export function descriptorArray(det) {
   if (!det || !det.descriptor) return null
   return Array.from(det.descriptor)
