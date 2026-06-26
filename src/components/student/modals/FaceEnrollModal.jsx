@@ -4,9 +4,9 @@ import { useUI } from '@/context/UIContext'
 import { getIdToken } from '@/firebase/firebaseInit'
 import { ScanFace, Lock, Check, Loader2, AlertTriangle, RefreshCw } from 'lucide-react'
 import {
-  loadFaceModels, startCamera, stopStream, detectOnce, videoReady, headYaw,
-  descriptorArray, averageDescriptors, friendlyCameraError, createLivenessTracker,
-  SAMPLES, TIMING,
+  loadFaceModels, startCamera, stopStream, detectOnce, videoReady,
+  descriptorArray, faceQuality, buildSignature, friendlyCameraError, createLivenessTracker,
+  ENROLL, TIMING,
 } from '@/utils/faceId'
 
 const LIVENESS_PROMPT = 'Slowly turn your head a little, or blink'
@@ -87,12 +87,30 @@ export default function FaceEnrollModal({ student, onClose }) {
         return
       }
 
-      // capturing — keep only near-frontal frames for a clean signature
-      if (Math.abs(headYaw(det.landmarks)) < 0.16) {
+      // capturing — keep only high-quality, eyes-open, frontal frames, then build
+      // an outlier-rejected signature. A noisy frame is skipped (with a hint),
+      // never averaged in, so the stored signature reliably matches at reset.
+      const q = faceQuality(det, v)
+      if (q.ok) {
         const arr = descriptorArray(det)
         if (arr) samplesRef.current.push(arr)
+        setMsg(`Hold still — captured ${Math.min(samplesRef.current.length, ENROLL.TARGET)} of ${ENROLL.TARGET}`)
+      } else if (q.hint) {
+        setMsg(q.hint)
       }
-      if (samplesRef.current.length >= SAMPLES) await save(averageDescriptors(samplesRef.current))
+
+      const n = samplesRef.current.length
+      if (n >= ENROLL.TARGET) {
+        const sig = buildSignature(samplesRef.current, { minInliers: ENROLL.MIN_INLIERS, maxSpread: ENROLL.MAX_SPREAD })
+        if (sig) { await save(sig.descriptor); return }
+        // Not consistent enough yet. Keep collecting; near the cap, accept the
+        // densest cluster with relaxed bounds rather than failing a real student.
+        if (n >= ENROLL.HARD_CAP) {
+          const relaxed = buildSignature(samplesRef.current, { minInliers: 3, maxSpread: 0.6 })
+          if (relaxed) { await save(relaxed.descriptor); return }
+          samplesRef.current = samplesRef.current.slice(-ENROLL.TARGET) // drop oldest, keep trying until timeout
+        }
+      }
     } catch { /* transient frame error — keep looping */ }
     finally { busyRef.current = false }
   }

@@ -5,7 +5,12 @@
 // server. window.faceapi is loaded from the CDN <script> in index.html; the ML
 // models are fetched lazily the first time a camera flow is opened.
 
-const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/model'
+// Primary + fallback model hosts. If one CDN is down or rate-limited, the next
+// is tried automatically so enrollment never dead-ends on a flaky network.
+const MODEL_URLS = [
+  'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/model',
+  'https://unpkg.com/@vladmandic/face-api@1.7.13/model',
+]
 let _modelsLoaded = false
 
 export function faceApiPresent() {
@@ -30,13 +35,21 @@ export function ensureFaceApi(timeoutMs = 9000) {
 export async function loadFaceModels() {
   const f = await ensureFaceApi()
   if (_modelsLoaded) return f
-  await Promise.all([
-    f.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-    f.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-    f.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-  ])
-  _modelsLoaded = true
-  return f
+  let lastErr
+  for (const url of MODEL_URLS) {
+    try {
+      // face-api caches each net once loaded, so a partial success on a failing
+      // host is reused — the next host only fetches whatever didn't load.
+      await Promise.all([
+        f.nets.tinyFaceDetector.loadFromUri(url),
+        f.nets.faceLandmark68Net.loadFromUri(url),
+        f.nets.faceRecognitionNet.loadFromUri(url),
+      ])
+      _modelsLoaded = true
+      return f
+    } catch (e) { lastErr = e }
+  }
+  throw new Error('The face models could not load. Check your connection and try again.')
 }
 
 export async function startCamera(video) {
@@ -126,6 +139,57 @@ export function averageDescriptors(list) {
   return out.map(v => v / list.length)
 }
 
+// Euclidean distance between two 128-d descriptors (same metric the server uses
+// to decide a match). Lower = more similar; the reset threshold is 0.6.
+export function descriptorDistance(a, b) {
+  if (!a || !b || a.length !== b.length) return Infinity
+  let s = 0
+  for (let i = 0; i < a.length; i++) { const dd = a[i] - b[i]; s += dd * dd }
+  return Math.sqrt(s)
+}
+
+// Per-frame capture quality gate. A descriptor is only as good as the frame it
+// came from, so we keep ONLY frames that are confident, well-sized, frontal, and
+// eyes-open — never a blink or a too-far face that would smear the signature.
+export function faceQuality(det, video) {
+  const score = det?.detection?.score ?? 0
+  const box = det?.detection?.box
+  const vw = (video && video.videoWidth) || 0
+  const sizeRatio = box && vw ? box.width / vw : 0
+  const yaw = Math.abs(headYaw(det?.landmarks))
+  const ear = eyeAspect(det?.landmarks)
+  const sizeOk = sizeRatio >= 0.30 && sizeRatio <= 0.95
+  const frontal = yaw < 0.14
+  const eyesOpen = ear > 0.18
+  const ok = score >= 0.6 && sizeOk && frontal && eyesOpen
+  let hint = ''
+  if (!box) hint = 'Center your face in the circle'
+  else if (sizeRatio < 0.30) hint = 'Move a little closer'
+  else if (sizeRatio > 0.95) hint = 'Move back a little'
+  else if (!frontal) hint = 'Look straight at the camera'
+  else if (!eyesOpen) hint = 'Keep your eyes open'
+  else if (score < 0.6) hint = 'Hold still — getting a clear view'
+  return { ok, hint, score, sizeRatio, yaw, ear }
+}
+
+// Build a clean enrollment signature from many captured frames: average to a
+// centroid, DROP outlier frames (movement blur, a glance away, someone passing
+// behind) beyond `maxSpread`, then re-average the inliers. Returns null until at
+// least `minInliers` mutually-consistent frames exist, so a noisy capture keeps
+// collecting instead of saving a signature that won't match at reset time.
+export function buildSignature(samples, opts = {}) {
+  const minInliers = opts.minInliers ?? 5
+  const maxSpread = opts.maxSpread ?? 0.45
+  const clean = (samples || []).filter(Boolean)
+  if (clean.length < minInliers) return null
+  const centroid = averageDescriptors(clean)
+  const inliers = clean.filter(s => descriptorDistance(s, centroid) <= maxSpread)
+  if (inliers.length < minInliers) return null
+  const refined = averageDescriptors(inliers)
+  const spread = Math.max(...inliers.map(s => descriptorDistance(s, refined)))
+  return { descriptor: refined, inliers: inliers.length, total: clean.length, spread }
+}
+
 // True once the <video> is actually producing frames (guards detect() against a
 // not-yet-playing stream — e.g. iOS Safari when autoplay was deferred).
 export function videoReady(v) {
@@ -136,6 +200,11 @@ export function videoReady(v) {
 // and reset flows can never drift apart) ─────────────────────────────────────
 export const LIVENESS = { EAR_OPEN: 0.26, EAR_CLOSED: 0.18, YAW_TURN: 0.16, YAW_BACK: 0.07 }
 export const SAMPLES = 4
+// Enrollment capture targets: gather TARGET quality frames, require MIN_INLIERS
+// mutually-consistent ones within MAX_SPREAD, and never collect past HARD_CAP
+// before falling back to the densest cluster. Tighter than reset's 0.6 match
+// threshold on purpose, so the stored signature is comfortably inside it.
+export const ENROLL = { TARGET: 8, MIN_INLIERS: 5, MAX_SPREAD: 0.45, HARD_CAP: 20 }
 export const CHALLENGES = [
   { key: 'blink', prompt: 'Blink slowly, twice' },
   { key: 'turn',  prompt: 'Turn your head to one side, then back' },
