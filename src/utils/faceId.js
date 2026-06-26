@@ -13,6 +13,32 @@ const MODEL_URLS = [
 ]
 let _modelsLoaded = false
 
+// ── FACE_POLICY — the single source of truth for every verification number ──
+// Enrollment AND reset both read from here (via createFaceScan / faceQuality /
+// buildSignature / matches), so the two flows can never drift. The server keeps
+// its own copy of MATCH.THRESHOLD (it must decide the match independently — see
+// api/face-reset.js) but it is the SAME number, documented in both places.
+// Invariant that keeps legit students from being falsely rejected ("gated"):
+//   ENROLL.MAX_SPREAD (0.45)  <  MATCH.THRESHOLD (0.6)
+// i.e. a clean enrolled signature sits comfortably inside the match window.
+export const FACE_POLICY = {
+  // Per-frame capture quality gate.
+  QUALITY:  { MIN_SCORE: 0.6, MIN_SIZE: 0.30, MAX_SIZE: 0.95, MAX_YAW: 0.14, MIN_EAR: 0.18 },
+  // Adaptive liveness (relative to the person's own baseline).
+  LIVENESS: { MIN_FRAMES: 4, YAW_RANGE: 0.14, EAR_BASE_MIN: 0.10, BLINK_RATIO: 0.6 },
+  // Signature build: gather TARGET quality frames, require MIN_INLIERS within
+  // MAX_SPREAD; near HARD_CAP fall back to the densest cluster (RELAX_*).
+  ENROLL:   { TARGET: 8, MIN_INLIERS: 5, MAX_SPREAD: 0.45, HARD_CAP: 20, RELAX_MIN_INLIERS: 3, RELAX_SPREAD: 0.6 },
+  // Match authority. Mirrored by the server, which actually enforces it.
+  MATCH:    { THRESHOLD: 0.6 },
+  // Loop timeouts so the camera flow can never deadlock.
+  TIMING:   { POSITION_HINT_MS: 8000, CHALLENGE_SWITCH_MS: 14000, OVERALL_MS: 38000 },
+}
+
+// Prompts shown during a scan — centralized so both modals read identically.
+const LIVENESS_PROMPT = 'Slowly turn your head a little, or blink'
+const CAPTURE_PROMPT  = 'Great — look straight ahead and hold still…'
+
 export function faceApiPresent() {
   return typeof window !== 'undefined' && !!window.faceapi
 }
@@ -118,9 +144,10 @@ export function createLivenessTracker() {
       if (yaw > yawMax) yawMax = yaw
       if (ear > earBase) earBase = ear   // running open-eye baseline (per person)
       if (ear < earMin) earMin = ear
-      const moved   = (yawMax - yawMin) > 0.14              // any clear head turn
-      const blinked = earBase > 0.10 && earMin < earBase * 0.6 // a blink vs. their own baseline
-      return { passed: frames >= 4 && (moved || blinked), moved, blinked }
+      const L = FACE_POLICY.LIVENESS
+      const moved   = (yawMax - yawMin) > L.YAW_RANGE                       // any clear head turn
+      const blinked = earBase > L.EAR_BASE_MIN && earMin < earBase * L.BLINK_RATIO // a blink vs. their own baseline
+      return { passed: frames >= L.MIN_FRAMES && (moved || blinked), moved, blinked }
     },
   }
 }
@@ -158,17 +185,18 @@ export function faceQuality(det, video) {
   const sizeRatio = box && vw ? box.width / vw : 0
   const yaw = Math.abs(headYaw(det?.landmarks))
   const ear = eyeAspect(det?.landmarks)
-  const sizeOk = sizeRatio >= 0.30 && sizeRatio <= 0.95
-  const frontal = yaw < 0.14
-  const eyesOpen = ear > 0.18
-  const ok = score >= 0.6 && sizeOk && frontal && eyesOpen
+  const Q = FACE_POLICY.QUALITY
+  const sizeOk = sizeRatio >= Q.MIN_SIZE && sizeRatio <= Q.MAX_SIZE
+  const frontal = yaw < Q.MAX_YAW
+  const eyesOpen = ear > Q.MIN_EAR
+  const ok = score >= Q.MIN_SCORE && sizeOk && frontal && eyesOpen
   let hint = ''
   if (!box) hint = 'Center your face in the circle'
-  else if (sizeRatio < 0.30) hint = 'Move a little closer'
-  else if (sizeRatio > 0.95) hint = 'Move back a little'
+  else if (sizeRatio < Q.MIN_SIZE) hint = 'Move a little closer'
+  else if (sizeRatio > Q.MAX_SIZE) hint = 'Move back a little'
   else if (!frontal) hint = 'Look straight at the camera'
   else if (!eyesOpen) hint = 'Keep your eyes open'
-  else if (score < 0.6) hint = 'Hold still — getting a clear view'
+  else if (score < Q.MIN_SCORE) hint = 'Hold still — getting a clear view'
   return { ok, hint, score, sizeRatio, yaw, ear }
 }
 
@@ -178,8 +206,8 @@ export function faceQuality(det, video) {
 // least `minInliers` mutually-consistent frames exist, so a noisy capture keeps
 // collecting instead of saving a signature that won't match at reset time.
 export function buildSignature(samples, opts = {}) {
-  const minInliers = opts.minInliers ?? 5
-  const maxSpread = opts.maxSpread ?? 0.45
+  const minInliers = opts.minInliers ?? FACE_POLICY.ENROLL.MIN_INLIERS
+  const maxSpread = opts.maxSpread ?? FACE_POLICY.ENROLL.MAX_SPREAD
   const clean = (samples || []).filter(Boolean)
   if (clean.length < minInliers) return null
   const centroid = averageDescriptors(clean)
@@ -190,28 +218,92 @@ export function buildSignature(samples, opts = {}) {
   return { descriptor: refined, inliers: inliers.length, total: clean.length, spread }
 }
 
+// True if two descriptors are the same face by the canonical match threshold.
+// The SERVER is the real authority for reset, but the client uses this for
+// consistency/pre-checks so both sides judge by the identical number.
+export function matches(a, b) {
+  return descriptorDistance(a, b) <= FACE_POLICY.MATCH.THRESHOLD
+}
+
+// ── createFaceScan — the ONE centralized face-scan state machine ───────────
+// Both the enroll and reset modals drive this instead of hand-rolling their own
+// per-frame loop, so the capture pipeline (liveness → quality gate → outlier-
+// rejected signature) is byte-identical for enrollment and verification. That
+// is what guarantees a face that enrolls cleanly also verifies cleanly — no
+// drift, so a legitimately-enrolled student is never falsely rejected.
+//
+// Usage per camera frame:
+//   const out = scan.feed(detection, videoEl, elapsedMs)
+//   if (out.phase changed) reflect it in the UI
+//   if (out.msg) show it
+//   if (out.signature) // capture complete → enroll or verify with it
+export function createFaceScan() {
+  const live = createLivenessTracker()
+  const samples = []
+  const T = FACE_POLICY.ENROLL.TARGET
+  let phase = 'position' // position → challenge → capturing → done
+  return {
+    get phase() { return phase },
+    reset() { live.reset(); samples.length = 0; phase = 'position' },
+    feed(det, video, elapsedMs = 0) {
+      // No face detected this frame — only the positioning step nudges the user.
+      if (!det) {
+        const msg = phase === 'position'
+          ? (elapsedMs > FACE_POLICY.TIMING.POSITION_HINT_MS
+              ? 'Make sure your face is centered and well-lit'
+              : 'Center your face in the circle')
+          : null
+        return { phase, msg, signature: null }
+      }
+      if (phase === 'position') {
+        live.reset(); phase = 'challenge'
+        return { phase, msg: LIVENESS_PROMPT, signature: null }
+      }
+      if (phase === 'challenge') {
+        const r = live.update(det.landmarks)
+        if (r.passed) { samples.length = 0; phase = 'capturing'; return { phase, msg: CAPTURE_PROMPT, signature: null } }
+        return { phase, msg: LIVENESS_PROMPT, signature: null }
+      }
+      // capturing — keep only clean frames, then build a consistent signature.
+      const q = faceQuality(det, video)
+      if (q.ok) { const arr = descriptorArray(det); if (arr) samples.push(arr) }
+      let signature = null
+      if (samples.length >= T) {
+        const sig = buildSignature(samples)
+        if (sig) { signature = sig.descriptor; phase = 'done' }
+        else if (samples.length >= FACE_POLICY.ENROLL.HARD_CAP) {
+          const relaxed = buildSignature(samples, {
+            minInliers: FACE_POLICY.ENROLL.RELAX_MIN_INLIERS,
+            maxSpread: FACE_POLICY.ENROLL.RELAX_SPREAD,
+          })
+          if (relaxed) { signature = relaxed.descriptor; phase = 'done' }
+          else samples.splice(0, samples.length - T) // drop oldest, keep collecting
+        }
+      }
+      const msg = q.ok
+        ? `Hold still — captured ${Math.min(samples.length, T)} of ${T}`
+        : (q.hint || CAPTURE_PROMPT)
+      return { phase, msg, signature }
+    },
+  }
+}
+
 // True once the <video> is actually producing frames (guards detect() against a
 // not-yet-playing stream — e.g. iOS Safari when autoplay was deferred).
 export function videoReady(v) {
   return !!v && v.readyState >= 2 && v.videoWidth > 0
 }
 
-// ── Shared liveness + capture tuning (imported by BOTH face modals so the enroll
-// and reset flows can never drift apart) ─────────────────────────────────────
+// ── Back-compat aliases — the numbers now live in FACE_POLICY (one source of
+// truth); these stay exported so any older importer keeps working. ───────────
+export const SAMPLES = FACE_POLICY.ENROLL.TARGET
+export const ENROLL = FACE_POLICY.ENROLL
+export const TIMING = FACE_POLICY.TIMING
 export const LIVENESS = { EAR_OPEN: 0.26, EAR_CLOSED: 0.18, YAW_TURN: 0.16, YAW_BACK: 0.07 }
-export const SAMPLES = 4
-// Enrollment capture targets: gather TARGET quality frames, require MIN_INLIERS
-// mutually-consistent ones within MAX_SPREAD, and never collect past HARD_CAP
-// before falling back to the densest cluster. Tighter than reset's 0.6 match
-// threshold on purpose, so the stored signature is comfortably inside it.
-export const ENROLL = { TARGET: 8, MIN_INLIERS: 5, MAX_SPREAD: 0.45, HARD_CAP: 20 }
 export const CHALLENGES = [
   { key: 'blink', prompt: 'Blink slowly, twice' },
   { key: 'turn',  prompt: 'Turn your head to one side, then back' },
 ]
-// Loop timeouts so the camera flow can never deadlock (poor light, no blink, a
-// stalled iOS stream): hint → auto-switch to the other challenge → give up.
-export const TIMING = { POSITION_HINT_MS: 8000, CHALLENGE_SWITCH_MS: 14000, OVERALL_MS: 38000 }
 
 // Map raw getUserMedia / model errors to friendly copy.
 export function friendlyCameraError(e) {

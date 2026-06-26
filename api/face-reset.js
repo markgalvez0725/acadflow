@@ -31,8 +31,12 @@ import {
   faceDistance, patchFaceThrottle, deleteResetSession,
 } from './_fbadmin.js'
 
-// Match threshold for face-api's 128-d descriptors. The library's own default is
-// ~0.6; we use 0.6 so a genuine student isn't rejected by minor lighting/angle.
+// Match threshold for face-api's 128-d descriptors. SINGLE SOURCE OF TRUTH lives
+// in the client policy (src/utils/faceId.js → FACE_POLICY.MATCH.THRESHOLD = 0.6);
+// the server keeps its own copy because it must decide the match independently
+// (never trust a client "matched" claim) — but it is the SAME number. Keep the
+// two in sync. The client enroll spread (0.45) is < this, so a clean enrolled
+// signature always lands inside the match window and a real student isn't gated.
 const THRESHOLD = 0.6
 
 // Per-student-number throttle window (persisted in faceSignatures.rl). Two calls

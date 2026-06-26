@@ -3,12 +3,9 @@ import Modal from '@/components/primitives/Modal'
 import { ScanFace, Lock, Loader2, AlertTriangle, RefreshCw, ShieldAlert, ArrowRight, Check } from 'lucide-react'
 import { sanitizeSnum, validateSnum } from '@/utils/validate'
 import {
-  loadFaceModels, startCamera, stopStream, detectOnce, videoReady, headYaw,
-  descriptorArray, averageDescriptors, friendlyCameraError, createLivenessTracker,
-  SAMPLES, TIMING,
+  loadFaceModels, startCamera, stopStream, detectOnce, videoReady,
+  friendlyCameraError, createFaceScan, FACE_POLICY,
 } from '@/utils/faceId'
-
-const LIVENESS_PROMPT = 'Slowly turn your head a little, or blink'
 
 // Self-service password reset by face — self-contained and NON-DESTRUCTIVE.
 // Flow: number → face scan (verify only) → choose a new password → one server
@@ -23,8 +20,7 @@ export default function FaceResetModal({ initialNumber = '', onClose, onSuccess 
   const runIdRef = useRef(0)
   const snumRef = useRef('')
   const descriptorRef = useRef(null)
-  const liveRef = useRef(createLivenessTracker())
-  const samplesRef = useRef([])
+  const scanRef = useRef(createFaceScan())
   const loopStartRef = useRef(0)
 
   const [phase, setPhase] = useState('number') // number|init|position|challenge|capturing|verifying|password|nomatch|error
@@ -109,35 +105,21 @@ export default function FaceResetModal({ initialNumber = '', onClose, onSuccess 
     if (st !== 'position' && st !== 'challenge' && st !== 'capturing') return
     busyRef.current = true
     try {
-      if (Date.now() - loopStartRef.current > TIMING.OVERALL_MS) {
+      const elapsed = Date.now() - loopStartRef.current
+      if (elapsed > FACE_POLICY.TIMING.OVERALL_MS) {
         setErr('Couldn’t complete the scan in time. Move somewhere brighter, center your face, and try again.')
         go('error'); return
       }
       const v = videoRef.current
       if (!videoReady(v)) return
       const det = await detectOnce(v)
-      if (!det) {
-        if (st === 'position') {
-          setMsg(Date.now() - loopStartRef.current > TIMING.POSITION_HINT_MS
-            ? 'Make sure your face is centered and well-lit'
-            : 'Center your face in the circle')
-        }
-        return
-      }
 
-      if (st === 'position') { liveRef.current.reset(); go('challenge'); setMsg(LIVENESS_PROMPT); return }
-
-      if (st === 'challenge') {
-        const r = liveRef.current.update(det.landmarks)
-        if (r.passed) { samplesRef.current = []; go('capturing'); setMsg('Great — look straight ahead and hold still…') }
-        return
-      }
-
-      if (Math.abs(headYaw(det.landmarks)) < 0.16) {
-        const arr = descriptorArray(det)
-        if (arr) samplesRef.current.push(arr)
-      }
-      if (samplesRef.current.length >= SAMPLES) await verifyFace(averageDescriptors(samplesRef.current))
+      // Same centralized scanner as enrollment → the face that enrolled cleanly
+      // is verified by the identical pipeline, so a real student isn't rejected.
+      const out = scanRef.current.feed(det, v, elapsed)
+      if ((out.phase === 'challenge' || out.phase === 'capturing') && out.phase !== stateRef.current) go(out.phase)
+      if (out.msg) setMsg(out.msg)
+      if (out.signature) await verifyFace(out.signature)
     } catch { /* transient frame error */ }
     finally { busyRef.current = false }
   }
@@ -145,7 +127,7 @@ export default function FaceResetModal({ initialNumber = '', onClose, onSuccess 
   const begin = useCallback(async () => {
     cleanup()
     const myRun = ++runIdRef.current
-    liveRef.current.reset(); samplesRef.current = []
+    scanRef.current.reset()
     setErr(''); go('init'); setMsg('Loading face models…')
     try {
       await loadFaceModels()

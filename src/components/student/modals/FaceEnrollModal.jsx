@@ -5,11 +5,8 @@ import { getIdToken } from '@/firebase/firebaseInit'
 import { ScanFace, Lock, Check, Loader2, AlertTriangle, RefreshCw } from 'lucide-react'
 import {
   loadFaceModels, startCamera, stopStream, detectOnce, videoReady,
-  descriptorArray, faceQuality, buildSignature, friendlyCameraError, createLivenessTracker,
-  ENROLL, TIMING,
+  friendlyCameraError, createFaceScan, FACE_POLICY,
 } from '@/utils/faceId'
-
-const LIVENESS_PROMPT = 'Slowly turn your head a little, or blink'
 
 export default function FaceEnrollModal({ student, onClose }) {
   const { toast } = useUI()
@@ -19,8 +16,7 @@ export default function FaceEnrollModal({ student, onClose }) {
   const busyRef = useRef(false)
   const stateRef = useRef('init')
   const runIdRef = useRef(0)
-  const liveRef = useRef(createLivenessTracker())
-  const samplesRef = useRef([])
+  const scanRef = useRef(createFaceScan())
   const loopStartRef = useRef(0)
 
   const [phase, setPhase] = useState('init') // init|position|challenge|capturing|saving|done|error
@@ -63,54 +59,21 @@ export default function FaceEnrollModal({ student, onClose }) {
     if (st !== 'position' && st !== 'challenge' && st !== 'capturing') return
     busyRef.current = true
     try {
-      if (Date.now() - loopStartRef.current > TIMING.OVERALL_MS) {
+      const elapsed = Date.now() - loopStartRef.current
+      if (elapsed > FACE_POLICY.TIMING.OVERALL_MS) {
         setErr('Couldn’t complete the scan in time. Move somewhere brighter, center your face, and try again.')
         go('error'); return
       }
       const v = videoRef.current
       if (!videoReady(v)) return
       const det = await detectOnce(v)
-      if (!det) {
-        if (st === 'position') {
-          setMsg(Date.now() - loopStartRef.current > TIMING.POSITION_HINT_MS
-            ? 'Make sure your face is centered and well-lit'
-            : 'Center your face in the circle')
-        }
-        return
-      }
 
-      if (st === 'position') { liveRef.current.reset(); go('challenge'); setMsg(LIVENESS_PROMPT); return }
-
-      if (st === 'challenge') {
-        const r = liveRef.current.update(det.landmarks)
-        if (r.passed) { samplesRef.current = []; go('capturing'); setMsg('Great — look straight ahead and hold still…') }
-        return
-      }
-
-      // capturing — keep only high-quality, eyes-open, frontal frames, then build
-      // an outlier-rejected signature. A noisy frame is skipped (with a hint),
-      // never averaged in, so the stored signature reliably matches at reset.
-      const q = faceQuality(det, v)
-      if (q.ok) {
-        const arr = descriptorArray(det)
-        if (arr) samplesRef.current.push(arr)
-        setMsg(`Hold still — captured ${Math.min(samplesRef.current.length, ENROLL.TARGET)} of ${ENROLL.TARGET}`)
-      } else if (q.hint) {
-        setMsg(q.hint)
-      }
-
-      const n = samplesRef.current.length
-      if (n >= ENROLL.TARGET) {
-        const sig = buildSignature(samplesRef.current, { minInliers: ENROLL.MIN_INLIERS, maxSpread: ENROLL.MAX_SPREAD })
-        if (sig) { await save(sig.descriptor); return }
-        // Not consistent enough yet. Keep collecting; near the cap, accept the
-        // densest cluster with relaxed bounds rather than failing a real student.
-        if (n >= ENROLL.HARD_CAP) {
-          const relaxed = buildSignature(samplesRef.current, { minInliers: 3, maxSpread: 0.6 })
-          if (relaxed) { await save(relaxed.descriptor); return }
-          samplesRef.current = samplesRef.current.slice(-ENROLL.TARGET) // drop oldest, keep trying until timeout
-        }
-      }
+      // The centralized scanner owns liveness + quality-gated capture + the
+      // outlier-rejected signature — identical to the reset flow, so no drift.
+      const out = scanRef.current.feed(det, v, elapsed)
+      if ((out.phase === 'challenge' || out.phase === 'capturing') && out.phase !== stateRef.current) go(out.phase)
+      if (out.msg) setMsg(out.msg)
+      if (out.signature) await save(out.signature)
     } catch { /* transient frame error — keep looping */ }
     finally { busyRef.current = false }
   }
@@ -118,7 +81,7 @@ export default function FaceEnrollModal({ student, onClose }) {
   const begin = useCallback(async () => {
     cleanup()
     const myRun = ++runIdRef.current
-    liveRef.current.reset(); samplesRef.current = []
+    scanRef.current.reset()
     setErr(''); go('init'); setMsg('Loading face models…')
     try {
       await loadFaceModels()
