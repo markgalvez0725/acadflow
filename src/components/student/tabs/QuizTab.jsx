@@ -1,15 +1,56 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import { PartyPopper, FileText, Timer, Check, X, CheckCircle2, ClipboardList, XCircle, ShieldAlert } from 'lucide-react'
+import {
+  PartyPopper, FileText, Timer, Check, X, CheckCircle2, ClipboardList, XCircle, ShieldAlert,
+  Lightbulb, ShieldCheck, Clock, RefreshCw, Trophy, CalendarClock, Pencil, Maximize2,
+} from 'lucide-react'
 import { doc, updateDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import Badge from '@/components/primitives/Badge'
 import Modal from '@/components/primitives/Modal'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 import { activeClassIds } from '@/utils/active'
 import { subjectColor } from '@/utils/subjectColor'
-import { Lightbulb } from 'lucide-react'
 import { computeQuizScore } from '@/utils/quizScore'
+
+const HOUR = 3600000
+
+// Short "closes in …" label for the Quiz Watch validator.
+function closeIn(ms) {
+  if (ms <= 0) return 'now'
+  const h = Math.floor(ms / HOUR)
+  if (h >= 24) return `in ${Math.floor(h / 24)}d`
+  if (h >= 1) return `in ${h}h`
+  return `in ${Math.max(1, Math.floor(ms / 60000))}m`
+}
+
+// Best-effort OS fullscreen helpers (focus mode). Feature-detected; on platforms
+// without the Fullscreen API (e.g. iOS Safari) the in-app focus panel still
+// covers the viewport, so the quiz stays distraction-free either way.
+function enterFullscreen() {
+  const el = document.documentElement
+  const fn = el.requestFullscreen || el.webkitRequestFullscreen
+  try { fn && fn.call(el) } catch (e) { /* unsupported / blocked */ }
+}
+function exitFullscreen() {
+  if (!(document.fullscreenElement || document.webkitFullscreenElement)) return
+  const fn = document.exitFullscreen || document.webkitExitFullscreen
+  try { fn && fn.call(document) } catch (e) { /* ignore */ }
+}
+
+// Performance/score ring (deterministic; mirrors the average shown on the cards).
+function StandingRing({ rate, color, label = 'avg score' }) {
+  const C = 2 * Math.PI * 34
+  const off = C * (1 - Math.max(0, Math.min(100, rate)) / 100)
+  return (
+    <svg width="80" height="80" viewBox="0 0 84 84" aria-hidden="true">
+      <circle cx="42" cy="42" r="34" fill="none" stroke="var(--border)" strokeWidth="9" />
+      <circle cx="42" cy="42" r="34" fill="none" stroke={color} strokeWidth="9" strokeLinecap="round"
+        strokeDasharray={C} strokeDashoffset={off} transform="rotate(-90 42 42)" />
+      <text x="42" y="39" textAnchor="middle" fontSize="19" fontWeight="700" fill="var(--ink)">{rate}%</text>
+      <text x="42" y="54" textAnchor="middle" fontSize="8.5" fill="var(--ink3)">{label}</text>
+    </svg>
+  )
+}
 
 // Fisher–Yates shuffle of [0..n-1] — the display order of questions.
 function shuffleIndices(n) {
@@ -79,6 +120,24 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [finalScore, setFinalScore] = useState(null)
+
+  // Focus mode: lock body scroll while taking, and leave OS fullscreen on close.
+  // (Fullscreen is requested from the "Take quiz" click in the parent so the
+  // user-gesture requirement is satisfied.) `isFs` drives a re-enter button if
+  // the student presses Esc out of fullscreen mid-quiz.
+  const [isFs, setIsFs] = useState(() => !!(document.fullscreenElement || document.webkitFullscreenElement))
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    const onFs = () => setIsFs(!!(document.fullscreenElement || document.webkitFullscreenElement))
+    document.addEventListener('fullscreenchange', onFs)
+    document.addEventListener('webkitfullscreenchange', onFs)
+    return () => {
+      document.body.style.overflow = ''
+      document.removeEventListener('fullscreenchange', onFs)
+      document.removeEventListener('webkitfullscreenchange', onFs)
+      exitFullscreen()
+    }
+  }, [])
 
   // Anti-cheat: questions are shown in a shuffled order, and leaving the quiz
   // (switching tabs / apps) clears answers and reshuffles — see the effect below.
@@ -219,6 +278,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
       })
 
       try { localStorage.removeItem(draftKey) } catch (e) { /* ignore */ }
+      exitFullscreen() // leave focus mode; show the result card normally
       setFinalScore({ score, total, pct })
       setSubmitted(true)
       toast(isAuto ? `Time's up! Score: ${score}/${total}` : `Submitted! Score: ${score}/${total}`, 'success')
@@ -269,19 +329,32 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
   }
 
   return (
-    <Modal onClose={null} size="lg">
+    <div className="quiz-focus-overlay" role="dialog" aria-modal="true" aria-label={`Taking quiz: ${quiz.title}`}>
+      <div className="quiz-focus-panel">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-base font-bold text-ink">{quiz.title}</h3>
-          <p className="text-xs text-ink2">{quiz.subject} · {total} questions</p>
+          <p className="text-xs text-ink2">{quiz.subject} · {total} questions · Focus mode</p>
         </div>
-        <div style={{
-          fontSize: 20, fontWeight: 800, fontVariantNumeric: 'tabular-nums',
-          color: remaining <= 60 ? 'var(--red)' : remaining <= 300 ? '#f59e0b' : 'var(--green)',
-          background: 'var(--surface2)', borderRadius: 8, padding: '6px 14px',
-        }}>
-          <Timer size={18} /> {formatted}
+        <div className="flex items-center gap-2">
+          {!isFs && (
+            <button
+              type="button"
+              className="quiz-focus-fsbtn"
+              onClick={enterFullscreen}
+              title="Enter fullscreen for distraction-free focus"
+            >
+              <Maximize2 size={14} /> Fullscreen
+            </button>
+          )}
+          <div style={{
+            fontSize: 20, fontWeight: 800, fontVariantNumeric: 'tabular-nums',
+            color: remaining <= 60 ? 'var(--red)' : remaining <= 300 ? '#f59e0b' : 'var(--green)',
+            background: 'var(--surface2)', borderRadius: 8, padding: '6px 14px',
+          }}>
+            <Timer size={18} /> {formatted}
+          </div>
         </div>
       </div>
 
@@ -463,7 +536,8 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
           </button>
         )}
       </div>
-    </Modal>
+      </div>
+    </div>
   )
 }
 
@@ -565,17 +639,75 @@ export default function StudentQuizTab({ student, viewClassId }) {
       })
   }, [quizzes, studentClassIds, now])
 
-  function getStatus(q) {
-    const sub = q.submissions?.[student.id]
-    if (sub) return { label: 'Completed', variant: 'green', done: true, score: sub.score, total: (sub.total ?? q.totalPoints ?? q.questions?.length) || 0 }
-    if (now < q.openAt) return { label: 'Upcoming', variant: 'blue', done: false }
-    if (now > q.closeAt) return { label: 'Missed', variant: 'red', done: false }
-    return { label: 'Open', variant: 'green', done: false, canTake: true }
-  }
+  const [filter, setFilter] = useState('all')
 
-  function handleSubmitted(quizId, result) {
-    // After submission the quiz list will refresh via Firestore listener
-  }
+  // Per-quiz standing — computed once, reused by the ring, Quiz Watch, the pill
+  // counts, and each card, so nothing on screen can disagree.
+  const decorated = useMemo(() => myQuizzes.map(q => {
+    const sub = q.submissions?.[student.id]
+    const totalPts = (q.totalPoints ?? q.questions?.length) || 0
+    let group = 'open', scorePct = null, scoreText = null
+    if (sub) {
+      group = 'completed'
+      const t = sub.total ?? totalPts
+      scorePct = t > 0 ? Math.round((sub.score / t) * 100) : 0
+      scoreText = `${sub.score}/${t}`
+    } else if (now < q.openAt) group = 'upcoming'
+    else if (now > q.closeAt) group = 'missed'
+    const closesSoon = group === 'open' && (q.closeAt - now <= 24 * HOUR)
+    return { q, sub, group, scorePct, scoreText, totalPts, closesSoon }
+  }), [myQuizzes, student.id, now])
+
+  const counts = useMemo(() => {
+    const c = { all: decorated.length, open: 0, upcoming: 0, completed: 0, missed: 0 }
+    decorated.forEach(d => { c[d.group]++ })
+    return c
+  }, [decorated])
+
+  const ring = useMemo(() => {
+    const done = decorated.filter(d => d.group === 'completed')
+    const rate = done.length ? Math.round(done.reduce((s, d) => s + d.scorePct, 0) / done.length) : 0
+    const color = !done.length ? 'var(--ink3)' : rate >= 75 ? 'var(--green)' : rate >= 50 ? 'var(--gold-var)' : 'var(--red)'
+    return { rate, color, taken: done.length }
+  }, [decorated])
+
+  // Deterministic "Quiz Watch" findings — closing-soon, missed, review-worthy,
+  // strongest subject. No AI, no network; recomputed from `decorated`.
+  const watch = useMemo(() => {
+    const f = []
+    const open      = decorated.filter(d => d.group === 'open')
+    const soon      = open.filter(d => d.closesSoon).sort((a, b) => a.q.closeAt - b.q.closeAt)
+    const missed    = decorated.filter(d => d.group === 'missed')
+    const completed = decorated.filter(d => d.group === 'completed')
+    const upcoming  = decorated.filter(d => d.group === 'upcoming').sort((a, b) => a.q.openAt - b.q.openAt)
+    if (soon.length) { const d = soon[0]; f.push({ tone: 'bad', Icon: Clock, lead: `Closes ${closeIn(d.q.closeAt - now)}`, text: ` — ${d.q.title} (${d.q.subject}), not taken yet.` }) }
+    else if (open.length) f.push({ tone: 'info', Icon: Pencil, lead: `${open.length} open now`, text: ' — ready when you are.' })
+    if (missed.length) f.push({ tone: 'bad', Icon: XCircle, lead: `${missed.length} missed`, text: ' — closed without an attempt.' })
+    const lows = completed.filter(d => d.scorePct != null && d.scorePct < 75).sort((a, b) => a.scorePct - b.scorePct)
+    if (lows.length) { const d = lows[0]; f.push({ tone: 'warn', Icon: RefreshCw, lead: 'Worth a review', text: ` — ${d.q.title} (${d.q.subject}) at ${d.scorePct}%.` }) }
+    if (completed.length) {
+      const bySub = {}
+      completed.forEach(d => { const sj = d.q.subject || 'General'; (bySub[sj] ||= []).push(d.scorePct) })
+      let best = null
+      Object.entries(bySub).forEach(([sj, arr]) => { const avg = Math.round(arr.reduce((x, y) => x + y, 0) / arr.length); if (!best || avg > best.avg) best = { sj, avg } })
+      if (best && !lows.length) f.push({ tone: best.avg >= 75 ? 'good' : 'warn', Icon: Trophy, lead: best.avg >= 75 ? 'Strongest' : `Avg ${ring.rate}%`, text: best.avg >= 75 ? ` — ${best.sj}, averaging ${best.avg}%.` : ` across ${completed.length} quiz${completed.length > 1 ? 'zes' : ''}.` })
+    }
+    if (upcoming.length && upcoming[0].q.openAt - now <= 48 * HOUR) f.push({ tone: 'info', Icon: CalendarClock, lead: 'Opens soon', text: ` — ${upcoming[0].q.title}.` })
+    if (!f.length) f.push({ tone: 'good', Icon: CheckCircle2, lead: 'All clear', text: ' — nothing pending right now.' })
+    const lead = soon.length ? `${soon.length} quiz${soon.length > 1 ? 'zes' : ''} closing soon — don't miss them.`
+      : open.length ? `${open.length} quiz${open.length > 1 ? 'zes' : ''} open now.`
+      : completed.length ? `You're averaging ${ring.rate}% across ${completed.length}.`
+      : 'No quizzes pending right now.'
+    return { findings: f.slice(0, 4), lead }
+  }, [decorated, ring, now])
+
+  const visible = useMemo(() => (
+    filter === 'all' ? decorated : decorated.filter(d => d.group === filter)
+  ), [decorated, filter])
+
+  // Entering OS fullscreen must happen inside the click gesture.
+  function startQuiz(q) { enterFullscreen(); setTakingQuiz(q) }
+  function handleSubmitted() { /* list refreshes via Firestore listener */ }
 
   // Wait for the first Firestore snapshot before deciding the list is empty —
   // otherwise students briefly see "No quizzes assigned yet" during load.
@@ -591,65 +723,106 @@ export default function StudentQuizTab({ student, viewClassId }) {
     )
   }
 
+  const PILLS = [
+    { key: 'all',       label: 'All' },
+    { key: 'open',      label: 'Open' },
+    { key: 'upcoming',  label: 'Upcoming' },
+    { key: 'completed', label: 'Completed' },
+    { key: 'missed',    label: 'Missed' },
+  ]
+
   return (
     <div>
       <div className="sec-hdr mb-3">
-        <div className="sec-title">My Quizzes</div>
-        <span className="text-xs text-ink2">{myQuizzes.filter(q => !q.submissions?.[student.id] && now >= q.openAt && now <= q.closeAt).length} open</span>
+        <div className="sec-title">My quizzes</div>
+        <span className="text-xs text-ink2">{counts.open} open now</span>
       </div>
 
-      <div className="flex flex-col gap-3">
-        {myQuizzes.map(q => {
-          const status = getStatus(q)
-          const openLabel = new Date(q.openAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+      {/* Performance ring + Quiz Watch */}
+      <div className="sact-top">
+        <div className="sact-card sact-ring-card">
+          <StandingRing rate={ring.rate} color={ring.color} />
+          <div className="sact-ring-meta">
+            <strong>{ring.taken} quiz{ring.taken !== 1 ? 'zes' : ''} taken</strong><br />
+            {counts.open} open · {counts.upcoming} upcoming<br />
+            {counts.missed ? `${counts.missed} missed` : 'none missed'}
+          </div>
+        </div>
+
+        <div className="sact-card sact-watch">
+          <div className="sact-watch-h">
+            <ShieldCheck size={17} style={{ color: 'var(--accent)' }} />
+            <span className="sact-watch-title">Quiz Watch</span>
+            <span className="sact-chip-tag">on-device</span>
+          </div>
+          <div className="sact-watch-lead">{watch.lead}</div>
+          {watch.findings.map((fd, i) => (
+            <div key={i} className={`sact-find sact-find-${fd.tone}`}>
+              <fd.Icon size={16} />
+              <div className="sact-find-txt"><strong>{fd.lead}</strong>{fd.text}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Status filter pills */}
+      <div className="sact-pills">
+        {PILLS.map(p => (
+          <button key={p.key} className={`sact-pill ${filter === p.key ? 'on' : ''}`} onClick={() => setFilter(p.key)}>
+            {p.label} {counts[p.key]}
+          </button>
+        ))}
+      </div>
+
+      {!visible.length ? (
+        <div className="empty" style={{ padding: '32px 16px' }}>
+          <div className="empty-icon"><FileText size={34} /></div>
+          No quizzes under “{PILLS.find(p => p.key === filter)?.label}”.
+        </div>
+      ) : (
+      <div className="sact-grid">
+        {visible.map(({ q, sub, group, scorePct, scoreText }) => {
+          const openLabel  = new Date(q.openAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
           const closeLabel = new Date(q.closeAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-          const sub = q.submissions?.[student.id]
+          const passed = scorePct != null && scorePct >= 75
+          let badge
+          if (group === 'completed') badge = <span className="badge" style={{ background: passed ? 'var(--green-l)' : 'var(--red-l)', color: passed ? 'var(--green)' : 'var(--red)' }}>{scoreText} · {scorePct}%</span>
+          else if (group === 'open') badge = <span className="badge badge-green">Open</span>
+          else if (group === 'upcoming') badge = <span className="badge" style={{ background: 'var(--accent-l)', color: 'var(--accent)' }}>Upcoming</span>
+          else badge = <span className="badge badge-red">Missed</span>
 
           return (
-            <div key={q.id} className="card card-pad">
-              <div className="flex items-start justify-between gap-3 flex-wrap">
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <strong style={{ fontSize: 14 }}>{q.title}</strong>
-                    <Badge variant={status.variant}>{status.label}</Badge>
-                    <span className="badge" style={{ background: subjectColor(q.subject).soft, color: subjectColor(q.subject).color }}>{q.subject}</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--ink2)', marginBottom: 2 }}>
-                    {q.questions?.length || 0} questions · {q.timeLimit} min time limit
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--ink3)' }}>
-                    Open: {openLabel} · Close: {closeLabel}
-                  </div>
-                  {status.done && sub && (
-                    <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: status.total > 0 && status.score / status.total >= 0.75 ? 'var(--green)' : 'var(--red)' }}>
-                      Score: {status.score}/{status.total} ({status.total > 0 ? ((status.score / status.total) * 100).toFixed(1) : '0'}%)
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex gap-1.5 flex-col flex-shrink-0" style={{ alignItems: 'flex-end' }}>
-                  {status.canTake && (
-                    <button
-                      className="btn btn-primary btn-sm"
-                      onClick={() => setTakingQuiz(q)}
-                    >
-                      Take Quiz →
-                    </button>
-                  )}
-                  {status.done && (
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => setReviewQuiz(q)}
-                    >
-                      Review
-                    </button>
-                  )}
-                </div>
+            <div key={q.id} className="sact-card" style={{ padding: '13px 14px', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+                <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink)' }}>{q.title}</span>
+                {badge}
+              </div>
+              <div style={{ display: 'flex', gap: 6, margin: '8px 0', flexWrap: 'wrap' }}>
+                <span className="badge" style={{ background: subjectColor(q.subject).soft, color: subjectColor(q.subject).color }}>{q.subject}</span>
+                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--ink3)' }}>
+                  {q.questions?.length || 0} Q · {q.timeLimit} min
+                </span>
+              </div>
+              <div style={{ fontSize: 11.5, color: 'var(--ink3)', marginBottom: 10 }}>
+                {group === 'upcoming'
+                  ? `Opens ${openLabel}`
+                  : group === 'completed'
+                    ? (sub?.submittedAt ? `Taken ${new Date(sub.submittedAt).toLocaleDateString('en-PH', { dateStyle: 'medium' })}` : 'Completed')
+                    : `Closes ${closeLabel}`}
+              </div>
+              <div style={{ marginTop: 'auto' }}>
+                {group === 'open' && (
+                  <button className="btn btn-primary btn-sm" onClick={() => startQuiz(q)}>Take quiz →</button>
+                )}
+                {group === 'completed' && (
+                  <button className="btn btn-ghost btn-sm" onClick={() => setReviewQuiz(q)}>Review answers</button>
+                )}
               </div>
             </div>
           )
         })}
       </div>
+      )}
 
       {takingQuiz && (
         <QuizTakingModal
