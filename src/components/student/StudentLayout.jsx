@@ -18,9 +18,9 @@ import { activeClasses, activeClassIds, activeSubjects } from '@/utils/active'
 import { studentSeesMessage } from '@/utils/studentMessages'
 import { computePassedSubjects } from '@/utils/passedSubjects'
 import { isNotifAllowed } from '@/utils/notifPrefs'
-import { isPendingVerification } from '@/utils/accountStatus'
+import { isPendingVerification, needsFaceStep } from '@/utils/accountStatus'
 import { dataGapReasons } from '@/utils/accountAudit'
-import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare, Library, ListChecks, MessageSquarePlus, Hourglass, Camera, Circle, ScanFace, X } from 'lucide-react'
+import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare, Library, ListChecks, MessageSquarePlus, Hourglass, Camera, Circle, ScanFace } from 'lucide-react'
 
 // Tabs hidden until a self-registered student is verified (grade-bearing only).
 const PENDING_GATED_TABS = new Set(['grades', 'quizzes', 'activities', 'assignments'])
@@ -74,6 +74,25 @@ function PendingVerificationGate({ student, onCompleteProfile, onContact }) {
       </p>
       <button className="btn btn-ghost btn-sm" style={{ marginTop: 14 }} onClick={onContact}>
         <MessageSquare size={14} /> Message your teacher
+      </button>
+    </div>
+  )
+}
+
+// Shown in place of a gated tab when the only remaining activation step is Face
+// ID enrollment. A camera device is required — there is no exception.
+function FaceSetupGate({ onSetup }) {
+  return (
+    <div className="empty" style={{ padding: '40px 16px', textAlign: 'center', maxWidth: 460, margin: '0 auto' }}>
+      <div className="empty-icon" style={{ color: 'var(--accent)' }}><ScanFace size={40} /></div>
+      <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--ink)', marginTop: 4 }}>One last step — set up Face ID</div>
+      <p style={{ fontSize: 13.5, color: 'var(--ink2)', lineHeight: 1.6, marginTop: 8 }}>
+        Activate your account by setting up Face ID password reset. It lets you recover
+        your account yourself if you ever forget your password — and it unlocks your
+        grades, quizzes, and activities. You’ll need a device with a camera.
+      </p>
+      <button className="btn btn-primary btn-sm" style={{ marginTop: 16 }} onClick={onSetup}>
+        <ScanFace size={14} style={{ marginRight: 6 }} /> Set up Face ID
       </button>
     </div>
   )
@@ -171,6 +190,8 @@ export default function StudentLayout() {
   // Self-registered, not yet verified → limited access (grade tabs gated).
   const pendingVerify = isPendingVerification(student)
   const needsPhoto = pendingVerify && !student?.photo
+  const faceStep = needsFaceStep(student)   // step 2: Face ID enrollment required
+  const gated = pendingVerify || faceStep   // not fully Active until both steps done
 
   const [viewClassId, setViewClassId] = useState(null)
   const effectiveClassId = viewClassId || enrolledClasses[0]?.id || null
@@ -242,9 +263,6 @@ export default function StudentLayout() {
   const [pinModalOpen, setPinModalOpen] = useState(false)
   const [bioModalOpen, setBioModalOpen] = useState(false)
   const [faceModalOpen, setFaceModalOpen] = useState(false)
-  const [faceNudgeDismissed, setFaceNudgeDismissed] = useState(() => {
-    try { return sessionStorage.getItem('cp_facenudge') === '1' } catch { return false }
-  })
 
   // Celebrate newly-passed subjects (once each, per device). A queue lets us
   // show one congrats overlay at a time if several pass together.
@@ -520,48 +538,43 @@ export default function StudentLayout() {
         {/* Tab content */}
         <main className="admin-body" id="main-content" tabIndex={-1}>
           <InstallPrompt />
-          {pendingVerify && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', marginBottom: 14, borderRadius: 12, border: '1px solid var(--border)', background: needsPhoto ? 'var(--accent-l)' : 'rgba(234,179,8,.12)', color: 'var(--ink)' }}>
+          {/* Two-step activation prompt (required): verify profile → set up Face
+              ID. The account isn't Active (and the protected tabs stay locked)
+              until both are done. */}
+          {gated && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', marginBottom: 14, borderRadius: 12, border: '1px solid var(--border)', background: (needsPhoto || faceStep) ? 'var(--accent-l)' : 'rgba(234,179,8,.12)', color: 'var(--ink)' }}>
               {needsPhoto
                 ? <Camera size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} />
-                : <Hourglass size={16} style={{ color: 'var(--yellow)', flexShrink: 0 }} />}
+                : faceStep
+                  ? <ScanFace size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                  : <Hourglass size={16} style={{ color: 'var(--yellow)', flexShrink: 0 }} />}
               <span style={{ fontSize: 13, lineHeight: 1.5, flex: 1 }}>
                 {needsPhoto
-                  ? <><strong>Finish your profile to unlock.</strong> Add a photo to activate your account — grades, quizzes and activities open right after.</>
-                  : <><strong>Account awaiting verification.</strong> You have limited access until your teacher confirms you — grades, quizzes and activities unlock then.</>}
+                  ? <><strong>Step 1 of 2 — add your photo.</strong> Complete your profile to verify your account.</>
+                  : pendingVerify
+                    ? <><strong>Account awaiting verification.</strong> You have limited access until your teacher confirms you.</>
+                    : <><strong>Step 2 of 2 — set up Face ID.</strong> Activate your account to unlock grades, quizzes and activities. A camera is required.</>}
               </span>
               {needsPhoto && (
                 <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }} onClick={() => setProfileOpen(true)}>
                   <Camera size={14} style={{ marginRight: 5 }} /> Add photo
                 </button>
               )}
-            </div>
-          )}
-
-          {/* Finish-setup nudge: prompt active students to enrol Face ID reset so
-              they can recover their own password. Hidden once enrolled or dismissed. */}
-          {!pendingVerify && student?.account?.registered && !student?.account?.faceResetEnabled && !faceNudgeDismissed && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', marginBottom: 14, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--accent-l)', color: 'var(--ink)' }}>
-              <ScanFace size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} />
-              <span style={{ fontSize: 13, lineHeight: 1.5, flex: 1 }}>
-                <strong>Finish your setup.</strong> Turn on Face ID password reset so you can recover your account yourself if you ever forget your password.
-              </span>
-              <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }} onClick={() => setFaceModalOpen(true)}>
-                <ScanFace size={14} style={{ marginRight: 5 }} /> Set up
-              </button>
-              <button
-                aria-label="Dismiss"
-                onClick={() => { setFaceNudgeDismissed(true); try { sessionStorage.setItem('cp_facenudge', '1') } catch {} }}
-                style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink3)', padding: 4, display: 'flex' }}
-              >
-                <X size={15} />
-              </button>
+              {faceStep && (
+                <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }} onClick={() => setFaceModalOpen(true)}>
+                  <ScanFace size={14} style={{ marginRight: 5 }} /> Set up Face ID
+                </button>
+              )}
             </div>
           )}
           <TabErrorBoundary key={studentTab}>
             <Suspense fallback={<SkeletonRows />}>
-              {pendingVerify && PENDING_GATED_TABS.has(studentTab) && <PendingVerificationGate student={student} onCompleteProfile={() => setProfileOpen(true)} onContact={() => setStudentTab('messages')} />}
-              {(!pendingVerify || !PENDING_GATED_TABS.has(studentTab)) && <>
+              {gated && PENDING_GATED_TABS.has(studentTab) && (
+                pendingVerify
+                  ? <PendingVerificationGate student={student} onCompleteProfile={() => setProfileOpen(true)} onContact={() => setStudentTab('messages')} />
+                  : <FaceSetupGate onSetup={() => setFaceModalOpen(true)} />
+              )}
+              {(!gated || !PENDING_GATED_TABS.has(studentTab)) && <>
               {studentTab === 'stream'        && <StreamTab        student={student} viewClassId={effectiveClassId} classes={classes} />}
               {studentTab === 'overview'      && <OverviewTab      student={student} viewClassId={effectiveClassId} classes={classes} />}
               {studentTab === 'grades'        && <GradesTab        student={student} viewClassId={effectiveClassId} classes={classes} />}

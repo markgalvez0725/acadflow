@@ -35,11 +35,15 @@ export const ACCOUNT_STATUS = {
 // `verified` field — they are grandfathered (treated as verified) so existing
 // students never flip back to Pending. Only `verified === false` (a brand-new
 // self-registration awaiting verification) holds an account in Pending.
+// Activation is now a TWO-step sequence: (1) identity verification (photo +
+// course/year/section), then (2) Face ID enrollment. An account is Active only
+// once BOTH are done (plus the student owning their password). Face ID is a hard
+// requirement — `account.faceResetEnabled` must be true.
 export function accountStatusKey(student) {
   const a = student?.account
   if (!a?.registered) return 'none'
   const verifiedOk = a.verified !== false // true OR undefined(legacy) → ok
-  if (a.activated && !a._tempPass && verifiedOk) return 'active'
+  if (a.activated && !a._tempPass && verifiedOk && a.faceResetEnabled === true) return 'active'
   return 'pending'
 }
 
@@ -47,6 +51,17 @@ export function accountStatusKey(student) {
 // verification (vs. a teacher-temp-password pending). Drives the teacher queue.
 export function isPendingVerification(student) {
   return student?.account?.registered === true && student?.account?.verified === false
+}
+
+// Step 2 of activation: identity is settled and the student owns their password,
+// but Face ID isn't enrolled yet. This gates the protected tabs until they set
+// it up (a camera device is required — there is no exception).
+export function needsFaceStep(student) {
+  const a = student?.account
+  return a?.registered === true
+    && a.verified !== false
+    && !a._tempPass
+    && a.faceResetEnabled !== true
 }
 
 // The stored AI/teacher verification record, or null.
