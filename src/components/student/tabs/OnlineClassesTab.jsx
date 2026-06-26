@@ -1,6 +1,9 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { useData } from '@/context/DataContext'
-import { Video, Radio, ExternalLink, Clock, ChevronDown, ChevronUp } from 'lucide-react'
+import {
+  Video, Radio, ExternalLink, Clock, ChevronDown, ChevronUp,
+  ShieldCheck, ArrowRight, Unlink, CheckCircle2,
+} from 'lucide-react'
 import { activeClassIds } from '@/utils/active'
 
 const IMMINENT_MS = 15 * 60 * 1000 // a class "starting soon" — show one-tap join
@@ -25,6 +28,11 @@ function untilLabel(ms) {
   return `in ${Math.max(1, Math.ceil(ms / 1000))}s`
 }
 
+function meetingClassLabel(meeting, classNameById) {
+  const base = meeting.className || classNameById[meeting.classId] || 'Class'
+  return meeting.subject ? `${base} · ${meeting.subject}` : base
+}
+
 export default function OnlineClassesTab({ student }) {
   const { meetings, classes, semester } = useData()
   const now = useNow(30000)
@@ -45,222 +53,209 @@ export default function OnlineClassesTab({ student }) {
   )
 
   const upcoming = useMemo(() =>
-    myMeetings.filter(m => m.status === 'scheduled')
-      .sort((a, b) => a.scheduledAt - b.scheduledAt),
+    myMeetings.filter(m => m.status === 'scheduled').sort((a, b) => a.scheduledAt - b.scheduledAt),
     [myMeetings]
   )
 
-  // Scheduled classes whose start is within the next 15 minutes (or just past,
-  // before the teacher flips them live) — these get a one-tap Join.
-  const imminent = useMemo(() =>
-    upcoming.filter(m => m.scheduledAt - now <= IMMINENT_MS),
-    [upcoming, now]
-  )
-
   const past = useMemo(() =>
-    myMeetings.filter(m => m.status === 'ended')
-      .sort((a, b) => b.scheduledAt - a.scheduledAt),
+    myMeetings.filter(m => m.status === 'ended').sort((a, b) => b.scheduledAt - a.scheduledAt),
     [myMeetings]
   )
 
   const [pastOpen, setPastOpen] = useState(false)
-  const [panel, setPanel] = useState('live')
 
   const classNameById = useMemo(() => {
     const map = {}
-    classes.forEach(c => {
-      map[c.id] = c.section ? `${c.name} - ${c.section}` : c.name
-    })
+    classes.forEach(c => { map[c.id] = c.section ? `${c.name} - ${c.section}` : c.name })
     return map
   }, [classes])
 
+  // Deterministic "Session Watch" — live now, next up, missing link. Recomputed
+  // from the same meetings the list renders. No AI/network.
+  const watch = useMemo(() => {
+    const f = []
+    const noLink = upcoming.filter(m => !m.meetLink)
+    if (liveMeetings.length)
+      f.push({ tone: 'bad', Icon: Radio, lead: `${liveMeetings.length} live now`, text: ` — ${liveMeetings[0].title}, join in one tap.` })
+    if (upcoming.length) {
+      const n = upcoming[0]
+      f.push({ tone: 'info', Icon: ArrowRight, lead: 'Next', text: ` — ${n.title}, ${untilLabel(n.scheduledAt - now)}.` })
+    }
+    if (noLink.length)
+      f.push({ tone: 'warn', Icon: Unlink, lead: 'No link yet', text: ` — ${noLink[0].title}${noLink.length > 1 ? ` +${noLink.length - 1}` : ''}.` })
+    if (!f.length)
+      f.push({ tone: 'good', Icon: CheckCircle2, lead: 'All quiet', text: ' — no live or upcoming classes right now.' })
+    const lead = liveMeetings.length
+      ? `${liveMeetings.length} class${liveMeetings.length > 1 ? 'es are' : ' is'} live${upcoming.length ? ` · ${upcoming.length} upcoming` : ''}.`
+      : upcoming.length ? `Next class ${untilLabel(upcoming[0].scheduledAt - now)}.`
+      : 'No online classes scheduled.'
+    return { findings: f.slice(0, 4), lead }
+  }, [liveMeetings, upcoming, now])
+
   if (!student) return null
 
+  if (!myMeetings.length) {
+    return (
+      <div className="empty">
+        <div className="empty-icon"><Video size={40} /></div>
+        No online classes yet. Your teacher's scheduled and live sessions will appear here.
+      </div>
+    )
+  }
+
+  const heroLive = liveMeetings[0]
+  const heroNext = !heroLive ? upcoming[0] : null
+  const heroNextMs = heroNext ? heroNext.scheduledAt - now : 0
+  const heroNextSoon = heroNext && heroNextMs <= IMMINENT_MS
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+    <div className="pb-4">
+      <div style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--ink)', marginBottom: 14 }}>Online classes</div>
 
-      <section className="card" style={{ padding: 12, background: 'var(--surface2)' }}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button
-            className={`btn btn-sm ${panel === 'live' ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => setPanel('live')}
-          >
-            <Radio size={14} /> Live
-          </button>
-          <button
-            className={`btn btn-sm ${panel === 'upcoming' ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => setPanel('upcoming')}
-          >
-            <Video size={14} /> Upcoming
-          </button>
-          <button
-            className={`btn btn-sm ${panel === 'history' ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => setPanel('history')}
-          >
-            <Clock size={14} /> History
-          </button>
+      {/* Up next / Live hero + Session Watch */}
+      <div className="oc-top">
+        {heroLive ? (
+          <div className="sact-card" style={{ padding: 16, borderColor: '#ef4444', background: 'rgba(239,68,68,0.06)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
+              <span className="oc-dot oc-pulse" style={{ background: '#ef4444' }} />
+              <span style={{ fontSize: 11, fontWeight: 800, color: '#ef4444', letterSpacing: '0.08em' }}>LIVE NOW</span>
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 700 }}>{heroLive.title}</div>
+            <div style={{ fontSize: 12, color: 'var(--ink3)', margin: '3px 0 12px' }}>{meetingClassLabel(heroLive, classNameById)}</div>
+            {heroLive.meetLink ? (
+              <a href={heroLive.meetLink} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm" style={{ background: '#ef4444', borderColor: '#ef4444' }}>
+                <ExternalLink size={14} style={{ marginRight: 6 }} /> Join meeting
+              </a>
+            ) : <span style={{ fontSize: 12, color: 'var(--ink3)' }}>Link not set yet</span>}
+          </div>
+        ) : heroNext ? (
+          <div className="sact-card" style={{ padding: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Up next</div>
+            <div style={{ fontSize: 15, fontWeight: 700 }}>{heroNext.title}</div>
+            <div style={{ fontSize: 12, color: 'var(--ink3)', margin: '3px 0 6px' }}>{meetingClassLabel(heroNext, classNameById)}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: heroNextSoon ? 'var(--accent)' : 'var(--ink2)', display: 'flex', alignItems: 'center', gap: 5, marginBottom: 12 }}>
+              <Clock size={14} /> starts {untilLabel(heroNextMs)}
+            </div>
+            {heroNext.meetLink ? (
+              <a href={heroNext.meetLink} target="_blank" rel="noopener noreferrer" className={`btn btn-sm ${heroNextSoon ? 'btn-primary' : 'btn-ghost'}`}>
+                <ExternalLink size={14} style={{ marginRight: 6 }} /> Join
+              </a>
+            ) : <span style={{ fontSize: 12, color: 'var(--ink3)' }}>Link not set yet</span>}
+          </div>
+        ) : (
+          <div className="sact-card" style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Video size={24} style={{ color: 'var(--ink3)', flexShrink: 0 }} />
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>No classes scheduled</div>
+              <div style={{ fontSize: 12, color: 'var(--ink3)' }}>Your teacher's online sessions will appear here.</div>
+            </div>
+          </div>
+        )}
+
+        <div className="sact-card sact-watch">
+          <div className="sact-watch-h">
+            <ShieldCheck size={17} style={{ color: 'var(--accent)' }} />
+            <span className="sact-watch-title">Session Watch</span>
+            <span className="sact-chip-tag">on-device</span>
+          </div>
+          <div className="sact-watch-lead">{watch.lead}</div>
+          {watch.findings.map((fd, i) => (
+            <div key={i} className={`sact-find sact-find-${fd.tone}`}>
+              <fd.Icon size={16} />
+              <div className="sact-find-txt"><strong>{fd.lead}</strong>{fd.text}</div>
+            </div>
+          ))}
         </div>
-      </section>
+      </div>
 
-      {/* Live Now Banners */}
-      {panel === 'live' && liveMeetings.length === 0 && imminent.length === 0 && (
-        <div className="empty">
-          <div className="empty-icon"><Radio size={36} /></div>
-          No live class right now.
+      {/* Live now */}
+      {liveMeetings.length > 0 && (
+        <>
+          <div className="oc-sec-h first"><span className="oc-dot oc-pulse" style={{ background: '#ef4444' }} /> Live now · {liveMeetings.length}</div>
+          <div className="sact-card" style={{ borderColor: '#ef4444' }}>
+            {liveMeetings.map(m => (
+              <div key={m.id} className="oc-row">
+                <span style={{ fontSize: 11, fontWeight: 800, color: '#ef4444', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                  <Radio size={13} className="animate-pulse" /> LIVE
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600 }}>{m.title}</div>
+                  <div style={{ fontSize: 12, color: 'var(--ink3)' }}>{meetingClassLabel(m, classNameById)}</div>
+                </div>
+                {m.meetLink ? (
+                  <a href={m.meetLink} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm" style={{ background: '#ef4444', borderColor: '#ef4444', flexShrink: 0 }}>
+                    <ExternalLink size={13} style={{ marginRight: 5 }} /> Join
+                  </a>
+                ) : <span style={{ fontSize: 12, color: 'var(--ink3)', flexShrink: 0 }}>Link not set</span>}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Upcoming */}
+      <div className={`oc-sec-h ${liveMeetings.length ? '' : 'first'}`}><Video size={13} /> Upcoming · {upcoming.length}</div>
+      {upcoming.length === 0 ? (
+        <div className="empty" style={{ padding: '24px 16px' }}>
+          <div className="empty-icon"><Video size={32} /></div>
+          No upcoming online classes scheduled.
+        </div>
+      ) : (
+        <div className="sact-card">
+          {upcoming.map(m => {
+            const dt = new Date(m.scheduledAt)
+            const dateStr = dt.toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' })
+            const timeStr = dt.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })
+            const ms = m.scheduledAt - now
+            const soon = ms <= IMMINENT_MS
+            return (
+              <div key={m.id} className="oc-row">
+                <span className="oc-dot" style={{ background: soon ? 'var(--accent)' : '#888780' }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600 }}>{m.title}</div>
+                  <div style={{ fontSize: 12, color: soon ? 'var(--accent)' : 'var(--ink3)', fontWeight: soon ? 600 : 400 }}>
+                    {meetingClassLabel(m, classNameById)} · {dateStr} {timeStr} · starts {untilLabel(ms)}
+                  </div>
+                  {m.description && <div style={{ fontSize: 12, color: 'var(--ink2)', marginTop: 4 }}>{m.description}</div>}
+                </div>
+                {m.meetLink ? (
+                  <a href={m.meetLink} target="_blank" rel="noopener noreferrer" className={`btn btn-sm ${soon ? 'btn-primary' : 'btn-ghost'}`} style={{ flexShrink: 0 }}>
+                    <ExternalLink size={13} style={{ marginRight: 5 }} /> Join
+                  </a>
+                ) : <span style={{ fontSize: 11.5, color: 'var(--ink3)', flexShrink: 0 }}>Link soon</span>}
+              </div>
+            )
+          })}
         </div>
       )}
 
-      {/* Starting soon — one-tap join for classes about to begin */}
-      {panel === 'live' && imminent.map(m => {
-        const ms = m.scheduledAt - now
-        return (
-          <div key={m.id} style={{
-            background: 'var(--accent-l)',
-            border: '1.5px solid color-mix(in srgb, var(--accent) 45%, transparent)',
-            borderRadius: 12, padding: '16px 20px',
-            display: 'flex', alignItems: 'center', gap: 16,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-              <Clock size={20} style={{ color: 'var(--accent)' }} />
-              <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent)', letterSpacing: '0.06em' }}>SOON</span>
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>{m.title}</div>
-              <div style={{ fontSize: 12, color: 'var(--ink3)' }}>
-                {meetingClassLabel(m, classNameById)} · starts {untilLabel(ms)}
+      {/* Past sessions */}
+      <div className="oc-sec-h"><Clock size={13} /> History</div>
+      <button className="oc-hist-btn" onClick={() => setPastOpen(o => !o)}>
+        {pastOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        Past sessions ({past.length})
+      </button>
+      {pastOpen && past.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+          {past.map(m => {
+            const dt = new Date(m.endedAt || m.scheduledAt)
+            const dateStr = dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+            return (
+              <div key={m.id} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--surface2)', fontSize: 13 }}>
+                <span style={{ fontWeight: 600 }}>{m.title}</span>
+                <span style={{ color: 'var(--ink3)', marginLeft: 10 }}>{meetingClassLabel(m, classNameById)}</span>
+                <span style={{ color: 'var(--ink3)', marginLeft: 10 }}>· {dateStr}</span>
               </div>
-            </div>
-            {m.meetLink ? (
-              <a href={m.meetLink} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm" style={{ flexShrink: 0 }}>
-                <ExternalLink size={14} style={{ marginRight: 6 }} /> Join
-              </a>
-            ) : (
-              <span style={{ fontSize: 12, color: 'var(--ink3)', flexShrink: 0 }}>Link not set</span>
-            )}
-          </div>
-        )
-      })}
-
-      {panel === 'live' && liveMeetings.map(m => (
-        <div key={m.id} style={{
-          background: 'linear-gradient(135deg, #ef444422, #ef444408)',
-          border: '1.5px solid #ef4444',
-          borderRadius: 12,
-          padding: '16px 20px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 16,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            <Radio size={22} className="animate-pulse" style={{ color: '#ef4444' }} />
-            <span style={{ fontSize: 12, fontWeight: 800, color: '#ef4444', letterSpacing: '0.08em' }}>LIVE</span>
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: 15 }}>{m.title}</div>
-            <div style={{ fontSize: 12, color: 'var(--ink3)' }}>{meetingClassLabel(m, classNameById)}</div>
-          </div>
-          {m.meetLink ? (
-            <a
-              href={m.meetLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-primary btn-sm"
-              style={{ flexShrink: 0 }}
-            >
-              <ExternalLink size={14} style={{ marginRight: 6 }} /> Join Meeting
-            </a>
-          ) : (
-            <span style={{ fontSize: 12, color: 'var(--ink3)', flexShrink: 0 }}>Link not set</span>
-          )}
+            )
+          })}
         </div>
-      ))}
-
-      {/* Upcoming Meetings */}
-      {panel === 'upcoming' && <section>
-        <div className="sec-hdr mb-3">
-          <div className="sec-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Video size={17} /> Upcoming Classes
-          </div>
+      )}
+      {pastOpen && past.length === 0 && (
+        <div className="empty" style={{ marginTop: 10, padding: '24px 16px' }}>
+          <div className="empty-icon"><Clock size={32} /></div>
+          No past sessions yet.
         </div>
-        {upcoming.length === 0 ? (
-          <div className="empty">
-            <div className="empty-icon"><Video size={36} /></div>
-            No upcoming online classes scheduled.
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {upcoming.map(m => {
-              const dt = new Date(m.scheduledAt)
-              const dateStr = dt.toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
-              const timeStr = dt.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })
-              const ms = m.scheduledAt - now
-              const soon = ms <= IMMINENT_MS
-              return (
-                <div key={m.id} className="card" style={{ padding: '12px 16px', border: soon ? '1px solid color-mix(in srgb, var(--accent) 45%, transparent)' : undefined }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>{m.title}</div>
-                      <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 4 }}>{meetingClassLabel(m, classNameById)}</div>
-                      <div style={{ fontSize: 12, color: soon ? 'var(--accent)' : 'var(--ink3)', display: 'flex', alignItems: 'center', gap: 4, fontWeight: soon ? 700 : 400 }}>
-                        <Clock size={12} /> {dateStr} at {timeStr} · starts {untilLabel(ms)}
-                      </div>
-                    </div>
-                    {m.meetLink && (
-                      <a href={m.meetLink} target="_blank" rel="noopener noreferrer" className={`btn btn-sm ${soon ? 'btn-primary' : 'btn-ghost'}`} style={{ flexShrink: 0 }}>
-                        <ExternalLink size={13} style={{ marginRight: 5 }} />Join
-                      </a>
-                    )}
-                  </div>
-                  {m.description && (
-                    <div style={{ fontSize: 12, color: 'var(--ink2)', marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--border)' }}>
-                      {m.description}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </section>}
-
-      {/* Past Sessions */}
-      {panel === 'history' && (
-        <section>
-          <button
-            style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--ink2)', fontWeight: 600, fontSize: 14 }}
-            onClick={() => setPastOpen(o => !o)}
-          >
-            {pastOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-            Past Sessions ({past.length})
-          </button>
-          {pastOpen && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
-              {past.map(m => {
-                const dt = new Date(m.endedAt || m.scheduledAt)
-                const dateStr = dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
-                return (
-                  <div key={m.id} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--surface2)', fontSize: 13 }}>
-                    <span style={{ fontWeight: 600 }}>{m.title}</span>
-                    <span style={{ color: 'var(--ink3)', marginLeft: 10 }}>{meetingClassLabel(m, classNameById)}</span>
-                    <span style={{ color: 'var(--ink3)', marginLeft: 10 }}>· {dateStr}</span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-          {past.length === 0 && (
-            <div className="empty" style={{ marginTop: 10 }}>
-              <div className="empty-icon"><Clock size={36} /></div>
-              No past sessions yet.
-            </div>
-          )}
-        </section>
       )}
     </div>
   )
-}
-
-function meetingClassLabel(meeting, classNameById) {
-  const base = meeting.className || classNameById[meeting.classId] || 'Class'
-  return meeting.subject ? `${base} · ${meeting.subject}` : base
 }
