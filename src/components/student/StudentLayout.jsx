@@ -20,7 +20,7 @@ import { computePassedSubjects } from '@/utils/passedSubjects'
 import { isNotifAllowed } from '@/utils/notifPrefs'
 import { isPendingVerification } from '@/utils/accountStatus'
 import { dataGapReasons } from '@/utils/accountAudit'
-import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare, Library, ListChecks, MessageSquarePlus, Hourglass, Camera, Circle } from 'lucide-react'
+import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare, Library, ListChecks, MessageSquarePlus, Hourglass, Camera, Circle, ScanFace, X } from 'lucide-react'
 
 // Tabs hidden until a self-registered student is verified (grade-bearing only).
 const PENDING_GATED_TABS = new Set(['grades', 'quizzes', 'activities', 'assignments'])
@@ -242,6 +242,9 @@ export default function StudentLayout() {
   const [pinModalOpen, setPinModalOpen] = useState(false)
   const [bioModalOpen, setBioModalOpen] = useState(false)
   const [faceModalOpen, setFaceModalOpen] = useState(false)
+  const [faceNudgeDismissed, setFaceNudgeDismissed] = useState(() => {
+    try { return sessionStorage.getItem('cp_facenudge') === '1' } catch { return false }
+  })
 
   // Celebrate newly-passed subjects (once each, per device). A queue lets us
   // show one congrats overlay at a time if several pass together.
@@ -532,6 +535,27 @@ export default function StudentLayout() {
                   <Camera size={14} style={{ marginRight: 5 }} /> Add photo
                 </button>
               )}
+            </div>
+          )}
+
+          {/* Finish-setup nudge: prompt active students to enrol Face ID reset so
+              they can recover their own password. Hidden once enrolled or dismissed. */}
+          {!pendingVerify && student?.account?.registered && !student?.account?.faceResetEnabled && !faceNudgeDismissed && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', marginBottom: 14, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--accent-l)', color: 'var(--ink)' }}>
+              <ScanFace size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+              <span style={{ fontSize: 13, lineHeight: 1.5, flex: 1 }}>
+                <strong>Finish your setup.</strong> Turn on Face ID password reset so you can recover your account yourself if you ever forget your password.
+              </span>
+              <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }} onClick={() => setFaceModalOpen(true)}>
+                <ScanFace size={14} style={{ marginRight: 5 }} /> Set up
+              </button>
+              <button
+                aria-label="Dismiss"
+                onClick={() => { setFaceNudgeDismissed(true); try { sessionStorage.setItem('cp_facenudge', '1') } catch {} }}
+                style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink3)', padding: 4, display: 'flex' }}
+              >
+                <X size={15} />
+              </button>
             </div>
           )}
           <TabErrorBoundary key={studentTab}>
