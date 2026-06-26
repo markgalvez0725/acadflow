@@ -1,21 +1,22 @@
-// ── Student: claim a temporary password during an open reset window ───────
+// ── Student: claim a one-time sign-in token during an open reset window ────
 // Called (polled) by the student's own device after they enter their student
 // number on the Forgot Password screen. While the teacher has an open reset
-// window for that student, the FIRST successful claim generates a fresh
-// temporary password, sets it on the student's Firebase Auth account, closes
-// the window (one-time use), and returns the temporary password so the device
-// can sign in automatically. If no window is open yet, responds { pending }.
+// window for that student, the FIRST successful claim mints a one-time custom
+// sign-in token, closes the window (one-time use), and returns it so the device
+// can sign in. IMPORTANT: this does NOT change the student's password — their
+// current password stays valid until they deliberately set a new one. A window
+// that's opened but never completed therefore changes nothing. If no window is
+// open yet, responds { pending }.
 //
 // Request body: { studentNumber: string }
-// Response: { tempPassword: string } | { pending: true } | { error: string }
+// Response: { customToken: string } | { pending: true } | { error: string }
 
 import { guard } from './_guard.js'
 import {
   studentEmail, studentDocId,
   loadServiceAccount, getAccessToken,
-  lookupLocalId, setPassword,
+  lookupLocalId, mintCustomToken,
   getResetSession, deleteResetSession,
-  generateTempPassword,
 } from './_fbadmin.js'
 
 export default async function handler(req, res) {
@@ -50,7 +51,9 @@ export default async function handler(req, res) {
   // Close the window first (one-time use) to avoid double-claims.
   try { await deleteResetSession(projectId, accessToken, docId) } catch {}
 
-  // Find the account and set a fresh temporary password.
+  // Find the account and mint a one-time sign-in token. The password is NOT
+  // changed here — the student keeps their current password until they choose a
+  // new one, so a reset window that's opened but never completed is harmless.
   let localId
   try {
     localId = await lookupLocalId(projectId, accessToken, studentEmail(studentNumber))
@@ -59,12 +62,12 @@ export default async function handler(req, res) {
     return res.status(502).json({ error: 'Lookup error: ' + e.message })
   }
 
-  const tempPassword = generateTempPassword()
+  let customToken
   try {
-    await setPassword(projectId, accessToken, localId, tempPassword)
+    customToken = mintCustomToken(sa, localId)
   } catch (e) {
-    return res.status(502).json({ error: 'Could not set the new password: ' + e.message })
+    return res.status(502).json({ error: 'Could not create a sign-in token: ' + e.message })
   }
 
-  return res.status(200).json({ tempPassword })
+  return res.status(200).json({ customToken })
 }

@@ -14,17 +14,16 @@
 // forces a new password.
 //
 // Request body: { studentNumber, descriptor: number[128], liveness: { passed: true, type } }
-// Response: { tempPassword } | { match: false, error } | { error }
+// Response: { customToken } | { match: false, error } | { error }
 
 import { guard } from './_guard.js'
 import {
   studentEmail, studentDocId,
   loadServiceAccount, getAccessToken,
-  lookupLocalId, setPassword,
+  lookupLocalId, mintCustomToken,
   getFaceSignature, getLegacyFaceDescriptor, writeFaceSignature, setFaceResetFlag,
   getStudentRoster, faceDistance, patchFaceThrottle,
   appendAdminNotification, appendAuditLog, deleteResetSession,
-  generateTempPassword,
 } from './_fbadmin.js'
 
 // Match threshold for face-api's 128-d descriptors. Lower = stricter (the
@@ -101,7 +100,9 @@ export default async function handler(req, res) {
   let name = docId
   try { const roster = await getStudentRoster(projectId, accessToken, docId); if (roster?.name) name = roster.name } catch {}
 
-  // Matched — issue a one-time temporary password (student is forced to change it).
+  // Matched — mint a one-time sign-in token. The password is NOT changed here;
+  // the student keeps their current password until they deliberately set a new
+  // one on the next screen (a face match that's abandoned changes nothing).
   let localId
   try {
     localId = await lookupLocalId(projectId, accessToken, studentEmail(studentNumber))
@@ -110,9 +111,9 @@ export default async function handler(req, res) {
     return res.status(502).json({ error: 'Lookup error: ' + e.message })
   }
 
-  const tempPassword = generateTempPassword()
-  try { await setPassword(projectId, accessToken, localId, tempPassword) }
-  catch (e) { return res.status(502).json({ error: 'Could not set the new password: ' + e.message }) }
+  let customToken
+  try { customToken = mintCustomToken(sa, localId) }
+  catch (e) { return res.status(502).json({ error: 'Could not create a sign-in token: ' + e.message }) }
 
   // Close any open teacher reset window too (harmless if none).
   try { await deleteResetSession(projectId, accessToken, docId) } catch {}
@@ -137,5 +138,5 @@ export default async function handler(req, res) {
     })
   } catch {}
 
-  return res.status(200).json({ tempPassword, match: true })
+  return res.status(200).json({ customToken, match: true })
 }

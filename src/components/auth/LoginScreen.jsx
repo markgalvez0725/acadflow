@@ -7,7 +7,7 @@ import { useAuth } from '@/context/AuthContext'
 import { isBiometricSupported, getBiometric, biometricUnlock } from '@/utils/biometric'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { createUserWithEmailAndPassword, deleteUser, signOut, signInWithEmailAndPassword, updatePassword } from 'firebase/auth'
+import { createUserWithEmailAndPassword, deleteUser, signOut, signInWithEmailAndPassword, signInWithCustomToken, updatePassword } from 'firebase/auth'
 import { doc, getDoc, updateDoc } from 'firebase/firestore'
 import { getFbAuth, getDb } from '@/firebase/firebaseInit'
 import { studentEmail, studentDocId } from '@/constants/auth'
@@ -175,17 +175,17 @@ export default function LoginScreen({ onRevealFaculty }) {
         if (r.status === 404 || r.status === 501) { stopReset(); setRpStatus('idle'); setErr(data.error || 'Reset is unavailable right now.') }
         return
       }
-      if (data.tempPassword) {
+      if (data.customToken) {
         stopReset()
-        // Silently sign in with the one-time temp password (no AcadFlow session
-        // yet), then make the student set their own new password before they
-        // reach the portal. updatePassword works without the old password
-        // because they just authenticated.
+        // Sign in with a one-time custom token — this does NOT change the
+        // student's password (their current one stays valid). They then set a
+        // new password before reaching the portal; updatePassword works because
+        // they just authenticated. If they abandon here, nothing was destroyed.
         try {
-          await signInWithEmailAndPassword(getFbAuth(), studentEmail(number), data.tempPassword)
+          await signInWithCustomToken(getFbAuth(), data.customToken)
         } catch {
           setRpStatus('idle')
-          setErr('Could not sign in with the temporary password. Ask your teacher to open the window again.')
+          setErr('Could not sign in with the reset token. Ask your teacher to open the window again.')
           return
         }
         setRpNewPass('')
@@ -232,7 +232,13 @@ export default function LoginScreen({ onRevealFaculty }) {
     }
 
     // Start the AcadFlow session with the new password → routes to the portal.
-    const clean = sanitizeSnum(rpNum)
+    // Derive the student number from the signed-in account so this works for both
+    // the panel (teacher) flow and the Face ID flow (where the number was entered
+    // in the modal, not the panel field).
+    const email = String(user.email || '')
+    const clean = email.toLowerCase().endsWith('@acadflow.app')
+      ? sanitizeSnum(email.slice(0, -'@acadflow.app'.length))
+      : sanitizeSnum(rpNum)
     const result = await loginStudent(clean, rpNewPass)
     if (!result.ok) {
       setRpStatus('setpass')
@@ -260,13 +266,13 @@ export default function LoginScreen({ onRevealFaculty }) {
     setFaceResetOpen(true)
   }
 
-  // The server confirmed the face match and issued a one-time temp password.
-  // Sign in with it (using the number the MODAL confirmed), then force the
-  // student to set a new password (same blocking overlay the teacher reset uses).
-  async function handleFaceMatched(tempPassword, studentNumber) {
-    const clean = sanitizeSnum(studentNumber || rpNum)
+  // The server confirmed the face match and issued a one-time custom token. Sign
+  // in with it (NOT a password change — the current password stays valid), then
+  // force the student to set a new password (same blocking overlay as above).
+  async function handleFaceMatched(customToken, studentNumber) {
     try {
-      await signInWithEmailAndPassword(getFbAuth(), studentEmail(clean), tempPassword)
+      await signInWithCustomToken(getFbAuth(), customToken)
+      if (studentNumber) setRpNum(sanitizeSnum(studentNumber))
       setFaceResetOpen(false)
       setRpNewPass('')
       setRpNewPass2('')

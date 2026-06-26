@@ -9,9 +9,10 @@ import {
 } from '@/utils/faceId'
 
 // Self-service password reset by face. The modal owns the student-number step so
-// the camera can NEVER start without a valid number. `onMatched(tempPassword,
+// the camera can NEVER start without a valid number. `onMatched(customToken,
 // studentNumber)` fires when the SERVER confirms the match (the browser never
-// decides); the parent signs in with the temp password and forces a new one.
+// decides); the parent signs in with the one-time token (the current password
+// is left untouched) and forces a new one.
 export default function FaceResetModal({ initialNumber = '', onClose, onMatched }) {
   const videoRef = useRef(null)
   const streamRef = useRef(null)
@@ -63,9 +64,9 @@ export default function FaceResetModal({ initialNumber = '', onClose, onMatched 
       const data = await r.json().catch(() => ({}))
       if (r.status === 401) { setErr(data.error || 'That face did not match.'); go('nomatch'); return }
       if (!r.ok) { setErr(data.error || 'Reset failed. Try again or ask your teacher.'); go('error'); return }
-      if (data.tempPassword) {
+      if (data.customToken) {
         stopStream(streamRef.current); streamRef.current = null
-        onMatched(data.tempPassword, snumRef.current)
+        onMatched(data.customToken, snumRef.current)
       } else {
         setErr('Unexpected response from the server.'); go('error')
       }

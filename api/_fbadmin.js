@@ -69,6 +69,28 @@ export async function getAccessToken(sa) {
   return _cachedToken.token
 }
 
+// Mint a Firebase custom token (RS256, signed by the service account) for a uid.
+// signInWithCustomToken() on the client establishes a session WITHOUT touching
+// the account password — so a reset never destroys the student's current
+// password; it only changes when they deliberately set a new one afterwards.
+export function mintCustomToken(sa, uid) {
+  const now = Math.floor(Date.now() / 1000)
+  const header = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
+  const payload = b64url(JSON.stringify({
+    iss: sa.client_email,
+    sub: sa.client_email,
+    aud: 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit',
+    iat: now,
+    exp: now + 3600,
+    uid: String(uid),
+  }))
+  const signer = crypto.createSign('RSA-SHA256')
+  signer.update(`${header}.${payload}`)
+  const signature = signer.sign(sa.private_key, 'base64')
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+  return `${header}.${payload}.${signature}`
+}
+
 // ── Firebase ID token verification (RS256 against Google's x509 certs) ─────
 function b64urlDecode(str) {
   let s = String(str).replace(/-/g, '+').replace(/_/g, '/')
