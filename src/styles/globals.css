@@ -4571,6 +4571,28 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
   font-size: 0.82rem;
 }
 
+/* Feedback hub redesign — two-column (form + Feedback Watch rail) */
+.fb2-top { display: grid; grid-template-columns: 1fr; gap: 12px; align-items: start; margin-bottom: 18px; }
+@media (min-width: 760px) { .fb2-top { grid-template-columns: minmax(0, 1fr) 240px; } }
+.fb2-ring-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.fb2-ring-meta { font-size: 0.72rem; color: var(--ink2); line-height: 1.5; }
+.fb2-ring-meta strong { color: var(--ink); font-weight: 700; }
+.fb-tip {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: var(--ink2);
+  background: var(--surface2);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.fb-tip svg { flex-shrink: 0; margin-top: 1px; color: var(--accent); }
+.fb-tip-warn { border-color: color-mix(in srgb, var(--gold-var) 50%, var(--border)); color: var(--gold-var); }
+.fb-tip-warn svg { color: var(--gold-var); }
+
 
 @keyframes lq-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .4; transform: scale(.7); } }
 

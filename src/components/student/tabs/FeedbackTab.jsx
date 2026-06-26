@@ -1,7 +1,10 @@
 import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { Sparkles, Bug, Lightbulb, MessageSquare, Send, CheckCircle2, Clock, Archive } from 'lucide-react'
+import {
+  Sparkles, Bug, Lightbulb, MessageSquare, Send, CheckCircle2, Clock, Archive,
+  ShieldCheck, Wand2, AlertTriangle,
+} from 'lucide-react'
 
 const MAX_MESSAGE = 2000
 
@@ -24,6 +27,22 @@ function StatusPill({ status }) {
   return <span className={s.cls}><s.Icon size={12} /> {s.label}</span>
 }
 
+// Teacher-acknowledgement ring (deterministic; mirrors the reviewed/total stat).
+function ReviewedRing({ handled, total, color }) {
+  const rate = total ? handled / total : 0
+  const C = 2 * Math.PI * 34
+  const off = C * (1 - Math.max(0, Math.min(1, rate)))
+  return (
+    <svg width="64" height="64" viewBox="0 0 84 84" aria-hidden="true">
+      <circle cx="42" cy="42" r="34" fill="none" stroke="var(--border)" strokeWidth="9" />
+      <circle cx="42" cy="42" r="34" fill="none" stroke={color} strokeWidth="9" strokeLinecap="round"
+        strokeDasharray={C} strokeDashoffset={off} transform="rotate(-90 42 42)" />
+      <text x="42" y="39" textAnchor="middle" fontSize="17" fontWeight="700" fill="var(--ink)">{handled}/{total}</text>
+      <text x="42" y="54" textAnchor="middle" fontSize="8" fill="var(--ink3)">reviewed</text>
+    </svg>
+  )
+}
+
 export default function FeedbackTab({ student }) {
   const { studentFeedback = [], submitStudentFeedback } = useData()
   const { toast } = useUI()
@@ -40,6 +59,51 @@ export default function FeedbackTab({ student }) {
       .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)),
     [studentFeedback, student?.id]
   )
+
+  // Standing over the student's own feedback — recomputed from `mine`, so the
+  // ring and Feedback Watch can't disagree with the history list.
+  const stats = useMemo(() => {
+    const total = mine.length
+    const reviewed = mine.filter(f => f.status === 'reviewed').length
+    const archived = mine.filter(f => f.status === 'archived').length
+    const awaiting = mine.filter(f => f.status === 'new' || !f.status).length
+    const byCat = {}
+    mine.forEach(f => { byCat[f.category] = (byCat[f.category] || 0) + 1 })
+    let top = null
+    Object.entries(byCat).forEach(([k, n]) => { if (!top || n > top.n) top = { k, n } })
+    return { total, reviewed, archived, awaiting, handled: reviewed + archived, top }
+  }, [mine])
+
+  const ringColor = stats.total === 0 ? 'var(--ink3)' : stats.handled === stats.total ? 'var(--green)' : 'var(--accent)'
+
+  // Deterministic "Feedback Watch" findings.
+  const watch = useMemo(() => {
+    if (!stats.total) {
+      return {
+        findings: [{ tone: 'info', Icon: MessageSquare, lead: 'No feedback yet', text: ' — your ideas help shape AcadFlow.' }],
+        lead: 'Share your first idea or bug report.',
+      }
+    }
+    const f = []
+    if (stats.handled)
+      f.push({ tone: 'good', Icon: CheckCircle2, lead: `${stats.handled} reviewed`, text: ' by your teacher.' })
+    if (stats.awaiting)
+      f.push({ tone: 'info', Icon: Clock, lead: `${stats.awaiting} awaiting`, text: ' review.' })
+    if (stats.top) {
+      const cat = CATEGORIES.find(c => c.key === stats.top.k) || CATEGORIES[3]
+      f.push({ tone: 'info', Icon: cat.Icon, lead: 'Most sent', text: ` — ${cat.label.toLowerCase()}s.` })
+    }
+    return { findings: f.slice(0, 4), lead: `${stats.total} sent · ${stats.handled} reviewed.` }
+  }, [stats])
+
+  // Deterministic draft helper — reacts to the chosen type + message length.
+  const draftTip = useMemo(() => {
+    const len = message.trim().length
+    if (len > 0 && len < 15) return { warn: true, Icon: AlertTriangle, text: 'Add a bit more detail so your teacher can act on it.' }
+    if (category === 'bug') return { warn: false, Icon: Wand2, text: 'Helpful bug reports include what you did, what happened, and what you expected.' }
+    if (category === 'enhancement' || category === 'request') return { warn: false, Icon: Wand2, text: 'Say what to change and why it would help. The clearer it is, the faster your teacher can act.' }
+    return { warn: false, Icon: Wand2, text: 'Tell your teacher anything on your mind — every comment helps.' }
+  }, [category, message])
 
   async function handleSubmit(e) {
     e?.preventDefault?.()
@@ -58,76 +122,113 @@ export default function FeedbackTab({ student }) {
   }
 
   return (
-    <div className="feedback-tab" style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 720 }}>
-      <section className="card" style={{ padding: 18 }}>
-        <div className="sec-hdr mb-3">
-          <div className="sec-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <MessageSquare size={18} /> Send feedback
+    <div className="feedback-tab" style={{ maxWidth: 920 }}>
+      <div style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--ink)', marginBottom: 14 }}>Feedback hub</div>
+
+      <div className="fb2-top">
+        {/* Send feedback form */}
+        <section className="card" style={{ padding: 18 }}>
+          <div className="sec-hdr mb-3">
+            <div className="sec-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <MessageSquare size={18} /> Send feedback
+            </div>
           </div>
+          <p style={{ fontSize: 13, color: 'var(--ink2)', marginBottom: 14 }}>
+            Spotted a bug, have an idea, or want to request something? It goes straight to your teacher's Feedback Hub.
+          </p>
+
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label className="label">Type</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
+                {CATEGORIES.map(c => (
+                  <button
+                    type="button"
+                    key={c.key}
+                    className={`fb-cat${category === c.key ? ' active' : ''}`}
+                    onClick={() => setCategory(c.key)}
+                    title={c.hint}
+                  >
+                    <c.Icon size={16} />
+                    <span>{c.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="label" htmlFor="fb-subject">Subject <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(optional)</span></label>
+              <input
+                id="fb-subject"
+                className="input"
+                type="text"
+                value={subject}
+                onChange={e => setSubject(e.target.value)}
+                placeholder="e.g. Grades tab, quiz timer, login…"
+                maxLength={120}
+              />
+            </div>
+
+            <div>
+              <label className="label" htmlFor="fb-message">Your feedback</label>
+              <textarea
+                id="fb-message"
+                className="input"
+                rows={5}
+                value={message}
+                onChange={e => setMessage(e.target.value)}
+                placeholder="Be specific. For bugs, describe what happened and what you expected."
+                maxLength={MAX_MESSAGE}
+                style={{ resize: 'vertical' }}
+              />
+              <div style={{ textAlign: 'right', fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>
+                {message.length}/{MAX_MESSAGE}
+              </div>
+            </div>
+
+            {/* Deterministic draft helper */}
+            <div className={`fb-tip${draftTip.warn ? ' fb-tip-warn' : ''}`}>
+              <draftTip.Icon size={15} />
+              <span>{draftTip.text}</span>
+            </div>
+
+            <div>
+              <button className="btn btn-primary" type="submit" disabled={sending}>
+                <Send size={15} style={{ marginRight: 6 }} />
+                {sending ? 'Sending…' : 'Send feedback'}
+              </button>
+            </div>
+          </form>
+        </section>
+
+        {/* Feedback Watch rail */}
+        <div className="card" style={{ padding: 14 }}>
+          <div className="sact-watch-h">
+            <ShieldCheck size={16} style={{ color: 'var(--accent)' }} />
+            <span className="sact-watch-title">Feedback Watch</span>
+            <span className="sact-chip-tag">on-device</span>
+          </div>
+          {stats.total > 0 && (
+            <div className="fb2-ring-row">
+              <ReviewedRing handled={stats.handled} total={stats.total} color={ringColor} />
+              <div className="fb2-ring-meta">
+                <strong>{stats.total} sent</strong><br />
+                {stats.handled} reviewed<br />
+                {stats.awaiting} awaiting
+              </div>
+            </div>
+          )}
+          <div className="sact-watch-lead">{watch.lead}</div>
+          {watch.findings.map((fd, i) => (
+            <div key={i} className={`sact-find sact-find-${fd.tone}`}>
+              <fd.Icon size={15} />
+              <div className="sact-find-txt"><strong>{fd.lead}</strong>{fd.text}</div>
+            </div>
+          ))}
         </div>
-        <p style={{ fontSize: 13, color: 'var(--ink2)', marginBottom: 14 }}>
-          Spotted a bug, have an idea, or want to request something? Tell your teacher directly —
-          it goes straight to their Feedback Hub.
-        </p>
+      </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div>
-            <label className="label">Type</label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
-              {CATEGORIES.map(c => (
-                <button
-                  type="button"
-                  key={c.key}
-                  className={`fb-cat${category === c.key ? ' active' : ''}`}
-                  onClick={() => setCategory(c.key)}
-                  title={c.hint}
-                >
-                  <c.Icon size={16} />
-                  <span>{c.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="label" htmlFor="fb-subject">Subject <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(optional)</span></label>
-            <input
-              id="fb-subject"
-              className="input"
-              type="text"
-              value={subject}
-              onChange={e => setSubject(e.target.value)}
-              placeholder="e.g. Grades tab, quiz timer, login…"
-              maxLength={120}
-            />
-          </div>
-
-          <div>
-            <label className="label" htmlFor="fb-message">Your feedback</label>
-            <textarea
-              id="fb-message"
-              className="input"
-              rows={5}
-              value={message}
-              onChange={e => setMessage(e.target.value)}
-              placeholder="Be specific. For bugs, describe what happened and what you expected."
-              maxLength={MAX_MESSAGE}
-              style={{ resize: 'vertical' }}
-            />
-            <div style={{ textAlign: 'right', fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>
-              {message.length}/{MAX_MESSAGE}
-            </div>
-          </div>
-
-          <div>
-            <button className="btn btn-primary" type="submit" disabled={sending}>
-              <Send size={15} style={{ marginRight: 6 }} />
-              {sending ? 'Sending…' : 'Send feedback'}
-            </button>
-          </div>
-        </form>
-      </section>
-
+      {/* Your feedback history */}
       <section>
         <div className="sec-hdr mb-3">
           <div className="sec-title">Your feedback</div>
