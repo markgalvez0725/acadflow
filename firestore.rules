@@ -75,6 +75,23 @@ service cloud.firestore {
             && resource.data.account.get('verified', false) == true);
     }
 
+    // Face-ID recovery data (account.face = the 128-number face signature, and
+    // account.faceResetEnabled) is enrolled and compared SERVER-SIDE only — a
+    // student's own device must never write or alter it (that would let anyone
+    // forge a face match to seize an account). The server (service account)
+    // bypasses these rules. We allow a student write only when these fields are
+    // unchanged from what's already stored (so an ordinary profile write that
+    // carries a stale local copy of the account map still passes).
+    function faceFieldsUntouched() {
+      return !('account' in request.resource.data)
+        || (
+          request.resource.data.account.get('face', null)
+            == (resource != null && 'account' in resource.data ? resource.data.account.get('face', null) : null)
+          && request.resource.data.account.get('faceResetEnabled', false)
+            == (resource != null && 'account' in resource.data ? resource.data.account.get('faceResetEnabled', false) : false)
+        );
+    }
+
     // ── Student records ───────────────────────────────────────────────────
     // Read: any signed-in user (the app listens to the whole collection).
     // Create/Delete: teacher only (prevents forging or wiping records).
@@ -85,7 +102,7 @@ service cloud.firestore {
       allow read:   if signedIn();
       allow create: if isAdmin();
       allow delete: if isAdmin();
-      allow update: if isAdmin() || (signedIn() && gradeFieldsUntouched() && accountVerifyNotForged());
+      allow update: if isAdmin() || (signedIn() && gradeFieldsUntouched() && accountVerifyNotForged() && faceFieldsUntouched());
     }
 
     // ── Teacher-only configuration ────────────────────────────────────────

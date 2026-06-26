@@ -281,6 +281,94 @@ export async function patchStudentVerification(projectId, accessToken, docId, { 
   return true
 }
 
+// ── Face-ID recovery (server-side enrollment + match) ─────────────────────
+// Read a student's enrolled face signature + name. Returns
+// { name, enabled, descriptor: number[]|null, enrolledAt } or null if no doc.
+export async function getStudentFace(projectId, accessToken, docId) {
+  const r = await fetch(`${fsBase(projectId)}/students/${encodeURIComponent(docId)}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (r.status === 404) return null
+  const data = await r.json()
+  if (!r.ok) throw new Error(data?.error?.message || 'Student read failed')
+  const f = data.fields || {}
+  const str = x => (x && typeof x.stringValue === 'string') ? x.stringValue : null
+  const acct = f.account?.mapValue?.fields || {}
+  const faceMap = acct.face?.mapValue?.fields || null
+  let descriptor = null
+  const vals = faceMap?.descriptor?.arrayValue?.values
+  if (Array.isArray(vals)) {
+    descriptor = vals.map(v => Number(v.doubleValue ?? v.integerValue ?? 0))
+  }
+  return {
+    name: str(f.name),
+    enabled: acct.faceResetEnabled?.booleanValue === true,
+    descriptor,
+    enrolledAt: Number(faceMap?.enrolledAt?.integerValue || 0),
+  }
+}
+
+// Write account.face (the 128-number signature) + account.faceResetEnabled on a
+// student doc via the Admin REST API (bypasses rules). Field-path masks keep the
+// rest of the account map intact.
+export async function patchStudentFace(projectId, accessToken, docId, { descriptor, version = 1 }) {
+  const values = descriptor.map(n => ({ doubleValue: Number(n) }))
+  const url = `${fsBase(projectId)}/students/${encodeURIComponent(docId)}`
+    + `?updateMask.fieldPaths=account.face&updateMask.fieldPaths=account.faceResetEnabled`
+  const r = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ fields: { account: { mapValue: { fields: {
+      face: { mapValue: { fields: {
+        descriptor: { arrayValue: { values } },
+        enrolledAt: { integerValue: String(Date.now()) },
+        version: { integerValue: String(version) },
+      } } },
+      faceResetEnabled: { booleanValue: true },
+    } } } } }),
+  })
+  const data = await r.json()
+  if (!r.ok) throw new Error(data?.error?.message || 'Face write failed')
+  return true
+}
+
+// Append a notification to notifications/admin (newest-first, capped). Best-effort
+// read-modify-write — existing items are preserved as raw Firestore values.
+export async function appendAdminNotification(projectId, accessToken, notif) {
+  const url = `${fsBase(projectId)}/notifications/admin`
+  let items = []
+  const rg = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } })
+  if (rg.ok) {
+    const data = await rg.json()
+    items = data.fields?.items?.arrayValue?.values || []
+  }
+  const notifValue = { mapValue: { fields: {
+    id:    { stringValue: String(notif.id) },
+    type:  { stringValue: String(notif.type) },
+    title: { stringValue: String(notif.title) },
+    body:  { stringValue: String(notif.body || '') },
+    link:  { stringValue: String(notif.link || '') },
+    read:  { booleanValue: false },
+    ts:    { integerValue: String(notif.ts || Date.now()) },
+  } } }
+  const next = [notifValue, ...items].slice(0, 200)
+  const r = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ fields: { items: { arrayValue: { values: next } } } }),
+  })
+  if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d?.error?.message || 'Notif write failed') }
+  return true
+}
+
+// Euclidean distance between two equal-length descriptors (lower = more similar;
+// face-api's 128-d descriptors match below ~0.5–0.6).
+export function faceDistance(a, b) {
+  let sum = 0
+  for (let i = 0; i < a.length; i++) { const d = a[i] - b[i]; sum += d * d }
+  return Math.sqrt(sum)
+}
+
 // ── Temp password generator (policy: 8 chars, upper + lower + digit) ───────
 export function generateTempPassword() {
   const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ'

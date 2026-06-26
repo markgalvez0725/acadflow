@@ -46,6 +46,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <!-- QR scanner/decoder for live-quiz join (CDN — accessed as window.jsQR) -->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <!-- face-api.js (maintained @vladmandic fork) for on-device Face ID enrollment +
+       password reset (CDN — accessed as window.faceapi; ML models are lazy-loaded
+       from the CDN model dir only when the camera flow is opened). -->
+  <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/dist/face-api.js"></script>
 </head>
 <body>
   <div id="root"></div>
