@@ -19,21 +19,58 @@ import { studentSeesMessage } from '@/utils/studentMessages'
 import { computePassedSubjects } from '@/utils/passedSubjects'
 import { isNotifAllowed } from '@/utils/notifPrefs'
 import { isPendingVerification } from '@/utils/accountStatus'
-import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare, Library, ListChecks, MessageSquarePlus, Hourglass } from 'lucide-react'
+import { dataGapReasons } from '@/utils/accountAudit'
+import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare, Library, ListChecks, MessageSquarePlus, Hourglass, Camera, Circle } from 'lucide-react'
 
 // Tabs hidden until a self-registered student is verified (grade-bearing only).
 const PENDING_GATED_TABS = new Set(['grades', 'quizzes', 'activities', 'assignments'])
 
-// Shown in place of a gated tab while a student is awaiting verification.
-function PendingVerificationGate({ onContact }) {
+// Shown in place of a gated tab while a student's account is still pending.
+// If the blocker is a missing profile photo, lead with "Add your photo" — that's
+// the action the student can take right now to activate. Otherwise it's awaiting
+// the teacher's verification, so point them to messaging.
+function PendingVerificationGate({ student, onCompleteProfile, onContact }) {
+  const gaps = dataGapReasons(student || {})
+  const needsPhoto = !student?.photo
+
+  if (needsPhoto) {
+    return (
+      <div className="empty" style={{ padding: '40px 16px', textAlign: 'center', maxWidth: 460, margin: '0 auto' }}>
+        <div className="empty-icon" style={{ color: 'var(--accent)' }}><Camera size={40} /></div>
+        <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--ink)', marginTop: 4 }}>Add your photo to unlock</div>
+        <p style={{ fontSize: 13.5, color: 'var(--ink2)', lineHeight: 1.6, marginTop: 8 }}>
+          Your grades, quizzes, and activities are ready — finish your profile with a
+          clear photo to activate your account and unlock them.
+        </p>
+        {gaps.length > 0 && (
+          <ul style={{ listStyle: 'none', padding: 0, margin: '14px auto 0', maxWidth: 280, textAlign: 'left' }}>
+            {gaps.map((g, i) => (
+              <li key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--ink2)', padding: '4px 0' }}>
+                <Circle size={13} style={{ color: 'var(--ink3)', flexShrink: 0 }} /> {g}
+              </li>
+            ))}
+          </ul>
+        )}
+        <button className="btn btn-primary btn-sm" style={{ marginTop: 16 }} onClick={onCompleteProfile}>
+          <Camera size={14} style={{ marginRight: 6 }} /> Add your photo
+        </button>
+        <div>
+          <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={onContact}>
+            <MessageSquare size={14} /> Message your teacher
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="empty" style={{ padding: '40px 16px', textAlign: 'center', maxWidth: 460, margin: '0 auto' }}>
       <div className="empty-icon" style={{ color: 'var(--yellow)' }}><Hourglass size={40} /></div>
       <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--ink)', marginTop: 4 }}>Awaiting verification</div>
       <p style={{ fontSize: 13.5, color: 'var(--ink2)', lineHeight: 1.6, marginTop: 8 }}>
-        Your account is being verified against the class roster. Grades, quizzes,
-        and activities unlock as soon as your teacher confirms you — usually quick.
-        You can keep using the rest of the portal in the meantime.
+        Thanks — your photo is in. Your account is being verified against the class
+        roster, and grades, quizzes, and activities unlock as soon as your teacher
+        confirms you. You can keep using the rest of the portal in the meantime.
       </p>
       <button className="btn btn-ghost btn-sm" style={{ marginTop: 14 }} onClick={onContact}>
         <MessageSquare size={14} /> Message your teacher
@@ -133,6 +170,7 @@ export default function StudentLayout() {
 
   // Self-registered, not yet verified → limited access (grade tabs gated).
   const pendingVerify = isPendingVerification(student)
+  const needsPhoto = pendingVerify && !student?.photo
 
   const [viewClassId, setViewClassId] = useState(null)
   const effectiveClassId = viewClassId || enrolledClasses[0]?.id || null
@@ -480,16 +518,25 @@ export default function StudentLayout() {
         <main className="admin-body" id="main-content" tabIndex={-1}>
           <InstallPrompt />
           {pendingVerify && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', marginBottom: 14, borderRadius: 12, border: '1px solid var(--border)', background: 'rgba(234,179,8,.12)', color: 'var(--ink)' }}>
-              <Hourglass size={16} style={{ color: 'var(--yellow)', flexShrink: 0 }} />
-              <span style={{ fontSize: 13, lineHeight: 1.5 }}>
-                <strong>Account awaiting verification.</strong> You have limited access until your teacher confirms you — grades, quizzes and activities unlock then.
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', marginBottom: 14, borderRadius: 12, border: '1px solid var(--border)', background: needsPhoto ? 'var(--accent-l)' : 'rgba(234,179,8,.12)', color: 'var(--ink)' }}>
+              {needsPhoto
+                ? <Camera size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                : <Hourglass size={16} style={{ color: 'var(--yellow)', flexShrink: 0 }} />}
+              <span style={{ fontSize: 13, lineHeight: 1.5, flex: 1 }}>
+                {needsPhoto
+                  ? <><strong>Finish your profile to unlock.</strong> Add a photo to activate your account — grades, quizzes and activities open right after.</>
+                  : <><strong>Account awaiting verification.</strong> You have limited access until your teacher confirms you — grades, quizzes and activities unlock then.</>}
               </span>
+              {needsPhoto && (
+                <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }} onClick={() => setProfileOpen(true)}>
+                  <Camera size={14} style={{ marginRight: 5 }} /> Add photo
+                </button>
+              )}
             </div>
           )}
           <TabErrorBoundary key={studentTab}>
             <Suspense fallback={<SkeletonRows />}>
-              {pendingVerify && PENDING_GATED_TABS.has(studentTab) && <PendingVerificationGate onContact={() => setStudentTab('messages')} />}
+              {pendingVerify && PENDING_GATED_TABS.has(studentTab) && <PendingVerificationGate student={student} onCompleteProfile={() => setProfileOpen(true)} onContact={() => setStudentTab('messages')} />}
               {(!pendingVerify || !PENDING_GATED_TABS.has(studentTab)) && <>
               {studentTab === 'stream'        && <StreamTab        student={student} viewClassId={effectiveClassId} classes={classes} />}
               {studentTab === 'overview'      && <OverviewTab      student={student} viewClassId={effectiveClassId} classes={classes} />}
