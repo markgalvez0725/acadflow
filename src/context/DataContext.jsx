@@ -1012,8 +1012,16 @@ export function DataProvider({ children }) {
       gradeComponents,
     }
     const updatedStudents = students.map(s => s.id === studentId ? updatedStudent : s)
+    // Optimistic update, then a STRICT write. If the write fails we must roll
+    // back — otherwise the student looks enrolled locally but isn't in Firestore,
+    // and the next reload silently "un-enrolls" them.
     setStudents(updatedStudents)
-    await persistStudentsSync(dbRef.current, updatedStudents, [studentId])
+    try {
+      await persistStudentsSync(dbRef.current, updatedStudents, [studentId], { strict: true })
+    } catch (e) {
+      setStudents(students)
+      throw new Error('Could not save your enrollment. Please check your connection and try again.')
+    }
   }, [students, classes, semester])
 
   // Un-enroll a student from a class. Keeps all grade/attendance data intact
@@ -1033,7 +1041,12 @@ export function DataProvider({ children }) {
     }
     const updatedStudents = students.map(s => s.id === studentId ? updatedStudent : s)
     setStudents(updatedStudents)
-    await persistStudentsSync(dbRef.current, updatedStudents, [studentId])
+    try {
+      await persistStudentsSync(dbRef.current, updatedStudents, [studentId], { strict: true })
+    } catch (e) {
+      setStudents(students)
+      throw new Error('Could not save the change. Please check your connection and try again.')
+    }
   }, [students])
 
   const saveEjs = useCallback(async (ejsConfig) => {

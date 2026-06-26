@@ -35,8 +35,16 @@ export async function fbDeleteStudent(db, id) {
 }
 
 // ── Batch student sync ────────────────────────────────────────────────────
-export async function persistStudentsSync(db, students, changedStudentIds) {
-  if (!db) return;
+// `opts.strict` rethrows on failure so the caller can surface the error and
+// roll back optimistic UI. WITHOUT it (default), a failed write is swallowed —
+// fine for fire-and-forget saves, but for enrollment that silently dropped the
+// write, leaving the student "enrolled" locally yet absent in Firestore until a
+// reload reverted them. Critical writes (enroll/unenroll) must pass strict:true.
+export async function persistStudentsSync(db, students, changedStudentIds, opts = {}) {
+  if (!db) {
+    if (opts.strict) throw new Error('Not connected. Check your internet and try again.');
+    return;
+  }
   setFbWriting(true);
   try {
     const toSave = changedStudentIds?.length
@@ -48,6 +56,7 @@ export async function persistStudentsSync(db, students, changedStudentIds) {
     }
   } catch (e) {
     console.warn('[FB] persistStudentsSync:', e.message);
+    if (opts.strict) throw e;
   } finally {
     setTimeout(() => setFbWriting(false), 1500);
   }
