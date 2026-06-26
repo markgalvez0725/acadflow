@@ -5,13 +5,12 @@
 // loads the enrolled descriptor (from the server-only faceSignatures collection,
 // which clients can neither read nor write) and compares distance — so the
 // browser can never just claim "it matched", and the stored descriptor can never
-// be read back and replayed by another student. On a match the server issues a
-// one-time temporary password (forcing a change next screen) and notifies the
-// teacher.
+// be read back and replayed by another student.
 //
-// Rate-limited per student number via a Firestore-backed window (so it holds
-// across serverless instances), requires a passed liveness flag, and always
-// forces a new password.
+// Self-service: it does NOT notify the teacher (a Face ID reset shouldn't disturb
+// them) — only a silent audit-log entry is written. Rate-limited per student
+// number via a Firestore-backed window (holds across serverless instances) and
+// requires a passed liveness flag.
 //
 // Two-call, non-destructive design (no temp password, no custom token):
 //   1) { studentNumber, descriptor, liveness }              → verifies the match,
@@ -30,7 +29,7 @@ import {
   lookupLocalId, setPassword,
   getFaceSignature, getLegacyFaceDescriptor, writeFaceSignature, setFaceResetFlag,
   getStudentRoster, faceDistance, patchFaceThrottle,
-  appendAdminNotification, appendAuditLog, deleteResetSession,
+  appendAuditLog, deleteResetSession,
 } from './_fbadmin.js'
 
 // Match threshold for face-api's 128-d descriptors. The library's own default is
@@ -134,17 +133,9 @@ export default async function handler(req, res) {
   // Close any open teacher reset window too (harmless if none).
   try { await deleteResetSession(projectId, accessToken, docId) } catch {}
 
-  // Tell the teacher + audit (best-effort — must never block the reset).
-  try {
-    await appendAdminNotification(projectId, accessToken, {
-      id: 'fr' + Date.now() + Math.random().toString(36).slice(2, 6),
-      type: 'face_reset',
-      title: 'Face ID password reset',
-      body: `${name} reset their password with Face ID`,
-      link: 'students',
-      ts: Date.now(),
-    })
-  } catch {}
+  // No teacher notification — a Face ID reset is self-service and shouldn't
+  // disturb the teacher. We still write a SILENT audit-log entry (best-effort)
+  // so there's a quiet record to review if a takeover is ever suspected.
   try {
     await appendAuditLog(projectId, accessToken, {
       actor: 'face-reset',
