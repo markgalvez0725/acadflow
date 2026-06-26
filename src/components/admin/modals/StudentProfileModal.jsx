@@ -3,7 +3,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Modal from '@/components/primitives/Modal'
 import {
-  gradeInfo, combineEquiv, computeFinalGradeFromTerms, getGWA, getAttRate,
+  gradeInfo, combineEquiv, computeFinalGradeFromTerms, getGWA, getAttRate, pctColor,
 } from '@/utils/grades'
 import { subjectColor } from '@/utils/subjectColor'
 import { activeClassIds, activeSubjects } from '@/utils/active'
@@ -13,11 +13,6 @@ import {
   BarChart3, CalendarCheck, BookOpen, ClipboardList, FileDown,
   ChevronDown, ChevronRight, GraduationCap, Clock,
 } from 'lucide-react'
-
-function pctColor(p) {
-  if (p == null) return 'var(--ink3)'
-  return p >= 85 ? 'var(--green)' : p >= 75 ? 'var(--yellow)' : 'var(--red)'
-}
 
 // One expandable subject card: grade breakdown + this student's activities & quizzes.
 function SubjectBlock({ sub, student, classes, eqScale, activities, quizzes, enrolledIds }) {

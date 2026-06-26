@@ -3,21 +3,9 @@ import { useData } from '@/context/DataContext'
 import { activeClassIds } from '@/utils/active'
 import ExpandableHtml from '@/components/primitives/ExpandableHtml'
 import { sanitizeAnnouncementHtml } from '@/utils/sanitizeHtml'
+import { streamGroupLabel as getGroupLabel, fmtDateTime as formatDate } from '@/utils/format'
 
 const PAGE_SIZE = 10
-
-function getGroupLabel(ts) {
-  if (!ts) return 'Earlier'
-  const now = new Date()
-  const d = new Date(ts)
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const itemDay = new Date(d.getFullYear(), d.getMonth(), d.getDate())
-  const diffDays = Math.round((today - itemDay) / 86400000)
-  if (diffDays === 0) return 'Today'
-  if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return d.toLocaleDateString('en-PH', { weekday: 'long' })
-  return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
-}
 
 const shimmerStyle = {
   background: 'linear-gradient(90deg, var(--border) 25%, var(--surface) 50%, var(--border) 75%)',
@@ -76,10 +64,6 @@ function timeAgo(ms) {
   return new Date(ms).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function formatDate(ms) {
-  if (!ms) return '—'
-  return new Date(ms).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
-}
 
 function TypeBadge({ type }) {
   const map = {

@@ -5,6 +5,7 @@ import { useUI } from '@/context/UIContext'
 import Pagination from '@/components/primitives/Pagination'
 import { ClipboardList, Check, Circle, Users, ShieldCheck, AlertTriangle, Clock, Hourglass, Trophy, CheckCircle2 } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
+import StandingRing from '@/components/primitives/StandingRing'
 
 const PER_PAGE = 10
 const SOON_MS = 48 * 3600000 // "due soon" window
@@ -18,21 +19,6 @@ function timeLeft(dueAt) {
   if (d > 0) return `${d}d ${h}h left`
   if (h > 0) return `${h}h ${m}m left`
   return `${m}m left`
-}
-
-// Completion-standing ring (deterministic; mirrors the numbers the cards show).
-function StandingRing({ rate, color }) {
-  const C = 2 * Math.PI * 34
-  const off = C * (1 - Math.max(0, Math.min(100, rate)) / 100)
-  return (
-    <svg width="80" height="80" viewBox="0 0 84 84" aria-hidden="true">
-      <circle cx="42" cy="42" r="34" fill="none" stroke="var(--border)" strokeWidth="9" />
-      <circle cx="42" cy="42" r="34" fill="none" stroke={color} strokeWidth="9" strokeLinecap="round"
-        strokeDasharray={C} strokeDashoffset={off} transform="rotate(-90 42 42)" />
-      <text x="42" y="40" textAnchor="middle" fontSize="20" fontWeight="700" fill="var(--ink)">{rate}%</text>
-      <text x="42" y="55" textAnchor="middle" fontSize="9" fill="var(--ink3)">done</text>
-    </svg>
-  )
 }
 
 async function pushAdminNotif(db, s, text, type, link) {

@@ -2,9 +2,10 @@ import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Modal from '@/components/primitives/Modal'
-import { gradeInfo, combineEquiv, computeTerms, round2, getHeldDays } from '@/utils/grades'
+import { gradeInfo, combineEquiv, computeTerms, round2, getHeldDays, pctColor } from '@/utils/grades'
 import { activeClassIds, activeSubjects } from '@/utils/active'
 import { subjectColor } from '@/utils/subjectColor'
+import { pushStudentNotif } from '@/firebase/studentNotif'
 import { GraduationCap } from 'lucide-react'
 
 function toNum(v) {
@@ -16,23 +17,6 @@ function toNum(v) {
 function clamp(v) {
   if (v === null || v === undefined) return v
   return Math.min(100, Math.max(0, v))
-}
-
-// Push a "Grade posted" notification to a student (mirrors GradesTab's helper).
-async function pushStudentNotif(db, studentId, title, body, type = 'act_grade', link = 'grades') {
-  try {
-    const { getDoc, setDoc, doc: fbDoc } = await import('firebase/firestore')
-    const ref = fbDoc(db, 'notifications', studentId)
-    const snap = await getDoc(ref)
-    const existing = snap.exists() ? (snap.data().items || []) : []
-    const notif = { id: 'n' + Date.now() + Math.random().toString(36).slice(2, 5), type, read: false, ts: Date.now(), title, body, link }
-    await setDoc(ref, { items: [notif, ...existing].slice(0, 200) }, { merge: false })
-  } catch (e) {}
-}
-
-function pctColor(p) {
-  if (p == null) return 'var(--ink3)'
-  return p >= 85 ? 'var(--green)' : p >= 75 ? 'var(--yellow)' : 'var(--red)'
 }
 
 // One editable subject row. The displayed Final/Equiv are computed from the SAME

@@ -11,6 +11,7 @@ import { exportGradingSheet, parseGradingSheetImport, exportCurrentGrades } from
 import { verifyGradeRows } from '@/utils/gradeImportVerifyAI'
 import { makeHistoryEntry, appendGradeHistory } from '@/utils/gradeEngine'
 import { classTag } from '@/utils/groupChat'
+import { pushStudentNotif } from '@/firebase/studentNotif'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import KebabMenu from '@/components/primitives/KebabMenu'
@@ -28,21 +29,6 @@ function toNum(v) {
 
 function clamp(v) {
   return v !== null ? Math.min(100, Math.max(0, v)) : null
-}
-
-// ── Push a notification to a specific student ─────────────────────────────────
-async function pushStudentNotif(db, studentId, title, body, type = 'act_grade', link = 'grades') {
-  try {
-    const { getDoc, setDoc, doc: fbDoc } = await import('firebase/firestore')
-    const ref = fbDoc(db, 'notifications', studentId)
-    const snap = await getDoc(ref)
-    const existing = snap.exists() ? (snap.data().items || []) : []
-    const notif = {
-      id: 'n' + Date.now() + Math.random().toString(36).slice(2, 5),
-      type, read: false, ts: Date.now(), title, body, link,
-    }
-    await setDoc(ref, { items: [notif, ...existing].slice(0, 200) }, { merge: false })
-  } catch (e) {}
 }
 
 // ── Big numeric field used by the speed-grading view ──────────────────────────

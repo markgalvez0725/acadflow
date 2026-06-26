@@ -48,6 +48,40 @@ export function buildPageRange(cur, total) {
   return result;
 }
 
+// Full date + time stamp: "Jun 18, 2026, 3:04 PM" ("—" when empty). Shared by
+// the Stream and Announcements feeds.
+export function fmtDateTime(ms) {
+  if (!ms) return '—';
+  return new Date(ms).toLocaleString('en-PH', {
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit',
+  });
+}
+
+// Time only: "3:04 PM". Shared by the message threads.
+export function fmtTime(ts) {
+  return new Date(ts).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' });
+}
+
+// Stream/announcement date-group header: Today / Yesterday / weekday / date.
+export function streamGroupLabel(ts) {
+  if (!ts) return 'Earlier';
+  const now = new Date();
+  const d = new Date(ts);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const itemDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diffDays = Math.round((today - itemDay) / 86400000);
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return d.toLocaleDateString('en-PH', { weekday: 'long' });
+  return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// Two-letter uppercase initials from a name (avatars / message bubbles).
+export function getInitials(name) {
+  return (name || '').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+}
+
 export function sortByLastName(arr) {
   return [...arr].sort((a, b) => {
     const surname = n => {

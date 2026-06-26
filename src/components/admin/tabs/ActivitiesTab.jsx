@@ -11,6 +11,7 @@ import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { deviceRubric, aiInstructions, aiRubric, aiGrade, aiGradeGroups, autoFormGroups, prewarmActivityAI } from '@/utils/activityAI'
 import { sendPushToOwners } from '@/firebase/pushTokens'
+import { pushStudentNotif } from '@/firebase/studentNotif'
 import { lateInfo, applyLatePenalty } from '@/utils/latePenalty'
 
 function fmtLocalInput(d) {
@@ -27,21 +28,6 @@ function defaultDeadlineStr() {
   const dl = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
   const pad = n => String(n).padStart(2, '0')
   return `${dl.getFullYear()}-${pad(dl.getMonth() + 1)}-${pad(dl.getDate())}T${pad(dl.getHours())}:${pad(dl.getMinutes())}`
-}
-
-// ── Push a notification to a specific student ─────────────────────────
-async function pushStudentNotif(db, studentId, title, body, link = 'activities') {
-  try {
-    const { getDoc, setDoc, doc: fbDoc } = await import('firebase/firestore')
-    const ref = fbDoc(db, 'notifications', studentId)
-    const snap = await getDoc(ref)
-    const existing = snap.exists() ? (snap.data().items || []) : []
-    const notif = {
-      id: 'n' + Date.now() + Math.random().toString(36).slice(2, 5),
-      type: 'act_grade', read: false, ts: Date.now(), title, body, link,
-    }
-    await setDoc(ref, { items: [notif, ...existing].slice(0, 200) }, { merge: false })
-  } catch (e) {}
 }
 
 // ── Recompute student grade components after activity scoring ─────────
@@ -667,7 +653,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       if (updated) await saveStudents(students.map(x => x.id === s.id ? updated : x), [s.id])
       toast(penalized ? `Saved with late penalty (−${li.percent}%): ${eff}/${act.maxScore}` : 'Score saved!', 'green')
       if (fbReady && db.current) {
-        pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} — Score: ${eff}/${act.maxScore}${penalized ? ` (late −${li.percent}%)` : ''}`, 'activities')
+        pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} — Score: ${eff}/${act.maxScore}${penalized ? ` (late −${li.percent}%)` : ''}`, 'act_grade', 'activities')
       }
     } catch (e) {
       toast('Save failed: ' + e.message, 'red')
@@ -713,7 +699,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       toast(`Applied score of ${defScore} to ${missed.length} student${missed.length !== 1 ? 's' : ''}.`, 'green')
       if (fbReady && db.current) {
         for (const s of missed) {
-          pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} — Score: ${defScore}/${act.maxScore}`, 'activities')
+          pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} — Score: ${defScore}/${act.maxScore}`, 'act_grade', 'activities')
         }
       }
     } catch (e) {
@@ -780,7 +766,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       toast(`Saved grades for ${toSave.length} student${toSave.length !== 1 ? 's' : ''}.${penalizedCount ? ` ${penalizedCount} late-penalized.` : ''}`, 'green')
       if (fbReady && db.current) {
         for (const s of toSave) {
-          pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} — Score: ${effById[s.id]}/${act.maxScore}`, 'activities')
+          pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} — Score: ${effById[s.id]}/${act.maxScore}`, 'act_grade', 'activities')
         }
       }
     } catch (e) {
@@ -928,7 +914,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       : `${act.subject} — due ${dlLabel}. Don't forget to submit.`
     // In-app notifications (reliable) + best-effort web push.
     if (fbReady && db.current) {
-      for (const id of ids) pushStudentNotif(db.current, id, title, body, 'activities')
+      for (const id of ids) pushStudentNotif(db.current, id, title, body, 'act_grade', 'activities')
       sendPushToOwners(db.current, ids, { title, body }, { url: 'activities', tag: 'deadline-reminder' })
     }
     toast(`Reminder sent to ${ids.length} student${ids.length === 1 ? '' : 's'}.`, 'green')

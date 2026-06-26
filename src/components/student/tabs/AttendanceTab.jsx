@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useUI } from '@/context/UIContext'
 import { CalendarCheck, Calendar, CheckCircle2, FileCheck, XCircle, Award, UserCheck, Radio, ClipboardList, Send, ShieldCheck, AlertTriangle, Flame, PartyPopper } from 'lucide-react'
 import TakeAttendanceModal from '@/components/student/modals/TakeAttendanceModal'
+import StandingRing from '@/components/primitives/StandingRing'
 import { activeClassIds, activeSubjects } from '@/utils/active'
 
 const DAY_LETTERS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
@@ -206,7 +207,7 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
         <div className="card att2-pad">
           <div className="att2-card-h"><ShieldCheck size={17} style={{ color: 'var(--accent)' }} />My standing</div>
           <div className="att2-ring-row">
-            <StandingRing rate={globalRate} color={rateColor} />
+            <StandingRing rate={globalRate} color={rateColor} box={120} draw={100} radius={50} stroke={12} valueSize={25} labelSize={11} valueY={58} labelY={77} label="present" formatValue={(r) => `${r.toFixed(0)}%`} transition style={{ flexShrink: 0 }} />
             <div className="att2-chips">
               <div className="att2-chip"><span className="att2-dot" style={{ background: 'var(--green)' }} /><b>{totalPresent}</b><small>Present</small></div>
               <div className="att2-chip"><span className="att2-dot" style={{ background: 'var(--red)' }} /><b>{totalAbsent}</b><small>Absent</small></div>
@@ -338,21 +339,6 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
   )
 }
 
-// Compact standing ring — overall present rate as a single coloured arc.
-function StandingRing({ rate, color }) {
-  const C = 2 * Math.PI * 50
-  const off = C * (1 - Math.min(100, Math.max(0, rate)) / 100)
-  return (
-    <svg viewBox="0 0 120 120" width="100" height="100" aria-hidden="true" style={{ flexShrink: 0 }}>
-      <circle cx="60" cy="60" r="50" fill="none" stroke="var(--border)" strokeWidth="12" />
-      <circle cx="60" cy="60" r="50" fill="none" stroke={color} strokeWidth="12" strokeLinecap="round"
-        strokeDasharray={C} strokeDashoffset={off} transform="rotate(-90 60 60)"
-        style={{ transition: 'stroke-dashoffset .4s' }} />
-      <text x="60" y="58" textAnchor="middle" fontSize="25" fontWeight="700" fill="var(--ink)">{rate.toFixed(0)}%</text>
-      <text x="60" y="77" textAnchor="middle" fontSize="11" fill="var(--ink3)">present</text>
-    </svg>
-  )
-}
 
 function SubjectDetail({ sub, student: s, cls, students }) {
   const presentSet = s.attendance?.[sub] || new Set()

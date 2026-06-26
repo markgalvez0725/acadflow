@@ -5,6 +5,7 @@ import { activeClassIds } from '@/utils/active'
 import { deadlineLabel, deadlineColor } from '@/utils/deadlines'
 import { subjectColor } from '@/utils/subjectColor'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
+import StandingRing from '@/components/primitives/StandingRing'
 import {
   ClipboardList, ChevronRight, ListChecks, AlertTriangle, ArrowRightCircle,
   Layers, CheckCircle2, Flame, CalendarClock, Calendar, Check, Award,
@@ -60,20 +61,6 @@ function bucketOf(r, now) {
   return 'upcoming'
 }
 
-// Workload-completion ring (deterministic; mirrors the row counts).
-function StandingRing({ rate, color }) {
-  const C = 2 * Math.PI * 34
-  const off = C * (1 - Math.max(0, Math.min(100, rate)) / 100)
-  return (
-    <svg width="80" height="80" viewBox="0 0 84 84" aria-hidden="true">
-      <circle cx="42" cy="42" r="34" fill="none" stroke="var(--border)" strokeWidth="9" />
-      <circle cx="42" cy="42" r="34" fill="none" stroke={color} strokeWidth="9" strokeLinecap="round"
-        strokeDasharray={C} strokeDashoffset={off} transform="rotate(-90 42 42)" />
-      <text x="42" y="40" textAnchor="middle" fontSize="20" fontWeight="700" fill="var(--ink)">{rate}%</text>
-      <text x="42" y="55" textAnchor="middle" fontSize="9" fill="var(--ink3)">done</text>
-    </svg>
-  )
-}
 
 export default function AssignmentsTab({ student: s, classes }) {
   const { activities, semester, fbReady } = useData()

@@ -8,6 +8,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Modal from '@/components/primitives/Modal'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
+import StandingRing from '@/components/primitives/StandingRing'
 import { activeClassIds } from '@/utils/active'
 import { subjectColor } from '@/utils/subjectColor'
 import { computeQuizScore } from '@/utils/quizScore'
@@ -37,20 +38,6 @@ function exitFullscreen() {
   try { fn && fn.call(document) } catch (e) { /* ignore */ }
 }
 
-// Performance/score ring (deterministic; mirrors the average shown on the cards).
-function StandingRing({ rate, color, label = 'avg score' }) {
-  const C = 2 * Math.PI * 34
-  const off = C * (1 - Math.max(0, Math.min(100, rate)) / 100)
-  return (
-    <svg width="80" height="80" viewBox="0 0 84 84" aria-hidden="true">
-      <circle cx="42" cy="42" r="34" fill="none" stroke="var(--border)" strokeWidth="9" />
-      <circle cx="42" cy="42" r="34" fill="none" stroke={color} strokeWidth="9" strokeLinecap="round"
-        strokeDasharray={C} strokeDashoffset={off} transform="rotate(-90 42 42)" />
-      <text x="42" y="39" textAnchor="middle" fontSize="19" fontWeight="700" fill="var(--ink)">{rate}%</text>
-      <text x="42" y="54" textAnchor="middle" fontSize="8.5" fill="var(--ink3)">{label}</text>
-    </svg>
-  )
-}
 
 // Fisher–Yates shuffle of [0..n-1] — the display order of questions.
 function shuffleIndices(n) {
@@ -741,7 +728,7 @@ export default function StudentQuizTab({ student, viewClassId }) {
       {/* Performance ring + Quiz Watch */}
       <div className="sact-top">
         <div className="sact-card sact-ring-card">
-          <StandingRing rate={ring.rate} color={ring.color} />
+          <StandingRing rate={ring.rate} color={ring.color} label="avg score" valueSize={19} labelSize={8.5} valueY={39} labelY={54} />
           <div className="sact-ring-meta">
             <strong>{ring.taken} quiz{ring.taken !== 1 ? 'zes' : ''} taken</strong><br />
             {counts.open} open · {counts.upcoming} upcoming<br />

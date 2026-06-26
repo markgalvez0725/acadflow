@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { doc, setDoc, updateDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { sortByLastName, dayLabel } from '@/utils/format'
+import { sortByLastName, dayLabel, getInitials, fmtTime as timeLabel } from '@/utils/format'
 import { isClassCurrent } from '@/utils/active'
 import { isGroupMessage, autoGroupName, groupName, studentTag, groupMembers } from '@/utils/groupChat'
 import GroupMembers from '@/components/primitives/GroupMembers'
@@ -47,10 +47,6 @@ function relativeTime(ts) {
   const days = Math.floor(hrs / 24)
   if (days < 7) return days + 'd ago'
   return new Date(ts).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
-}
-
-function getInitials(name) {
-  return (name || '').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 }
 
 // Round avatar that prefers a profile photo, falling back to initials/icon.
@@ -412,7 +408,6 @@ function ThreadPanel({ thread, onReply, onClose, onDelete, onRename }) {
   }
 
   const GROUP_GAP = 5 * 60 * 1000 // 5 min → start a new visual group
-  const timeLabel = ts => new Date(ts).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })
   const isGroup = thread.isGroup
   const memberCount = (thread.members || []).length
   const subtitle = isGroup ? `Group · ${memberCount} member${memberCount === 1 ? '' : 's'}` : thread.headerSub

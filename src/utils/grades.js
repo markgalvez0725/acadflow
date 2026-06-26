@@ -2,6 +2,13 @@
 // Pure functions — no DOM, no React. All globals (eqScale, classes, students)
 // are passed as arguments instead of being read from module scope.
 
+// CSS color token for a 0–100 percentage by the standard pass thresholds
+// (≥85 good / ≥75 warn / below fail; muted when there's no value).
+export function pctColor(p) {
+  if (p == null) return 'var(--ink3)';
+  return p >= 85 ? 'var(--green)' : p >= 75 ? 'var(--yellow)' : 'var(--red)';
+}
+
 export const DEFAULT_EQ_SCALE = [
   { minScore: 99, maxScore: 100, eq: '1.00', ltr: 'A+', rem: 'Passed' },
   { minScore: 96, maxScore: 98,  eq: '1.25', ltr: 'A+', rem: 'Passed' },

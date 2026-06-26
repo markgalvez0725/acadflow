@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { doc, setDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { relativeTime, dayLabel } from '@/utils/format'
+import { relativeTime, dayLabel, getInitials, fmtTime as timeLabel } from '@/utils/format'
 import { getStudentMessages } from '@/utils/studentMessages'
 import { groupName, isGroupMessage, groupMembers } from '@/utils/groupChat'
 import GroupMembers from '@/components/primitives/GroupMembers'
@@ -20,10 +20,6 @@ import { classifySensitivity, sensitivityLabel } from '@/utils/sensitiveContent'
 import { MessageSquare, GraduationCap, CheckCheck, Trash2, Check, Lock, Send, ChevronLeft, Megaphone, Search, SquarePen, Camera, Reply, X } from 'lucide-react'
 
 const PER_PAGE = 10
-
-function getInitials(name) {
-  return (name || '').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
-}
 
 // A class/section or subject group chat — teacher-owned, students may not delete it.
 function isGroupChat(m) {
@@ -365,7 +361,6 @@ export default function MessagesTab({ student: s, messages }) {
     ? `Group · ${threadMemberCount} member${threadMemberCount === 1 ? '' : 's'}`
     : (threadEntries[0] ? '' : 'New conversation')
   const GROUP_GAP = 5 * 60 * 1000 // 5 min → new visual group
-  const timeLabel = ts => new Date(ts).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })
   const adminSeen = messages.filter(x => x.from === 'admin' && x.to === s.id).some(x => x.replies?.some(r => r.from === 'admin')) ||
     messages.filter(x => x.from === s.id).some(x => x.adminRead)
   let lastSelfIdx = -1

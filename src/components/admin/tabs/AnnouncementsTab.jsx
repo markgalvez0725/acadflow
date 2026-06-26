@@ -7,6 +7,7 @@ import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import MentionInput from '@/components/primitives/MentionInput'
 import { resolveMentions } from '@/utils/mentions'
 import { notifyMention } from '@/firebase/messageNotify'
+import { fmtDateTime as formatDate } from '@/utils/format'
 import { Megaphone, Plus, Trash2, CalendarOff, Video, BookOpen, ToggleLeft, ToggleRight, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered, Clock } from 'lucide-react'
 
 // ── HTML Sanitization Config ──────────────────────────────────────────
@@ -346,13 +347,6 @@ function annId() {
   return 'ann_' + uuidv4()
 }
 
-function formatDate(ms) {
-  if (!ms) return '—'
-  return new Date(ms).toLocaleString('en-PH', {
-    month: 'short', day: 'numeric', year: 'numeric',
-    hour: 'numeric', minute: '2-digit',
-  })
-}
 
 // ── New / Edit Announcement Modal ──────────────────────────────────────
 function AnnouncementFormModal({ ann, onClose }) {
