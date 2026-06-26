@@ -123,6 +123,7 @@ const NotifPrefsModal          = lazy(() => import('./modals/NotifPrefsModal'))
 const SetQuickPinModal         = lazy(() => import('./modals/SetQuickPinModal'))
 const BiometricSetupModal      = lazy(() => import('./modals/BiometricSetupModal'))
 const FaceEnrollModal          = lazy(() => import('./modals/FaceEnrollModal'))
+const ProfileSetupModal        = lazy(() => import('./modals/ProfileSetupModal'))
 const NotifyPrompt             = lazy(() => import('./NotifyPrompt'))
 const OnboardingTour           = lazy(() => import('./OnboardingTour'))
 const SubjectPassedModal       = lazy(() => import('./modals/SubjectPassedModal'))
@@ -192,6 +193,13 @@ export default function StudentLayout() {
   const needsPhoto = pendingVerify && !student?.photo
   const faceStep = needsFaceStep(student)   // step 2: Face ID enrollment required
   const gated = pendingVerify || faceStep   // not fully Active until both steps done
+
+  // Prompt the incomplete-setup modal on every load (and re-open when the pending
+  // step changes), until both steps are done. Closing it ("Later") only hides it
+  // until the next load or the next step.
+  const setupStep = pendingVerify ? 'verify' : faceStep ? 'face' : 'done'
+  const [setupModalOpen, setSetupModalOpen] = useState(false)
+  useEffect(() => { setSetupModalOpen(setupStep !== 'done') }, [setupStep])
 
   const [viewClassId, setViewClassId] = useState(null)
   const effectiveClassId = viewClassId || enrolledClasses[0]?.id || null
@@ -734,6 +742,19 @@ export default function StudentLayout() {
       {faceModalOpen && (
         <Suspense fallback={null}>
           <FaceEnrollModal student={student} onClose={() => setFaceModalOpen(false)} />
+        </Suspense>
+      )}
+
+      {setupModalOpen && gated && !profileOpen && !faceModalOpen && (
+        <Suspense fallback={null}>
+          <ProfileSetupModal
+            step1Done={!pendingVerify}
+            step2Done={!!student?.account?.faceResetEnabled}
+            needsPhoto={needsPhoto}
+            onCompleteProfile={() => { setSetupModalOpen(false); setProfileOpen(true) }}
+            onSetupFace={() => { setSetupModalOpen(false); setFaceModalOpen(true) }}
+            onClose={() => setSetupModalOpen(false)}
+          />
         </Suspense>
       )}
 
