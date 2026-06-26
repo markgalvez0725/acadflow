@@ -5,12 +5,12 @@ import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
 import KebabMenu from '@/components/primitives/KebabMenu'
-import { Plus, Pencil, School, Archive, ArchiveRestore, CalendarDays, Users, LockOpen, Lock, CheckCircle2, Copy, FileText, Trash2 } from 'lucide-react'
+import { Plus, Pencil, School, Archive, ArchiveRestore, CalendarDays, Users, LockOpen, Lock, CheckCircle2, Copy, FileText, Trash2, Clock, MapPin, Search } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { buildClassReportCards } from '@/export/reportCard'
 import { courseOptions } from '@/constants/courses'
 
-const PER_PAGE = 10
+const PER_PAGE = 12
 
 // Suggest the next section label when duplicating (2-A → 2-B, Sec1 → Sec2).
 function suggestNextSection(section = '') {
@@ -23,7 +23,7 @@ function suggestNextSection(section = '') {
 
 // ── Add Class Modal ───────────────────────────────────────────────────
 function AddClassModal({ onClose, prefill = null }) {
-  const { classes, students, saveClasses, saveStudents, semester } = useData()
+  const { classes, saveClasses, semester } = useData()
   const { toast } = useUI()
   const isDuplicate = !!prefill
   const [name, setName]                 = useState(prefill?.name || '')
@@ -366,6 +366,8 @@ export default function ClassesTab() {
   const [showArchived, setShowArchived] = useState(false)
   const [subjectFilter, setSubjectFilter] = useState('')
   const [togglingId, setTogglingId] = useState(null)
+  const [search, setSearch] = useState('')
+  const [reportingId, setReportingId] = useState(null)
 
   // Unique subjects across the visible (active/archived) classes — for the filter.
   const allSubjects = useMemo(() => {
@@ -377,11 +379,15 @@ export default function ClassesTab() {
   }, [classes, showArchived])
 
   const filtered = useMemo(
-    () => classes.filter(c =>
-      (showArchived ? c.archived : !c.archived) &&
-      (!subjectFilter || c.subjects?.includes(subjectFilter))
-    ),
-    [classes, showArchived, subjectFilter]
+    () => {
+      const q = search.trim().toLowerCase()
+      return classes.filter(c =>
+        (showArchived ? c.archived : !c.archived) &&
+        (!subjectFilter || c.subjects?.includes(subjectFilter)) &&
+        (!q || `${c.name} ${c.section}`.toLowerCase().includes(q) || c.subjects?.some(s => s.toLowerCase().includes(q)))
+      )
+    },
+    [classes, showArchived, subjectFilter, search]
   )
 
   function duplicateClass(cls) {
@@ -475,6 +481,24 @@ export default function ClassesTab() {
     }
   }
 
+  async function handleReportCards(cls) {
+    if (reportingId) return
+    const cnt = students.filter(s => s.classId === cls.id || s.classIds?.includes(cls.id)).length
+    if (!cnt) {
+      toast(`No students enrolled in ${cls.name} ${cls.section} — nothing to export.`, 'blue')
+      return
+    }
+    setReportingId(cls.id)
+    try {
+      await buildClassReportCards(cls, { classes, students, eqScale, semester })
+      toast(`Report cards generated for ${cls.name} ${cls.section}.`, 'green')
+    } catch (e) {
+      toast('Could not generate report cards: ' + e.message, 'red')
+    } finally {
+      setReportingId(null)
+    }
+  }
+
   async function handleDelete(cls) {
     const studsInClass = students.filter(s => s.classId === cls.id || s.classIds?.includes(cls.id)).length
     const msg = studsInClass > 0
@@ -528,6 +552,16 @@ export default function ClassesTab() {
       <div className="sec-hdr mb-3">
         <div className="sec-title">Classes</div>
         <div className="flex items-center gap-2 flex-wrap">
+          <div style={{ position: 'relative', flex: '1 1 160px', minWidth: 150 }}>
+            <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--ink3)', pointerEvents: 'none' }} />
+            <input
+              className="input"
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1) }}
+              placeholder="Search course or section"
+              style={{ height: 32, paddingLeft: 32, fontSize: 13 }}
+            />
+          </div>
           {allSubjects.length > 0 && (
             <select
               value={subjectFilter}
@@ -568,107 +602,95 @@ export default function ClassesTab() {
 
       {/* Table */}
       {!filtered.length ? (
-        <div className="empty"><div className="empty-icon"><School size={32} /></div>{showArchived ? 'No archived classes.' : 'No classes yet.'}</div>
+        <div className="empty"><div className="empty-icon"><School size={32} /></div>{(search || subjectFilter) ? 'No classes match your search.' : showArchived ? 'No archived classes.' : 'No classes yet.'}</div>
       ) : (
         <>
-          <div className="tbl-wrap">
-            <table className="tbl">
-              <thead>
-                <tr>
-                  <th>Course</th>
-                  <th>Section</th>
-                  <th>Room</th>
-                  <th>Schedule</th>
-                  <th>Subjects</th>
-                  <th>Semester</th>
-                  <th>Enrollment</th>
-                  <th>Students</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {slice.map(cls => {
-                  const cnt = students.filter(s => s.classId === cls.id || s.classIds?.includes(cls.id)).length
-                  const clsSemLabel = cls.activeSemester || semLabel
-                  const isCurrentSem = semLabel && cls.activeSemester === semLabel
-                  const clsSemStatus = !clsSemLabel
-                    ? null
-                    : (isCurrentSem || !cls.activeSemester)
-                    ? semester?.status
-                    : 'ended'
-                  return (
-                    <tr key={cls.id}>
-                      <td>
-                        <strong>{cls.name}</strong>
-                        {cls.archived && <Badge variant="yellow" className="ml-2">Archived</Badge>}
-                      </td>
-                      <td><Badge variant="blue">{cls.section}</Badge></td>
-                      <td>{cls.room}</td>
-                      <td style={{ fontSize: 12 }}>{cls.schedule}</td>
-                      <td><small className="text-ink2">{cls.subjects?.join(', ')}</small></td>
-                      <td>
-                        {clsSemLabel ? (
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-xs text-ink2">{clsSemLabel}</span>
-                            {clsSemStatus && (
-                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full w-fit ${
-                                clsSemStatus === 'active'  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                                clsSemStatus === 'ended'   ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
-                                                             'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                              }`}>
-                                {clsSemStatus === 'active' ? 'Open / Active' : clsSemStatus === 'ended' ? 'Ended' : 'Upcoming'}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-ink3">—</span>
-                        )}
-                      </td>
-                      <td>
-                        {!cls.archived && (
-                          <button
-                            className={`btn btn-sm ${cls.enrollmentOpen ? 'btn-success' : 'btn-ghost'}`}
-                            style={cls.enrollmentOpen ? { background: 'rgba(34,197,94,0.12)', color: 'var(--green)', border: '1px solid rgba(34,197,94,0.3)' } : {}}
-                            onClick={() => handleToggleEnrollment(cls)}
-                            disabled={togglingId === cls.id}
-                            title={cls.enrollmentOpen ? 'Click to close enrollment' : 'Click to open enrollment'}
-                          >
-                            {cls.enrollmentOpen
-                              ? <><LockOpen size={12} className="inline-block mr-1" />Open</>
-                              : <><Lock size={12} className="inline-block mr-1" />Closed</>
-                            }
-                          </button>
-                        )}
-                        {cls.archived && <span className="text-xs text-ink3">—</span>}
-                      </td>
-                      <td>
-                        <span className="flex items-center gap-1 text-sm">
-                          <Users size={12} className="text-ink3" />
-                          {cnt}
-                        </span>
-                      </td>
-                      <td>
-                        <KebabMenu
-                          label={`Actions for ${cls.name} ${cls.section}`}
-                          items={[
-                            !cls.archived && { label: <><Pencil size={13} className="inline-block mr-2 align-text-bottom" />Edit</>, onClick: () => setEditClass(cls) },
-                            !cls.archived && { label: <><Copy size={13} className="inline-block mr-2 align-text-bottom" />Duplicate</>, onClick: () => duplicateClass(cls) },
-                            { label: <><FileText size={13} className="inline-block mr-2 align-text-bottom" />Report cards</>, onClick: () => buildClassReportCards(cls, { classes, students, eqScale, semester }) },
-                            {
-                              label: cls.archived
-                                ? <><ArchiveRestore size={13} className="inline-block mr-2 align-text-bottom" />Unarchive</>
-                                : <><Archive size={13} className="inline-block mr-2 align-text-bottom" />Archive</>,
-                              onClick: () => handleArchive(cls),
-                            },
-                            { label: <><Trash2 size={13} className="inline-block mr-2 align-text-bottom" />Delete</>, onClick: () => handleDelete(cls), danger: true },
-                          ]}
-                        />
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(228px, 1fr))', gap: 12 }}>
+            {slice.map(cls => {
+              const cnt = students.filter(s => s.classId === cls.id || s.classIds?.includes(cls.id)).length
+              const archivedCnt = students.filter(s => s.archivedSemesters?.some(e => e.classId === cls.id)).length
+              const subs = cls.subjects || []
+              return (
+                <div key={cls.id} style={{
+                  background: cls.archived ? 'var(--surface2)' : 'var(--surface)',
+                  border: '1px solid var(--border)', borderRadius: 14, padding: 14,
+                  display: 'flex', flexDirection: 'column', gap: 10,
+                }}>
+                  {/* Header: course + section, kebab */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--ink)', lineHeight: 1.3 }}>{cls.name}</div>
+                      <div style={{ display: 'flex', gap: 5, marginTop: 4, flexWrap: 'wrap' }}>
+                        <Badge variant="blue">{cls.section}</Badge>
+                        {cls.archived && <Badge variant="yellow">Archived</Badge>}
+                      </div>
+                    </div>
+                    <KebabMenu
+                      label={`Actions for ${cls.name} ${cls.section}`}
+                      items={[
+                        !cls.archived && { label: <><Pencil size={13} className="inline-block mr-2 align-text-bottom" />Edit</>, onClick: () => setEditClass(cls) },
+                        !cls.archived && { label: <><Copy size={13} className="inline-block mr-2 align-text-bottom" />Duplicate</>, onClick: () => duplicateClass(cls) },
+                        { label: <><FileText size={13} className="inline-block mr-2 align-text-bottom" />Report cards</>, onClick: () => handleReportCards(cls) },
+                        {
+                          label: cls.archived
+                            ? <><ArchiveRestore size={13} className="inline-block mr-2 align-text-bottom" />Unarchive</>
+                            : <><Archive size={13} className="inline-block mr-2 align-text-bottom" />Archive</>,
+                          onClick: () => handleArchive(cls),
+                        },
+                        { label: <><Trash2 size={13} className="inline-block mr-2 align-text-bottom" />Delete</>, onClick: () => handleDelete(cls), danger: true },
+                      ]}
+                    />
+                  </div>
+
+                  {/* Room + schedule */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--ink2)' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}><MapPin size={13} className="text-ink3 shrink-0" /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cls.room || 'TBA'}</span></span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}><Clock size={13} className="text-ink3 shrink-0" /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cls.schedule || 'TBA'}</span></span>
+                  </div>
+
+                  {/* Subject chips */}
+                  {subs.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      {subs.slice(0, 4).map(s => (
+                        <span key={s} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: cls.archived ? 'var(--surface)' : 'var(--surface2)', color: 'var(--ink2)' }}>{s}</span>
+                      ))}
+                      {subs.length > 4 && (
+                        <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, color: 'var(--ink3)' }} title={subs.slice(4).join(', ')}>+{subs.length - 4}</span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Footer: students + enrollment */}
+                  <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border)', paddingTop: 9, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <span style={{ fontSize: 12, color: 'var(--ink2)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <Users size={13} className="text-ink3" />
+                      {cls.archived ? `0 active · ${archivedCnt} archived` : `${cnt} student${cnt !== 1 ? 's' : ''}`}
+                    </span>
+                    {!cls.archived ? (
+                      <button
+                        onClick={() => handleToggleEnrollment(cls)}
+                        disabled={togglingId === cls.id}
+                        title={cls.enrollmentOpen ? 'Click to close enrollment' : 'Click to open enrollment'}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600,
+                          padding: '4px 10px', borderRadius: 999, cursor: 'pointer',
+                          border: '1px solid ' + (cls.enrollmentOpen ? 'rgba(34,197,94,0.3)' : 'var(--border)'),
+                          background: cls.enrollmentOpen ? 'rgba(34,197,94,0.12)' : 'var(--surface2)',
+                          color: cls.enrollmentOpen ? 'var(--green)' : 'var(--ink3)',
+                          opacity: togglingId === cls.id ? 0.6 : 1,
+                        }}
+                      >
+                        {cls.enrollmentOpen
+                          ? <><LockOpen size={12} />Open</>
+                          : <><Lock size={12} />Closed</>}
+                      </button>
+                    ) : (
+                      <span style={{ fontSize: 11, color: 'var(--ink3)', fontStyle: 'italic' }}>Past semester</span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
           </div>
           <Pagination total={filtered.length} perPage={PER_PAGE} page={page} onChange={setPage} />
         </>
