@@ -4524,6 +4524,20 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 }
 .res-sub-count { color: var(--ink3); font-weight: 400; font-size: 0.85rem; }
 
+/* Calendar redesign — balanced two-column (grid + side rail) */
+.cal2-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.cal2-title { font-size: 1.15rem; font-weight: 700; color: var(--ink); }
+.cal2-sub { font-size: 0.8rem; color: var(--ink3); margin-top: 2px; }
+.cal2-grid { display: grid; grid-template-columns: 1fr; gap: 12px; align-items: start; }
+@media (min-width: 820px) { .cal2-grid { grid-template-columns: minmax(0, 1fr) 264px; } }
+.cal2-rail { display: flex; flex-direction: column; gap: 12px; }
+.cal2-legend { display: flex; gap: 10px; flex-wrap: wrap; }
+.cal2-leg { display: inline-flex; align-items: center; gap: 5px; font-size: 0.72rem; color: var(--ink2); }
+.cal2-leg-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.cal2-ag { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 10px; }
+.cal2-ag + .cal2-ag { margin-top: 6px; }
+.cal2-agi { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
 
 @keyframes lq-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .4; transform: scale(.7); } }
 
