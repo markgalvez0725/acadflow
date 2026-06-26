@@ -3,10 +3,11 @@ import { doc, updateDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Pagination from '@/components/primitives/Pagination'
-import { ClipboardList, Check, Circle, Users } from 'lucide-react'
+import { ClipboardList, Check, Circle, Users, ShieldCheck, AlertTriangle, Clock, Hourglass, Trophy, CheckCircle2 } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const PER_PAGE = 10
+const SOON_MS = 48 * 3600000 // "due soon" window
 
 function timeLeft(dueAt) {
   const diff = dueAt - Date.now()
@@ -17,6 +18,21 @@ function timeLeft(dueAt) {
   if (d > 0) return `${d}d ${h}h left`
   if (h > 0) return `${h}h ${m}m left`
   return `${m}m left`
+}
+
+// Completion-standing ring (deterministic; mirrors the numbers the cards show).
+function StandingRing({ rate, color }) {
+  const C = 2 * Math.PI * 34
+  const off = C * (1 - Math.max(0, Math.min(100, rate)) / 100)
+  return (
+    <svg width="80" height="80" viewBox="0 0 84 84" aria-hidden="true">
+      <circle cx="42" cy="42" r="34" fill="none" stroke="var(--border)" strokeWidth="9" />
+      <circle cx="42" cy="42" r="34" fill="none" stroke={color} strokeWidth="9" strokeLinecap="round"
+        strokeDasharray={C} strokeDashoffset={off} transform="rotate(-90 42 42)" />
+      <text x="42" y="40" textAnchor="middle" fontSize="20" fontWeight="700" fill="var(--ink)">{rate}%</text>
+      <text x="42" y="55" textAnchor="middle" fontSize="9" fill="var(--ink3)">done</text>
+    </svg>
+  )
 }
 
 async function pushAdminNotif(db, s, text, type, link) {
@@ -46,6 +62,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
   const [editing, setEditing] = useState({})        // actId → bool
   const [groupText, setGroupText] = useState({})    // actId → string (group analysis)
   const [groupLink, setGroupLink] = useState({})    // actId → string (optional link)
+  const [filter, setFilter] = useState('all')       // all | open | dueSoon | submitted | graded | missed
 
   const classId = viewClassId || s.classId
   const idName = useMemo(() => Object.fromEntries((students || []).map(x => [x.id, x.name])), [students])
@@ -57,7 +74,74 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
     [activities, classId]
   )
 
-  const slice = items.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+  // Per-activity derived standing — computed once, reused by the ring, the
+  // Activity Watch validator, the filter counts, and each card. Because every
+  // surface reads the SAME object, the validator can never disagree with a card.
+  const derived = useMemo(() => items.map(act => {
+    const sub      = (act.submissions || {})[s.id] || {}
+    const myGroup  = act.isGroup ? (act.groups || []).find(g => (g.memberIds || []).includes(s.id)) : null
+    const groupSub = myGroup ? (act.groupSubmissions || {})[myGroup.id] : null
+    const score    = sub.score ?? null
+    const maxScore = act.maxScore || 100
+    const hasSub   = act.isGroup ? !!groupSub?.text : !!sub.link
+    const isPast   = act.deadline ? Date.now() > act.deadline : false
+    const dueSoon  = !isPast && !!act.deadline && (act.deadline - Date.now() <= SOON_MS)
+    let status = 'open'
+    if (score != null) status = 'graded'
+    else if (hasSub)   status = 'submitted'
+    else if (isPast)   status = 'missed'
+    return { act, sub, myGroup, groupSub, score, maxScore, hasSub, isPast, dueSoon, status }
+  }), [items, s.id])
+
+  const counts = useMemo(() => {
+    const c = { all: derived.length, open: 0, dueSoon: 0, submitted: 0, graded: 0, missed: 0 }
+    derived.forEach(d => { c[d.status]++; if (d.status === 'open' && d.dueSoon) c.dueSoon++ })
+    return c
+  }, [derived])
+
+  const ring = useMemo(() => {
+    const handled = counts.graded + counts.submitted
+    const rate = counts.all ? Math.round((handled / counts.all) * 100) : 0
+    const color = rate >= 75 ? 'var(--green)' : rate >= 50 ? 'var(--gold-var)' : 'var(--red)'
+    return { handled, rate, color }
+  }, [counts])
+
+  // Deterministic "Activity Watch" findings — recomputed from `derived`, no AI/network.
+  const watch = useMemo(() => {
+    const missed   = derived.filter(d => d.status === 'missed')
+    const dueSoon  = derived.filter(d => d.status === 'open' && d.dueSoon).sort((a, b) => a.act.deadline - b.act.deadline)
+    const awaiting = derived.filter(d => d.status === 'submitted')
+    const graded   = derived.filter(d => d.status === 'graded')
+    const f = []
+    if (missed.length)
+      f.push({ tone: 'bad', Icon: AlertTriangle, lead: `${missed.length} missed`, text: ` — ${missed[0].act.title}${missed.length > 1 ? ` and ${missed.length - 1} more` : ''}, deadline passed with no submission.` })
+    if (dueSoon.length)
+      f.push({ tone: 'warn', Icon: Clock, lead: 'Due soon', text: ` — ${dueSoon[0].act.title}${dueSoon.length > 1 ? ` and ${dueSoon.length - 1} more` : ''}, not yet submitted.` })
+    if (awaiting.length)
+      f.push({ tone: 'info', Icon: Hourglass, lead: `${awaiting.length} awaiting grade`, text: '.' })
+    if (graded.length) {
+      const avg = Math.round(graded.reduce((sum, d) => sum + (d.score / d.maxScore) * 100, 0) / graded.length)
+      f.push({ tone: avg >= 75 ? 'good' : avg >= 60 ? 'warn' : 'bad', Icon: Trophy, lead: `Avg ${avg}%`, text: ` across ${graded.length} graded.` })
+    }
+    if (!f.length)
+      f.push({ tone: 'good', Icon: CheckCircle2, lead: "You're all caught up", text: ' — nothing needs attention.' })
+    const attention = missed.length + dueSoon.length
+    const lead = attention
+      ? `${attention} thing${attention > 1 ? 's' : ''} need${attention > 1 ? '' : 's'} your attention.`
+      : awaiting.length ? `Nothing urgent — ${awaiting.length} awaiting grade.`
+      : "You're on track."
+    return { findings: f.slice(0, 4), lead, hasData: derived.length > 0 }
+  }, [derived])
+
+  const filtered = useMemo(() => {
+    if (filter === 'all')     return derived
+    if (filter === 'dueSoon') return derived.filter(d => d.status === 'open' && d.dueSoon)
+    return derived.filter(d => d.status === filter)
+  }, [derived, filter])
+
+  const slice = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+
+  function pickFilter(next) { setFilter(next); setPage(1) }
 
   async function submitActivity(actId) {
     const link = (linkInputs[actId] || '').trim()
@@ -126,23 +210,79 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
 
   if (!fbReady) return <SkeletonTable />
 
+  const PILLS = [
+    { key: 'all',       label: 'All' },
+    { key: 'open',      label: 'Open' },
+    { key: 'dueSoon',   label: 'Due soon' },
+    { key: 'submitted', label: 'Submitted' },
+    { key: 'graded',    label: 'Graded' },
+    { key: 'missed',    label: 'Missed' },
+  ]
+
   return (
     <div className="student-activities">
       <div className="sec-hdr mb-3">
         <div className="sec-title">Activities</div>
       </div>
 
-      <div className="sa-act-list">
-        {slice.map(act => {
-          const sub = (act.submissions || {})[s.id] || {}
+      {/* Standing ring + Activity Watch */}
+      <div className="sact-top">
+        <div className="sact-card sact-ring-card">
+          <StandingRing rate={ring.rate} color={ring.color} />
+          <div className="sact-ring-meta">
+            <strong>{ring.handled} of {counts.all} handled</strong><br />
+            {counts.graded} graded · {counts.submitted} submitted<br />
+            {counts.open} open{counts.missed ? ` · ${counts.missed} missed` : ''}
+          </div>
+        </div>
+
+        <div className="sact-card sact-watch">
+          <div className="sact-watch-h">
+            <ShieldCheck size={17} style={{ color: 'var(--accent)' }} />
+            <span className="sact-watch-title">Activity Watch</span>
+            <span className="sact-chip-tag">on-device</span>
+          </div>
+          <div className="sact-watch-lead">{watch.lead}</div>
+          {watch.findings.map((fd, i) => (
+            <div key={i} className={`sact-find sact-find-${fd.tone}`}>
+              <fd.Icon size={16} />
+              <div className="sact-find-txt"><strong>{fd.lead}</strong>{fd.text}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Status filter pills */}
+      <div className="sact-pills">
+        {PILLS.map(p => (
+          <button
+            key={p.key}
+            className={`sact-pill ${filter === p.key ? 'on' : ''}`}
+            onClick={() => pickFilter(p.key)}
+          >
+            {p.label} {counts[p.key]}
+          </button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="empty" style={{ padding: '32px 16px' }}>
+          <div className="empty-icon"><ClipboardList size={34} /></div>
+          Nothing here under “{PILLS.find(p => p.key === filter)?.label}”.
+        </div>
+      ) : (
+      <div className="sact-grid">
+        {slice.map(d => {
+          const act = d.act
+          const sub = d.sub
           const hasLink  = !!sub.link
-          const score    = sub.score ?? null
-          const isPast   = act.deadline ? Date.now() > act.deadline : false
+          const score    = d.score
+          const isPast   = d.isPast
           const tl       = act.deadline ? timeLeft(act.deadline) : null
-          const maxScore = act.maxScore || 100
+          const maxScore = d.maxScore
           const hasRubric = !!(act.rubric?.length)
-          const myGroup = act.isGroup ? (act.groups || []).find(g => (g.memberIds || []).includes(s.id)) : null
-          const groupSub = myGroup ? (act.groupSubmissions || {})[myGroup.id] : null
+          const myGroup = d.myGroup
+          const groupSub = d.groupSub
 
           // Status badge
           let badgeCls = 'badge-gray'
@@ -367,8 +507,9 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
           )
         })}
       </div>
+      )}
 
-      <Pagination total={items.length} perPage={PER_PAGE} page={page} onChange={setPage} />
+      <Pagination total={filtered.length} perPage={PER_PAGE} page={page} onChange={setPage} />
     </div>
   )
 }

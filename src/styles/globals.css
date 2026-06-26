@@ -3045,6 +3045,83 @@ textarea.input { resize: vertical; }
 .att2-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .att2-ld { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 
+/* ══════════════════════════════════════════
+   STUDENT ACTIVITIES — standing ring + Activity Watch + pills
+══════════════════════════════════════════ */
+.sact-top {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+@media (min-width: 760px) {
+  .sact-top { grid-template-columns: 240px minmax(0, 1fr); }
+}
+.sact-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.sact-ring-card {
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.sact-ring-meta { font-size: 0.78rem; color: var(--ink2); line-height: 1.5; }
+.sact-ring-meta strong { color: var(--ink); font-weight: 700; }
+.sact-watch { padding: 14px 16px; }
+.sact-watch-h { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.sact-watch-title { font-size: 0.9rem; font-weight: 700; color: var(--ink); }
+.sact-watch-lead { font-size: 0.82rem; color: var(--ink2); margin-bottom: 10px; }
+.sact-chip-tag {
+  margin-left: auto;
+  font-size: 0.66rem;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--ink3);
+  white-space: nowrap;
+}
+.sact-find {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border-radius: 0 8px 8px 0;
+  margin-bottom: 6px;
+}
+.sact-find:last-child { margin-bottom: 0; }
+.sact-find svg { flex-shrink: 0; margin-top: 1px; }
+.sact-find-txt { font-size: 0.78rem; line-height: 1.45; }
+.sact-find-txt strong { font-weight: 700; }
+.sact-find-bad  { background: var(--red-l);    border-left: 3px solid var(--red); }
+.sact-find-bad .sact-find-txt, .sact-find-bad svg { color: var(--red); }
+.sact-find-warn { background: var(--yellow-l); border-left: 3px solid var(--gold-var); }
+.sact-find-warn .sact-find-txt, .sact-find-warn svg { color: var(--gold-var); }
+.sact-find-good { background: var(--green-l);  border-left: 3px solid var(--green); }
+.sact-find-good .sact-find-txt, .sact-find-good svg { color: var(--green); }
+.sact-find-info { background: var(--accent-l); border-left: 3px solid var(--accent); }
+.sact-find-info .sact-find-txt, .sact-find-info svg { color: var(--accent); }
+.sact-pills { display: flex; gap: 7px; margin-bottom: 12px; flex-wrap: wrap; }
+.sact-pill {
+  font-size: 0.76rem;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sact-pill:hover { border-color: var(--accent); }
+.sact-pill.on { background: var(--accent-l); color: var(--accent); border-color: var(--accent); font-weight: 600; }
+.sact-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+@media (min-width: 680px) {
+  .sact-grid { grid-template-columns: 1fr 1fr; }
+}
+
 .student-grades { }
 
 /* ══════════════════════════════════════════
