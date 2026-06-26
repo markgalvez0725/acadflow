@@ -3122,6 +3122,47 @@ textarea.input { resize: vertical; }
   .sact-grid { grid-template-columns: 1fr 1fr; }
 }
 
+/* Assignment tracker — urgency-grouped tap-to-jump rows */
+.sact-group-h {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--ink3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 14px 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sact-group-h.first { margin-top: 0; }
+.sact-rowcard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.sact-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 13px;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  font: inherit;
+  color: inherit;
+}
+.sact-row + .sact-row { border-top: 1px solid var(--border); }
+.sact-row:hover { background: var(--surface2); }
+.sact-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.sact-row-main { flex: 1; min-width: 0; }
+.sact-row-title { font-weight: 700; font-size: 0.82rem; color: var(--ink); }
+.sact-row-meta { font-size: 0.74rem; color: var(--ink3); margin-top: 2px; }
+.sact-row-due { font-size: 0.74rem; font-weight: 700; flex-shrink: 0; }
+
 .student-grades { }
 
 /* ══════════════════════════════════════════
