@@ -6,10 +6,12 @@ import { getHeldDays } from '@/utils/grades'
 import { classTag } from '@/utils/groupChat'
 import { triageExcuses } from '@/utils/excuseTriage'
 import { prewarmEmbeddings } from '@/utils/embeddings'
+import { subjectSessionDates, trailingAbsenceStreak } from '@/utils/attendanceRisk'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import QRCode from '@/components/primitives/QRCode'
-import { Download, Upload, AlertTriangle, Shuffle, RefreshCw, CalendarDays, Check, ClipboardList, X, ClipboardCheck, Archive, ArchiveRestore, UserCheck, UserX, Radio, Copy, ListFilter } from 'lucide-react'
+import KebabMenu from '@/components/primitives/KebabMenu'
+import { Download, Upload, AlertTriangle, Shuffle, RefreshCw, CalendarDays, Check, ClipboardList, X, ClipboardCheck, Archive, ArchiveRestore, UserCheck, UserX, Radio, Copy, ListFilter, Radar, TrendingDown, Star } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
@@ -655,12 +657,6 @@ function AttendanceCalendarModal({ classId, subject, readOnly, onClose }) {
   )
 }
 
-// ── Sort icon ─────────────────────────────────────────────────────────────────
-function SortIcon({ col, sort }) {
-  if (sort.col !== col) return <span className="th-sort-icon">↕</span>
-  return <span className={`th-sort-icon ${sort.dir === 'asc' ? 'asc' : 'desc'}`}>↕</span>
-}
-
 // ── SetRepModal ───────────────────────────────────────────────────────────────
 function SetRepModal({ classId, subject, studs, onClose }) {
   const { classes, setSubjectRep } = useData()
@@ -746,11 +742,20 @@ function SetRepModal({ classId, subject, studs, onClose }) {
   )
 }
 
+// Tone → app CSS-var colors (light/dark aware). Used by the monitor + cards.
+const TONE = {
+  danger:  { fg: 'var(--red)',    bg: 'var(--red-l)',    bd: 'var(--red)' },
+  warning: { fg: 'var(--gold-var, #ca8a04)', bg: 'var(--yellow-l, #fef9c3)', bd: 'var(--yellow, #ca8a04)' },
+  success: { fg: 'var(--green)',  bg: 'var(--green-l)',  bd: 'var(--green)' },
+  neutral: { fg: 'var(--ink2)',   bg: 'var(--bg)',       bd: 'var(--border)' },
+}
+
+const STREAK_THRESHOLD = 3 // consecutive missed sessions before we flag
+
 // ── SubjectAttCard ─────────────────────────────────────────────────────────────
 function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, onImport }) {
   const { classes, attendanceSessions, openCheckIn, closeCheckIn } = useData()
   const { toast } = useUI()
-  const [sort, setSort] = useState({ col: 'name', dir: 'asc' })
   const [page, setPage] = useState(1)
   const [filter, setFilter] = useState('all') // 'all' | 'atrisk' | 'excellent'
   const [repModal, setRepModal] = useState(false)
@@ -790,48 +795,59 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
     : '—'
 
   const total     = allStats.length
-  const withRec   = allStats.filter(() => held > 0)
-  const excellent = withRec.filter(s => s.rate >= 90).length
-  const good      = withRec.filter(s => s.rate >= 80 && s.rate < 90).length
-  const poor      = withRec.filter(s => s.rate < 80).length
-  const exPct     = total ? Math.round(excellent / total * 100) : 0
-  const goPct     = total ? Math.round(good      / total * 100) : 0
-  const poPct     = total ? Math.round(poor      / total * 100) : 0
+  const excellent = held > 0 ? allStats.filter(s => s.rate >= 90).length : 0
+  const poor      = held > 0 ? allStats.filter(s => s.rate < 80).length : 0
 
-  function toggleSort(col) {
-    setSort(prev => ({ col, dir: prev.col === col && prev.dir === 'asc' ? 'desc' : 'asc' }))
-    setPage(1)
-  }
-
-  const sorted = useMemo(() => {
-    return [...allStats].sort((a, b) => {
-      let av, bv
-      if (sort.col === 'name')    { av = a.name;    bv = b.name }
-      else if (sort.col === 'present') { av = a.present; bv = b.present }
-      else if (sort.col === 'excuse')  { av = a.excuse;  bv = b.excuse }
-      else if (sort.col === 'absent')  { av = a.absent;  bv = b.absent }
-      else if (sort.col === 'rate')    { av = a.rate;    bv = b.rate }
-      else { av = a.name; bv = b.name }
-      if (typeof av === 'string') return sort.dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
-      return sort.dir === 'asc' ? av - bv : bv - av
+  // ── On-device attendance monitor (deterministic, $0) ───────────────────────
+  // Recomputes from the same numbers the cards show, so it can never disagree.
+  // Per-student flag priority: absence streak → below 80% → perfect attendance.
+  const monitor = useMemo(() => {
+    const sessionDates = subjectSessionDates(classId, sub, studs)
+    const flags = {}     // studentId → { tone, Icon, text, sortKey }
+    let onStreak = 0
+    allStats.forEach(({ s, rate }) => {
+      const streak = held > 0 ? trailingAbsenceStreak(s, sub, sessionDates) : 0
+      if (streak >= STREAK_THRESHOLD) {
+        flags[s.id] = { tone: 'danger', Icon: AlertTriangle, text: `${streak} sessions missed in a row`, short: `${streak} absent in a row`, sortKey: 100 + streak }
+        onStreak++
+      } else if (held > 0 && rate < 80) {
+        flags[s.id] = { tone: 'warning', Icon: TrendingDown, text: 'Below 80% — watch', short: `${rate}%, falling`, sortKey: 50 - rate }
+      } else if (held > 0 && rate >= 100) {
+        flags[s.id] = { tone: 'success', Icon: Star, text: s.id === repId ? 'Perfect attendance · rep' : 'Perfect attendance', short: 'perfect', sortKey: -1 }
+      }
     })
-  }, [allStats, sort])
+    const flagged = Object.entries(flags)
+      .filter(([, f]) => f.tone !== 'success')
+      .map(([id, f]) => ({ id, name: studs.find(x => x.id === id)?.name || id, ...f }))
+      .sort((a, b) => b.sortKey - a.sortKey)
+    const onTrack = total - flagged.length
+    const health = avgRate === '—' ? '' : avgRate >= 90 ? 'excellent' : avgRate >= 80 ? 'healthy' : avgRate >= 70 ? 'needs a push' : 'concerning'
+    return { flags, flagged, onStreak, onTrack, health }
+  }, [allStats, studs, classId, sub, held, repId, avgRate, total])
 
   const filtered = useMemo(() => {
-    if (filter === 'atrisk')    return sorted.filter(s => held > 0 && s.rate < 80)
-    if (filter === 'excellent') return sorted.filter(s => held > 0 && s.rate >= 90)
-    return sorted
-  }, [sorted, filter, held])
+    if (filter === 'atrisk')    return allStats.filter(s => held > 0 && s.rate < 80)
+    if (filter === 'excellent') return allStats.filter(s => held > 0 && s.rate >= 90)
+    return allStats
+  }, [allStats, filter, held])
 
   const slice = filtered.slice((page - 1) * ATT_PER_PAGE, page * ATT_PER_PAGE)
 
   function setFilterReset(f) { setFilter(f); setPage(1) }
 
+  // Avatar/rate color tier by rate (gray when no sessions yet).
+  function tierColor(rate) {
+    if (held === 0) return { fg: 'var(--ink2)', bg: 'var(--bg)' }
+    if (rate >= 90) return { fg: 'var(--green)', bg: 'var(--green-l)' }
+    if (rate >= 80) return { fg: 'var(--gold-var, #ca8a04)', bg: 'var(--yellow-l, #fef9c3)' }
+    return { fg: 'var(--red)', bg: 'var(--red-l)' }
+  }
+
   return (
     <div className="card card-pad mb-3">
-      {/* Header */}
-      <div className="sec-hdr mb-2 flex-wrap gap-2">
-        <div className="flex items-center gap-2 flex-wrap">
+      {/* Header — Check-in stays out front; the rest live in the ⋮ menu */}
+      <div className="sec-hdr mb-3 flex-wrap gap-2">
+        <div className="flex items-center gap-2 flex-wrap" style={{ minWidth: 0 }}>
           <strong style={{ fontSize: 15 }}>{sub}</strong>
           {repName && (
             <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold"
@@ -840,17 +856,67 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
             </span>
           )}
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex gap-1.5 items-center">
           {!readOnly && !liveSession && (
             <button className="btn btn-success btn-sm" onClick={startCheckIn} disabled={busyCI} title="Open a live self check-in code for today">
               <Radio size={13} className="inline-block mr-1" />Check-in
             </button>
           )}
-          <button className="btn btn-primary btn-sm" onClick={() => onCalendar(sub)}><CalendarDays size={13} className="inline-block mr-1" />Calendar</button>
-          {!readOnly && <button className="btn btn-ghost btn-sm" onClick={() => setRepModal(true)} title="Assign attendance representative"><UserCheck size={13} className="inline-block mr-1" />Set Rep</button>}
-          {!readOnly && <button className="btn btn-ghost btn-sm" onClick={() => onImport(sub)} title="Import attendance from Excel"><Download size={13} className="inline-block mr-1" />Import</button>}
-          <button className="btn btn-ghost btn-sm" onClick={() => onExport(sub)} title="Export attendance"><Upload size={13} className="inline-block mr-1" />Export</button>
+          <KebabMenu
+            label={`Actions for ${sub}`}
+            items={[
+              { label: <><CalendarDays size={13} className="inline-block mr-2 align-text-bottom" />Calendar</>, onClick: () => onCalendar(sub) },
+              !readOnly && { label: <><UserCheck size={13} className="inline-block mr-2 align-text-bottom" />Set rep</>, onClick: () => setRepModal(true) },
+              !readOnly && onImport && { label: <><Download size={13} className="inline-block mr-2 align-text-bottom" />Import</>, onClick: () => onImport(sub) },
+              { label: <><Upload size={13} className="inline-block mr-2 align-text-bottom" />Export</>, onClick: () => onExport(sub) },
+            ]}
+          />
         </div>
+      </div>
+
+      {/* Attendance monitor — on-device, recomputed live from the cards below */}
+      <div className="rounded-xl mb-3" style={{ background: 'var(--accent-l)', border: '1px solid var(--accent)', padding: 14 }}>
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <Radar size={16} style={{ color: 'var(--accent)' }} />
+          <span className="font-semibold text-sm" style={{ color: 'var(--accent)' }}>Attendance monitor</span>
+          <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--surface)', color: 'var(--accent)', border: '1px solid var(--accent)' }}>on-device · live</span>
+        </div>
+        <p className="text-sm mb-0" style={{ color: 'var(--ink)', lineHeight: 1.55 }}>
+          {held === 0
+            ? <>No sessions recorded yet. Open a check-in or mark a day on the calendar to start tracking.</>
+            : <>{held} session{held !== 1 ? 's' : ''} held. Class average is <strong>{avgRate}%</strong>{monitor.health ? <> — {monitor.health}</> : null}.{' '}
+                {monitor.flagged.length === 0
+                  ? <>Everyone is on track.</>
+                  : <><strong>{monitor.flagged.length} student{monitor.flagged.length !== 1 ? 's' : ''}</strong> need{monitor.flagged.length === 1 ? 's' : ''} attention{monitor.onStreak > 0 ? <> — {monitor.onStreak} on an absence streak</> : null}.</>}
+              </>}
+        </p>
+        {(monitor.flagged.length > 0 || (held > 0 && monitor.onTrack > 0)) && (
+          <div className="flex gap-1.5 flex-wrap mt-2.5">
+            {monitor.flagged.slice(0, 4).map(f => {
+              const t = TONE[f.tone]
+              return (
+                <button key={f.id} type="button" onClick={() => setFilterReset('atrisk')} title="Show at-risk students"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold"
+                  style={{ background: t.bg, color: t.fg, border: `1px solid ${t.bd}`, padding: '4px 10px', borderRadius: 999, cursor: 'pointer' }}>
+                  <f.Icon size={12} />{f.name.split(',')[0] || f.name} · {f.short}
+                </button>
+              )
+            })}
+            {monitor.flagged.length > 4 && (
+              <button type="button" onClick={() => setFilterReset('atrisk')}
+                className="inline-flex items-center text-xs font-semibold"
+                style={{ background: 'var(--bg)', color: 'var(--ink2)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: 999, cursor: 'pointer' }}>
+                +{monitor.flagged.length - 4} more
+              </button>
+            )}
+            {held > 0 && monitor.onTrack > 0 && (
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold"
+                style={{ background: 'var(--green-l)', color: 'var(--green)', border: '1px solid var(--green)', padding: '4px 10px', borderRadius: 999 }}>
+                <Check size={12} />{monitor.onTrack} on track
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Live check-in panel */}
@@ -908,8 +974,8 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
         />
       )}
 
-      {/* Summary metric cards */}
-      <div className="grid gap-2 mb-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))' }}>
+      {/* Summary metric cards — trimmed to the three that matter */}
+      <div className="grid gap-2 mb-3" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
         <div className="rounded-lg p-3" style={{ background: 'var(--bg)' }}>
           <div className="text-xs text-ink2">Avg attendance</div>
           <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>{held > 0 ? `${avgRate}%` : '—'}</div>
@@ -919,50 +985,13 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
           <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>{held}</div>
         </div>
         <div className="rounded-lg p-3" style={{ background: 'var(--bg)' }}>
-          <div className="text-xs text-ink2">≥90%</div>
-          <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2, color: 'var(--green)' }}>{excellent}</div>
-        </div>
-        <div className="rounded-lg p-3" style={{ background: 'var(--bg)' }}>
           <div className="text-xs text-ink2">At-risk &lt;80%</div>
           <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2, color: poor ? 'var(--red)' : 'var(--ink)' }}>{poor}</div>
         </div>
       </div>
 
-      {/* Attention banner */}
-      {poor > 0 && (
-        <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg flex-wrap" style={{ background: 'var(--red-l)', border: '1px solid var(--red)' }}>
-          <AlertTriangle size={16} className="shrink-0" style={{ color: 'var(--red)' }} />
-          <span className="text-sm" style={{ color: 'var(--red)', flex: '1 1 200px' }}>
-            {poor} student{poor !== 1 ? 's' : ''} below 80% attendance{held === 0 ? '' : ` (of ${held} session${held !== 1 ? 's' : ''})`}.
-          </span>
-          {filter !== 'atrisk'
-            ? <button className="btn btn-ghost btn-sm" onClick={() => setFilterReset('atrisk')}>Show at-risk</button>
-            : <button className="btn btn-ghost btn-sm" onClick={() => setFilterReset('all')}>Show all</button>}
-        </div>
-      )}
-
-      {/* Distribution */}
-      <div className="rounded-lg p-3 mb-3" style={{ background: 'var(--bg)' }}>
-        <div className="flex items-center justify-between mb-2 flex-wrap gap-1.5">
-          <div className="text-xs font-bold text-ink2 uppercase" style={{ letterSpacing: '.06em' }}>Attendance Distribution</div>
-          <div className="flex gap-2.5 text-xs text-ink2 flex-wrap">
-            <span><span className="inline-block w-2.5 h-2.5 rounded-sm mr-1 align-middle" style={{ background: 'var(--green)' }} />≥90%: {excellent}</span>
-            <span><span className="inline-block w-2.5 h-2.5 rounded-sm mr-1 align-middle" style={{ background: 'var(--yellow)' }} />80–89%: {good}</span>
-            <span><span className="inline-block w-2.5 h-2.5 rounded-sm mr-1 align-middle" style={{ background: 'var(--red)' }} />&lt;80%: {poor}</span>
-          </div>
-        </div>
-        <div className="flex h-2.5 rounded-md overflow-hidden" style={{ background: 'var(--border)' }}>
-          {exPct > 0 && <div style={{ width: `${exPct}%`, background: 'var(--green)', transition: 'width .4s' }} />}
-          {goPct > 0 && <div style={{ width: `${goPct}%`, background: 'var(--yellow)', transition: 'width .4s' }} />}
-          {poPct > 0 && <div style={{ width: `${poPct}%`, background: 'var(--red)',   transition: 'width .4s' }} />}
-        </div>
-        <div className="mt-1.5 text-xs text-ink3">
-          Sessions held: <strong className="text-ink">{held}</strong> · Avg. rate: <strong className="text-ink">{avgRate}{held > 0 ? '%' : ''}</strong>
-        </div>
-      </div>
-
       {/* Quick filters */}
-      <div className="flex gap-1.5 flex-wrap mb-2">
+      <div className="flex gap-1.5 flex-wrap mb-3">
         {[
           { k: 'all',       label: 'All',       n: total },
           { k: 'atrisk',    label: 'At-risk',   n: poor },
@@ -983,83 +1012,41 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
         })}
       </div>
 
-      {/* Table — desktop / tablet */}
-      <div className="tbl-wrap hidden sm:block">
-        <table className="tbl">
-          <thead>
-            <tr>
-              {[
-                { col: 'name',    label: 'Student' },
-                { col: 'present', label: 'Present' },
-                { col: 'excuse',  label: 'Excused' },
-                { col: 'absent',  label: 'Absent' },
-                { col: 'rate',    label: 'Rate' },
-              ].map(({ col, label }) => (
-                <th key={col} className="th-sort" onClick={() => toggleSort(col)}>
-                  {label} <SortIcon col={col} sort={sort} />
-                </th>
-              ))}
-              <th className="hidden lg:table-cell">Recent Dates</th>
-            </tr>
-          </thead>
-          <tbody>
-            {slice.length === 0 && (
-              <tr><td colSpan={6}><div className="empty">No students.</div></td></tr>
-            )}
-            {slice.map(st => {
-              const rBadge = held === 0 ? 'badge-gray' : st.rate >= 90 ? 'badge-green' : st.rate >= 80 ? 'badge-yellow' : 'badge-red'
-              const rateDisplay = held === 0 ? '—' : `${st.rate}%`
-              const recentDates = [...st.dates].sort().slice(-4)
-              return (
-                <tr key={st.id}>
-                  <td>
-                    <strong>{st.name}</strong><br />
-                    <small className="text-ink2">{st.id}</small>
-                  </td>
-                  <td><span className="badge badge-green">{st.present}</span></td>
-                  <td><span className="badge badge-yellow">{st.excuse}</span></td>
-                  <td><span className="badge badge-red">{st.absent}</span></td>
-                  <td><span className={`badge ${rBadge}`}>{rateDisplay}</span></td>
-                  <td className="hidden lg:table-cell" style={{ fontSize: 12 }}>
-                    {recentDates.length > 0
-                      ? recentDates.map(d => (
-                          <span key={d} className="badge badge-green" style={{ margin: 1 }}>{fmtDateShort(d)}</span>
-                        ))
-                      : '—'}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Phone layout — card per student, no sideways scroll */}
-      <div className="sm:hidden flex flex-col gap-2">
-        {slice.length === 0 && <div className="empty">No students.</div>}
+      {/* Roster — one responsive card grid for every screen size */}
+      <div className="att-card-grid">
+        {slice.length === 0 && <div className="empty" style={{ gridColumn: '1 / -1' }}>No students.</div>}
         {slice.map(st => {
-          const rBadge = held === 0 ? 'badge-gray' : st.rate >= 90 ? 'badge-green' : st.rate >= 80 ? 'badge-yellow' : 'badge-red'
+          const flag = monitor.flags[st.id]
+          const tier = tierColor(st.rate)
           const rateDisplay = held === 0 ? '—' : `${st.rate}%`
-          const recentDates = [...st.dates].sort().slice(-4)
+          const initial = (st.name || '?').charAt(0).toUpperCase()
           return (
-            <div key={st.id} className="rounded-xl p-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="font-semibold text-sm truncate">{st.name}</div>
-                  <div className="text-xs text-ink2" style={{ fontFamily: 'monospace' }}>{st.id}</div>
+            <div key={st.id} className="rounded-xl p-3"
+              style={{ background: 'var(--surface)', border: `1px solid ${flag?.tone === 'danger' ? 'var(--red)' : 'var(--border)'}` }}>
+              <div className="flex items-center gap-2.5">
+                <div className="flex items-center justify-center font-bold text-sm flex-shrink-0"
+                  style={{ width: 38, height: 38, borderRadius: '50%', background: tier.bg, color: tier.fg }}>
+                  {initial}
                 </div>
-                <span className={`badge ${rBadge}`} style={{ fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{rateDisplay}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-sm truncate">{st.name}</div>
+                  <div className="text-xs text-ink3 truncate" style={{ fontFamily: 'monospace' }}>{st.id}</div>
+                </div>
+                <span className="font-bold text-sm flex-shrink-0" style={{ color: tier.fg }}>{rateDisplay}</span>
               </div>
+
+              {flag && (
+                <div className="flex items-center gap-1.5 mt-2.5 text-xs font-semibold"
+                  style={{ background: TONE[flag.tone].bg, color: TONE[flag.tone].fg, padding: '3px 8px', borderRadius: 6 }}>
+                  <flag.Icon size={12} className="flex-shrink-0" />
+                  <span className="truncate">{flag.text}</span>
+                </div>
+              )}
+
               <div className="grid mt-2.5 pt-2.5" style={{ gridTemplateColumns: 'repeat(3, 1fr)', textAlign: 'center', borderTop: '1px solid var(--border)' }}>
-                <div><div style={{ fontSize: 18, fontWeight: 800, color: 'var(--green)' }}>{st.present}</div><div className="text-xs text-ink3">Present</div></div>
-                <div><div style={{ fontSize: 18, fontWeight: 800, color: 'var(--yellow, #ca8a04)' }}>{st.excuse}</div><div className="text-xs text-ink3">Excused</div></div>
-                <div><div style={{ fontSize: 18, fontWeight: 800, color: 'var(--red)' }}>{st.absent}</div><div className="text-xs text-ink3">Absent</div></div>
-              </div>
-              <div className="mt-2.5 pt-2 flex items-center gap-1.5 flex-wrap" style={{ borderTop: '1px solid var(--border)' }}>
-                <span className="text-xs text-ink3">Recent</span>
-                {recentDates.length > 0
-                  ? recentDates.map(d => <span key={d} className="badge badge-green" style={{ fontSize: 11 }}>{fmtDateShort(d)}</span>)
-                  : <span className="text-xs text-ink3">—</span>}
+                <div><div style={{ fontSize: 17, fontWeight: 800, color: 'var(--green)' }}>{st.present}</div><div className="text-xs text-ink3">Present</div></div>
+                <div><div style={{ fontSize: 17, fontWeight: 800, color: 'var(--gold-var, #ca8a04)' }}>{st.excuse}</div><div className="text-xs text-ink3">Excused</div></div>
+                <div><div style={{ fontSize: 17, fontWeight: 800, color: 'var(--red)' }}>{st.absent}</div><div className="text-xs text-ink3">Absent</div></div>
               </div>
             </div>
           )
