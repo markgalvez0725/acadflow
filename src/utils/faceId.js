@@ -100,6 +100,24 @@ export function averageDescriptors(list) {
   return out.map(v => v / list.length)
 }
 
+// True once the <video> is actually producing frames (guards detect() against a
+// not-yet-playing stream — e.g. iOS Safari when autoplay was deferred).
+export function videoReady(v) {
+  return !!v && v.readyState >= 2 && v.videoWidth > 0
+}
+
+// ── Shared liveness + capture tuning (imported by BOTH face modals so the enroll
+// and reset flows can never drift apart) ─────────────────────────────────────
+export const LIVENESS = { EAR_OPEN: 0.26, EAR_CLOSED: 0.18, YAW_TURN: 0.16, YAW_BACK: 0.07 }
+export const SAMPLES = 4
+export const CHALLENGES = [
+  { key: 'blink', prompt: 'Blink slowly, twice' },
+  { key: 'turn',  prompt: 'Turn your head to one side, then back' },
+]
+// Loop timeouts so the camera flow can never deadlock (poor light, no blink, a
+// stalled iOS stream): hint → auto-switch to the other challenge → give up.
+export const TIMING = { POSITION_HINT_MS: 8000, CHALLENGE_SWITCH_MS: 14000, OVERALL_MS: 38000 }
+
 // Map raw getUserMedia / model errors to friendly copy.
 export function friendlyCameraError(e) {
   const name = e?.name || ''

@@ -2,21 +2,12 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 import Modal from '@/components/primitives/Modal'
 import { useUI } from '@/context/UIContext'
 import { getIdToken } from '@/firebase/firebaseInit'
-import { ScanFace, ShieldCheck, Lock, Check, Loader2, AlertTriangle, RefreshCw } from 'lucide-react'
+import { ScanFace, Lock, Check, Loader2, AlertTriangle, RefreshCw } from 'lucide-react'
 import {
-  loadFaceModels, startCamera, stopStream, detectOnce,
+  loadFaceModels, startCamera, stopStream, detectOnce, videoReady,
   eyeAspect, headYaw, descriptorArray, averageDescriptors, friendlyCameraError,
+  LIVENESS, SAMPLES, CHALLENGES, TIMING,
 } from '@/utils/faceId'
-
-// Liveness thresholds (tuned conservatively; see faceId.js).
-const EAR_OPEN = 0.26, EAR_CLOSED = 0.18
-const YAW_TURN = 0.16, YAW_BACK = 0.07
-const SAMPLES = 4 // descriptors averaged for a steady signature
-
-const CHALLENGES = [
-  { key: 'blink', prompt: 'Blink slowly, twice' },
-  { key: 'turn',  prompt: 'Turn your head to one side, then back' },
-]
 
 export default function FaceEnrollModal({ student, onClose }) {
   const { toast } = useUI()
@@ -25,48 +16,32 @@ export default function FaceEnrollModal({ student, onClose }) {
   const loopRef = useRef(null)
   const busyRef = useRef(false)
   const stateRef = useRef('init')
+  const runIdRef = useRef(0) // abort token — supersedes any in-flight begin()
 
-  // liveness + capture accumulators (refs so the loop reads fresh values)
+  // liveness + capture accumulators + timers (refs so the loop reads fresh values)
   const sawOpenRef = useRef(false)
   const blinkRef = useRef(0)
   const yawSeenRef = useRef(false)
   const samplesRef = useRef([])
+  const loopStartRef = useRef(0)
+  const challengeStartRef = useRef(0)
+  const switchedRef = useRef(false)
+  const challengeRef = useRef(CHALLENGES[Math.floor(Math.random() * CHALLENGES.length)])
 
-  const [phase, setPhase] = useState('init')        // init|position|challenge|capturing|saving|done|error
+  const [phase, setPhase] = useState('init') // init|position|challenge|capturing|saving|done|error
   const [msg, setMsg] = useState('Loading face models…')
   const [err, setErr] = useState('')
-  const [challenge, setChallenge] = useState(() => CHALLENGES[Math.floor(Math.random() * CHALLENGES.length)])
-  const challengeRef = useRef(challenge) // the loop reads this (avoids a stale closure)
+  const [, setChallengeLabel] = useState(challengeRef.current.prompt)
 
   const go = (p) => { stateRef.current = p; setPhase(p) }
+  const setChallenge = (ch) => { challengeRef.current = ch; setChallengeLabel(ch.prompt) }
 
   const cleanup = useCallback(() => {
+    runIdRef.current++ // any in-flight begin() is now stale and must bail
     if (loopRef.current) { clearInterval(loopRef.current); loopRef.current = null }
     stopStream(streamRef.current); streamRef.current = null
   }, [])
-
   useEffect(() => () => cleanup(), [cleanup])
-
-  const begin = useCallback(async () => {
-    // reset accumulators
-    sawOpenRef.current = false; blinkRef.current = 0; yawSeenRef.current = false; samplesRef.current = []
-    setErr(''); go('init'); setMsg('Loading face models…')
-    const ch = CHALLENGES[Math.floor(Math.random() * CHALLENGES.length)]
-    challengeRef.current = ch; setChallenge(ch)
-    try {
-      await loadFaceModels()
-      setMsg('Starting camera…')
-      streamRef.current = await startCamera(videoRef.current)
-      go('position'); setMsg('Center your face in the circle')
-      if (loopRef.current) clearInterval(loopRef.current)
-      loopRef.current = setInterval(tick, 130)
-    } catch (e) {
-      setErr(friendlyCameraError(e)); go('error')
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  useEffect(() => { begin() }, [begin])
 
   async function save(descriptor) {
     if (loopRef.current) { clearInterval(loopRef.current); loopRef.current = null }
@@ -95,24 +70,43 @@ export default function FaceEnrollModal({ student, onClose }) {
     if (st !== 'position' && st !== 'challenge' && st !== 'capturing') return
     busyRef.current = true
     try {
-      const det = await detectOnce(videoRef.current)
-      if (!det) { if (st === 'position') setMsg('Center your face in the circle'); return }
-
-      if (st === 'position') {
-        go('challenge'); setMsg(challengeRef.current.prompt)
+      if (Date.now() - loopStartRef.current > TIMING.OVERALL_MS) {
+        setErr('Couldn’t complete the scan in time. Make sure your face is well-lit and centered, then try again.')
+        go('error'); return
+      }
+      const v = videoRef.current
+      if (!videoReady(v)) return
+      const det = await detectOnce(v)
+      if (!det) {
+        if (st === 'position') {
+          setMsg(Date.now() - loopStartRef.current > TIMING.POSITION_HINT_MS
+            ? 'Make sure your face is centered and well-lit'
+            : 'Center your face in the circle')
+        }
         return
       }
 
+      if (st === 'position') { challengeStartRef.current = Date.now(); go('challenge'); setMsg(challengeRef.current.prompt); return }
+
       if (st === 'challenge') {
+        if (!switchedRef.current && Date.now() - challengeStartRef.current > TIMING.CHALLENGE_SWITCH_MS) {
+          switchedRef.current = true
+          const other = CHALLENGES.find(c => c.key !== challengeRef.current.key) || challengeRef.current
+          setChallenge(other)
+          sawOpenRef.current = false; blinkRef.current = 0; yawSeenRef.current = false
+          challengeStartRef.current = Date.now()
+          setMsg('Let’s try another check — ' + other.prompt)
+          return
+        }
         if (challengeRef.current.key === 'blink') {
           const ear = eyeAspect(det.landmarks)
-          if (ear > EAR_OPEN) sawOpenRef.current = true
-          else if (sawOpenRef.current && ear < EAR_CLOSED) { blinkRef.current += 1; sawOpenRef.current = false }
+          if (ear > LIVENESS.EAR_OPEN) sawOpenRef.current = true
+          else if (sawOpenRef.current && ear < LIVENESS.EAR_CLOSED) { blinkRef.current += 1; sawOpenRef.current = false }
           if (blinkRef.current >= 2) { go('capturing'); setMsg('Great — hold still…') }
         } else {
           const yaw = Math.abs(headYaw(det.landmarks))
-          if (yaw > YAW_TURN) yawSeenRef.current = true
-          else if (yawSeenRef.current && yaw < YAW_BACK) { go('capturing'); setMsg('Great — hold still…') }
+          if (yaw > LIVENESS.YAW_TURN) yawSeenRef.current = true
+          else if (yawSeenRef.current && yaw < LIVENESS.YAW_BACK) { go('capturing'); setMsg('Great — hold still…') }
         }
         return
       }
@@ -120,14 +114,35 @@ export default function FaceEnrollModal({ student, onClose }) {
       // capturing
       const arr = descriptorArray(det)
       if (arr) samplesRef.current.push(arr)
-      if (samplesRef.current.length >= SAMPLES) {
-        await save(averageDescriptors(samplesRef.current))
-      }
+      if (samplesRef.current.length >= SAMPLES) await save(averageDescriptors(samplesRef.current))
     } catch { /* transient frame error — keep looping */ }
     finally { busyRef.current = false }
   }
 
-  const showCam = phase === 'position' || phase === 'challenge' || phase === 'capturing'
+  const begin = useCallback(async () => {
+    cleanup()
+    const myRun = ++runIdRef.current
+    sawOpenRef.current = false; blinkRef.current = 0; yawSeenRef.current = false; samplesRef.current = []
+    switchedRef.current = false
+    setErr(''); go('init'); setMsg('Loading face models…')
+    setChallenge(CHALLENGES[Math.floor(Math.random() * CHALLENGES.length)])
+    try {
+      await loadFaceModels()
+      if (myRun !== runIdRef.current) return
+      setMsg('Starting camera…')
+      const stream = await startCamera(videoRef.current)
+      if (myRun !== runIdRef.current) { stopStream(stream); return } // superseded mid-await → don't leak
+      streamRef.current = stream
+      loopStartRef.current = Date.now()
+      go('position'); setMsg('Center your face in the circle')
+      loopRef.current = setInterval(tick, 130)
+    } catch (e) {
+      if (myRun !== runIdRef.current) return
+      setErr(friendlyCameraError(e)); go('error')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cleanup])
+  useEffect(() => { begin() }, [begin])
 
   return (
     <Modal onClose={onClose} size="md">
@@ -167,11 +182,9 @@ export default function FaceEnrollModal({ student, onClose }) {
             <video ref={videoRef} autoPlay muted playsInline className="faceid-video" />
             <div className={`faceid-oval ${phase === 'capturing' ? 'is-ok' : ''}`} />
             <div className="faceid-prompt">
-              {phase === 'init'
+              {phase === 'init' || phase === 'capturing' || phase === 'saving'
                 ? <><Loader2 size={14} className="animate-spin" style={{ marginRight: 6 }} /> {msg}</>
-                : phase === 'capturing' || phase === 'saving'
-                  ? <><Loader2 size={14} className="animate-spin" style={{ marginRight: 6 }} /> {msg}</>
-                  : <><ScanFace size={14} style={{ marginRight: 6 }} /> {msg}</>}
+                : <><ScanFace size={14} style={{ marginRight: 6 }} /> {msg}</>}
             </div>
           </div>
 

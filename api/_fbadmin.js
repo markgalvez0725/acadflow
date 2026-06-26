@@ -282,53 +282,73 @@ export async function patchStudentVerification(projectId, accessToken, docId, { 
 }
 
 // ── Face-ID recovery (server-side enrollment + match) ─────────────────────
-// Read a student's enrolled face signature + name. Returns
-// { name, enabled, descriptor: number[]|null, enrolledAt } or null if no doc.
-export async function getStudentFace(projectId, accessToken, docId) {
-  const r = await fetch(`${fsBase(projectId)}/students/${encodeURIComponent(docId)}`, {
+// The face signature lives in its OWN collection, faceSignatures/{docId}, which
+// is unmatched in firestore.rules → DENIED to all clients (only the service
+// account, which bypasses rules, can read/write it). This is deliberate:
+//   • clients can never READ a descriptor (so it can't be replayed), and
+//   • clients can never WRITE one (no forging / account takeover), and
+//   • the student doc no longer round-trips a 128-number array through full-doc
+//     setDoc saves (which previously risked intermittent rule-denials).
+// The student doc keeps only a cheap boolean `account.faceResetEnabled` for UI.
+
+// Read the enrolled signature + recent-attempt timestamps. null if not enrolled.
+export async function getFaceSignature(projectId, accessToken, docId) {
+  const r = await fetch(`${fsBase(projectId)}/faceSignatures/${encodeURIComponent(docId)}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
   if (r.status === 404) return null
   const data = await r.json()
-  if (!r.ok) throw new Error(data?.error?.message || 'Student read failed')
+  if (!r.ok) throw new Error(data?.error?.message || 'Face signature read failed')
   const f = data.fields || {}
-  const str = x => (x && typeof x.stringValue === 'string') ? x.stringValue : null
-  const acct = f.account?.mapValue?.fields || {}
-  const faceMap = acct.face?.mapValue?.fields || null
-  let descriptor = null
-  const vals = faceMap?.descriptor?.arrayValue?.values
-  if (Array.isArray(vals)) {
-    descriptor = vals.map(v => Number(v.doubleValue ?? v.integerValue ?? 0))
-  }
-  return {
-    name: str(f.name),
-    enabled: acct.faceResetEnabled?.booleanValue === true,
-    descriptor,
-    enrolledAt: Number(faceMap?.enrolledAt?.integerValue || 0),
-  }
+  const dv = f.descriptor?.arrayValue?.values
+  const descriptor = Array.isArray(dv) ? dv.map(v => Number(v.doubleValue ?? v.integerValue ?? 0)) : null
+  const rv = f.rl?.arrayValue?.values
+  const rl = Array.isArray(rv) ? rv.map(v => Number(v.integerValue ?? 0)) : []
+  return { descriptor, rl, enrolledAt: Number(f.enrolledAt?.integerValue || 0) }
 }
 
-// Write account.face (the 128-number signature) + account.faceResetEnabled on a
-// student doc via the Admin REST API (bypasses rules). Field-path masks keep the
-// rest of the account map intact.
-export async function patchStudentFace(projectId, accessToken, docId, { descriptor, version = 1 }) {
+// Write/replace the signature doc (resets the throttle window on re-enroll).
+export async function writeFaceSignature(projectId, accessToken, docId, descriptor) {
   const values = descriptor.map(n => ({ doubleValue: Number(n) }))
-  const url = `${fsBase(projectId)}/students/${encodeURIComponent(docId)}`
-    + `?updateMask.fieldPaths=account.face&updateMask.fieldPaths=account.faceResetEnabled`
+  const r = await fetch(`${fsBase(projectId)}/faceSignatures/${encodeURIComponent(docId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ fields: {
+      descriptor: { arrayValue: { values } },
+      enrolledAt: { integerValue: String(Date.now()) },
+      version:    { integerValue: '1' },
+      rl:         { arrayValue: { values: [] } },
+    } }),
+  })
+  const data = await r.json()
+  if (!r.ok) throw new Error(data?.error?.message || 'Face signature write failed')
+  return true
+}
+
+// Persist the windowed attempt timestamps (cross-instance rate limiting).
+export async function patchFaceThrottle(projectId, accessToken, docId, rl) {
+  const values = rl.map(t => ({ integerValue: String(t) }))
+  const url = `${fsBase(projectId)}/faceSignatures/${encodeURIComponent(docId)}?updateMask.fieldPaths=rl`
+  await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ fields: { rl: { arrayValue: { values } } } }),
+  }).catch(() => {}) // best-effort — never block a legitimate reset on a throttle write
+  return true
+}
+
+// Flip the student doc's UI-only faceResetEnabled flag (server authority).
+export async function setFaceResetFlag(projectId, accessToken, docId, on) {
+  const url = `${fsBase(projectId)}/students/${encodeURIComponent(docId)}?updateMask.fieldPaths=account.faceResetEnabled`
   const r = await fetch(url, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify({ fields: { account: { mapValue: { fields: {
-      face: { mapValue: { fields: {
-        descriptor: { arrayValue: { values } },
-        enrolledAt: { integerValue: String(Date.now()) },
-        version: { integerValue: String(version) },
-      } } },
-      faceResetEnabled: { booleanValue: true },
+      faceResetEnabled: { booleanValue: !!on },
     } } } } }),
   })
   const data = await r.json()
-  if (!r.ok) throw new Error(data?.error?.message || 'Face write failed')
+  if (!r.ok) throw new Error(data?.error?.message || 'Flag write failed')
   return true
 }
 

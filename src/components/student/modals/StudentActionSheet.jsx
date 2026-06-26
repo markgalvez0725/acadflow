@@ -81,7 +81,7 @@ export default function StudentActionSheet({
       onClick: () => { onClose(); onBiometric?.() },
     }] : []),
     {
-      label: student?.account?.faceResetEnabled ? 'Face ID reset — set up' : 'Set up Face ID reset',
+      label: student?.account?.faceResetEnabled ? 'Face ID reset is on' : 'Set up Face ID reset',
       Icon: ScanFace,
       onClick: () => { onClose(); onFaceReset?.() },
     },

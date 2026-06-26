@@ -13,7 +13,7 @@ import { guard } from './_guard.js'
 import {
   requireUser, studentDocId,
   loadServiceAccount, getAccessToken,
-  getStudentFace, patchStudentFace,
+  getStudentRoster, writeFaceSignature, setFaceResetFlag,
 } from './_fbadmin.js'
 
 export default async function handler(req, res) {
@@ -48,12 +48,17 @@ export default async function handler(req, res) {
 
   // Confirm the student record exists before writing.
   let existing
-  try { existing = await getStudentFace(projectId, accessToken, docId) }
+  try { existing = await getStudentRoster(projectId, accessToken, docId) }
   catch (e) { return res.status(502).json({ error: 'Lookup error: ' + e.message }) }
   if (!existing) return res.status(404).json({ error: 'Student record not found.' })
 
-  try { await patchStudentFace(projectId, accessToken, docId, { descriptor }) }
-  catch (e) { return res.status(502).json({ error: 'Could not save your face signature: ' + e.message }) }
+  try {
+    // Descriptor → server-only faceSignatures/{docId}; flag → student doc (UI).
+    await writeFaceSignature(projectId, accessToken, docId, descriptor)
+    await setFaceResetFlag(projectId, accessToken, docId, true)
+  } catch (e) {
+    return res.status(502).json({ error: 'Could not save your face signature: ' + e.message })
+  }
 
   return res.status(200).json({ ok: true })
 }

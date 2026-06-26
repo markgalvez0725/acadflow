@@ -75,21 +75,19 @@ service cloud.firestore {
             && resource.data.account.get('verified', false) == true);
     }
 
-    // Face-ID recovery data (account.face = the 128-number face signature, and
-    // account.faceResetEnabled) is enrolled and compared SERVER-SIDE only — a
-    // student's own device must never write or alter it (that would let anyone
-    // forge a face match to seize an account). The server (service account)
-    // bypasses these rules. We allow a student write only when these fields are
-    // unchanged from what's already stored (so an ordinary profile write that
-    // carries a stale local copy of the account map still passes).
-    function faceFieldsUntouched() {
+    // The face SIGNATURE (128-number descriptor) lives in the server-only
+    // faceSignatures/* collection (unmatched below → denied to all clients), so
+    // it can never be read/replayed or forged from a device. The student doc
+    // keeps only a cheap UI flag, account.faceResetEnabled, set by the server on
+    // enrollment. A student must not be able to flip it on themselves — mirror
+    // accountVerifyNotForged: block only the upgrade to true; keeping or clearing
+    // it is harmless (the real gate is the server-side signature), so ordinary
+    // student writes carrying a stale account copy still pass.
+    function faceResetFlagNotForged() {
       return !('account' in request.resource.data)
-        || (
-          request.resource.data.account.get('face', null)
-            == (resource != null && 'account' in resource.data ? resource.data.account.get('face', null) : null)
-          && request.resource.data.account.get('faceResetEnabled', false)
-            == (resource != null && 'account' in resource.data ? resource.data.account.get('faceResetEnabled', false) : false)
-        );
+        || request.resource.data.account.get('faceResetEnabled', false) != true
+        || (resource != null && 'account' in resource.data
+            && resource.data.account.get('faceResetEnabled', false) == true);
     }
 
     // ── Student records ───────────────────────────────────────────────────
@@ -102,7 +100,7 @@ service cloud.firestore {
       allow read:   if signedIn();
       allow create: if isAdmin();
       allow delete: if isAdmin();
-      allow update: if isAdmin() || (signedIn() && gradeFieldsUntouched() && accountVerifyNotForged() && faceFieldsUntouched());
+      allow update: if isAdmin() || (signedIn() && gradeFieldsUntouched() && accountVerifyNotForged() && faceResetFlagNotForged());
     }
 
     // ── Teacher-only configuration ────────────────────────────────────────
@@ -141,8 +139,10 @@ service cloud.firestore {
     // Learning materials: everyone signed in reads; only the teacher posts/edits.
     match /resources/{docId}          { allow read: if signedIn(); allow write: if isAdmin(); }
 
-    // resetSessions/* is intentionally NOT matched here — it is written and read
-    // only by the server (service account), which bypasses these rules. Leaving
-    // it unmatched denies all direct client access, which is what we want.
+    // resetSessions/* and faceSignatures/* are intentionally NOT matched here —
+    // they are written and read only by the server (service account), which
+    // bypasses these rules. Leaving them unmatched denies all direct client
+    // access, which is exactly what we want (the face descriptor must never be
+    // client-readable or client-writable).
   }
 }
