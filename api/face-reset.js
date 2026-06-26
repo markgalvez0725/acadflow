@@ -21,7 +21,8 @@ import {
   studentEmail, studentDocId,
   loadServiceAccount, getAccessToken,
   lookupLocalId, setPassword,
-  getFaceSignature, getStudentRoster, faceDistance, patchFaceThrottle,
+  getFaceSignature, getLegacyFaceDescriptor, writeFaceSignature, setFaceResetFlag,
+  getStudentRoster, faceDistance, patchFaceThrottle,
   appendAdminNotification, appendAuditLog, deleteResetSession,
   generateTempPassword,
 } from './_fbadmin.js'
@@ -62,19 +63,36 @@ export default async function handler(req, res) {
   try { sig = await getFaceSignature(projectId, accessToken, docId) }
   catch (e) { return res.status(502).json({ error: 'Could not look up your account: ' + e.message }) }
 
-  if (!sig || !Array.isArray(sig.descriptor) || sig.descriptor.length !== 128) {
-    return res.status(400).json({ error: 'Face ID reset is not set up for this account. Ask your teacher to reset your password instead.' })
+  let stored = (sig && Array.isArray(sig.descriptor) && sig.descriptor.length === 128) ? sig.descriptor : null
+
+  // Back-compat: recover (and migrate) a descriptor enrolled before signatures
+  // moved to the server-only collection, so early adopters aren't stranded.
+  if (!stored) {
+    let legacy = null
+    try { legacy = await getLegacyFaceDescriptor(projectId, accessToken, docId) } catch {}
+    if (legacy && legacy.length === 128) {
+      stored = legacy
+      try {
+        await writeFaceSignature(projectId, accessToken, docId, legacy)
+        await setFaceResetFlag(projectId, accessToken, docId, true)
+        sig = { descriptor: legacy, rl: [] }
+      } catch {}
+    }
+  }
+
+  if (!stored) {
+    return res.status(400).json({ error: 'Face ID reset isn’t set up on this account yet. Sign in, then set it up under Settings → “Set up Face ID reset” — or ask your teacher to reset your password.' })
   }
 
   // Throttle (cross-instance): count attempts in the window, then record this one.
   const now = Date.now()
-  const recent = (sig.rl || []).filter(t => now - t < WINDOW_MS)
+  const recent = ((sig && sig.rl) || []).filter(t => now - t < WINDOW_MS)
   if (recent.length >= MAX_ATTEMPTS) {
     return res.status(429).json({ error: 'Too many attempts. Please wait a few minutes, or ask your teacher to reset your password.' })
   }
   await patchFaceThrottle(projectId, accessToken, docId, [...recent, now].slice(-20))
 
-  const dist = faceDistance(descriptor, sig.descriptor)
+  const dist = faceDistance(descriptor, stored)
   if (dist > THRESHOLD) {
     return res.status(401).json({ match: false, error: 'That face did not match. Try again in good lighting, or ask your teacher to reset your password.' })
   }

@@ -307,6 +307,22 @@ export async function getFaceSignature(projectId, accessToken, docId) {
   return { descriptor, rl, enrolledAt: Number(f.enrolledAt?.integerValue || 0) }
 }
 
+// Back-compat: read a descriptor from the LEGACY location (account.face on the
+// student doc) used by the very first builds, before signatures were moved to
+// the server-only collection. Returns number[]|null. Used only as a fallback so
+// students who enrolled early aren't stranded (their attempt is migrated).
+export async function getLegacyFaceDescriptor(projectId, accessToken, docId) {
+  const r = await fetch(`${fsBase(projectId)}/students/${encodeURIComponent(docId)}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!r.ok) return null
+  const data = await r.json()
+  const acct = data.fields?.account?.mapValue?.fields || {}
+  const vals = acct.face?.mapValue?.fields?.descriptor?.arrayValue?.values
+  if (!Array.isArray(vals)) return null
+  return vals.map(v => Number(v.doubleValue ?? v.integerValue ?? 0))
+}
+
 // Write/replace the signature doc (resets the throttle window on re-enroll).
 export async function writeFaceSignature(projectId, accessToken, docId, descriptor) {
   const values = descriptor.map(n => ({ doubleValue: Number(n) }))
