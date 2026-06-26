@@ -4509,6 +4509,21 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 .res-open { color: var(--ink3); flex-shrink: 0; }
 .res-item--link:hover .res-open { color: var(--accent); }
 
+/* Resource Hub redesign — 2-up grid, search, "New" marker */
+.res-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+@media (min-width: 680px) { .res-grid { grid-template-columns: 1fr 1fr; } }
+.res-search { position: relative; margin-bottom: 12px; }
+.res-search > svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--ink3); pointer-events: none; }
+.res-search .input { padding-left: 34px; width: 100%; }
+.res-new {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.res-sub-count { color: var(--ink3); font-weight: 400; font-size: 0.85rem; }
+
 
 @keyframes lq-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .4; transform: scale(.7); } }
 
