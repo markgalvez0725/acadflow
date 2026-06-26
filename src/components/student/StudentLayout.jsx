@@ -22,8 +22,12 @@ import { isPendingVerification, needsFaceStep } from '@/utils/accountStatus'
 import { dataGapReasons } from '@/utils/accountAudit'
 import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare, Library, ListChecks, MessageSquarePlus, Hourglass, Camera, Circle, ScanFace } from 'lucide-react'
 
-// Tabs hidden until a self-registered student is verified (grade-bearing only).
-const PENDING_GATED_TABS = new Set(['grades', 'quizzes', 'activities', 'assignments'])
+// Tabs hidden until the account is fully Active (verified + Face ID). Covers
+// every surface that exposes grades, activities, or quizzes — including the
+// Overview dashboard (the default landing tab: GWA, grade bars, study analyzer,
+// open-quiz / pending-activity counts) and the Calendar (activity/quiz
+// deadlines). Only setup, comms, and enrollment surfaces stay reachable.
+const PENDING_GATED_TABS = new Set(['overview', 'grades', 'quizzes', 'activities', 'assignments', 'calendar'])
 
 // Shown in place of a gated tab while a student's account is still pending.
 // If the blocker is a missing profile photo, lead with "Add your photo" — that's
