@@ -173,8 +173,13 @@ export default function FaceResetModal({ initialNumber = '', onClose, onSuccess 
     begin()
   }
 
+  // The reset cannot be interrupted once it's underway: no X / Escape / backdrop
+  // / Cancel during the scan, verify, password, or save steps. It's only freely
+  // closable before it starts (number step) or on a terminal error / no-match.
+  const dismissable = phase === 'number' || phase === 'error' || phase === 'nomatch'
+
   return (
-    <Modal onClose={onClose} size="md">
+    <Modal onClose={dismissable ? onClose : null} size="md">
       <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 4 }}>
         <ScanFace size={20} style={{ color: 'var(--accent)' }} />
         <h3 className="text-base font-bold text-ink">Reset with Face ID</h3>
@@ -220,7 +225,6 @@ export default function FaceResetModal({ initialNumber = '', onClose, onSuccess 
           <button type="submit" className="btn btn-primary btn-full mt-3" disabled={saving}>
             {saving ? 'Saving…' : <>Set password &amp; sign in</>}
           </button>
-          <button type="button" className="btn btn-ghost btn-sm w-full mt-2" onClick={onClose} disabled={saving}>Cancel</button>
         </form>
       ) : phase === 'error' || phase === 'nomatch' ? (
         <div style={{ textAlign: 'center', padding: '14px 8px' }}>
@@ -252,10 +256,8 @@ export default function FaceResetModal({ initialNumber = '', onClose, onSuccess 
 
           <div className="faceid-note" style={{ marginBottom: 12 }}>
             <Lock size={14} />
-            <span>The match is verified on the server. Your current password isn’t changed until you set a new one.</span>
+            <span>Keep your face in view until it finishes — this step can’t be interrupted. Your password isn’t changed until you set a new one.</span>
           </div>
-
-          <button className="btn btn-ghost btn-sm w-full" onClick={onClose} disabled={phase === 'verifying'}>Cancel</button>
         </>
       )}
     </Modal>
