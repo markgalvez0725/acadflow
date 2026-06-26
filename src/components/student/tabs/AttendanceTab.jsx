@@ -2,11 +2,12 @@ import React, { useState, useMemo, useEffect } from 'react'
 import { useData } from '@/context/DataContext'
 import { useAuth } from '@/context/AuthContext'
 import { useUI } from '@/context/UIContext'
-import { CalendarCheck, Calendar, CheckCircle2, FileCheck, XCircle, Award, UserCheck, Radio, ClipboardList, Send } from 'lucide-react'
+import { CalendarCheck, Calendar, CheckCircle2, FileCheck, XCircle, Award, UserCheck, Radio, ClipboardList, Send, ShieldCheck, AlertTriangle, Flame, PartyPopper } from 'lucide-react'
 import TakeAttendanceModal from '@/components/student/modals/TakeAttendanceModal'
 import { activeClassIds, activeSubjects } from '@/utils/active'
 
 const DAY_LETTERS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+const THRESHOLD = 80 // % present required to stay in good standing
 
 export default function AttendanceTab({ student: s, viewClassId, classes }) {
   const { students, fbReady, attendanceSessions, studentCheckIn, submitExcuseRequest, semester } = useData()
@@ -57,44 +58,105 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
     const xEnrolledIds = x.classIds?.length ? x.classIds : (x.classId ? [x.classId] : [])
     return xEnrolledIds.some(id => enrolledIds.includes(id))
   }) : []
-  const { totalPresent, totalExcuse, totalExpected } = useMemo(() => {
-    let p = 0, e = 0, exp = 0
-    subs.forEach(sub => {
-      p   += (s.attendance?.[sub] || new Set()).size
-      e   += (s.excuse?.[sub]    || new Set()).size
-      const held = [...classMates, s].reduce((mx, x) => {
-        const sz = (x.attendance?.[sub] || new Set()).size + (x.excuse?.[sub] || new Set()).size
-        return Math.max(mx, sz)
-      }, 0)
-      exp += held
+
+  // Per-subject standing — present/excused/absent counts, rate, and the trailing
+  // present/absent streaks. Drives both Attendance Watch and the subject pills,
+  // so the validator can never disagree with what the cards show.
+  const subStats = useMemo(() => {
+    const today = new Date()
+    return subs.map(sub => {
+      const pres = s.attendance?.[sub] || new Set()
+      const exc  = s.excuse?.[sub]     || new Set()
+      const held = new Set()
+      ;[...classMates, s].forEach(x => {
+        ;(x.attendance?.[sub] || new Set()).forEach(d => held.add(d))
+        ;(x.excuse?.[sub]     || new Set()).forEach(d => held.add(d))
+      })
+      const heldArr = [...held].filter(d => new Date(d + 'T00:00:00') <= today).sort()
+      const present = pres.size
+      const excused = exc.size
+      const total   = heldArr.length
+      const absent  = Math.max(0, total - present - excused)
+      const rate    = total > 0 ? present / total * 100 : null
+
+      // trailing streaks across recorded sessions (most recent first)
+      let absentStreak = 0, presentStreak = 0
+      for (let i = heldArr.length - 1; i >= 0; i--) {
+        const d = heldArr[i]
+        if (pres.has(d) || exc.has(d)) break
+        absentStreak++
+      }
+      for (let i = heldArr.length - 1; i >= 0; i--) {
+        if (pres.has(heldArr[i])) presentStreak++
+        else break
+      }
+
+      // how many more absences before the rate crosses below THRESHOLD
+      let marginAbs = null
+      if (rate != null && rate >= THRESHOLD) {
+        const kFloat = present / (THRESHOLD / 100) - total
+        marginAbs = Math.max(1, Math.floor(kFloat) + 1)
+      }
+
+      return { sub, present, excused, absent, total, rate, absentStreak, presentStreak, marginAbs }
     })
+  }, [subs, classMates, s])
+
+  const totals = useMemo(() => {
+    let p = 0, e = 0, exp = 0
+    subStats.forEach(x => { p += x.present; e += x.excused; exp += x.total })
     return { totalPresent: p, totalExcuse: e, totalExpected: exp }
-  }, [s, subs, classMates])
+  }, [subStats])
+  const { totalPresent, totalExcuse, totalExpected } = totals
   const totalAbsent = Math.max(0, totalExpected - totalPresent - totalExcuse)
   const globalRate = totalExpected > 0 ? totalPresent / totalExpected * 100 : 0
   const rateColor = globalRate >= 90 ? 'var(--green)' : globalRate >= 80 ? 'var(--yellow)' : 'var(--red)'
 
-  // All-subjects term heatmap: per date, tally the student's status across every
-  // subject that held a session that day. Absent-in-any wins (surfaces problems).
-  const heatmap = useMemo(() => {
-    const map = {} // dateStr -> { present, excused, absent }
-    subs.forEach(sub => {
-      const held = new Set()
-      ;[...classMates, s].forEach(x => {
-        ;(x.attendance?.[sub] || new Set()).forEach(d => held.add(d))
-        ;(x.excuse?.[sub] || new Set()).forEach(d => held.add(d))
-      })
-      const pres = s.attendance?.[sub] || new Set()
-      const exc  = s.excuse?.[sub] || new Set()
-      held.forEach(d => {
-        const rec = map[d] || (map[d] = { present: 0, excused: 0, absent: 0 })
-        if (pres.has(d)) rec.present++
-        else if (exc.has(d)) rec.excused++
-        else rec.absent++
+  // Attendance Watch — deterministic, on-device findings from the same numbers
+  // the standing card renders. Severity order: danger → warning → success.
+  const watch = useMemo(() => {
+    const findings = []
+    const graded = subStats.filter(x => x.rate != null)
+    const below  = graded.filter(x => x.rate < THRESHOLD).sort((a, b) => a.rate - b.rate)
+    const border = graded.filter(x => x.rate >= THRESHOLD && x.rate < THRESHOLD + 5)
+
+    below.forEach(x => findings.push({
+      sev: 'bad', Icon: AlertTriangle,
+      text: <><b>{x.sub} is at {x.rate.toFixed(0)}%</b> — below the {THRESHOLD}% line. File excuses for any valid absences and talk to your teacher.</>,
+    }))
+
+    border.forEach(x => {
+      if (x.marginAbs != null && x.marginAbs <= 2) findings.push({
+        sev: 'warn', Icon: AlertTriangle,
+        text: <><b>{x.sub} is at {x.rate.toFixed(0)}%</b>, just above the line. {x.marginAbs} more absence{x.marginAbs > 1 ? 's' : ''} would drop it below {THRESHOLD}%.</>,
       })
     })
-    return map
-  }, [subs, classMates, s])
+
+    graded.filter(x => x.absentStreak >= 2).sort((a, b) => b.absentStreak - a.absentStreak).slice(0, 2).forEach(x => findings.push({
+      sev: 'warn', Icon: Flame,
+      text: <><b>{x.absentStreak} absences in a row</b> in {x.sub}. Send an excuse request if these were valid.</>,
+    }))
+
+    const bestStreak = graded.filter(x => x.presentStreak >= 5).sort((a, b) => b.presentStreak - a.presentStreak)[0]
+    if (bestStreak) findings.push({
+      sev: 'good', Icon: PartyPopper,
+      text: <><b>{bestStreak.presentStreak} present in a row</b> in {bestStreak.sub}. Keep it going.</>,
+    })
+
+    if (!findings.length && graded.length) findings.push({
+      sev: 'good', Icon: ShieldCheck,
+      text: <>Every subject is at or above the {THRESHOLD}% line. Strong, consistent attendance.</>,
+    })
+
+    let lead
+    if (!graded.length) lead = 'No sessions recorded yet. Your standing shows here once attendance is taken.'
+    else if (below.length) {
+      const good = graded.length - below.length
+      lead = `${good} of your ${graded.length} subjects ${good === 1 ? 'is' : 'are'} in good standing. ${below.length} need${below.length > 1 ? '' : 's'} attention.`
+    } else lead = `All ${graded.length} ${graded.length === 1 ? 'subject is' : 'subjects are'} in good standing.`
+
+    return { findings: findings.slice(0, 5), lead, hasData: graded.length > 0 }
+  }, [subStats])
 
   const openSessionForMe = attendanceSessions?.find(se =>
     se.status === 'open' && enrolledIds.includes(se.classId) && !se.checkedIn?.[s.id]
@@ -139,35 +201,41 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
 
   return (
     <div className="student-attendance">
-      {/* Global stats */}
-      <div className="sa-stat-row mb-4">
-        <div className="sa-stat">
-          <div className="sa-stat-val good">{totalPresent}</div>
-          <div className="sa-stat-lbl">Present</div>
+      {/* Standing + Attendance Watch */}
+      <div className="att2-standing">
+        <div className="card att2-pad">
+          <div className="att2-card-h"><ShieldCheck size={17} style={{ color: 'var(--accent)' }} />My standing</div>
+          <div className="att2-ring-row">
+            <StandingRing rate={globalRate} color={rateColor} />
+            <div className="att2-chips">
+              <div className="att2-chip"><span className="att2-dot" style={{ background: 'var(--green)' }} /><b>{totalPresent}</b><small>Present</small></div>
+              <div className="att2-chip"><span className="att2-dot" style={{ background: 'var(--red)' }} /><b>{totalAbsent}</b><small>Absent</small></div>
+              <div className="att2-chip"><span className="att2-dot" style={{ background: 'var(--purple)' }} /><b>{totalExcuse}</b><small>Excused</small></div>
+              <div className="att2-chip"><span className="att2-dot" style={{ background: 'var(--ink3)' }} /><b>{totalExpected}</b><small>Sessions</small></div>
+            </div>
+          </div>
         </div>
-        <div className="sa-stat">
-          <div className="sa-stat-val bad">{totalAbsent}</div>
-          <div className="sa-stat-lbl">Absent</div>
-        </div>
-        <div className="sa-stat">
-          <div className="sa-stat-val" style={{ color: 'var(--purple)' }}>{totalExcuse}</div>
-          <div className="sa-stat-lbl">Excused</div>
-        </div>
-        <div className="sa-stat">
-          <div className="sa-stat-val" style={{ color: rateColor }}>{globalRate.toFixed(1)}%</div>
-          <div className="sa-stat-lbl">Rate</div>
+
+        <div className="card att2-pad att2-watch">
+          <div className="att2-card-h">
+            <ShieldCheck size={17} style={{ color: 'var(--accent)' }} />Attendance Watch
+            <span className="att2-pill">on-device · live</span>
+          </div>
+          <p className="att2-watch-lead">{watch.lead}</p>
+          {watch.findings.map((f, i) => (
+            <div key={i} className={`att2-find att2-find-${f.sev}`}>
+              <f.Icon size={18} className="att2-find-ic" aria-hidden="true" />
+              <div>{f.text}</div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* All-subjects term heatmap */}
-      <TermHeatmap map={heatmap} />
-
       {/* Self check-in */}
-      <div className="card" style={{ padding: 14, marginBottom: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <Radio size={15} style={{ color: openSessionForMe ? 'var(--green)' : 'var(--ink3)' }} />
-          <span style={{ fontWeight: 700, fontSize: 13 }}>Attendance check-in</span>
-          {openSessionForMe && <span className="badge badge-green" style={{ fontSize: 10 }}>Session open</span>}
+      <div className="card att2-pad" style={{ marginBottom: 12 }}>
+        <div className="att2-card-h">
+          <Radio size={16} style={{ color: openSessionForMe ? 'var(--green)' : 'var(--ink3)' }} />Check in
+          {openSessionForMe && <span className="badge badge-green" style={{ fontSize: 10, marginLeft: 'auto' }}>Session open</span>}
         </div>
         <div style={{ fontSize: 12, color: 'var(--ink2)', marginBottom: 8 }}>
           {openSessionForMe
@@ -220,15 +288,8 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
 
       {/* Subject pills */}
       <div className="sa-sub-pills mb-3">
-        {subs.map(sub => {
-          const p = (s.attendance?.[sub] || new Set()).size
-          const e = (s.excuse?.[sub]    || new Set()).size
-          const held = [...classMates, s].reduce((mx, x) => {
-            const sz = (x.attendance?.[sub] || new Set()).size + (x.excuse?.[sub] || new Set()).size
-            return Math.max(mx, sz)
-          }, 0)
-          const subRate = held > 0 ? p / held * 100 : 0
-          const dot = subRate >= 90 ? 'var(--green)' : subRate >= 80 ? 'var(--yellow)' : 'var(--red)'
+        {subStats.map(({ sub, rate }) => {
+          const dot = rate == null ? 'var(--ink3)' : rate >= 90 ? 'var(--green)' : rate >= 80 ? 'var(--yellow)' : 'var(--red)'
           const isActive = sub === activeSub
           const isRep = !!repSubjects[sub]
           return (
@@ -277,78 +338,19 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
   )
 }
 
-// Compact GitHub-style term heatmap across all subjects. One square per day;
-// absent-in-any-subject is shown red so problem days stand out at a glance.
-function heatColor(rec) {
-  if (!rec) return 'var(--surface2)'
-  if (rec.absent > 0)  return 'var(--red)'
-  if (rec.present > 0) return 'var(--green)'
-  if (rec.excused > 0) return 'var(--purple)'
-  return 'var(--surface2)'
-}
-
-function TermHeatmap({ map }) {
-  const dates = Object.keys(map).sort()
-  const parse = (str) => { const [y, m, d] = str.split('-').map(Number); return new Date(y, m - 1, d) }
-  const fmt   = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
-
-  const weeks = useMemo(() => {
-    if (!dates.length) return []
-    const first = parse(dates[0])
-    const last  = parse(dates[dates.length - 1])
-    const start = new Date(first); start.setDate(first.getDate() - first.getDay())
-    const out = []
-    const cur = new Date(start)
-    while (cur <= last) {
-      const col = []
-      for (let i = 0; i < 7; i++) { col.push(new Date(cur)); cur.setDate(cur.getDate() + 1) }
-      out.push(col)
-    }
-    return out
-  }, [dates.length ? dates[0] : '', dates.length ? dates[dates.length - 1] : ''])
-
-  if (!dates.length) return null
-
+// Compact standing ring — overall present rate as a single coloured arc.
+function StandingRing({ rate, color }) {
+  const C = 2 * Math.PI * 50
+  const off = C * (1 - Math.min(100, Math.max(0, rate)) / 100)
   return (
-    <div className="card" style={{ padding: 14, marginBottom: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <Calendar size={15} style={{ color: 'var(--ink2)' }} />
-        <span style={{ fontWeight: 700, fontSize: 13 }}>Term overview</span>
-        <span style={{ fontSize: 11, color: 'var(--ink3)' }}>every subject, day by day</span>
-      </div>
-      <div style={{ display: 'flex', gap: 3, overflowX: 'auto', paddingBottom: 4 }}>
-        {weeks.map((col, ci) => (
-          <div key={ci} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {col.map((dt, ri) => {
-              const ds = fmt(dt)
-              const rec = map[ds]
-              const isFuture = dt > new Date()
-              const bg = isFuture ? 'transparent' : heatColor(rec)
-              const tip = rec
-                ? `${ds} — ${rec.present} present, ${rec.excused} excused, ${rec.absent} absent`
-                : ds
-              return (
-                <div
-                  key={ri}
-                  title={tip}
-                  style={{
-                    width: 12, height: 12, borderRadius: 3, background: bg,
-                    border: rec ? 'none' : '1px solid var(--border)',
-                    flexShrink: 0,
-                  }}
-                />
-              )
-            })}
-          </div>
-        ))}
-      </div>
-      <div style={{ display: 'flex', gap: 12, marginTop: 10, fontSize: 10, fontWeight: 700, flexWrap: 'wrap' }}>
-        <span style={{ color: 'var(--green)' }}>● Present</span>
-        <span style={{ color: 'var(--purple)' }}>● Excused</span>
-        <span style={{ color: 'var(--red)' }}>● Absent</span>
-        <span style={{ color: 'var(--ink3)' }}>● No session</span>
-      </div>
-    </div>
+    <svg viewBox="0 0 120 120" width="100" height="100" aria-hidden="true" style={{ flexShrink: 0 }}>
+      <circle cx="60" cy="60" r="50" fill="none" stroke="var(--border)" strokeWidth="12" />
+      <circle cx="60" cy="60" r="50" fill="none" stroke={color} strokeWidth="12" strokeLinecap="round"
+        strokeDasharray={C} strokeDashoffset={off} transform="rotate(-90 60 60)"
+        style={{ transition: 'stroke-dashoffset .4s' }} />
+      <text x="60" y="58" textAnchor="middle" fontSize="25" fontWeight="700" fill="var(--ink)">{rate.toFixed(0)}%</text>
+      <text x="60" y="77" textAnchor="middle" fontSize="11" fill="var(--ink3)">present</text>
+    </svg>
   )
 }
 
@@ -410,84 +412,75 @@ function SubjectDetail({ sub, student: s, cls, students }) {
     setCalYear(y)
   }
 
+  const pct = v => `${Math.min(100, expected > 0 ? v / expected * 100 : 0).toFixed(1)}%`
+
   return (
-    <div>
+    <div className="card att2-pad att2-subject">
       {/* Sub-header */}
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px 16px', marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+      <div className="att2-sub-head">
         <div>
-          <div style={{ fontWeight: 700, fontSize: 15 }}>{sub}</div>
-          {cls && <div style={{ fontSize: 11, color: 'var(--ink2)', marginTop: 2 }}>{cls.name} · {cls.section} · {cls.schedule}</div>}
+          <div className="att2-sub-name">{sub}</div>
+          {cls && <div className="att2-sub-meta">{cls.name} · {cls.section} · {cls.schedule}</div>}
         </div>
-        <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-.01em', color: rateColor }}>{rate.toFixed(0)}%</div>
+        <div className="att2-sub-rate" style={{ color: rateColor }}>{rate.toFixed(0)}%</div>
       </div>
-
-      {/* Per-subject stats */}
-      <div className="sa-stat-row mb-3">
-        <div className="sa-stat" style={{ borderColor: '#bbf7d0' }}>
-          <div className="sa-stat-val good">{presentSet.size}</div>
-          <div className="sa-stat-lbl">Present</div>
-          <div className="sa-stat-sub">of {expected} sessions</div>
-        </div>
-        <div className="sa-stat" style={{ borderColor: '#fecaca' }}>
-          <div className="sa-stat-val bad">{absent}</div>
-          <div className="sa-stat-lbl">Absent</div>
-          <div className="sa-stat-sub">{absentDates.length} recorded days</div>
-        </div>
-        <div className="sa-stat" style={{ borderColor: '#ddd6fe' }}>
-          <div className="sa-stat-val" style={{ color: 'var(--purple)' }}>{excuseSet.size}</div>
-          <div className="sa-stat-lbl">Excused</div>
-          <div className="sa-stat-sub">valid excuses</div>
-        </div>
-        <div className="sa-stat">
-          <div className="sa-stat-val" style={{ color: rateColor }}>{rate.toFixed(1)}%</div>
-          <div className="sa-stat-lbl">Rate</div>
-          <div className="sa-stat-sub">{rate >= 90 ? 'Excellent' : rate >= 80 ? 'Good' : rate >= 75 ? 'Fair' : 'Needs attention'}</div>
-        </div>
-      </div>
-
-      {/* Progress bar */}
-      {expected > 0 && (
-        <div className="sa-progress-wrap mb-3">
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 600, color: 'var(--ink2)', marginBottom: 4 }}>
-            <span>Attendance Breakdown</span>
-            <span style={{ color: rateColor }}>{rate.toFixed(1)}% present</span>
-          </div>
-          <div className="sa-progress-bar">
-            <div className="sa-progress-seg" style={{ background: 'var(--green)',  width: `${Math.min(100, presentSet.size / expected * 100).toFixed(1)}%` }} />
-            <div className="sa-progress-seg" style={{ background: 'var(--purple)', width: `${Math.min(100, excuseSet.size  / expected * 100).toFixed(1)}%` }} />
-            <div className="sa-progress-seg" style={{ background: 'var(--red-l)', width: `${Math.min(100, absent / expected * 100).toFixed(1)}%` }} />
-          </div>
-          <div style={{ display: 'flex', gap: 14, fontSize: 10, fontWeight: 700 }}>
-            <span style={{ color: 'var(--green)' }}>● Present {presentSet.size}</span>
-            <span style={{ color: 'var(--purple)' }}>● Excused {excuseSet.size}</span>
-            <span style={{ color: 'var(--red)' }}>● Absent {absent}</span>
-            <span style={{ color: 'var(--ink3)' }}>/ {expected} total sessions</span>
-          </div>
-        </div>
-      )}
 
       {/* View tabs */}
-      <div className="sa-tab-bar mb-3">
-        <button className={`sa-tab${viewMode === 'calendar' ? ' active' : ''}`} onClick={() => setViewMode('calendar')} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Calendar size={13} />Calendar View</button>
+      <div className="sa-tab-bar att2-tabs">
+        <button className={`sa-tab${viewMode === 'calendar' ? ' active' : ''}`} onClick={() => setViewMode('calendar')} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Calendar size={13} />Calendar</button>
         <button className={`sa-tab${viewMode === 'present'  ? ' active' : ''}`} onClick={() => setViewMode('present')} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><CheckCircle2 size={13} />Present ({presentSet.size})</button>
         <button className={`sa-tab${viewMode === 'excuse'   ? ' active' : ''}`} onClick={() => setViewMode('excuse')} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><FileCheck size={13} />Excused ({excuseSet.size})</button>
         <button className={`sa-tab${viewMode === 'absent'   ? ' active' : ''}`} onClick={() => setViewMode('absent')} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><XCircle size={13} />Absent ({absentDates.length})</button>
       </div>
 
       {/* Content */}
-      {viewMode === 'calendar' && (
-        <CalendarView
-          presentSet={presentSet}
-          excuseSet={excuseSet}
-          adminDates={allAdminDates}
-          year={calYear}
-          month={calMonth}
-          onNav={navCal}
-        />
+      {viewMode === 'calendar' ? (
+        <div className="att2-detail">
+          <div className="att2-cal-col">
+            <CalendarView
+              presentSet={presentSet}
+              excuseSet={excuseSet}
+              adminDates={allAdminDates}
+              year={calYear}
+              month={calMonth}
+              onNav={navCal}
+            />
+          </div>
+          <div className="att2-side">
+            {expected > 0 && (
+              <div>
+                <div className="att2-bar-head">
+                  <span>Breakdown</span>
+                  <span style={{ color: rateColor }}>{rate.toFixed(1)}% present</span>
+                </div>
+                <div className="sa-progress-bar att2-bar">
+                  <div className="sa-progress-seg" style={{ background: 'var(--green)',  width: pct(presentSet.size) }} />
+                  <div className="sa-progress-seg" style={{ background: 'var(--purple)', width: pct(excuseSet.size) }} />
+                  <div className="sa-progress-seg" style={{ background: 'var(--red-l)',   width: pct(absent) }} />
+                </div>
+                <div className="att2-counts">
+                  <span><span className="att2-dot" style={{ background: 'var(--green)' }} />Present <b>{presentSet.size}</b></span>
+                  <span><span className="att2-dot" style={{ background: 'var(--purple)' }} />Excused <b>{excuseSet.size}</b></span>
+                  <span><span className="att2-dot" style={{ background: 'var(--red)' }} />Absent <b>{absent}</b></span>
+                  <span><span className="att2-dot" style={{ background: 'var(--ink3)' }} />Sessions <b>{expected}</b></span>
+                </div>
+              </div>
+            )}
+            <div className="att2-legend">
+              <span><span className="att2-ld" style={{ background: 'var(--green)' }} />Present</span>
+              <span><span className="att2-ld" style={{ background: 'var(--purple)' }} />Excused</span>
+              <span><span className="att2-ld" style={{ background: 'var(--red)' }} />Absent</span>
+              <span><span className="att2-ld" style={{ background: 'var(--border)' }} />No session</span>
+            </div>
+          </div>
+        </div>
+      ) : viewMode === 'present' ? (
+        <DateList dates={[...presentSet].sort().reverse()} type="present" />
+      ) : viewMode === 'excuse' ? (
+        <DateList dates={[...excuseSet].sort().reverse()} type="excuse" />
+      ) : (
+        <DateList dates={absentDates.slice().reverse()} type="absent" />
       )}
-      {viewMode === 'present' && <DateList dates={[...presentSet].sort().reverse()} type="present" />}
-      {viewMode === 'excuse'  && <DateList dates={[...excuseSet].sort().reverse()} type="excuse" />}
-      {viewMode === 'absent'  && <DateList dates={absentDates.slice().reverse()} type="absent" />}
     </div>
   )
 }
@@ -537,12 +530,6 @@ function CalendarView({ presentSet, excuseSet, adminDates, year, month, onNav })
 
           return <div key={dateStr} className={cls} title={tip}>{d}</div>
         })}
-      </div>
-      <div style={{ display: 'flex', gap: 10, marginTop: 10, fontSize: 10, fontWeight: 700, flexWrap: 'wrap' }}>
-        <span style={{ color: 'var(--green)' }}>● Present</span>
-        <span style={{ color: 'var(--purple)' }}>● Excused</span>
-        <span style={{ color: 'var(--red)' }}>● Absent</span>
-        <span style={{ color: 'var(--ink3)' }}>● No record / Future</span>
       </div>
     </div>
   )

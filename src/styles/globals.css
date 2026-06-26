@@ -2922,6 +2922,129 @@ textarea.input { resize: vertical; }
 .sa-record-item.is-excuse  { }
 .sa-record-item.is-absent  { }
 
+/* ── Attendance redesign v2 (balanced, card-based) ── */
+.att2-pad { padding: 16px; }
+.att2-card-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 12px;
+}
+.att2-pill {
+  margin-left: auto;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--ink2);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.att2-standing {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+@media (min-width: 760px) {
+  .att2-standing { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); }
+}
+.att2-standing > .card { margin-bottom: 0; }
+
+.att2-ring-row { display: flex; align-items: center; gap: 16px; }
+.att2-chips {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  flex: 1;
+}
+.att2-chip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+}
+.att2-chip b { font-size: 1.05rem; font-weight: 700; line-height: 1; }
+.att2-chip small { font-size: 0.72rem; color: var(--ink2); }
+.att2-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+.att2-watch-lead { font-size: 0.82rem; color: var(--ink); margin: 0 0 10px; line-height: 1.45; }
+.att2-find {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  padding: 9px 11px;
+  border-radius: var(--radius);
+  margin-bottom: 7px;
+  color: var(--ink);
+}
+.att2-find:last-child { margin-bottom: 0; }
+.att2-find b { font-weight: 700; }
+.att2-find-ic { flex-shrink: 0; margin-top: 1px; }
+.att2-find-bad  { background: var(--red-l); }
+.att2-find-bad  .att2-find-ic { color: var(--red); }
+.att2-find-warn { background: var(--yellow-l); }
+.att2-find-warn .att2-find-ic { color: var(--gold-var); }
+.att2-find-good { background: var(--green-l); }
+.att2-find-good .att2-find-ic { color: var(--green); }
+
+.att2-subject { margin-bottom: 12px; }
+.att2-sub-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.att2-sub-name { font-weight: 700; font-size: 0.95rem; }
+.att2-sub-meta { font-size: 0.6875rem; color: var(--ink2); margin-top: 2px; }
+.att2-sub-rate { font-size: 1.75rem; font-weight: 700; letter-spacing: -.01em; line-height: 1; }
+.att2-tabs { margin-bottom: 14px; }
+
+.att2-detail { display: grid; gap: 14px; align-items: start; }
+@media (min-width: 760px) {
+  .att2-detail { grid-template-columns: minmax(0, 320px) minmax(0, 1fr); }
+}
+.att2-cal-col { max-width: 360px; width: 100%; }
+.att2-side { display: flex; flex-direction: column; gap: 14px; }
+.att2-bar-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--ink2);
+  margin-bottom: 5px;
+}
+.att2-bar { margin-bottom: 10px; }
+.att2-counts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 14px;
+  font-size: 0.75rem;
+  color: var(--ink2);
+}
+.att2-counts span { display: inline-flex; align-items: center; gap: 6px; }
+.att2-counts b { color: var(--ink); font-weight: 700; }
+.att2-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ink2);
+}
+.att2-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.att2-ld { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
 .student-grades { }
 
 /* ══════════════════════════════════════════
