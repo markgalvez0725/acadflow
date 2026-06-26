@@ -4,7 +4,7 @@
  *  - Never touches Firestore / Google / cross-origin traffic, so real-time
  *    sync and all existing network calls behave exactly as before.
  */
-const CACHE_VERSION = 'acadflow-v7';
+const CACHE_VERSION = 'acadflow-v8';
 const APP_SHELL = [
   '/',
   '/index.html',

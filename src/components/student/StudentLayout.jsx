@@ -201,6 +201,20 @@ export default function StudentLayout() {
   const [setupModalOpen, setSetupModalOpen] = useState(false)
   useEffect(() => { setSetupModalOpen(setupStep !== 'done') }, [setupStep])
 
+  // Backup prompting — "Later" must never let an incomplete account slip through.
+  // While setup is unfinished, re-surface the modal redundantly so the student is
+  // guaranteed to keep being prompted: (a) whenever they open a gated tab, and
+  // (b) on a recurring timer even while idle on an ungated tab. The render guard
+  // below keeps it from stacking over the profile editor / Face ID flow.
+  useEffect(() => {
+    if (setupStep !== 'done' && PENDING_GATED_TABS.has(studentTab)) setSetupModalOpen(true)
+  }, [studentTab, setupStep])
+  useEffect(() => {
+    if (setupStep === 'done') return undefined
+    const id = setInterval(() => setSetupModalOpen(true), 90_000)
+    return () => clearInterval(id)
+  }, [setupStep])
+
   const [viewClassId, setViewClassId] = useState(null)
   const effectiveClassId = viewClassId || enrolledClasses[0]?.id || null
 
