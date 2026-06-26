@@ -27,6 +27,8 @@ import {
 
 // Rounding policy — the ONE place display precision is decided (2 dp).
 const r2 = round2
+// 1-dp helper for human-readable verification labels (never feeds computation).
+const r1g = n => (n == null ? '—' : Math.round(n * 10) / 10)
 
 function enrolledIdsOf(s) {
   return s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
@@ -303,6 +305,117 @@ export function auditSubjectGrade(s, sub, ctx = {}) {
     reasons,
     publishedResult: published,
     liveResult: live,
+  }
+}
+
+// ── Publish history ────────────────────────────────────────────────────────
+// One entry is a signed snapshot of a single publish/recompute/import event,
+// stored append-only in `student.gradeHistory[subject]`. The hash makes each
+// event reproducible and lets the Grade Integrity page prove the grade matched
+// its inputs at that moment.
+export function makeHistoryEntry(components, terms, action, at) {
+  const final   = terms?.final   ?? null
+  const midterm = terms?.midterm ?? null
+  const finals  = terms?.finals  ?? null
+  const hash = gradeInputHash({ components: components || {}, midterm, finals, final })
+  return { at: at || 0, action: action || 'published', final, midterm, finals,
+    components: { ...(components || {}) }, hash }
+}
+
+// Append an entry to a subject's history (immutable, capped). A consecutive
+// no-op — identical hash to the last entry — is skipped, so re-saving unchanged
+// data never spams the timeline.
+export function appendGradeHistory(historyMap, subject, entry, cap = 20) {
+  const map  = historyMap || {}
+  const list = Array.isArray(map[subject]) ? map[subject] : []
+  if (list.length && list[list.length - 1].hash === entry.hash) return map
+  return { ...map, [subject]: [...list, entry].slice(-cap) }
+}
+
+// ── Published-grade verification (on-device, deterministic) ─────────────────
+// Re-audits one published grade three ways and returns a status + pass/warn/
+// fail checks the Grade Integrity page renders. No model, no network — every
+// verdict is recomputed from the engine, so it can never disagree with the
+// numbers shown.
+//   verified — stored == live AND the math follows from its own components
+//   drift    — stored ≠ live recompute (inputs changed after publish)
+//   override — the teacher's saved final intentionally differs from the formula
+//   anomaly  — stored final doesn't even follow from its own components
+export function verifyPublishedGrade(s, sub, ctx = {}) {
+  const pub   = computeSubjectGrade(s, sub, ctx, { mode: 'published' })
+  const live  = computeSubjectGrade(s, sub, ctx, { mode: 'live' })
+  const comp  = s.gradeComponents?.[sub] || {}
+  const floor = ctx.floor || 0
+
+  // (1) Internal consistency — recompute terms/final from the published
+  // components and confirm the stored final follows from them.
+  const c = pub.components
+  const t = computeTerms({
+    activities: c.activities, quizzes: c.quizzes, attendance: c.attendance,
+    attitude: c.attitude, midtermExam: comp.midtermExam ?? null, finalsExam: comp.finalsExam ?? null,
+  })
+  const mt = comp.midterm != null ? comp.midterm : t.midterm
+  const ft = comp.finals  != null ? comp.finals  : t.finals
+  const expectedFinal = computeFinalGradeFromTerms(mt, ft)
+  const saved = s.grades?.[sub]
+  const overridden = saved != null && expectedFinal != null && Math.abs(saved - expectedFinal) > 0.5
+  const consistent = pub.final == null || expectedFinal == null
+    || Math.abs(pub.final - expectedFinal) <= 0.5 || overridden
+
+  // (2) Item-level — every scored activity item's % equals score ÷ max × 100
+  // (honouring the floor policy). Quizzes store only a %, so they're trusted.
+  let itemsOk = true
+  for (const it of (pub.detail?.activityItems || [])) {
+    if (it.score == null || !it.max) continue
+    let expect = r2((Number(it.score) / Number(it.max)) * 100)
+    if (floor > 0) expect = r2(Math.max(floor, expect))
+    if (it.pct != null && Math.abs(expect - it.pct) > 0.5) { itemsOk = false; break }
+  }
+
+  // (3) Live drift — stored published final vs a fresh recompute from current
+  // activities / quizzes / attendance. A manual override is EXPECTED to differ
+  // from the formula, so it is treated as an override, never as actionable drift
+  // (recomputing it would silently wipe the teacher's intended grade).
+  const inputsDrift = pub.published && pub.final != null && live.final != null
+    && Math.abs(pub.final - live.final) > 0.01
+  const drift = inputsDrift && !overridden
+
+  const reasons = []
+  const cmp = (label, was, now) => {
+    if (was != null && now != null && Math.abs(was - now) > 0.01) reasons.push(`${label} ${was}% → ${now}%`)
+    else if (was != null && now == null) reasons.push(`${label} removed`)
+    else if (was == null && now != null) reasons.push(`${label} now graded (${now}%)`)
+  }
+  if (drift) {
+    cmp('Activities', comp.activities, live.components.activities)
+    cmp('Quizzes', comp.quizzes, live.components.quizzes)
+    cmp('Attendance', comp.attendance, live.components.attendance)
+  }
+
+  let status = 'verified'
+  if (!consistent)     status = 'anomaly'
+  else if (overridden) status = 'override'
+  else if (drift)      status = 'drift'
+
+  const checks = [
+    { key: 'consistency', state: consistent ? 'ok' : 'fail',
+      label: consistent ? 'Math is internally consistent' : 'Stored grade does not match its own components' },
+    { key: 'items', state: itemsOk ? 'ok' : 'fail',
+      label: itemsOk ? 'Each item % matches score ÷ max' : 'An item % does not match its score' },
+    overridden
+      ? { key: 'drift', state: 'info', label: `Teacher override (${r1g(pub.final)}) differs from the formula (${r1g(live.final)}) — intentional` }
+      : { key: 'drift', state: drift ? 'warn' : 'ok',
+          label: drift ? `Stored ${r1g(pub.final)} ≠ live ${r1g(live.final)} (drift)` : 'Stored grade matches the live data' },
+  ]
+  if (drift && reasons.length) checks.push({ key: 'cause', state: 'info', label: 'Cause: ' + reasons.join(', ') })
+
+  return {
+    status, published: pub.published,
+    final: pub.final, liveFinal: live.final,
+    delta: drift ? r2(Math.abs(pub.final - live.final)) : 0,
+    equiv: pub.equiv, components: pub.components,
+    breakdown: pub, live, checks, reasons, drift, overridden, consistent,
+    summary: explainGradeText(pub),
   }
 }
 

@@ -22,7 +22,7 @@ import {
 } from '@/firebase/attendanceExtras'
 import { loadFbConfigFromStorage, readStoredEJS } from '@/utils/crypto'
 import { DEFAULT_EQ_SCALE } from '@/utils/grades'
-import { computeSubjectGrade, gradeInputHash } from '@/utils/gradeEngine'
+import { computeSubjectGrade, gradeInputHash, makeHistoryEntry, appendGradeHistory } from '@/utils/gradeEngine'
 import { ADMIN_EMAIL } from '@/constants/auth'
 
 // The audit log is teacher-only (its Firestore rule denies students). Only
@@ -821,11 +821,17 @@ export function DataProvider({ children }) {
         final: live.final, midterm: live.midterm, finals: live.finals,
         components: live.components, hash: gradeInputHash(live), at: now,
       }
+      const entry = makeHistoryEntry(
+        live.components,
+        { midterm: live.midterm, finals: live.finals, final: live.final },
+        'recomputed', now,
+      )
       updated = updated.map(x => x.id === studentId ? {
         ...x,
         gradeComponents: { ...(x.gradeComponents || {}), [subject]: comp },
         grades:          { ...(x.grades || {}), [subject]: live.final },
         gradeSnapshots:  { ...(x.gradeSnapshots || {}), [subject]: snapshot },
+        gradeHistory:    appendGradeHistory(x.gradeHistory, subject, entry),
       } : x)
       changed.add(studentId)
     }

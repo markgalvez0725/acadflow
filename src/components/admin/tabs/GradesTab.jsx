@@ -9,6 +9,7 @@ import {
 import { exportMasterGradingReport } from '@/export/excelExport'
 import { exportGradingSheet, parseGradingSheetImport, exportCurrentGrades } from '@/export/gradingSheet'
 import { verifyGradeRows } from '@/utils/gradeImportVerifyAI'
+import { makeHistoryEntry, appendGradeHistory } from '@/utils/gradeEngine'
 import { classTag } from '@/utils/groupChat'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
@@ -357,7 +358,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
 
   // Build the updated students array from the current rows (pure — reused by
   // both the manual Save and the debounced auto-save).
-  function buildUpdatedStudents() {
+  function buildUpdatedStudents(recordHistory = false) {
     const now = Date.now()
     return students.map(s => {
       const si = studs.findIndex(x => x.id === s.id)
@@ -427,6 +428,17 @@ function GradeEntryModal({ classId, subject, onClose }) {
       ns.gradeComponents[subject] = comp
       if (val !== null) ns.gradeUploadedAt[subject] = now
 
+      // Append a publish-history entry on explicit Save (not on every autosave,
+      // which would flood the timeline with intermediate typing states).
+      if (recordHistory && val !== null) {
+        const entry = makeHistoryEntry(
+          { activities: actPct, quizzes: qzPct, attendance: attV, attitude: attitudeV },
+          { midterm: comp.midterm ?? null, finals: comp.finals ?? null, final: val },
+          'published', now,
+        )
+        ns.gradeHistory = appendGradeHistory(ns.gradeHistory, subject, entry)
+      }
+
       return ns
     })
   }
@@ -435,7 +447,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
   async function handleSave() {
     setSaving(true)
     if (autoTimerRef.current) { clearTimeout(autoTimerRef.current); autoTimerRef.current = null }
-    const updatedStudents = buildUpdatedStudents()
+    const updatedStudents = buildUpdatedStudents(true)
     const changedIds = studs.map(s => s.id)
     try {
       await saveStudents(updatedStudents, changedIds)
@@ -1644,6 +1656,7 @@ export default function GradesTab() {
       delete ns.grades[sub]
       delete ns.gradeComponents[sub]
       delete ns.gradeUploadedAt[sub]
+      if (ns.gradeHistory?.[sub]) { ns.gradeHistory = { ...ns.gradeHistory }; delete ns.gradeHistory[sub] }
       return ns
     })
     const changedIds = studsInClass.map(s => s.id)
@@ -1721,6 +1734,12 @@ export default function GradesTab() {
         if (newFinal !== null) {
           ns.grades[sub] = newFinal
           if (!ns.gradeUploadedAt[sub]) ns.gradeUploadedAt[sub] = now
+          const entry = makeHistoryEntry(
+            { activities: actPct, quizzes: qzV, attendance: attV, attitude: attitudeV },
+            { midterm: comp.midterm ?? null, finals: comp.finals ?? null, final: newFinal },
+            'recomputed', now,
+          )
+          ns.gradeHistory = appendGradeHistory(ns.gradeHistory, sub, entry)
           changed = true
         }
       })
@@ -1840,7 +1859,15 @@ export default function GradesTab() {
       const finalGrade = (comp.midterm != null || comp.finals != null) ? final : null
       ns.grades[sub]          = finalGrade
       ns.gradeComponents[sub] = comp
-      if (finalGrade !== null) ns.gradeUploadedAt[sub] = now
+      if (finalGrade !== null) {
+        ns.gradeUploadedAt[sub] = now
+        const entry = makeHistoryEntry(
+          { activities: actV, quizzes: qzV, attendance: attV, attitude },
+          { midterm: comp.midterm ?? null, finals: comp.finals ?? null, final: finalGrade },
+          'imported', now,
+        )
+        ns.gradeHistory = appendGradeHistory(ns.gradeHistory, sub, entry)
+      }
       return ns
     })
 
