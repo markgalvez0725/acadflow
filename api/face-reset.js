@@ -13,26 +13,34 @@
 // across serverless instances), requires a passed liveness flag, and always
 // forces a new password.
 //
-// Request body: { studentNumber, descriptor: number[128], liveness: { passed: true, type } }
-// Response: { customToken } | { match: false, error } | { error }
+// Two-call, non-destructive design (no temp password, no custom token):
+//   1) { studentNumber, descriptor, liveness }              → verifies the match,
+//      returns { match: true }. Nothing is changed.
+//   2) { studentNumber, descriptor, liveness, newPassword }  → re-verifies the
+//      match AND sets the student's chosen new password directly. The current
+//      password is only ever replaced by the one the student deliberately picks.
+//
+// Request body: { studentNumber, descriptor: number[128], liveness:{passed,type}, newPassword? }
+// Response: { match: true } | { ok: true } | { match: false, error } | { error }
 
 import { guard } from './_guard.js'
 import {
   studentEmail, studentDocId,
   loadServiceAccount, getAccessToken,
-  lookupLocalId, mintCustomToken,
+  lookupLocalId, setPassword,
   getFaceSignature, getLegacyFaceDescriptor, writeFaceSignature, setFaceResetFlag,
   getStudentRoster, faceDistance, patchFaceThrottle,
   appendAdminNotification, appendAuditLog, deleteResetSession,
 } from './_fbadmin.js'
 
-// Match threshold for face-api's 128-d descriptors. Lower = stricter (the
-// library's own default is ~0.6); 0.5 is conservative.
-const THRESHOLD = 0.5
+// Match threshold for face-api's 128-d descriptors. The library's own default is
+// ~0.6; we use 0.6 so a genuine student isn't rejected by minor lighting/angle.
+const THRESHOLD = 0.6
 
-// Per-student-number throttle window (persisted in faceSignatures.rl).
+// Per-student-number throttle window (persisted in faceSignatures.rl). Two calls
+// per successful reset, so the ceiling is generous.
 const WINDOW_MS = 10 * 60_000
-const MAX_ATTEMPTS = 5
+const MAX_ATTEMPTS = 12
 
 export default async function handler(req, res) {
   if (guard(req, res, { max: 15 })) return
@@ -96,13 +104,22 @@ export default async function handler(req, res) {
     return res.status(401).json({ match: false, error: 'That face did not match. Try again in good lighting, or ask your teacher to reset your password.' })
   }
 
-  // Resolve a display name for the teacher notice (best-effort).
+  // ── Step 1 (verify only): no new password yet → confirm the match, change
+  // nothing. The student's current password is left completely untouched. ──
+  const newPassword = (req.body && req.body.newPassword) || ''
+  if (!newPassword) {
+    return res.status(200).json({ match: true })
+  }
+
+  // ── Step 2 (set): the student picked a new password (and we re-verified the
+  // face above). Validate, then set it directly — no temp password ever. ──
+  if (typeof newPassword !== 'string' || newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters and include an uppercase letter and a number.' })
+  }
+
   let name = docId
   try { const roster = await getStudentRoster(projectId, accessToken, docId); if (roster?.name) name = roster.name } catch {}
 
-  // Matched — mint a one-time sign-in token. The password is NOT changed here;
-  // the student keeps their current password until they deliberately set a new
-  // one on the next screen (a face match that's abandoned changes nothing).
   let localId
   try {
     localId = await lookupLocalId(projectId, accessToken, studentEmail(studentNumber))
@@ -111,14 +128,13 @@ export default async function handler(req, res) {
     return res.status(502).json({ error: 'Lookup error: ' + e.message })
   }
 
-  let customToken
-  try { customToken = mintCustomToken(sa, localId) }
-  catch (e) { return res.status(502).json({ error: 'Could not create a sign-in token: ' + e.message }) }
+  try { await setPassword(projectId, accessToken, localId, newPassword) }
+  catch (e) { return res.status(502).json({ error: 'Could not set your new password: ' + e.message }) }
 
   // Close any open teacher reset window too (harmless if none).
   try { await deleteResetSession(projectId, accessToken, docId) } catch {}
 
-  // Tell the teacher + audit (best-effort — must never block the student's reset).
+  // Tell the teacher + audit (best-effort — must never block the reset).
   try {
     await appendAdminNotification(projectId, accessToken, {
       id: 'fr' + Date.now() + Math.random().toString(36).slice(2, 6),
@@ -138,5 +154,5 @@ export default async function handler(req, res) {
     })
   } catch {}
 
-  return res.status(200).json({ customToken, match: true })
+  return res.status(200).json({ ok: true })
 }

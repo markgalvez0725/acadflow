@@ -266,22 +266,19 @@ export default function LoginScreen({ onRevealFaculty }) {
     setFaceResetOpen(true)
   }
 
-  // The server confirmed the face match and issued a one-time custom token. Sign
-  // in with it (NOT a password change — the current password stays valid), then
-  // force the student to set a new password (same blocking overlay as above).
-  async function handleFaceMatched(customToken, studentNumber) {
-    try {
-      await signInWithCustomToken(getFbAuth(), customToken)
-      if (studentNumber) setRpNum(sanitizeSnum(studentNumber))
-      setFaceResetOpen(false)
-      setRpNewPass('')
-      setRpNewPass2('')
-      setRpStatus('setpass')
-    } catch (e) {
-      setFaceResetOpen(false)
-      setRpStatus('idle')
-      setErr('Could not sign in after the reset. Please try again, or ask your teacher.')
+  // The Face ID modal already verified the face AND set the student's chosen new
+  // password (their old password was only ever replaced by this one). Just sign
+  // in with it to start the session.
+  async function handleFaceReset(studentNumber, newPassword) {
+    setFaceResetOpen(false)
+    clearMessages()
+    const clean = sanitizeSnum(studentNumber)
+    const result = await loginStudent(clean, newPassword)
+    if (!result.ok) {
+      setMode('student')
+      return setErr(result.msg || 'Your password was updated — please sign in with it.')
     }
+    toast('Password updated. Welcome back!', 'success')
   }
 
   // ── Register — verified, roster-gated account creation (Firebase Auth) ─────
@@ -795,7 +792,7 @@ export default function LoginScreen({ onRevealFaculty }) {
             <FaceResetModal
               initialNumber={rpNum}
               onClose={() => setFaceResetOpen(false)}
-              onMatched={handleFaceMatched}
+              onSuccess={handleFaceReset}
             />
           )}
 

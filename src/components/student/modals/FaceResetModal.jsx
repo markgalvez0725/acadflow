@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import Modal from '@/components/primitives/Modal'
-import { ScanFace, Lock, Loader2, AlertTriangle, RefreshCw, ShieldAlert, ArrowRight } from 'lucide-react'
+import { ScanFace, Lock, Loader2, AlertTriangle, RefreshCw, ShieldAlert, ArrowRight, Check } from 'lucide-react'
 import { sanitizeSnum, validateSnum } from '@/utils/validate'
 import {
   loadFaceModels, startCamera, stopStream, detectOnce, videoReady,
@@ -8,19 +8,21 @@ import {
   LIVENESS, SAMPLES, CHALLENGES, TIMING,
 } from '@/utils/faceId'
 
-// Self-service password reset by face. The modal owns the student-number step so
-// the camera can NEVER start without a valid number. `onMatched(customToken,
-// studentNumber)` fires when the SERVER confirms the match (the browser never
-// decides); the parent signs in with the one-time token (the current password
-// is left untouched) and forces a new one.
-export default function FaceResetModal({ initialNumber = '', onClose, onMatched }) {
+// Self-service password reset by face — fully self-contained and NON-DESTRUCTIVE.
+// Flow: number → face scan (verify only) → choose a new password → one server
+// call re-verifies the face AND sets the chosen password. The current password
+// is only ever replaced by the one the student deliberately picks. No temp
+// password, no token handoff. `onSuccess(studentNumber, newPassword)` fires once
+// the server confirms the change; the parent signs in with the new password.
+export default function FaceResetModal({ initialNumber = '', onClose, onSuccess }) {
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const loopRef = useRef(null)
   const busyRef = useRef(false)
   const stateRef = useRef('number')
   const runIdRef = useRef(0)
-  const snumRef = useRef('') // the confirmed student number used for the request
+  const snumRef = useRef('')
+  const descriptorRef = useRef(null) // the verified descriptor, reused for the set call
 
   const sawOpenRef = useRef(false)
   const blinkRef = useRef(0)
@@ -31,11 +33,15 @@ export default function FaceResetModal({ initialNumber = '', onClose, onMatched 
   const switchedRef = useRef(false)
   const challengeRef = useRef(CHALLENGES[Math.floor(Math.random() * CHALLENGES.length)])
 
-  const [phase, setPhase] = useState('number') // number|init|position|challenge|capturing|matching|nomatch|error
+  const [phase, setPhase] = useState('number') // number|init|position|challenge|capturing|verifying|password|nomatch|error
   const [snum, setSnum] = useState(sanitizeSnum(initialNumber || ''))
   const [numErr, setNumErr] = useState('')
   const [msg, setMsg] = useState('Loading face models…')
   const [err, setErr] = useState('')
+  const [newPass, setNewPass] = useState('')
+  const [newPass2, setNewPass2] = useState('')
+  const [passErr, setPassErr] = useState('')
+  const [saving, setSaving] = useState(false)
   const [, setChallengeLabel] = useState(challengeRef.current.prompt)
 
   const go = (p) => { stateRef.current = p; setPhase(p) }
@@ -48,30 +54,60 @@ export default function FaceResetModal({ initialNumber = '', onClose, onMatched 
   }, [])
   useEffect(() => () => cleanup(), [cleanup])
 
-  async function matchAndReset(descriptor) {
+  // Step 1 — verify the face (no password change). On success → password step.
+  async function verifyFace(descriptor) {
     if (loopRef.current) { clearInterval(loopRef.current); loopRef.current = null }
-    go('matching'); setMsg('Matching your face…')
+    go('verifying'); setMsg('Matching your face…')
+    try {
+      const r = await fetch('/api/face-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentNumber: snumRef.current, descriptor, liveness: { passed: true, type: challengeRef.current.key } }),
+      })
+      const data = await r.json().catch(() => ({}))
+      if (r.status === 401) { setErr(data.error || 'That face did not match.'); go('nomatch'); return }
+      if (!r.ok) { setErr(data.error || 'Reset failed. Try again or ask your teacher.'); go('error'); return }
+      if (data.match) {
+        stopStream(streamRef.current); streamRef.current = null
+        descriptorRef.current = descriptor
+        setNewPass(''); setNewPass2(''); setPassErr('')
+        go('password')
+      } else {
+        setErr('Couldn’t verify your face. Please try again.'); go('error')
+      }
+    } catch (e) {
+      setErr(e.message || 'Network error. Check your connection and try again.'); go('error')
+    }
+  }
+
+  // Step 2 — re-verify the face AND set the chosen password in one call.
+  async function submitNewPassword(e) {
+    e?.preventDefault?.()
+    if (newPass.length < 8) return setPassErr('Password must be at least 8 characters.')
+    if (!/[A-Z]/.test(newPass) || !/[0-9]/.test(newPass)) return setPassErr('Include at least one uppercase letter and one number.')
+    if (newPass !== newPass2) return setPassErr('Passwords do not match.')
+    setPassErr(''); setSaving(true)
     try {
       const r = await fetch('/api/face-reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           studentNumber: snumRef.current,
-          descriptor,
+          descriptor: descriptorRef.current,
           liveness: { passed: true, type: challengeRef.current.key },
+          newPassword: newPass,
         }),
       })
       const data = await r.json().catch(() => ({}))
-      if (r.status === 401) { setErr(data.error || 'That face did not match.'); go('nomatch'); return }
-      if (!r.ok) { setErr(data.error || 'Reset failed. Try again or ask your teacher.'); go('error'); return }
-      if (data.customToken) {
-        stopStream(streamRef.current); streamRef.current = null
-        onMatched(data.customToken, snumRef.current)
+      if (r.status === 401) { setSaving(false); setErr(data.error || 'That face did not match.'); go('nomatch'); return }
+      if (!r.ok) { setSaving(false); return setPassErr(data.error || 'Could not set your password. Please try again.') }
+      if (data.ok) {
+        onSuccess(snumRef.current, newPass) // parent closes the modal + signs in
       } else {
-        setErr('Unexpected response from the server.'); go('error')
+        setSaving(false); setPassErr('Unexpected response. Please try again.')
       }
     } catch (e) {
-      setErr(e.message || 'Network error. Check your connection and try again.'); go('error')
+      setSaving(false); setPassErr(e.message || 'Network error. Check your connection and try again.')
     }
   }
 
@@ -124,13 +160,11 @@ export default function FaceResetModal({ initialNumber = '', onClose, onMatched 
 
       const arr = descriptorArray(det)
       if (arr) samplesRef.current.push(arr)
-      if (samplesRef.current.length >= SAMPLES) await matchAndReset(averageDescriptors(samplesRef.current))
+      if (samplesRef.current.length >= SAMPLES) await verifyFace(averageDescriptors(samplesRef.current))
     } catch { /* transient frame error */ }
     finally { busyRef.current = false }
   }
 
-  // Start (or restart) the camera + liveness flow. Only ever called after a
-  // valid student number is confirmed.
   const begin = useCallback(async () => {
     cleanup()
     const myRun = ++runIdRef.current
@@ -164,6 +198,8 @@ export default function FaceResetModal({ initialNumber = '', onClose, onMatched 
     begin()
   }
 
+  const camPhase = phase === 'init' || phase === 'position' || phase === 'challenge' || phase === 'capturing' || phase === 'verifying'
+
   return (
     <Modal onClose={onClose} size="md">
       <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 4 }}>
@@ -174,19 +210,13 @@ export default function FaceResetModal({ initialNumber = '', onClose, onMatched 
       {phase === 'number' ? (
         <form onSubmit={confirmNumber}>
           <p className="text-xs text-ink2" style={{ marginBottom: 14, lineHeight: 1.55 }}>
-            Enter your student number, then scan your face to reset your password — no teacher needed.
+            Enter your student number, then scan your face and choose a new password — no teacher needed.
             (Only works if you set up Face ID reset beforehand.)
           </p>
           <div className="field-float">
-            <input
-              type="text"
-              placeholder=" "
-              value={snum}
+            <input type="text" placeholder=" " value={snum}
               onChange={e => { setSnum(sanitizeSnum(e.target.value)); if (numErr) setNumErr('') }}
-              autoComplete="off"
-              autoFocus
-              inputMode="text"
-            />
+              autoComplete="off" autoFocus inputMode="text" />
             <label>Student Number</label>
           </div>
           {numErr && <div role="alert" className="err-msg" style={{ display: 'block', marginTop: 6 }}>{numErr}</div>}
@@ -194,6 +224,30 @@ export default function FaceResetModal({ initialNumber = '', onClose, onMatched 
             Continue <ArrowRight size={15} style={{ verticalAlign: 'middle', marginLeft: 4 }} />
           </button>
           <button type="button" className="btn btn-ghost btn-sm w-full mt-2" onClick={onClose}>Cancel</button>
+        </form>
+      ) : phase === 'password' ? (
+        <form onSubmit={submitNewPassword}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, color: 'var(--green)' }}>
+            <Check size={16} /> <span className="text-sm" style={{ fontWeight: 600 }}>Face verified — set your new password</span>
+          </div>
+          <div className="field-float">
+            <input type="password" placeholder=" " value={newPass}
+              onChange={e => { setNewPass(e.target.value); if (passErr) setPassErr('') }}
+              autoComplete="new-password" autoFocus />
+            <label>New Password</label>
+          </div>
+          <p className="text-xs text-ink3 -mt-1 mb-2">Min. 8 characters, 1 uppercase, 1 number.</p>
+          <div className="field-float">
+            <input type="password" placeholder=" " value={newPass2}
+              onChange={e => { setNewPass2(e.target.value); if (passErr) setPassErr('') }}
+              autoComplete="new-password" />
+            <label>Confirm Password</label>
+          </div>
+          {passErr && <div role="alert" className="err-msg" style={{ display: 'block', marginTop: 6 }}>{passErr}</div>}
+          <button type="submit" className="btn btn-primary btn-full mt-3" disabled={saving}>
+            {saving ? 'Saving…' : <>Set password &amp; sign in</>}
+          </button>
+          <button type="button" className="btn btn-ghost btn-sm w-full mt-2" onClick={onClose} disabled={saving}>Cancel</button>
         </form>
       ) : phase === 'error' || phase === 'nomatch' ? (
         <div style={{ textAlign: 'center', padding: '14px 8px' }}>
@@ -211,13 +265,13 @@ export default function FaceResetModal({ initialNumber = '', onClose, onMatched 
       ) : (
         <>
           <p className="text-xs text-ink2" style={{ marginBottom: 12 }}>
-            Resetting the password for <strong>{snum}</strong>. Look at the camera and follow the prompt.
+            Verifying <strong>{snum}</strong>. Look at the camera and follow the prompt.
           </p>
           <div className="faceid-cam" style={{ height: 280, marginBottom: 12 }}>
             <video ref={videoRef} autoPlay muted playsInline className="faceid-video" />
-            <div className={`faceid-oval ${phase === 'capturing' || phase === 'matching' ? 'is-ok' : ''}`} />
+            <div className={`faceid-oval ${phase === 'capturing' || phase === 'verifying' ? 'is-ok' : ''}`} />
             <div className="faceid-prompt">
-              {phase === 'init' || phase === 'capturing' || phase === 'matching'
+              {phase === 'init' || phase === 'capturing' || phase === 'verifying'
                 ? <><Loader2 size={14} className="animate-spin" style={{ marginRight: 6 }} /> {msg}</>
                 : <><ScanFace size={14} style={{ marginRight: 6 }} /> {msg}</>}
             </div>
@@ -225,10 +279,10 @@ export default function FaceResetModal({ initialNumber = '', onClose, onMatched 
 
           <div className="faceid-note" style={{ marginBottom: 12 }}>
             <Lock size={14} />
-            <span>The match is verified on the server. Your teacher is notified of every Face ID reset.</span>
+            <span>The match is verified on the server. Your current password isn’t changed until you set a new one.</span>
           </div>
 
-          <button className="btn btn-ghost btn-sm w-full" onClick={onClose} disabled={phase === 'matching'}>Cancel</button>
+          <button className="btn btn-ghost btn-sm w-full" onClick={onClose} disabled={phase === 'verifying'}>Cancel</button>
         </>
       )}
     </Modal>
