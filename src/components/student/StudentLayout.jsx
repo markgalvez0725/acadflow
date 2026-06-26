@@ -66,6 +66,7 @@ const StudentActionSheet       = lazy(() => import('./modals/StudentActionSheet'
 const NotifPrefsModal          = lazy(() => import('./modals/NotifPrefsModal'))
 const SetQuickPinModal         = lazy(() => import('./modals/SetQuickPinModal'))
 const BiometricSetupModal      = lazy(() => import('./modals/BiometricSetupModal'))
+const FaceEnrollModal          = lazy(() => import('./modals/FaceEnrollModal'))
 const NotifyPrompt             = lazy(() => import('./NotifyPrompt'))
 const OnboardingTour           = lazy(() => import('./OnboardingTour'))
 const SubjectPassedModal       = lazy(() => import('./modals/SubjectPassedModal'))
@@ -202,6 +203,7 @@ export default function StudentLayout() {
   const [notifPrefsOpen, setNotifPrefsOpen] = useState(false)
   const [pinModalOpen, setPinModalOpen] = useState(false)
   const [bioModalOpen, setBioModalOpen] = useState(false)
+  const [faceModalOpen, setFaceModalOpen] = useState(false)
 
   // Celebrate newly-passed subjects (once each, per device). A queue lets us
   // show one congrats overlay at a time if several pass together.
@@ -608,6 +610,7 @@ export default function StudentLayout() {
           onNotifPrefs={() => setNotifPrefsOpen(true)}
           onSetPin={() => setPinModalOpen(true)}
           onBiometric={() => setBioModalOpen(true)}
+          onFaceReset={() => setFaceModalOpen(true)}
           onLogout={() => logout('manual')}
           student={student}
           push={push}
@@ -641,6 +644,12 @@ export default function StudentLayout() {
       {bioModalOpen && (
         <Suspense fallback={null}>
           <BiometricSetupModal student={student} onClose={() => setBioModalOpen(false)} />
+        </Suspense>
+      )}
+
+      {faceModalOpen && (
+        <Suspense fallback={null}>
+          <FaceEnrollModal student={student} onClose={() => setFaceModalOpen(false)} />
         </Suspense>
       )}
 

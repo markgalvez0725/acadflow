@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Pencil, KeyRound, LogOut, Bell, BellRing, Moon, Sun, Lock, Fingerprint } from 'lucide-react'
+import { Pencil, KeyRound, LogOut, Bell, BellRing, Moon, Sun, Lock, Fingerprint, ScanFace } from 'lucide-react'
 import { isBiometricSupported } from '@/utils/biometric'
 import { useUI } from '@/context/UIContext'
 import { useData } from '@/context/DataContext'
@@ -26,6 +26,7 @@ export default function StudentActionSheet({
   onNotifPrefs,
   onSetPin,
   onBiometric,
+  onFaceReset,
   onLogout,
   student,
   push,
@@ -79,6 +80,11 @@ export default function StudentActionSheet({
       Icon: Fingerprint,
       onClick: () => { onClose(); onBiometric?.() },
     }] : []),
+    {
+      label: student?.account?.faceResetEnabled ? 'Face ID reset — set up' : 'Set up Face ID reset',
+      Icon: ScanFace,
+      onClick: () => { onClose(); onFaceReset?.() },
+    },
     {
       label: theme === 'dark' ? 'Light mode' : 'Dark mode',
       Icon: theme === 'dark' ? Sun : Moon,
