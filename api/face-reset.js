@@ -20,7 +20,7 @@ import {
   loadServiceAccount, getAccessToken,
   lookupLocalId, setPassword,
   getStudentFace, faceDistance,
-  appendAdminNotification, deleteResetSession,
+  appendAdminNotification, appendAuditLog, deleteResetSession,
   generateTempPassword,
 } from './_fbadmin.js'
 
@@ -111,6 +111,16 @@ export default async function handler(req, res) {
       body: `${face.name || docId} reset their password with Face ID`,
       link: 'students',
       ts: Date.now(),
+    })
+  } catch {}
+
+  // Append-only audit trail (best-effort).
+  try {
+    await appendAuditLog(projectId, accessToken, {
+      actor: 'face-reset',
+      action: 'account.face_reset',
+      target: face.name || docId,
+      summary: `${face.name || docId} reset their password with Face ID`,
     })
   } catch {}
 

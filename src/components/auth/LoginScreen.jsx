@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react'
-import { Eye, EyeOff, BarChart2, CalendarCheck, Rss, MessageSquare, KeyRound, Check, ShieldCheck, GraduationCap, IdCard, Lock, HelpCircle, Fingerprint } from 'lucide-react'
+import { Eye, EyeOff, BarChart2, CalendarCheck, Rss, MessageSquare, KeyRound, Check, ShieldCheck, GraduationCap, IdCard, Lock, HelpCircle, Fingerprint, ScanFace } from 'lucide-react'
+import FaceResetModal from '@/components/student/modals/FaceResetModal'
 import AcadFlowLogo from '@/components/primitives/AcadFlowLogo'
 import { useTypingEffect } from '@/hooks/useTypingEffect'
 import { useAuth } from '@/context/AuthContext'
@@ -71,6 +72,7 @@ export default function LoginScreen({ onRevealFaculty }) {
   const [rpStatus,   setRpStatus]   = useState('idle') // 'idle' | 'waiting' | 'setpass' | 'saving'
   const [rpNewPass,  setRpNewPass]  = useState('')
   const [rpNewPass2, setRpNewPass2] = useState('')
+  const [faceResetOpen, setFaceResetOpen] = useState(false)
   const rpTimer = useRef(null)
   const rpDeadline = useRef(0)
 
@@ -154,7 +156,7 @@ export default function LoginScreen({ onRevealFaculty }) {
 
   // Clean up polling if the component unmounts or the user leaves forgot mode.
   useEffect(() => () => stopReset(), [])
-  useEffect(() => { if (mode !== 'forgot') { stopReset(); setRpStatus('idle'); setRpNewPass(''); setRpNewPass2('') } }, [mode])
+  useEffect(() => { if (mode !== 'forgot') { stopReset(); setRpStatus('idle'); setRpNewPass(''); setRpNewPass2(''); setFaceResetOpen(false) } }, [mode])
 
   async function pollClaim(number) {
     if (Date.now() > rpDeadline.current) {
@@ -247,6 +249,34 @@ export default function LoginScreen({ onRevealFaculty }) {
     setRpNewPass2('')
     setMode('student')
     clearMessages()
+  }
+
+  // ── Forgot password — self-service Face ID reset (no teacher needed) ───────
+  function openFaceReset() {
+    clearMessages()
+    const clean = sanitizeSnum(rpNum)
+    if (!validateSnum(clean)) return setErr('Enter your student number first.')
+    setRpNum(clean)
+    stopReset()
+    setFaceResetOpen(true)
+  }
+
+  // The server confirmed the face match and issued a one-time temp password.
+  // Sign in with it, then force the student to set a new password (same blocking
+  // overlay the teacher-coordinated reset uses).
+  async function handleFaceMatched(tempPassword) {
+    const clean = sanitizeSnum(rpNum)
+    try {
+      await signInWithEmailAndPassword(getFbAuth(), studentEmail(clean), tempPassword)
+      setFaceResetOpen(false)
+      setRpNewPass('')
+      setRpNewPass2('')
+      setRpStatus('setpass')
+    } catch (e) {
+      setFaceResetOpen(false)
+      setRpStatus('idle')
+      setErr('Could not sign in after the reset. Please try again, or ask your teacher.')
+    }
   }
 
   // ── Register — verified, roster-gated account creation (Firebase Auth) ─────
@@ -722,6 +752,20 @@ export default function LoginScreen({ onRevealFaculty }) {
                   <button type="submit" className="btn btn-primary btn-full mt-2">
                     Start
                   </button>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0 12px' }}>
+                    <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                    <span className="text-xs text-ink3">or</span>
+                    <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                  </div>
+                  <button type="button" className="btn btn-secondary btn-full" onClick={openFaceReset}>
+                    <ScanFace size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+                    Reset with Face ID
+                  </button>
+                  <p className="text-xs text-ink3 text-center mt-2" style={{ lineHeight: 1.5 }}>
+                    Only if you set up Face ID reset beforehand. No teacher needed.
+                  </p>
+
                   <button type="button" className="link-btn w-full text-center mt-3" onClick={handleForgotCancel}>
                     ← Back to Sign In
                   </button>
@@ -740,6 +784,14 @@ export default function LoginScreen({ onRevealFaculty }) {
                 </>
               )}
             </form>
+          )}
+
+          {faceResetOpen && (
+            <FaceResetModal
+              studentNumber={sanitizeSnum(rpNum)}
+              onClose={() => setFaceResetOpen(false)}
+              onMatched={handleFaceMatched}
+            />
           )}
 
           {/* ── Forgot Password — blocking "set a new password" modal ─────────

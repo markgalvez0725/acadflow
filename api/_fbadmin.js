@@ -361,6 +361,27 @@ export async function appendAdminNotification(projectId, accessToken, notif) {
   return true
 }
 
+// Append an append-only audit-log doc (matches the client fbAddAuditLog shape so
+// the teacher's Audit Log tab renders it). Best-effort.
+export async function appendAuditLog(projectId, accessToken, entry) {
+  const id = `audit_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+  const r = await fetch(`${fsBase(projectId)}/auditLog/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ fields: {
+      id:      { stringValue: id },
+      ts:      { integerValue: String(Date.now()) },
+      actor:   { stringValue: String(entry.actor || 'system') },
+      action:  { stringValue: String(entry.action || 'unknown') },
+      target:  { stringValue: String(entry.target || '') },
+      summary: { stringValue: String(entry.summary || '') },
+      meta:    { mapValue: { fields: {} } },
+    } }),
+  })
+  if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d?.error?.message || 'Audit write failed') }
+  return true
+}
+
 // Euclidean distance between two equal-length descriptors (lower = more similar;
 // face-api's 128-d descriptors match below ~0.5–0.6).
 export function faceDistance(a, b) {
