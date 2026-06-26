@@ -1,22 +1,25 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import Modal from '@/components/primitives/Modal'
-import { ScanFace, Lock, Loader2, AlertTriangle, RefreshCw, ShieldAlert } from 'lucide-react'
+import { ScanFace, Lock, Loader2, AlertTriangle, RefreshCw, ShieldAlert, ArrowRight } from 'lucide-react'
+import { sanitizeSnum, validateSnum } from '@/utils/validate'
 import {
   loadFaceModels, startCamera, stopStream, detectOnce, videoReady,
   eyeAspect, headYaw, descriptorArray, averageDescriptors, friendlyCameraError,
   LIVENESS, SAMPLES, CHALLENGES, TIMING,
 } from '@/utils/faceId'
 
-// Self-service password reset by face. `onMatched(tempPassword)` is called when
-// the SERVER confirms the match (the browser never decides). The parent signs in
-// with the temp password and forces a new one.
-export default function FaceResetModal({ studentNumber, onClose, onMatched }) {
+// Self-service password reset by face. The modal owns the student-number step so
+// the camera can NEVER start without a valid number. `onMatched(tempPassword,
+// studentNumber)` fires when the SERVER confirms the match (the browser never
+// decides); the parent signs in with the temp password and forces a new one.
+export default function FaceResetModal({ initialNumber = '', onClose, onMatched }) {
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const loopRef = useRef(null)
   const busyRef = useRef(false)
-  const stateRef = useRef('init')
+  const stateRef = useRef('number')
   const runIdRef = useRef(0)
+  const snumRef = useRef('') // the confirmed student number used for the request
 
   const sawOpenRef = useRef(false)
   const blinkRef = useRef(0)
@@ -27,7 +30,9 @@ export default function FaceResetModal({ studentNumber, onClose, onMatched }) {
   const switchedRef = useRef(false)
   const challengeRef = useRef(CHALLENGES[Math.floor(Math.random() * CHALLENGES.length)])
 
-  const [phase, setPhase] = useState('init') // init|position|challenge|capturing|matching|nomatch|error
+  const [phase, setPhase] = useState('number') // number|init|position|challenge|capturing|matching|nomatch|error
+  const [snum, setSnum] = useState(sanitizeSnum(initialNumber || ''))
+  const [numErr, setNumErr] = useState('')
   const [msg, setMsg] = useState('Loading face models…')
   const [err, setErr] = useState('')
   const [, setChallengeLabel] = useState(challengeRef.current.prompt)
@@ -50,7 +55,7 @@ export default function FaceResetModal({ studentNumber, onClose, onMatched }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          studentNumber,
+          studentNumber: snumRef.current,
           descriptor,
           liveness: { passed: true, type: challengeRef.current.key },
         }),
@@ -60,7 +65,7 @@ export default function FaceResetModal({ studentNumber, onClose, onMatched }) {
       if (!r.ok) { setErr(data.error || 'Reset failed. Try again or ask your teacher.'); go('error'); return }
       if (data.tempPassword) {
         stopStream(streamRef.current); streamRef.current = null
-        onMatched(data.tempPassword)
+        onMatched(data.tempPassword, snumRef.current)
       } else {
         setErr('Unexpected response from the server.'); go('error')
       }
@@ -123,6 +128,8 @@ export default function FaceResetModal({ studentNumber, onClose, onMatched }) {
     finally { busyRef.current = false }
   }
 
+  // Start (or restart) the camera + liveness flow. Only ever called after a
+  // valid student number is confirmed.
   const begin = useCallback(async () => {
     cleanup()
     const myRun = ++runIdRef.current
@@ -146,7 +153,15 @@ export default function FaceResetModal({ studentNumber, onClose, onMatched }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cleanup])
-  useEffect(() => { begin() }, [begin])
+
+  function confirmNumber(e) {
+    e?.preventDefault?.()
+    const clean = sanitizeSnum(snum)
+    const ve = validateSnum(clean) // returns an error string, or null when valid
+    if (ve) { setNumErr(ve); return }
+    setNumErr(''); setSnum(clean); snumRef.current = clean
+    begin()
+  }
 
   return (
     <Modal onClose={onClose} size="md">
@@ -154,11 +169,32 @@ export default function FaceResetModal({ studentNumber, onClose, onMatched }) {
         <ScanFace size={20} style={{ color: 'var(--accent)' }} />
         <h3 className="text-base font-bold text-ink">Reset with Face ID</h3>
       </div>
-      <p className="text-xs text-ink2" style={{ marginBottom: 14 }}>
-        Resetting the password for <strong>{studentNumber}</strong>. Look at the camera and follow the prompt.
-      </p>
 
-      {phase === 'error' || phase === 'nomatch' ? (
+      {phase === 'number' ? (
+        <form onSubmit={confirmNumber}>
+          <p className="text-xs text-ink2" style={{ marginBottom: 14, lineHeight: 1.55 }}>
+            Enter your student number, then scan your face to reset your password — no teacher needed.
+            (Only works if you set up Face ID reset beforehand.)
+          </p>
+          <div className="field-float">
+            <input
+              type="text"
+              placeholder=" "
+              value={snum}
+              onChange={e => { setSnum(sanitizeSnum(e.target.value)); if (numErr) setNumErr('') }}
+              autoComplete="off"
+              autoFocus
+              inputMode="text"
+            />
+            <label>Student Number</label>
+          </div>
+          {numErr && <div role="alert" className="err-msg" style={{ display: 'block', marginTop: 6 }}>{numErr}</div>}
+          <button type="submit" className="btn btn-primary btn-full mt-3" disabled={!snum.trim()}>
+            Continue <ArrowRight size={15} style={{ verticalAlign: 'middle', marginLeft: 4 }} />
+          </button>
+          <button type="button" className="btn btn-ghost btn-sm w-full mt-2" onClick={onClose}>Cancel</button>
+        </form>
+      ) : phase === 'error' || phase === 'nomatch' ? (
         <div style={{ textAlign: 'center', padding: '14px 8px' }}>
           <div style={{ width: 52, height: 52, borderRadius: '50%', background: phase === 'nomatch' ? 'var(--yellow-l)' : 'var(--red-l)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
             {phase === 'nomatch'
@@ -167,12 +203,15 @@ export default function FaceResetModal({ studentNumber, onClose, onMatched }) {
           </div>
           <p className="text-sm text-ink" style={{ marginBottom: 16, lineHeight: 1.5 }}>{err}</p>
           <div className="flex gap-2">
-            <button className="btn btn-ghost btn-sm flex-1" onClick={onClose}>Cancel</button>
+            <button className="btn btn-ghost btn-sm flex-1" onClick={() => go('number')}>Change number</button>
             <button className="btn btn-primary btn-sm flex-1" onClick={begin}><RefreshCw size={14} style={{ marginRight: 6 }} /> Try again</button>
           </div>
         </div>
       ) : (
         <>
+          <p className="text-xs text-ink2" style={{ marginBottom: 12 }}>
+            Resetting the password for <strong>{snum}</strong>. Look at the camera and follow the prompt.
+          </p>
           <div className="faceid-cam" style={{ height: 280, marginBottom: 12 }}>
             <video ref={videoRef} autoPlay muted playsInline className="faceid-video" />
             <div className={`faceid-oval ${phase === 'capturing' || phase === 'matching' ? 'is-ok' : ''}`} />

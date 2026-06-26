@@ -252,20 +252,19 @@ export default function LoginScreen({ onRevealFaculty }) {
   }
 
   // ── Forgot password — self-service Face ID reset (no teacher needed) ───────
+  // The modal owns the student-number step, so just open it (optionally
+  // prefilled with whatever's already typed in the panel).
   function openFaceReset() {
     clearMessages()
-    const clean = sanitizeSnum(rpNum)
-    if (!validateSnum(clean)) return setErr('Enter your student number first.')
-    setRpNum(clean)
     stopReset()
     setFaceResetOpen(true)
   }
 
   // The server confirmed the face match and issued a one-time temp password.
-  // Sign in with it, then force the student to set a new password (same blocking
-  // overlay the teacher-coordinated reset uses).
-  async function handleFaceMatched(tempPassword) {
-    const clean = sanitizeSnum(rpNum)
+  // Sign in with it (using the number the MODAL confirmed), then force the
+  // student to set a new password (same blocking overlay the teacher reset uses).
+  async function handleFaceMatched(tempPassword, studentNumber) {
+    const clean = sanitizeSnum(studentNumber || rpNum)
     try {
       await signInWithEmailAndPassword(getFbAuth(), studentEmail(clean), tempPassword)
       setFaceResetOpen(false)
@@ -788,7 +787,7 @@ export default function LoginScreen({ onRevealFaculty }) {
 
           {faceResetOpen && (
             <FaceResetModal
-              studentNumber={sanitizeSnum(rpNum)}
+              initialNumber={rpNum}
               onClose={() => setFaceResetOpen(false)}
               onMatched={handleFaceMatched}
             />
