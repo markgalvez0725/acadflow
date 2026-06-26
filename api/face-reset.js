@@ -7,10 +7,10 @@
 // browser can never just claim "it matched", and the stored descriptor can never
 // be read back and replayed by another student.
 //
-// Self-service: it does NOT notify the teacher (a Face ID reset shouldn't disturb
-// them) — only a silent audit-log entry is written. Rate-limited per student
-// number via a Firestore-backed window (holds across serverless instances) and
-// requires a passed liveness flag.
+// Fully self-service: it does NOT notify the teacher and writes NO record — a
+// student resetting their own password leaves no teacher-facing footprint.
+// Rate-limited per student number via a Firestore-backed window (holds across
+// serverless instances) and requires a passed liveness flag.
 //
 // Two-call, non-destructive design (no temp password, no custom token):
 //   1) { studentNumber, descriptor, liveness }              → verifies the match,
@@ -28,8 +28,7 @@ import {
   loadServiceAccount, getAccessToken,
   lookupLocalId, setPassword,
   getFaceSignature, getLegacyFaceDescriptor, writeFaceSignature, setFaceResetFlag,
-  getStudentRoster, faceDistance, patchFaceThrottle,
-  appendAuditLog, deleteResetSession,
+  faceDistance, patchFaceThrottle, deleteResetSession,
 } from './_fbadmin.js'
 
 // Match threshold for face-api's 128-d descriptors. The library's own default is
@@ -116,9 +115,6 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Password must be at least 8 characters and include an uppercase letter and a number.' })
   }
 
-  let name = docId
-  try { const roster = await getStudentRoster(projectId, accessToken, docId); if (roster?.name) name = roster.name } catch {}
-
   let localId
   try {
     localId = await lookupLocalId(projectId, accessToken, studentEmail(studentNumber))
@@ -133,17 +129,8 @@ export default async function handler(req, res) {
   // Close any open teacher reset window too (harmless if none).
   try { await deleteResetSession(projectId, accessToken, docId) } catch {}
 
-  // No teacher notification — a Face ID reset is self-service and shouldn't
-  // disturb the teacher. We still write a SILENT audit-log entry (best-effort)
-  // so there's a quiet record to review if a takeover is ever suspected.
-  try {
-    await appendAuditLog(projectId, accessToken, {
-      actor: 'face-reset',
-      action: 'account.face_reset',
-      target: name,
-      summary: `${name} reset their password with Face ID`,
-    })
-  } catch {}
+  // Fully self-service: the teacher is NOT notified and NO record is written —
+  // a student resetting their own password leaves no teacher-facing footprint.
 
   return res.status(200).json({ ok: true })
 }
