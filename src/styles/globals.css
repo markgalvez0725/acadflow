@@ -4838,3 +4838,15 @@ html[data-glass="on"][data-theme="dark"] body::before {
   .admin-topbar > :first-child span,
   .student-topbar > :first-child span { display: none; }
 }
+
+/* ── Grade Integrity tab — responsive layout ─────────────────────────────── */
+.gi-metrics      { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.gi-chips        { display: flex; gap: 5px; flex-shrink: 0; }
+.gi-final        { text-align: right; width: 78px; flex-shrink: 0; }
+.gi-detail-grid  { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 640px) {
+  .gi-metrics     { grid-template-columns: repeat(2, 1fr); }
+  .gi-chips       { display: none; }            /* shown in the expanded breakdown instead */
+  .gi-final       { width: auto; min-width: 56px; }
+  .gi-detail-grid { grid-template-columns: 1fr; }
+}

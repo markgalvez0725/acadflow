@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import {
-  ShieldCheck, AlertTriangle, RefreshCw, CheckCircle2, Pencil,
+  AlertTriangle, RefreshCw, CheckCircle2, Pencil,
   ChevronDown, Search, Sparkles, Check, X, Info, ArrowRight,
 } from 'lucide-react'
 import { useData } from '@/context/DataContext'
@@ -125,12 +125,7 @@ export default function GradeIntegrityTab() {
 
   return (
     <div style={{ maxWidth: 940, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-        <ShieldCheck size={22} style={{ color: 'var(--accent)' }} />
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--ink)' }}>Grade integrity</div>
-          <div style={{ fontSize: 13, color: 'var(--ink2)' }}>Every published grade, its history, and an AI re-audit of each computation.</div>
-        </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end', marginBottom: 14 }}>
         <button className="btn btn-ghost btn-sm" onClick={reVerifyAll} disabled={busy}>
           <RefreshCw size={14} /> Re-verify all
         </button>
@@ -142,7 +137,7 @@ export default function GradeIntegrityTab() {
       </div>
 
       {/* Summary metric cards — click to filter */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+      <div className="gi-metrics" style={{ marginBottom: 16 }}>
         <MetricCard label="Published" value={counts.total} active={statusFilter === 'all'} onClick={() => setStatusFilter('all')} />
         <MetricCard label="Verified" value={counts.verified} c="var(--green)" bg="var(--green-l)" active={statusFilter === 'verified'} onClick={() => setStatusFilter(s => s === 'verified' ? 'all' : 'verified')} />
         <MetricCard label="Needs recompute" value={counts.drift} c="var(--yellow)" bg="var(--yellow-l)" active={statusFilter === 'drift'} onClick={() => setStatusFilter(s => s === 'drift' ? 'all' : 'drift')} />
@@ -151,12 +146,13 @@ export default function GradeIntegrityTab() {
 
       {/* Toolbar */}
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
-          <Search size={15} style={{ position: 'absolute', left: 10, top: 9, color: 'var(--ink3)' }} />
+        <div style={{ position: 'relative', flex: 1, minWidth: 180 }}>
+          <Search size={16} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--ink3)', pointerEvents: 'none' }} />
           <input
+            className="input"
             value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search student or subject"
-            style={{ width: '100%', paddingLeft: 30 }}
+            style={{ paddingLeft: 34 }}
           />
         </div>
         <select value={classFilter} onChange={e => setClassFilter(e.target.value)} style={{ width: 'auto' }}>
@@ -237,14 +233,14 @@ function RecordRow({ rec, expanded, onToggle, onSync, busy }) {
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rec.name}</div>
-          <div style={{ fontSize: 12, color: 'var(--ink2)' }}>{rec.courseLabel} · {rec.sub}</div>
+          <div style={{ fontSize: 12, color: 'var(--ink2)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{rec.courseLabel} · {rec.sub}</div>
         </div>
-        <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+        <div className="gi-chips">
           <Chip label="Act" val={c.activities} />
           <Chip label="Qz" val={c.quizzes} />
           <Chip label="Att" val={c.attendance} />
         </div>
-        <div style={{ textAlign: 'right', width: 78, flexShrink: 0 }}>
+        <div className="gi-final">
           {v.drift ? (
             <div style={{ fontSize: 13 }}>
               <span style={{ textDecoration: 'line-through', color: 'var(--ink3)' }}>{r1(v.final)}</span>{' → '}
@@ -283,7 +279,7 @@ function RecordRow({ rec, expanded, onToggle, onSync, busy }) {
             <Pill accent>Final {r1(v.final)}{v.equiv?.eq && v.equiv.eq !== '—' ? ` · ${v.equiv.eq}` : ''}</Pill>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div className="gi-detail-grid">
             {/* History timeline */}
             <div>
               <SectionLabel>Publish history</SectionLabel>
