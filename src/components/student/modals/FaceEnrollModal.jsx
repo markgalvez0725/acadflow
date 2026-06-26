@@ -36,6 +36,7 @@ export default function FaceEnrollModal({ student, onClose }) {
   const [msg, setMsg] = useState('Loading face models…')
   const [err, setErr] = useState('')
   const [challenge, setChallenge] = useState(() => CHALLENGES[Math.floor(Math.random() * CHALLENGES.length)])
+  const challengeRef = useRef(challenge) // the loop reads this (avoids a stale closure)
 
   const go = (p) => { stateRef.current = p; setPhase(p) }
 
@@ -50,7 +51,8 @@ export default function FaceEnrollModal({ student, onClose }) {
     // reset accumulators
     sawOpenRef.current = false; blinkRef.current = 0; yawSeenRef.current = false; samplesRef.current = []
     setErr(''); go('init'); setMsg('Loading face models…')
-    setChallenge(CHALLENGES[Math.floor(Math.random() * CHALLENGES.length)])
+    const ch = CHALLENGES[Math.floor(Math.random() * CHALLENGES.length)]
+    challengeRef.current = ch; setChallenge(ch)
     try {
       await loadFaceModels()
       setMsg('Starting camera…')
@@ -97,12 +99,12 @@ export default function FaceEnrollModal({ student, onClose }) {
       if (!det) { if (st === 'position') setMsg('Center your face in the circle'); return }
 
       if (st === 'position') {
-        go('challenge'); setMsg(challenge.prompt)
+        go('challenge'); setMsg(challengeRef.current.prompt)
         return
       }
 
       if (st === 'challenge') {
-        if (challenge.key === 'blink') {
+        if (challengeRef.current.key === 'blink') {
           const ear = eyeAspect(det.landmarks)
           if (ear > EAR_OPEN) sawOpenRef.current = true
           else if (sawOpenRef.current && ear < EAR_CLOSED) { blinkRef.current += 1; sawOpenRef.current = false }
