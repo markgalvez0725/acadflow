@@ -990,15 +990,18 @@ export function DataProvider({ children }) {
     const currentIds = student.classIds?.length ? student.classIds : (student.classId ? [student.classId] : [])
     if (currentIds.includes(classId)) throw new Error('You are already enrolled in this class.')
 
-    // Initialise subject slots for the new class
-    const grades          = { ...student.grades }
-    const attendance      = { ...student.attendance }
-    const excuse          = { ...student.excuse }
-    const gradeComponents = { ...(student.gradeComponents || {}) }
+    // Initialise attendance/excuse slots for the new class. Grades and
+    // gradeComponents are deliberately LEFT UNTOUCHED: the Firestore rule
+    // (gradeFieldsUntouched) rejects any student-side write whose diff touches
+    // `grades`/`gradeComponents`, so a self-enroll that seeded null grade slots
+    // was rejected — and used to fail silently (the student looked enrolled
+    // locally but wasn't saved). Grade slots are created lazily on read and by
+    // the teacher's gradebook, so they aren't needed here.
+    const attendance = { ...student.attendance }
+    const excuse     = { ...student.excuse }
     cls.subjects.forEach(sub => {
-      if (grades[sub] === undefined)    grades[sub] = null
-      if (!attendance[sub])             attendance[sub] = new Set()
-      if (!excuse[sub])                 excuse[sub] = new Set()
+      if (!attendance[sub]) attendance[sub] = new Set()
+      if (!excuse[sub])     excuse[sub] = new Set()
     })
 
     const newClassIds = [...currentIds, classId]
@@ -1006,10 +1009,8 @@ export function DataProvider({ children }) {
       ...student,
       classId:  student.classId || classId,
       classIds: newClassIds,
-      grades,
       attendance,
       excuse,
-      gradeComponents,
     }
     const updatedStudents = students.map(s => s.id === studentId ? updatedStudent : s)
     // Optimistic update, then a STRICT write. If the write fails we must roll
