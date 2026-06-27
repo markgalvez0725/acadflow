@@ -24,15 +24,31 @@ export default function CommentsSection({ ann, authorId, authorName, role, compa
   const collapsed = previewCount > 0 && !showAll && comments.length > previewCount
   const visibleComments = collapsed ? comments.slice(comments.length - previewCount) : comments
 
-  // Who can be @mentioned: students in this announcement's scope.
+  // Who can be @mentioned. A STUDENT may only mention their own classmates
+  // (students who share at least one class), never students from other classes,
+  // even on an "all classes" announcement. The professor keeps the post's full
+  // scope (every student the announcement targets).
   const mentionCandidates = useMemo(() => {
-    const scoped = (students || []).filter(x => {
+    const list = students || []
+    const classIdsOf = x => (x.classIds?.length ? x.classIds : (x.classId ? [x.classId] : []))
+
+    if (role === 'student') {
+      const me = list.find(x => x.id === authorId)
+      const myClasses = new Set(classIdsOf(me))
+      if (!myClasses.size) return []
+      return list
+        .filter(x => x.id !== authorId)
+        .filter(x => classIdsOf(x).some(id => myClasses.has(id)))
+        .filter(x => ann.classId === 'all' || classIdsOf(x).includes(ann.classId))
+        .map(x => ({ id: x.id, name: x.name || x.id }))
+    }
+
+    const scoped = list.filter(x => {
       if (!ann.classId || ann.classId === 'all') return true
-      const ids = x.classIds?.length ? x.classIds : (x.classId ? [x.classId] : [])
-      return ids.includes(ann.classId)
+      return classIdsOf(x).includes(ann.classId)
     })
     return scoped.map(x => ({ id: x.id, name: x.name || x.id }))
-  }, [students, ann.classId])
+  }, [students, ann.classId, role, authorId])
 
   function fireMentions(body) {
     const ids = resolveMentions(body, mentionCandidates).filter(id => id && id !== authorId)
