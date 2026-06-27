@@ -45,10 +45,7 @@ export default function StudentSidebar({ student, badges = {}, onSettings, onLog
       {/* Brand */}
       <div className="sb-brand">
         <span className="sb-brand-logo"><BrandMark height={30} /></span>
-        <div>
-          <h2>AcadFlow</h2>
-          <span>Student Portal</span>
-        </div>
+        <h2 className="sb-brand-name">acadflow</h2>
       </div>
 
       {/* Nav - flat list */}

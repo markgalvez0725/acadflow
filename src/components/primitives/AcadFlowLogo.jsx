@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useId } from 'react'
 // Inlined SVG markup (?raw) - the lockups render as inline <svg>, not <img src>,
 // so they can't be saved as a file and stay crisp at any size. The SVGs were
 // sanitized (class fills -> inline fills, unique gradient ids, no <style>) so
@@ -25,19 +25,34 @@ const HEIGHT = {
   mark:       { sm: 30, md: 44, lg: 60 },
 }
 
+// Make every id (and its url(#id) / href="#id" references) unique per render.
+// The same lockup can appear several times on one page (mobile + desktop, plus
+// the light/dark twin of tone="auto"); without this, all copies share one
+// gradient id and the browser resolves url(#lh-grad) to the FIRST match - which
+// may live inside a display:none copy, leaving the purple cap unpainted.
+function uniquifyIds(svg, uid) {
+  if (!svg || !uid) return svg
+  return svg
+    .replace(/id="([^"]+)"/g, (_m, id) => `id="${id}-${uid}"`)
+    .replace(/url\(#([^")]+)\)/g, (_m, id) => `url(#${id}-${uid})`)
+    .replace(/(xlink:href|href)="#([^"]+)"/g, (_m, attr, id) => `${attr}="#${id}-${uid}"`)
+}
+
 // Memoized: the sign-in screens re-render rapidly during the headline typing
 // animation; without this the logo would re-render (and flicker) on every tick.
 function AcadFlowLogo({ variant = 'horizontal', size = 'md', tone = 'auto', className = '' }) {
   const src = SRC[variant] || SRC.horizontal
   const h = (HEIGHT[variant] || HEIGHT.horizontal)[size] || (HEIGHT[variant] || HEIGHT.horizontal).md
+  const rid = useId().replace(/[^a-zA-Z0-9]/g, '')
 
   if (tone === 'auto') {
     // Inline both color + white; CSS swaps them by theme so the dark wordmark
-    // never disappears on a dark surface.
+    // never disappears on a dark surface. Distinct id suffixes keep the two
+    // twins (and any sibling logos) from colliding.
     return (
       <span className={`aflogo ${className}`} style={{ height: h }} role="img" aria-label="AcadFlow">
-        <span className="aflogo-light" dangerouslySetInnerHTML={{ __html: src.color }} />
-        <span className="aflogo-dark" aria-hidden="true" dangerouslySetInnerHTML={{ __html: src.white }} />
+        <span className="aflogo-light" dangerouslySetInnerHTML={{ __html: uniquifyIds(src.color, `${rid}l`) }} />
+        <span className="aflogo-dark" aria-hidden="true" dangerouslySetInnerHTML={{ __html: uniquifyIds(src.white, `${rid}d`) }} />
       </span>
     )
   }
@@ -47,7 +62,7 @@ function AcadFlowLogo({ variant = 'horizontal', size = 'md', tone = 'auto', clas
       style={{ height: h }}
       role="img"
       aria-label="AcadFlow"
-      dangerouslySetInnerHTML={{ __html: src[tone] || src.color }}
+      dangerouslySetInnerHTML={{ __html: uniquifyIds(src[tone] || src.color, rid) }}
     />
   )
 }
