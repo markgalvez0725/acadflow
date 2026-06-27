@@ -124,7 +124,7 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
 
     below.forEach(x => findings.push({
       sev: 'bad', Icon: AlertTriangle,
-      text: <><b>{x.sub} is at {x.rate.toFixed(0)}%</b> - below the {THRESHOLD}% line. File excuses for any valid absences and talk to your teacher.</>,
+      text: <><b>{x.sub} is at {x.rate.toFixed(0)}%</b> - below the {THRESHOLD}% line. File excuses for any valid absences and talk to your professor.</>,
     }))
 
     border.forEach(x => {
@@ -165,7 +165,7 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
   ) || null
 
   async function handleCheckIn() {
-    if (!code.trim()) { toast('Enter the code your teacher shows.', 'warn'); return }
+    if (!code.trim()) { toast('Enter the code your professor shows.', 'warn'); return }
     setCheckingIn(true)
     try {
       const session = await studentCheckIn(code, s)
@@ -188,7 +188,7 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
     setExBusy(true)
     try {
       await submitExcuseRequest({ student: s, classId: classIdForSubject(subject), subject, date: exDate, reason: exReason })
-      toast('Excuse request sent to your teacher.', 'success')
+      toast('Excuse request sent to your professor.', 'success')
       setExReason(''); setShowExcuse(false)
     } catch (e) {
       toast('Could not send request: ' + e.message, 'error')
@@ -241,8 +241,8 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
         </div>
         <div style={{ fontSize: 12, color: 'var(--ink2)', marginBottom: 8 }}>
           {openSessionForMe
-            ? 'Your teacher opened check-in. Scan the QR your teacher shows, or enter the code to mark yourself present for today.'
-            : 'When your teacher opens check-in, scan the QR or enter the code here to mark yourself present.'}
+            ? 'Your professor opened check-in. Scan the QR your professor shows, or enter the code to mark yourself present for today.'
+            : 'When your professor opens check-in, scan the QR or enter the code here to mark yourself present.'}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <input

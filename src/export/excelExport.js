@@ -247,7 +247,7 @@ export function ensureExcelJS() {
 }
 
 // ── Student import template / parser (simple, fill-in Excel) ───────────────
-// Column order shared by the blank template and the parser so a teacher can
+// Column order shared by the blank template and the parser so a professor can
 // export the template, fill rows in, and re-import the same file.
 export const STUDENT_IMPORT_COLUMNS = ['Student No.', 'Surname', 'First Name', 'M.I.', 'Course', 'Year Level', 'Section']
 
@@ -268,7 +268,7 @@ const STUDENT_COL_ALIASES = {
 }
 
 /**
- * Downloads a clean, single-purpose .xlsx the teacher fills row by row.
+ * Downloads a clean, single-purpose .xlsx the professor fills row by row.
  * Mirrors the roster export: separated name columns + per-cell Course and Year
  * Level dropdowns (via ExcelJS, like the roster export; SheetJS fallback has no
  * dropdowns). Sheet 1 "Students": header on row 1, an example row, blank rows.

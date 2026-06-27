@@ -1,6 +1,6 @@
 // ── Excuse triage (#26) ───────────────────────────────────────────────────────
 // Decision *support* for pending attendance excuse requests - never a verdict.
-// Ranks and tags requests so a teacher can scan the ones needing attention first,
+// Ranks and tags requests so a professor can scan the ones needing attention first,
 // using the shared on-device embedding model (no generation, nothing uploaded).
 // Signals:
 //   • category    - nearest archetype (Medical / Family / Bereavement / Transport /

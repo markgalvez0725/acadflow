@@ -3,7 +3,7 @@ import { useData } from '@/context/DataContext'
 
 // Live "X is typing…" presence for a chat, Messenger-style.
 //   chatKey - stable per conversation: `direct_{studentId}` or `group_{msgId}`.
-//   me      - { id, name } of the current user (teacher uses id 'admin').
+//   me      - { id, name } of the current user (professor uses id 'admin').
 // Returns { typers, notifyTyping, stopTyping }:
 //   • call notifyTyping() on every keystroke (it throttles writes),
 //   • call stopTyping() on send / blur,

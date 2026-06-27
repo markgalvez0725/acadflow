@@ -60,7 +60,7 @@ export default function GradesTab({ student: s, viewClassId, classes }) {
       )}
       <div className="sec-hdr mb-3">
         <div className="sec-title">Grade Breakdown</div>
-        <button className="btn btn-ghost btn-sm" onClick={() => setRegradeOpen(true)} title="Ask your teacher to review a grade">
+        <button className="btn btn-ghost btn-sm" onClick={() => setRegradeOpen(true)} title="Ask your professor to review a grade">
           <RefreshCw size={14} /> Request regrade
         </button>
       </div>
@@ -125,7 +125,7 @@ function WhatIfPanel({ midTerm, eqScale }) {
       </div>
       <div style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.7 }}>
         {passNeed == null
-          ? <div>A passing grade isn't reachable from your midterm alone - talk to your teacher about your options.</div>
+          ? <div>A passing grade isn't reachable from your midterm alone - talk to your professor about your options.</div>
           : passNeed <= 0
             ? <div style={{ color: 'var(--green)' }}>You've already secured a passing final grade.</div>
             : <div>Score at least <strong style={{ color: 'var(--green)' }}>{fmtNeed(passNeed)}%</strong> on your Finals term to <strong>pass</strong>.</div>}
@@ -172,7 +172,7 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
   const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
 
   // Single source of truth: every number shown for this subject comes from the
-  // one GradeEngine, so the student page agrees with the teacher's gradebook and
+  // one GradeEngine, so the student page agrees with the professor's gradebook and
   // the exports to the last decimal. Components are reconciled against the live
   // activities/quizzes/attendance, so a deleted item never lingers.
   const engineCtx = { activities, quizzes, students, classes, eqScale, enrolledIds, floor: gradeFloor }
@@ -339,7 +339,7 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
                 }}>
                   {audit.drift ? <RefreshCw size={14} /> : <Check size={14} />}
                   {audit.drift
-                    ? 'Some items changed after this grade was posted - your teacher will re-sync it.'
+                    ? 'Some items changed after this grade was posted - your professor will re-sync it.'
                     : 'Verified - this grade matches your current activities, quizzes, and attendance.'}
                 </div>
               )}

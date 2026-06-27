@@ -10,16 +10,16 @@
 //   • none    : no login credentials yet. `!account.registered`.
 //               The student is on the roster but cannot sign in.
 //   • pending : an account exists but the student hasn't taken ownership - they
-//               are still on a teacher-set temporary password. `account._tempPass`
+//               are still on a professor-set temporary password. `account._tempPass`
 //               is true (admin "Add student" path) and/or `activated` is unset.
 //   • active  : the student has taken ownership of the account - self-registered
 //               (sets their own password + security question) or has changed the
 //               temporary password. `account.activated && !account._tempPass`.
 //
 // Why both flags? `activated` records that the student completed setup; clearing
-// `_tempPass` records that the password is the student's own, not the teacher's.
+// `_tempPass` records that the password is the student's own, not the professor's.
 // A record only counts as Active once BOTH are true, so a student sitting on a
-// teacher-set password reads as Pending even if some legacy write set `activated`.
+// professor-set password reads as Pending even if some legacy write set `activated`.
 
 export const ACCOUNT_STATUS = {
   none:    { key: 'none',    label: 'No account', variant: 'gray',   rank: 0 },
@@ -31,7 +31,7 @@ export const ACCOUNT_STATUS = {
 //
 // A self-registered account is now also gated on IDENTITY VERIFICATION: it is
 // Active only once `account.verified` is true (set server-side by the AI gate or
-// by a teacher) AND the student owns their password. Legacy accounts have no
+// by a professor) AND the student owns their password. Legacy accounts have no
 // `verified` field - they are grandfathered (treated as verified) so existing
 // students never flip back to Pending. Only `verified === false` (a brand-new
 // self-registration awaiting verification) holds an account in Pending.
@@ -48,7 +48,7 @@ export function accountStatusKey(student) {
 }
 
 // True when a student is registered but is specifically awaiting identity
-// verification (vs. a teacher-temp-password pending). Drives the teacher queue.
+// verification (vs. a professor-temp-password pending). Drives the professor queue.
 export function isPendingVerification(student) {
   return student?.account?.registered === true && student?.account?.verified === false
 }
@@ -64,7 +64,7 @@ export function needsFaceStep(student) {
     && a.faceResetEnabled !== true
 }
 
-// The stored AI/teacher verification record, or null.
+// The stored AI/professor verification record, or null.
 export function verificationInfo(student) {
   return student?.account?.verification || null
 }

@@ -11,7 +11,7 @@ import { useEffect, useRef } from 'react'
 //   • Windows PrintScreen
 //   • Some desktop capture shortcuts that still bubble a keydown
 // When it fires, the Messages tab posts an Instagram/Messenger-style
-// "… took a screenshot" notice into the conversation and alerts the teacher.
+// "… took a screenshot" notice into the conversation and alerts the professor.
 //
 // onDetect is best-effort and debounced; treat a fire as "likely capture",
 // never as proof. On mobile web (iOS/Android) a real screenshot emits no event,

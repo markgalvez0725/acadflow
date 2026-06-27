@@ -18,6 +18,12 @@ let _branding = null
 export function setReportBranding(b) { _branding = (b && typeof b === 'object') ? b : null }
 export function getReportBranding() { return _branding }
 
+// ── Professor cache (the admin's display name, set once from DataContext) ───
+// Printed in the report header and on the "Prepared by" signature line.
+let _professor = null
+export function setReportProfessor(p) { _professor = (p && p.name) ? p : null }
+export function getReportProfessor() { return _professor }
+
 // Accent colors per report type (RGB). Drives the header band + table head.
 export const REPORT_ACCENTS = {
   grades:     [29, 78, 216],   // blue
@@ -92,6 +98,7 @@ export function drawReportHeader(doc, { title = '', subtitle = '', accent = REPO
   }
 
   // Title + subtitle (right-aligned)
+  const prof = getReportProfessor()
   doc.setTextColor(255, 255, 255)
   doc.setFont(HEAD, 'bold')
   doc.setFontSize(13)
@@ -99,8 +106,14 @@ export function drawReportHeader(doc, { title = '', subtitle = '', accent = REPO
   if (subtitle) {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5)
     doc.setTextColor(228, 234, 250)
-    const lines = doc.splitTextToSize(String(subtitle), pageW / 2 - 6)
+    // Cap to one line when a professor line follows so it stays inside the band.
+    const lines = doc.splitTextToSize(String(subtitle), pageW / 2 - 6).slice(0, prof ? 1 : 2)
     doc.text(lines, pageW - 10, 16, { align: 'right' })
+  }
+  if (prof) {
+    doc.setFont(HEAD, 'normal'); doc.setFontSize(8)
+    doc.setTextColor(255, 255, 255)
+    doc.text(`Professor: ${prof.name}`, pageW - 10, 22, { align: 'right' })
   }
 
   doc.setTextColor(30, 30, 30)
@@ -150,11 +163,18 @@ export function drawSignatures(doc, y, roles = ['Prepared by', 'Verified by']) {
   const n = roles.length
   const gap = 10
   const colW = (pageW - 16 - gap * (n - 1)) / n
+  const prof = getReportProfessor()
   doc.setTextColor(90)
   roles.forEach((role, i) => {
     const x = 8 + i * (colW + gap)
     doc.setFont('helvetica', 'normal'); doc.setFontSize(7)
     doc.text(String(role), x, by)
+    // Print the professor's name on the preparer's signature line.
+    if (/prepared/i.test(role) && prof?.name) {
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(40)
+      doc.text(String(prof.name), x + colW / 2, by + 10, { align: 'center', maxWidth: colW - 4 })
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(90)
+    }
     doc.setDrawColor(120)
     doc.line(x, by + 12, x + colW, by + 12)
   })

@@ -1,7 +1,7 @@
 // ── Grading sheet export / import (v2) ─────────────────────────────────────
 // One color-coded sheet per subject (no fragile cross-sheet formulas):
 //   • Grey  - locked, prefilled from the app (student, app activities/quizzes,
-//             attendance). Teachers don't touch these.
+//             attendance). Professors don't touch these.
 //   • Green - the only cells you fill in (extra activity/quiz columns, Attitude,
 //             Midterm Exam, Finals Exam). 0-100, with in-cell validation.
 //   • Blue  - auto-computed by live formulas that mirror the app EXACTLY:
@@ -29,7 +29,7 @@ const SHEET_PW = 'acadflow'
 
 // Fills (ARGB) - clearly distinguishable tints (readable with black text).
 const FILL_GREY  = 'FFE0DED5'  // locked / prefilled from the app
-const FILL_GREEN = 'FFCDEBB0'  // teacher fills in
+const FILL_GREEN = 'FFCDEBB0'  // professor fills in
 const FILL_BLUE  = 'FFC2DEF7'  // auto-computed formula
 const FILL_HEAD  = 'FFCBC8BC'  // header row
 

@@ -58,7 +58,7 @@ function StudentCommentsSection({ ann, student }) {
   const { addAnnouncementComment, addCommentReply, students, db } = useData()
   const comments = ann.comments || []
 
-  // Who can be @mentioned: classmates in this announcement's scope + the teacher.
+  // Who can be @mentioned: classmates in this announcement's scope + the professor.
   const mentionCandidates = useMemo(() => {
     const enrolled = student.classIds?.length ? student.classIds : (student.classId ? [student.classId] : [])
     const scopeIds = ann.classId && ann.classId !== 'all' ? [ann.classId] : enrolled
@@ -67,7 +67,7 @@ function StudentCommentsSection({ ann, student }) {
       ((x.classIds || []).some(id => scopeIds.includes(id)) || scopeIds.includes(x.classId))
     )
     const list = mates.map(x => ({ id: x.id, name: x.name || x.id }))
-    list.push({ id: 'admin', name: 'Teacher' })
+    list.push({ id: 'admin', name: 'Professor' })
     return list
   }, [students, ann.classId, student])
 
@@ -167,7 +167,7 @@ function StudentCommentsSection({ ann, student }) {
                 <span style={{ fontSize: 12, fontWeight: 700 }}>{c.authorName}</span>
                 <VerifiedBadge studentId={c.authorId} students={students} size={13} />
                 <span style={{ fontSize: 10, color: 'var(--ink3)' }}>
-                  {c.role === 'teacher' ? 'Teacher' : 'Student'}
+                  {c.role === 'teacher' ? 'Professor' : 'Student'}
                 </span>
                 <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 'auto' }}>
                   {new Date(c.createdAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
@@ -207,7 +207,7 @@ function StudentCommentsSection({ ann, student }) {
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                       <span style={{ fontSize: 11, fontWeight: 700 }}>{r.authorName}</span>
                       <span style={{ fontSize: 10, color: 'var(--ink3)' }}>
-                        {r.role === 'teacher' ? 'Teacher' : 'Student'}
+                        {r.role === 'teacher' ? 'Professor' : 'Student'}
                       </span>
                       <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 'auto' }}>
                         {new Date(r.createdAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
@@ -856,7 +856,7 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
   const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
 
   // One source of truth - the same GradeEngine the Grades page uses, so this
-  // overview summary always matches it and the teacher's gradebook.
+  // overview summary always matches it and the professor's gradebook.
   const gr = computeSubjectGrade(s, sub, { activities, quizzes, students, classes, eqScale, enrolledIds, floor: gradeFloor })
   const midG = gr.midterm
   const finG = gr.finals

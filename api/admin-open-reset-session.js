@@ -1,8 +1,8 @@
-// ── Teacher: open a password-reset session for one student ────────────────
-// The teacher (verified by their Firebase ID token) authorises a short-lived
+// ── Professor: open a password-reset session for one student ────────────────
+// The professor (verified by their Firebase ID token) authorises a short-lived
 // reset window for a specific student. No password is generated here - the
 // student's own device claims a fresh temporary password via /api/claim-reset
-// while the window is open. This keeps any temporary password off the teacher
+// while the window is open. This keeps any temporary password off the professor
 // screen and out of long-term storage.
 //
 // Request body: { idToken: string, studentNumber: string }
@@ -28,7 +28,7 @@ export default async function handler(req, res) {
   if (!idToken)       return res.status(401).json({ error: 'Missing admin authentication.' })
   if (!studentNumber) return res.status(400).json({ error: 'Missing student number.' })
 
-  // Authorise the caller (must be the teacher).
+  // Authorise the caller (must be the professor).
   let claims
   try {
     claims = await verifyIdToken(idToken, sa.project_id)
@@ -36,7 +36,7 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Could not verify your session. Sign out and back in, then try again.' })
   }
   if (String(claims.email || '').toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
-    return res.status(403).json({ error: 'Only the teacher account can reset student passwords.' })
+    return res.status(403).json({ error: 'Only the professor account can reset student passwords.' })
   }
 
   let accessToken

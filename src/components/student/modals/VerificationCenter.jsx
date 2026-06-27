@@ -118,7 +118,7 @@ export default function VerificationCenter({ student, onDone, onContact }) {
         {active === 'awaiting' && (
           <div style={{ textAlign: 'center', padding: '4px 4px 8px' }}>
             <button className="btn btn-ghost btn-sm" onClick={onContact}>
-              <MessageSquare size={14} style={{ marginRight: 6 }} /> Message your teacher
+              <MessageSquare size={14} style={{ marginRight: 6 }} /> Message your professor
             </button>
           </div>
         )}

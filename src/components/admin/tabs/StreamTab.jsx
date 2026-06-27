@@ -232,7 +232,7 @@ function CommentsSection({ ann, authorId, authorName, role }) {
   const comments = ann.comments || []
 
   // Who can be @mentioned: students in this announcement's scope (all enrolled
-  // when it targets "all"). The teacher is the author here, so not listed.
+  // when it targets "all"). The professor is the author here, so not listed.
   const mentionCandidates = useMemo(() => {
     const scoped = (students || []).filter(x => {
       if (!ann.classId || ann.classId === 'all') return true
@@ -245,7 +245,7 @@ function CommentsSection({ ann, authorId, authorName, role }) {
   function fireMentions(body) {
     const ids = resolveMentions(body, mentionCandidates).filter(id => id && id !== authorId)
     if (!ids.length || !db?.current) return
-    ids.forEach(id => notifyMention(db.current, id, { fromName: authorName || 'Your teacher', snippet: body, link: 'stream' }))
+    ids.forEach(id => notifyMention(db.current, id, { fromName: authorName || 'Your professor', snippet: body, link: 'stream' }))
   }
   const [text, setText] = useState('')
   const [posting, setPosting] = useState(false)
@@ -326,7 +326,7 @@ function CommentsSection({ ann, authorId, authorName, role }) {
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                 <span style={{ fontSize: 12, fontWeight: 700 }}>{c.authorName}</span>
                 <VerifiedBadge studentId={c.authorId} students={students} size={13} />
-                <span style={{ fontSize: 10, color: 'var(--ink3)' }}>{c.role === 'teacher' ? 'Teacher' : 'Student'}</span>
+                <span style={{ fontSize: 10, color: 'var(--ink3)' }}>{c.role === 'teacher' ? 'Professor' : 'Student'}</span>
                 <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 'auto' }}>
                   {new Date(c.createdAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                 </span>
@@ -358,7 +358,7 @@ function CommentsSection({ ann, authorId, authorName, role }) {
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                       <span style={{ fontSize: 11, fontWeight: 700 }}>{r.authorName}</span>
-                      <span style={{ fontSize: 10, color: 'var(--ink3)' }}>{r.role === 'teacher' ? 'Teacher' : 'Student'}</span>
+                      <span style={{ fontSize: 10, color: 'var(--ink3)' }}>{r.role === 'teacher' ? 'Professor' : 'Student'}</span>
                       <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 'auto' }}>
                         {new Date(r.createdAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                       </span>
@@ -601,7 +601,7 @@ function AnnouncementDetailModal({ ann, classes, onClose, onEdit }) {
           {ann.createdAt && <span>Posted: {formatDate(ann.createdAt)}</span>}
           {ann.expiresAt && <span>Expires: {formatDate(ann.expiresAt)}</span>}
         </div>
-        <CommentsSection ann={ann} authorId={admin?.user || 'admin'} authorName={admin?.user || 'Teacher'} role="teacher" />
+        <CommentsSection ann={ann} authorId={admin?.user || 'admin'} authorName={admin?.user || 'Professor'} role="teacher" />
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button className="btn btn-ghost" onClick={onClose}>Close</button>
           <button className="btn btn-primary btn-sm" onClick={() => { onClose(); onEdit(ann) }}>Edit</button>

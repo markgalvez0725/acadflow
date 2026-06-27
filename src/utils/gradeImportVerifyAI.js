@@ -2,7 +2,7 @@
 // Custom, in-browser sanity pass over a filled-in grading sheet - the same
 // on-device approach used elsewhere (photoVerifyAI, identityVerify, the student
 // import check): nothing leaves the device, runs instantly, $0. It recomputes
-// each student's grade the way the app does and flags rows the teacher should
+// each student's grade the way the app does and flags rows the professor should
 // eyeball before committing. Warnings are advisory; only unmatched students are
 // excluded from the import.
 

@@ -46,7 +46,7 @@ function VerificationGate({ onVerify, onContact }) {
       </button>
       <div>
         <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={onContact}>
-          <MessageSquare size={14} /> Message your teacher
+          <MessageSquare size={14} /> Message your professor
         </button>
       </div>
     </div>
@@ -89,9 +89,9 @@ const TAB_TITLES = {
   calendar:      ['Calendar',       'Deadlines and events'],
   onlineClasses: ['Online Classes', 'Join your Google Meet sessions'],
   enrollment:    ['Enrollment',     'Your enrolled subjects'],
-  messages:      ['Messages',       'Chat with your teacher'],
+  messages:      ['Messages',       'Chat with your professor'],
   resources:     ['Resource Hub',   'Modules, slides, and links by subject'],
-  feedback:      ['Feedback',       'Send ideas, bugs, and requests to your teacher'],
+  feedback:      ['Feedback',       'Send ideas, bugs, and requests to your professor'],
 }
 
 // Mobile bottom-nav: 4 primary + More (opens a sheet)

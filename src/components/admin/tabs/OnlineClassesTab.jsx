@@ -31,7 +31,7 @@ export default function OnlineClassesTab() {
   }
 
   // One-click: mark the class live in AcadFlow (so enrolled students see Join)
-  // AND open the Meet for the teacher.
+  // AND open the Meet for the professor.
   async function handleGoLive(cls, subject, link) {
     const url = (link || '').trim()
     if (!url) { toast('Add a Meet link first.', 'error'); return }
@@ -48,7 +48,7 @@ export default function OnlineClassesTab() {
       })
       window.open(url, '_blank', 'noopener,noreferrer')
       toast('You are live - students can now join.', 'success')
-      setPanel('meetings') // hand the teacher off to manage/end the live class
+      setPanel('meetings') // hand the professor off to manage/end the live class
     } catch (e) {
       toast('Failed to go live.', 'error')
     } finally {

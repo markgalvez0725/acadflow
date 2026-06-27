@@ -59,7 +59,7 @@ export function auditAccounts(students = [], classes = []) {
       }
     }
 
-    // Provisioned but never claimed (still on the teacher's temporary password).
+    // Provisioned but never claimed (still on the professor's temporary password).
     if (a._tempPass) { reasons.push('On a temporary password - not yet activated'); bump('low') }
 
     if (reasons.length) flags.push({ id: s.id, name: s.name || s.id, severity, reasons, status: accountStatusKey(s) })
@@ -71,7 +71,7 @@ export function auditAccounts(students = [], classes = []) {
 
 // Re-nudge cooldown: once a student is nudged we stamp account.profileNudgedAt
 // and exclude them from the target set until this window elapses. That makes the
-// teacher's "Nudge" button disable as soon as everyone flagged has been notified,
+// professor's "Nudge" button disable as soon as everyone flagged has been notified,
 // and re-enable later only for students who are NEW (never stamped) or who are
 // still incomplete after the cooldown. Tunable in one place.
 export const NUDGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
@@ -87,7 +87,7 @@ export function isReachable(s) {
 // DATA gaps a student can FIX THEMSELVES in Edit Profile - no photo, or a name
 // without a surname. These are the ONLY gaps allowed to demote an active account
 // back to pending, precisely because the student can resolve them. Course / year /
-// section are teacher-owned and locked on the student side, so they are NEVER
+// section are professor-owned and locked on the student side, so they are NEVER
 // here - demoting on those would lock the student out with no way to self-fix.
 // Pure + deterministic.
 export function dataGapReasons(s) {
@@ -97,7 +97,7 @@ export function dataGapReasons(s) {
   return reasons
 }
 
-// All gaps shown to the teacher for a reachable account: the verification status
+// All gaps shown to the professor for a reachable account: the verification status
 // plus the self-fixable data gaps. (Display only.)
 export function profileGapReasons(s) {
   const reasons = []
@@ -122,7 +122,7 @@ export function incompleteProfiles(students = []) {
 
 // ACTIVE accounts with a self-fixable DATA gap (name/photo) - the accounts the
 // "send to pending & nudge" action re-verifies. Demoting these to pending is safe
-// because the student can resolve the gap themselves; teacher-owned gaps
+// because the student can resolve the gap themselves; professor-owned gaps
 // (course/section/year) are deliberately excluded. Active = not already pending.
 export function demoteCandidates(students = []) {
   const out = []
@@ -146,7 +146,7 @@ export function nudgeTargets(students = [], now = Date.now()) {
     .map(s => ({ id: s.id, name: s.name || s.id, reasons: profileGapReasons(s), nudgedAt: s.account?.profileNudgedAt || 0 }))
 }
 
-// IDs of grandfathered accounts - registered + active but never AI/teacher
+// IDs of grandfathered accounts - registered + active but never AI/professor
 // verified - for the "mark all legacy accounts verified" bulk action.
 export function legacyActiveIds(students = []) {
   return students.filter(s => {

@@ -14,12 +14,12 @@
 // Weights are renormalized over the fields the roster actually has, so a sparse
 // roster (e.g. no course on file) is never penalized. The same algorithm runs on
 // the server (api/_identity.js) where it is the authoritative gate; this copy is
-// the instant, offline client score used for UX + the teacher's review detail.
+// the instant, offline client score used for UX + the professor's review detail.
 //
 // Pure + dependency-free. No network, no model download at registration.
 
 export const STRONG = 85   // ≥ this → auto-activate
-export const PARTIAL = 60  // ≥ this (but < STRONG) → pending, teacher review
+export const PARTIAL = 60  // ≥ this (but < STRONG) → pending, professor review
                            // < this → blocked (likely not this student)
 
 const lc = v => (v == null ? '' : String(v)).trim().toLowerCase().replace(/\s+/g, ' ')
@@ -75,9 +75,9 @@ export function scoreIdentity(entered = {}, roster = {}) {
     reasons.push({ field: key, score: fields[key], ok: sc >= 0.85 })
   }
 
-  // No comparable roster details → cannot auto-verify; hand to the teacher.
+  // No comparable roster details → cannot auto-verify; hand to the professor.
   if (totalWeight === 0) {
-    return { confidence: null, verdict: 'review', fields, reasons: [{ field: 'roster', score: null, ok: false, note: 'No roster details on file to match - needs teacher review.' }] }
+    return { confidence: null, verdict: 'review', fields, reasons: [{ field: 'roster', score: null, ok: false, note: 'No roster details on file to match - needs professor review.' }] }
   }
 
   const confidence = Math.round((weighted / totalWeight) * 100)
@@ -85,7 +85,7 @@ export function scoreIdentity(entered = {}, roster = {}) {
   return { confidence, verdict, fields, reasons }
 }
 
-// One-line human summary of a per-field breakdown, for teacher/student display.
+// One-line human summary of a per-field breakdown, for professor/student display.
 export function describeFields(fields = {}) {
   const labels = { name: 'name', course: 'course', year: 'year', section: 'section' }
   return Object.keys(labels)

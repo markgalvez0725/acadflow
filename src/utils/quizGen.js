@@ -1,7 +1,7 @@
 // ── On-device quiz drafter (free, no AI) ──────────────────────────────────
 // Turns lesson text into draft quiz questions using deterministic rules.
 // Output matches the app's question shape: { id, type, question, options?, answer }.
-// Drafts are meant to be reviewed and edited by the teacher before saving.
+// Drafts are meant to be reviewed and edited by the professor before saving.
 
 const STOPWORDS = new Set(('a an the and or but of to in on at for with from by as is are was were be been being ' +
   'this that these those it its their there which who whom whose what when where why how can could should would ' +

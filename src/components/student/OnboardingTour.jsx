@@ -33,7 +33,7 @@ const STEPS = [
   {
     Icon: Library, color: 'var(--accent)', tab: 'resources',
     title: 'Resources & messages',
-    body: 'Find modules, slides, and links in the Resource Hub - and message your teacher anytime from the chat bubble.',
+    body: 'Find modules, slides, and links in the Resource Hub - and message your professor anytime from the chat bubble.',
   },
 ]
 

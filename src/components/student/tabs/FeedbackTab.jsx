@@ -9,7 +9,7 @@ import {
 const MAX_MESSAGE = 2000
 
 // The kinds of feedback a student can send. Kept in sync with the labels the
-// teacher sees in the Feedback Hub.
+// professor sees in the Feedback Hub.
 const CATEGORIES = [
   { key: 'enhancement', label: 'Enhancement', Icon: Sparkles,       hint: 'An idea to make AcadFlow better' },
   { key: 'bug',         label: 'Bug report',  Icon: Bug,            hint: 'Something is broken or behaving oddly' },
@@ -27,7 +27,7 @@ function StatusPill({ status }) {
   return <span className={s.cls}><s.Icon size={12} /> {s.label}</span>
 }
 
-// Teacher-acknowledgement ring (deterministic; mirrors the reviewed/total stat).
+// Professor-acknowledgement ring (deterministic; mirrors the reviewed/total stat).
 function ReviewedRing({ handled, total, color }) {
   const rate = total ? handled / total : 0
   const C = 2 * Math.PI * 34
@@ -86,7 +86,7 @@ export default function FeedbackTab({ student }) {
     }
     const f = []
     if (stats.handled)
-      f.push({ tone: 'good', Icon: CheckCircle2, lead: `${stats.handled} reviewed`, text: ' by your teacher.' })
+      f.push({ tone: 'good', Icon: CheckCircle2, lead: `${stats.handled} reviewed`, text: ' by your professor.' })
     if (stats.awaiting)
       f.push({ tone: 'info', Icon: Clock, lead: `${stats.awaiting} awaiting`, text: ' review.' })
     if (stats.top) {
@@ -99,10 +99,10 @@ export default function FeedbackTab({ student }) {
   // Deterministic draft helper - reacts to the chosen type + message length.
   const draftTip = useMemo(() => {
     const len = message.trim().length
-    if (len > 0 && len < 15) return { warn: true, Icon: AlertTriangle, text: 'Add a bit more detail so your teacher can act on it.' }
+    if (len > 0 && len < 15) return { warn: true, Icon: AlertTriangle, text: 'Add a bit more detail so your professor can act on it.' }
     if (category === 'bug') return { warn: false, Icon: Wand2, text: 'Helpful bug reports include what you did, what happened, and what you expected.' }
-    if (category === 'enhancement' || category === 'request') return { warn: false, Icon: Wand2, text: 'Say what to change and why it would help. The clearer it is, the faster your teacher can act.' }
-    return { warn: false, Icon: Wand2, text: 'Tell your teacher anything on your mind - every comment helps.' }
+    if (category === 'enhancement' || category === 'request') return { warn: false, Icon: Wand2, text: 'Say what to change and why it would help. The clearer it is, the faster your professor can act.' }
+    return { warn: false, Icon: Wand2, text: 'Tell your professor anything on your mind - every comment helps.' }
   }, [category, message])
 
   async function handleSubmit(e) {
@@ -112,7 +112,7 @@ export default function FeedbackTab({ student }) {
     setSending(true)
     try {
       await submitStudentFeedback({ student, category, subject: subject.trim(), message: text })
-      toast('Thanks! Your feedback was sent to your teacher.', 'success')
+      toast('Thanks! Your feedback was sent to your professor.', 'success')
       setSubject(''); setMessage(''); setCategory('enhancement')
     } catch (err) {
       toast('Could not send feedback: ' + (err?.message || 'try again'), 'error')
@@ -134,7 +134,7 @@ export default function FeedbackTab({ student }) {
             </div>
           </div>
           <p style={{ fontSize: 13, color: 'var(--ink2)', marginBottom: 14 }}>
-            Spotted a bug, have an idea, or want to request something? It goes straight to your teacher's Feedback Hub.
+            Spotted a bug, have an idea, or want to request something? It goes straight to your professor's Feedback Hub.
           </p>
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

@@ -27,7 +27,7 @@ export function UIProvider({ children }) {
   const dialogResolveRef = useRef(null)
   const [isLoading, setIsLoading]   = useState(false)
   const loadingCount = useRef(0)
-  // Globally-shared "view student profile" target - any teacher-side button can
+  // Globally-shared "view student profile" target - any professor-side button can
   // open the same profile modal by id, keeping every entry point in sync.
   const [viewStudentId, setViewStudentId] = useState(null)
 
@@ -109,7 +109,7 @@ export function UIProvider({ children }) {
     }
   }, [])
 
-  // ── Student profile (teacher view) ─────────────────────────────────────
+  // ── Student profile (professor view) ─────────────────────────────────────
   const openStudentProfile  = useCallback(id => setViewStudentId(id || null), [])
   const closeStudentProfile = useCallback(() => setViewStudentId(null), [])
 

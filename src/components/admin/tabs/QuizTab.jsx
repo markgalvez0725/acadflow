@@ -914,7 +914,7 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
     }
   }
 
-  // Append the teacher-approved alternates to the key and re-grade existing
+  // Append the professor-approved alternates to the key and re-grade existing
   // attempts so students who gave those answers get credit now.
   async function applyKeyImprovements() {
     if (!mineResult) return

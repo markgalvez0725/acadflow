@@ -13,15 +13,15 @@ import Modal, { ModalHeader } from '@/components/primitives/Modal'
 const FAQ_ITEMS = [
   {
     q: 'Why was AcadFlow created?',
-    a: `AcadFlow began as a way to fix a daily frustration: a class's grades lived in one spreadsheet, attendance in another, announcements in a group chat, and quizzes somewhere else entirely. Nobody - teacher or student - had a single, calm place to see how the semester was actually going. I built AcadFlow to pull all of that into one real-time portal, so everyone can focus on learning instead of chasing scattered files.`,
+    a: `AcadFlow began as a way to fix a daily frustration: a class's grades lived in one spreadsheet, attendance in another, announcements in a group chat, and quizzes somewhere else entirely. Nobody - professor or student - had a single, calm place to see how the semester was actually going. I built AcadFlow to pull all of that into one real-time portal, so everyone can focus on learning instead of chasing scattered files.`,
   },
   {
     q: 'What problem does it solve?',
-    a: `It replaces the patchwork of spreadsheets, paper logs, and group chats with one source of truth. Grades, attendance, activities, quizzes, announcements, online classes, and messages all update live - students always see their real standing, and teachers spend less time on busywork. Because everything syncs in real time, there's no refreshing or re-sending: a grade or announcement posted on one device shows up everywhere within seconds.`,
+    a: `It replaces the patchwork of spreadsheets, paper logs, and group chats with one source of truth. Grades, attendance, activities, quizzes, announcements, online classes, and messages all update live - students always see their real standing, and professors spend less time on busywork. Because everything syncs in real time, there's no refreshing or re-sending: a grade or announcement posted on one device shows up everywhere within seconds.`,
   },
   {
     q: 'Who is AcadFlow for?',
-    a: `Two roles share the same portal. Teachers and staff (the admin side) manage classes, grades, attendance, and announcements; students see their own grades, attendance, deadlines, and messages. Everyone works from the same live data - just the slice that's relevant to them.`,
+    a: `Two roles share the same portal. Professors and staff (the admin side) manage classes, grades, attendance, and announcements; students see their own grades, attendance, deadlines, and messages. Everyone works from the same live data - just the slice that's relevant to them.`,
   },
   {
     q: 'Is my data private and secure?',
@@ -33,7 +33,7 @@ const FAQ_ITEMS = [
   },
   {
     q: 'What if I forget my password?',
-    a: `On the login screen, choose "Reset with Face ID." After a quick liveness check your device scans your face, the server confirms it matches the face you enrolled, and then you set a brand-new password yourself - no teacher needed and no temporary password is ever shown. If you haven't set up Face ID yet, your teacher can still reset your password for you.`,
+    a: `On the login screen, choose "Reset with Face ID." After a quick liveness check your device scans your face, the server confirms it matches the face you enrolled, and then you set a brand-new password yourself - no professor needed and no temporary password is ever shown. If you haven't set up Face ID yet, your professor can still reset your password for you.`,
   },
   {
     q: 'How do I install AcadFlow as an app?',
@@ -47,7 +47,7 @@ Once installed, just open it like any other app - your login and data stay exact
   },
   {
     q: 'How do I get an account?',
-    a: `Students register themselves, but only against the class roster their teacher has already set up. You verify your identity with your student number, name, course, year, and section - so accounts stay tied to real, enrolled students. If your details don't match, ask your teacher to add or correct your record first. After you sign in, a short guided setup in Settings helps you finish verifying your account (see "How do I get the verified badge?").`,
+    a: `Students register themselves, but only against the class roster their professor has already set up. You verify your identity with your student number, name, course, year, and section - so accounts stay tied to real, enrolled students. If your details don't match, ask your professor to add or correct your record first. After you sign in, a short guided setup in Settings helps you finish verifying your account (see "How do I get the verified badge?").`,
   },
   {
     q: 'How much does it cost?',

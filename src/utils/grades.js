@@ -43,7 +43,7 @@ export function gradeInfo(g, eqScale = DEFAULT_EQ_SCALE) {
 //   • every tier minimum must be a number within 0-100
 //   • minimums must be strictly descending (highest equivalent first)
 //   • the scale must round-trip through gradeInfo at the passing boundary, so the
-//     grade engine reads the same Passed/Failed cut the teacher intends
+//     grade engine reads the same Passed/Failed cut the professor intends
 export function validateEqScale(scale = []) {
   if (!Array.isArray(scale) || !scale.length) return { state: 'error', msg: 'Scale is empty' };
   for (const t of scale) {

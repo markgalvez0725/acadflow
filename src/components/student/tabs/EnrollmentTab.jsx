@@ -309,7 +309,7 @@ function ClassCard({ cls, student, onEnroll, busy, isCurrentSem, semesterStatus,
         {enrolled && (
           <div className="flex items-center gap-1.5 text-xs text-[var(--ink3)]">
             <Lock size={12} className="shrink-0" />
-            <span>Enrollment locked - message your teacher to make changes.</span>
+            <span>Enrollment locked - message your professor to make changes.</span>
           </div>
         )}
         {!canEnroll && !enrolled && (
@@ -392,7 +392,7 @@ export default function EnrollmentTab({ student }) {
       : ''
     const ok  = await openDialog({
       title: 'Confirm Enrollment',
-      msg: `You are about to enroll in "${cls?.name} ${cls?.section}".${conflictNote} Once enrolled, your enrollment cannot be changed or removed. If you need to make any corrections, you will need to message your teacher directly.`,
+      msg: `You are about to enroll in "${cls?.name} ${cls?.section}".${conflictNote} Once enrolled, your enrollment cannot be changed or removed. If you need to make any corrections, you will need to message your professor directly.`,
       type: 'warn',
       confirmLabel: 'Enroll Now',
       showCancel: true,
@@ -453,7 +453,7 @@ export default function EnrollmentTab({ student }) {
       {!semester && (
         <div className="flex items-start gap-2.5 px-3 py-3 rounded-lg bg-[var(--surface2)] border border-[var(--border)] text-xs text-[var(--ink3)]">
           <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-          <span>No semester is currently configured. Contact your teacher or administrator.</span>
+          <span>No semester is currently configured. Contact your professor or administrator.</span>
         </div>
       )}
 
@@ -464,7 +464,7 @@ export default function EnrollmentTab({ student }) {
       <div className="flex items-start gap-2 text-xs text-[var(--ink3)] px-0.5">
         <Info size={14} className="shrink-0 mt-0.5" />
         <span>
-          <strong className="text-[var(--ink2)]">Enrollment is final</strong> - once you enroll, message your teacher to make any changes.
+          <strong className="text-[var(--ink2)]">Enrollment is final</strong> - once you enroll, message your professor to make any changes.
         </span>
       </div>
 
@@ -553,7 +553,7 @@ export default function EnrollmentTab({ student }) {
           {showArchivedHistory && (
             <div className="mt-3 space-y-2">
               <p className="text-xs text-[var(--ink3)] px-0.5">
-                These are classes from previous semesters archived by your teacher. Your grades and attendance records are preserved.
+                These are classes from previous semesters archived by your professor. Your grades and attendance records are preserved.
               </p>
               <div className="space-y-2">
                 {archivedHistory.map((entry, i) => (

@@ -2,12 +2,12 @@
 // Centralized, dependency-free scoring shared by quiz taking and review:
 //   • multiple_choice / true_false → exact (case-insensitive) match
 //   • text types (short_answer / fill_in_the_blank / identification) → exact,
-//     substring, OR fuzzy match against the model answer and any teacher-defined
+//     substring, OR fuzzy match against the model answer and any professor-defined
 //     `acceptedAnswers` (alternates)
 //   • optional per-question `points` (default 1) and optional partial credit
 //     (half points for a near-miss) when the quiz enables it.
 //
-// Keeping this in one place means the student's live score and the teacher's
+// Keeping this in one place means the student's live score and the professor's
 // review always agree.
 
 function norm(s) {

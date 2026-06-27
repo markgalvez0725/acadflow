@@ -41,7 +41,7 @@ export default function LoginScreen({ onRevealFaculty }) {
   const { theme, toast } = useUI()
 
   // Hidden faculty entrance: tap the logo 5× within 2s to reveal the faculty
-  // sign-in. Lets teachers reach it inside the installed PWA, where there's no
+  // sign-in. Lets professors reach it inside the installed PWA, where there's no
   // address bar to type the /faculty path - without showing a link to students.
   const logoTaps = useRef({ count: 0, first: 0 })
   function handleLogoTap() {
@@ -67,7 +67,7 @@ export default function LoginScreen({ onRevealFaculty }) {
   const [snum, setSnum] = useState('')
   const [pass, setPass] = useState('')
 
-  // Forgot-password (live, teacher-coordinated) reset
+  // Forgot-password (live, professor-coordinated) reset
   const [rpNum,      setRpNum]      = useState('')
   const [rpStatus,   setRpStatus]   = useState('idle') // 'idle' | 'waiting' | 'setpass' | 'saving'
   const [rpNewPass,  setRpNewPass]  = useState('')
@@ -146,9 +146,9 @@ export default function LoginScreen({ onRevealFaculty }) {
     }
   }
 
-  // ── Forgot password - live reset coordinated with the teacher ─────────────
+  // ── Forgot password - live reset coordinated with the professor ─────────────
   // The student enters their number and taps Start. We poll the server; while
-  // the teacher's reset window is open, the server hands back a fresh temporary
+  // the professor's reset window is open, the server hands back a fresh temporary
   // password, which we use to sign the student in automatically.
   function stopReset() {
     if (rpTimer.current) { clearInterval(rpTimer.current); rpTimer.current = null }
@@ -162,7 +162,7 @@ export default function LoginScreen({ onRevealFaculty }) {
     if (Date.now() > rpDeadline.current) {
       stopReset()
       setRpStatus('idle')
-      return setErr('The reset window timed out. Ask your teacher to open it again, then tap Start.')
+      return setErr('The reset window timed out. Ask your professor to open it again, then tap Start.')
     }
     try {
       const r = await fetch('/api/claim-reset', {
@@ -185,7 +185,7 @@ export default function LoginScreen({ onRevealFaculty }) {
           await signInWithCustomToken(getFbAuth(), data.customToken)
         } catch {
           setRpStatus('idle')
-          setErr('Could not sign in with the reset token. Ask your teacher to open the window again.')
+          setErr('Could not sign in with the reset token. Ask your professor to open the window again.')
           return
         }
         setRpNewPass('')
@@ -233,7 +233,7 @@ export default function LoginScreen({ onRevealFaculty }) {
 
     // Start the AcadFlow session with the new password → routes to the portal.
     // Derive the student number from the signed-in account so this works for both
-    // the panel (teacher) flow and the Face ID flow (where the number was entered
+    // the panel (professor) flow and the Face ID flow (where the number was entered
     // in the modal, not the panel field).
     const email = String(user.email || '')
     const clean = email.toLowerCase().endsWith('@acadflow.app')
@@ -257,7 +257,7 @@ export default function LoginScreen({ onRevealFaculty }) {
     clearMessages()
   }
 
-  // ── Forgot password - self-service Face ID reset (no teacher needed) ───────
+  // ── Forgot password - self-service Face ID reset (no professor needed) ───────
   // The modal owns the student-number step, so just open it (optionally
   // prefilled with whatever's already typed in the panel).
   function openFaceReset() {
@@ -324,7 +324,7 @@ export default function LoginScreen({ onRevealFaculty }) {
       } catch (err) {
         const c = err?.code || ''
         if (c.includes('email-already-in-use'))
-          return setErr('⛔ An account already exists for this student number. Switch to "Sign In", or ask your teacher to reset it.')
+          return setErr('⛔ An account already exists for this student number. Switch to "Sign In", or ask your professor to reset it.')
         if (c.includes('operation-not-allowed'))
           return setErr('Registration is not enabled yet. Please ask the admin to turn on Email/Password sign-in.')
         if (c.includes('weak-password'))
@@ -338,7 +338,7 @@ export default function LoginScreen({ onRevealFaculty }) {
       if (!snap.exists()) {
         await deleteUser(createdUser).catch(() => {})
         await signOut(auth).catch(() => {})
-        return setErr('⛔ We could not find your student number in the class records. Please ask your teacher to add you first, then register.')
+        return setErr('⛔ We could not find your student number in the class records. Please ask your professor to add you first, then register.')
       }
       const roster = snap.data()
       if (roster.account?.registered) {
@@ -353,12 +353,12 @@ export default function LoginScreen({ onRevealFaculty }) {
         await deleteUser(createdUser).catch(() => {})
         await signOut(auth).catch(() => {})
         const detail = describeFields(score.fields)
-        return setErr(`⛔ Your details don't match our records for this student number${detail ? ` (${detail})` : ''}. Please check your name, course, year, and section, or contact your teacher.`)
+        return setErr(`⛔ Your details don't match our records for this student number${detail ? ` (${detail})` : ''}. Please check your name, course, year, and section, or contact your professor.`)
       }
 
       // 4) Create the account on the roster record. It starts PENDING:
       //    `verified` is set to true only by the server gate below (strong match)
-      //    or by a teacher - never by this device. Writing it explicitly false
+      //    or by a professor - never by this device. Writing it explicitly false
       //    keeps the account pending even if the server is unreachable.
       const patch = {
         'account.registered': true,
@@ -376,7 +376,7 @@ export default function LoginScreen({ onRevealFaculty }) {
       // 5) Server-side verification (authoritative). On a strong match the server
       //    flips account.verified=true → the student is Active immediately. If the
       //    endpoint is unconfigured/unreachable, the account stays Pending for the
-      //    teacher to approve - the student is never blocked.
+      //    professor to approve - the student is never blocked.
       let verified = false
       try {
         const idToken = await createdUser.getIdToken()
@@ -386,13 +386,13 @@ export default function LoginScreen({ onRevealFaculty }) {
           body: JSON.stringify({ idToken, studentNumber: regSnum, ...entered }),
         })
         if (resp.ok) { const d = await resp.json().catch(() => ({})); verified = !!d.verified }
-      } catch (_) { /* leave pending - teacher will verify */ }
+      } catch (_) { /* leave pending - professor will verify */ }
 
       // 6) Sign out so they sign in cleanly with their new password.
       await signOut(auth).catch(() => {})
       setOkMsg(verified
         ? '✅ Verified! Sign in with your student number.'
-        : '✅ Account created. You can sign in now - full access unlocks once your teacher verifies you.')
+        : '✅ Account created. You can sign in now - full access unlocks once your professor verifies you.')
       setTimeout(() => { setMode('student'); clearMessages() }, 2400)
     } catch (err) {
       if (createdUser) { try { await deleteUser(createdUser) } catch (_) {} }
@@ -415,7 +415,7 @@ export default function LoginScreen({ onRevealFaculty }) {
     try {
       const s = students.find(x => x.id.toLowerCase() === fpSnum.trim().toLowerCase())
       if (!s) {
-        return setErr('No account found for that student number. Please contact your teacher.')
+        return setErr('No account found for that student number. Please contact your professor.')
       }
       if (!s.account?.registered) {
         return setErr('This student number has no account yet. Switch to "Register" to create one - you\'ll verify your identity with your course, year, and section.')
@@ -481,7 +481,7 @@ export default function LoginScreen({ onRevealFaculty }) {
 
     const answerMatch = await verifyPassword(fpAnswer.trim().toLowerCase(), s.account.securityAnswer)
     if (!answerMatch)
-      return setErr('Incorrect answer. If you cannot remember, please contact your teacher to reset your password.')
+      return setErr('Incorrect answer. If you cannot remember, please contact your professor to reset your password.')
 
     setLoading(true)
     try {
@@ -676,7 +676,7 @@ export default function LoginScreen({ onRevealFaculty }) {
                 </div>
               </div>
               <p style={{ fontSize: 11, color: 'var(--ink3)', margin: '-4px 2px 10px', lineHeight: 1.5 }}>
-                Your details must match your teacher's records to verify you're a real student. Section example: <strong>2A</strong>.
+                Your details must match your professor's records to verify you're a real student. Section example: <strong>2A</strong>.
               </p>
 
               <div className="auth-section-label">Create your login</div>
@@ -727,13 +727,13 @@ export default function LoginScreen({ onRevealFaculty }) {
             </form>
           )}
 
-          {/* ── Forgot Password - teacher-managed reset ──────────────── */}
+          {/* ── Forgot Password - professor-managed reset ──────────────── */}
           {mode === 'forgot' && rpStatus !== 'setpass' && rpStatus !== 'saving' && (
             <form onSubmit={handleForgotStart}>
               <h3 className="font-display text-lg font-bold text-ink mb-1">Forgot Password</h3>
               <p className="text-sm text-ink2 mb-4" style={{ lineHeight: 1.6 }}>
-                First, message your teacher and ask them to open a reset for you. Enter your
-                student number below, then tap <strong>Start</strong> - the moment your teacher
+                First, message your professor and ask them to open a reset for you. Enter your
+                student number below, then tap <strong>Start</strong> - the moment your professor
                 opens the window, you'll be signed in automatically.
               </p>
 
@@ -765,7 +765,7 @@ export default function LoginScreen({ onRevealFaculty }) {
                     Reset with Face ID
                   </button>
                   <p className="text-xs text-ink3 text-center mt-2" style={{ lineHeight: 1.5 }}>
-                    Only if you set up Face ID reset beforehand. No teacher needed.
+                    Only if you set up Face ID reset beforehand. No professor needed.
                   </p>
 
                   <button type="button" className="link-btn w-full text-center mt-3" onClick={handleForgotCancel}>
@@ -778,7 +778,7 @@ export default function LoginScreen({ onRevealFaculty }) {
                 <>
                   <div className="mt-3 p-3 rounded-xl bg-bg2 text-sm text-ink2 flex items-center gap-3" style={{ lineHeight: 1.5 }}>
                     <span className="typing-cursor" aria-hidden="true" />
-                    Waiting for your teacher to open the reset… Keep this window open.
+                    Waiting for your professor to open the reset… Keep this window open.
                   </div>
                   <button type="button" className="link-btn w-full text-center mt-3" onClick={handleForgotCancel}>
                     Cancel

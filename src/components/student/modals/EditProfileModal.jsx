@@ -137,7 +137,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
   const changedAt = s.snumChangedAt || 0
   const daysSince = changedAt ? Math.floor((now - changedAt) / 86400000) : 9999
   const daysLeft  = SNUM_CHANGE_DAYS - daysSince
-  // Student numbers are managed by the teacher. Locking this on the student side
+  // Student numbers are managed by the professor. Locking this on the student side
   // keeps identity stable and lets Firestore rules forbid students from
   // re-creating their own record (which would bypass grade protection).
   const snumLocked = true
@@ -146,7 +146,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
   let snumInfo  = ''
   if (snumLocked) {
     snumBadge = <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--red-l)', color: 'var(--red)', padding: '2px 7px', borderRadius: 10, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Lock size={10} /> Locked</span>
-    snumInfo  = 'Student number is locked. Contact your teacher to update it.'
+    snumInfo  = 'Student number is locked. Contact your professor to update it.'
   } else if (changedAt && daysLeft > 0) {
     snumBadge = <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--yellow-l)', color: 'var(--yellow)', padding: '2px 7px', borderRadius: 10, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Timer size={10} /> {daysLeft}d left</span>
     snumInfo  = `You can still change your student number for ${daysLeft} more day${daysLeft !== 1 ? 's' : ''}. After that it will be locked permanently.`
@@ -254,7 +254,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
       // A pending account auto-verifies ONLY once its self-fixable data gaps
       // (name/photo) are resolved - completion is the trigger. We re-run the AI
       // check BEFORE saving the edited name, so the server scores the student's
-      // claim against the teacher's CURRENT roster record (not the edit scoring
+      // claim against the professor's CURRENT roster record (not the edit scoring
       // against itself). The verified flag is set server-side; we then persist the
       // same value so the local doc and the rule agree.
       const remainingGaps = pending ? dataGapReasons({ ...s, name: trimName, photo: photo || null }) : []
@@ -285,14 +285,14 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
               if (verified) verification = { method: 'ai', confidence: d.confidence ?? null, fields: d.fields ?? null, at: Date.now() }
             }
           }
-        } catch (_) { /* leave pending - teacher will verify */ }
+        } catch (_) { /* leave pending - professor will verify */ }
       }
 
       let updatedStudent = {
         ...s,
         id: finalSnum,
         name: trimName,
-        // Course and year are locked to the teacher's record (enrolled subjects
+        // Course and year are locked to the professor's record (enrolled subjects
         // depend on them). Students can't change them here.
         course: s.course || '',
         year: s.year || year,
@@ -338,7 +338,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
           ? '✅ Verified! Full access is now unlocked.'
           : remainingGaps.length
             ? `Profile saved. Still needed to unlock full access: ${remainingGaps.join(', ')}.`
-            : 'Profile saved - your teacher will confirm the change shortly.',
+            : 'Profile saved - your professor will confirm the change shortly.',
           verified ? 'success' : 'info')
         onClose()
         return
@@ -484,7 +484,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
             style={{ background: 'var(--border)', color: 'var(--ink2)', cursor: 'not-allowed' }}
           />
           <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>
-            Set by your teacher to match your enrolled subjects. Contact your teacher to change it.
+            Set by your professor to match your enrolled subjects. Contact your professor to change it.
           </div>
         </div>
 
@@ -498,7 +498,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
             style={{ background: 'var(--border)', color: 'var(--ink2)', cursor: 'not-allowed' }}
           />
           <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>
-            Set by your teacher. Contact your teacher to change it.
+            Set by your professor. Contact your professor to change it.
           </div>
         </div>
 

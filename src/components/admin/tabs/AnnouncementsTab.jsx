@@ -142,7 +142,7 @@ function CommentsSection({ ann, authorId, authorName, role }) {
   const { addAnnouncementComment, addCommentReply, students, db } = useData()
   const comments = ann.comments || []
 
-  // Students the teacher can @mention - scoped to the announcement's class.
+  // Students the professor can @mention - scoped to the announcement's class.
   const mentionCandidates = useMemo(() => {
     const all = ann.classId === 'all' || !ann.classId
     return (students || [])
@@ -153,7 +153,7 @@ function CommentsSection({ ann, authorId, authorName, role }) {
   function fireMentions(body) {
     const ids = resolveMentions(body, mentionCandidates).filter(id => id !== authorId)
     if (!ids.length || !db?.current) return
-    ids.forEach(id => notifyMention(db.current, id, { fromName: authorName || 'Your teacher', snippet: body, link: 'stream' }))
+    ids.forEach(id => notifyMention(db.current, id, { fromName: authorName || 'Your professor', snippet: body, link: 'stream' }))
   }
 
   const [text, setText] = useState('')
@@ -237,7 +237,7 @@ function CommentsSection({ ann, authorId, authorName, role }) {
                 <span style={{ fontSize: 12, fontWeight: 700 }}>{c.authorName}</span>
                 <VerifiedBadge studentId={c.authorId} students={students} size={13} />
                 <span style={{ fontSize: 10, color: 'var(--ink3)' }}>
-                  {c.role === 'teacher' ? 'Teacher' : 'Student'}
+                  {c.role === 'teacher' ? 'Professor' : 'Student'}
                 </span>
                 <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 'auto' }}>
                   {new Date(c.createdAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
@@ -273,7 +273,7 @@ function CommentsSection({ ann, authorId, authorName, role }) {
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                       <span style={{ fontSize: 11, fontWeight: 700 }}>{r.authorName}</span>
                       <span style={{ fontSize: 10, color: 'var(--ink3)' }}>
-                        {r.role === 'teacher' ? 'Teacher' : 'Student'}
+                        {r.role === 'teacher' ? 'Professor' : 'Student'}
                       </span>
                       <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 'auto' }}>
                         {new Date(r.createdAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
@@ -731,7 +731,7 @@ function AnnouncementDetailModal({ ann, classes, onClose, onEdit }) {
         <CommentsSection
           ann={ann}
           authorId={admin?.user || 'admin'}
-          authorName={admin?.user || 'Teacher'}
+          authorName={admin?.user || 'Professor'}
           role="teacher"
         />
 

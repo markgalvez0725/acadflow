@@ -2,7 +2,7 @@
 //
 // One deterministic engine that EVERY screen and export calls, so the same
 // inputs always produce the same number - to the last decimal - on the student
-// page, the teacher gradebook, and the Excel/report-card exports. There must be
+// page, the professor gradebook, and the Excel/report-card exports. There must be
 // exactly one implementation of each formula; do not re-derive grades inline
 // anywhere else.
 //
@@ -12,11 +12,11 @@
 // still exists) and (b) assembling a full, student-readable computation trace.
 //
 // Reliability rules:
-//   • Components are derived from LIVE data, then fall back to the teacher's
+//   • Components are derived from LIVE data, then fall back to the professor's
 //     stored aggregate only when there is nothing live to reconcile against.
 //   • One rounding policy: components & terms display at 2 dp; intermediate
 //     means stay full-precision (see grades.js). Never round twice.
-//   • Two modes - 'published' (what the student sees: final from the teacher's
+//   • Two modes - 'published' (what the student sees: final from the professor's
 //     saved term grades) and 'live' (recompute everything from raw inputs, used
 //     by the gradebook).
 
@@ -77,7 +77,7 @@ export function deriveActivities(s, sub, activities = [], enrolledIds = enrolled
           return { id: k, title: a?.title || '', score: v, max, pct: withFloor(norm(v, max)), missing: false }
         })
       } else if (!liveActs.length) {
-        // Doc-less manual entry (teacher typed scores with no activity docs).
+        // Doc-less manual entry (professor typed scores with no activity docs).
         const aKeyed = entries.filter(([k]) => /^a\d+$/.test(k))
         items = aKeyed
           .sort((a, b) => parseInt(a[0].slice(1)) - parseInt(b[0].slice(1)))
@@ -105,7 +105,7 @@ export function deriveActivities(s, sub, activities = [], enrolledIds = enrolled
 // ── Quizzes component ──────────────────────────────────────────────────────
 // Mean of each quiz percentage. Prefers the student's own per-quiz results
 // cache (reconciled against live quiz ids so a deleted quiz drops out), then
-// the teacher's quizScores map, then the stored numeric aggregate. Each item
+// the professor's quizScores map, then the stored numeric aggregate. Each item
 // carries its pct + a `missing` flag.
 //
 // `floor` enables the "minimum component grade" policy: every quiz that exists
@@ -179,7 +179,7 @@ export function deriveAttendance(s, sub, students = [], classes = [], enrolledId
 
 // ── Full subject computation + trace ───────────────────────────────────────
 // ctx: { activities, quizzes, students, classes, eqScale, enrolledIds }
-// opts.mode: 'published' (default - final from the teacher's saved terms) or
+// opts.mode: 'published' (default - final from the professor's saved terms) or
 //            'live' (recompute terms from the live components).
 export function computeSubjectGrade(s, sub, ctx = {}, opts = {}) {
   const {
@@ -205,12 +205,12 @@ export function computeSubjectGrade(s, sub, ctx = {}, opts = {}) {
     midtermExam, finalsExam,
   })
 
-  // Published view: the student's grade is the teacher's saved term grades.
+  // Published view: the student's grade is the professor's saved term grades.
   const midterm = mode === 'live' ? live.midterm : (comp.midterm ?? live.midterm)
   const finals  = mode === 'live' ? live.finals  : (comp.finals  ?? live.finals)
   const ts = s.gradeUploadedAt?.[sub]
 
-  // Final %: in published mode the authoritative grade is the teacher's SAVED
+  // Final %: in published mode the authoritative grade is the professor's SAVED
   // final (computed at full precision on save, or a manual override) - show that
   // verbatim so the student matches the gradebook exactly; fall back to deriving
   // from the term grades. In live mode, always the fresh recompute.
@@ -259,7 +259,7 @@ function buildTrace({ act, qz, att, attitude, midtermExam, finalsExam, live, mid
   steps.push({ key: 'attendance', label: 'Attendance', value: att.pct,
     detail: { present: att.present, held: att.held },
     formula: 'present ÷ sessions held × 100' })
-  steps.push({ key: 'attitude', label: 'Attitude / Character', value: attitude, formula: 'teacher input' })
+  steps.push({ key: 'attitude', label: 'Attitude / Character', value: attitude, formula: 'professor input' })
   steps.push({ key: 'cs', label: 'Class Standing', value: round2(live.cs),
     formula: 'average of activities, quizzes, attendance, attitude' })
   if (midtermExam != null) steps.push({ key: 'midterm', label: 'Midterm Term', value: round2(midterm),
@@ -267,15 +267,15 @@ function buildTrace({ act, qz, att, attitude, midtermExam, finalsExam, live, mid
   if (finalsExam != null) steps.push({ key: 'finals', label: 'Finals Term', value: round2(finals),
     formula: 'average of Class Standing and Finals Exam (' + finalsExam + ')' })
   steps.push({ key: 'final', label: 'Final Grade', value: final,
-    formula: overridden ? 'manual grade set by teacher' : 'average of Midterm Term and Finals Term' })
+    formula: overridden ? 'manual grade set by professor' : 'average of Midterm Term and Finals Term' })
   steps.push({ key: 'equiv', label: 'Equivalent', value: equiv.eq, remark: equiv.rem })
   return steps
 }
 
 // ── Integrity auditor ──────────────────────────────────────────────────────
-// Compare the teacher's PUBLISHED grade against a fresh LIVE recompute. Drift
+// Compare the professor's PUBLISHED grade against a fresh LIVE recompute. Drift
 // means the saved grade no longer matches the current inputs (e.g. a quiz was
-// deleted, an activity graded, attendance recorded) - the teacher should
+// deleted, an activity graded, attendance recorded) - the professor should
 // recompute & re-publish. Only meaningful for already-published subjects.
 export function auditSubjectGrade(s, sub, ctx = {}) {
   const published = computeSubjectGrade(s, sub, ctx, { mode: 'published' })
@@ -285,7 +285,7 @@ export function auditSubjectGrade(s, sub, ctx = {}) {
   const drift = published.published && stored != null && fresh != null
     && Math.abs(stored - fresh) > 0.01
 
-  // Explain which component moved (stored teacher value vs live recompute).
+  // Explain which component moved (stored professor value vs live recompute).
   const comp = s.gradeComponents?.[sub] || {}
   const reasons = []
   const cmp = (label, was, now) => {
@@ -339,7 +339,7 @@ export function appendGradeHistory(historyMap, subject, entry, cap = 20) {
 // numbers shown.
 //   verified - stored == live AND the math follows from its own components
 //   drift    - stored ≠ live recompute (inputs changed after publish)
-//   override - the teacher's saved final intentionally differs from the formula
+//   override - the professor's saved final intentionally differs from the formula
 //   anomaly  - stored final doesn't even follow from its own components
 export function verifyPublishedGrade(s, sub, ctx = {}) {
   const pub   = computeSubjectGrade(s, sub, ctx, { mode: 'published' })
@@ -375,7 +375,7 @@ export function verifyPublishedGrade(s, sub, ctx = {}) {
   // (3) Live drift - stored published final vs a fresh recompute from current
   // activities / quizzes / attendance. A manual override is EXPECTED to differ
   // from the formula, so it is treated as an override, never as actionable drift
-  // (recomputing it would silently wipe the teacher's intended grade).
+  // (recomputing it would silently wipe the professor's intended grade).
   const inputsDrift = pub.published && pub.final != null && live.final != null
     && Math.abs(pub.final - live.final) > 0.01
   const drift = inputsDrift && !overridden
@@ -403,7 +403,7 @@ export function verifyPublishedGrade(s, sub, ctx = {}) {
     { key: 'items', state: itemsOk ? 'ok' : 'fail',
       label: itemsOk ? 'Each item % matches score ÷ max' : 'An item % does not match its score' },
     overridden
-      ? { key: 'drift', state: 'info', label: `Teacher override (${r1g(pub.final)}) differs from the formula (${r1g(live.final)}) - intentional` }
+      ? { key: 'drift', state: 'info', label: `Professor override (${r1g(pub.final)}) differs from the formula (${r1g(live.final)}) - intentional` }
       : { key: 'drift', state: drift ? 'warn' : 'ok',
           label: drift ? `Stored ${r1g(pub.final)} ≠ live ${r1g(live.final)} (drift)` : 'Stored grade matches the live data' },
   ]

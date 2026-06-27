@@ -1,5 +1,5 @@
 // ── Quiz item analysis ─────────────────────────────────────────────────────
-// Aggregates per-question performance from stored submissions so a teacher can
+// Aggregates per-question performance from stored submissions so a professor can
 // see which items were hardest and which wrong answers were most common.
 // Correctness rules MUST mirror computeScore() in student/tabs/QuizTab.jsx -
 // answers are a position-indexed array of strings.

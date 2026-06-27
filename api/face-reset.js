@@ -1,4 +1,4 @@
-// ── Student: self-service password reset by face match (no teacher needed) ─
+// ── Student: self-service password reset by face match (no professor needed) ─
 // The student enters their student number and scans their face on the Forgot
 // Password screen. Their device runs a liveness challenge and computes a live
 // 128-number descriptor, then posts it here. THE SERVER decides the match - it
@@ -7,8 +7,8 @@
 // browser can never just claim "it matched", and the stored descriptor can never
 // be read back and replayed by another student.
 //
-// Fully self-service: it does NOT notify the teacher and writes NO record - a
-// student resetting their own password leaves no teacher-facing footprint.
+// Fully self-service: it does NOT notify the professor and writes NO record - a
+// student resetting their own password leaves no professor-facing footprint.
 // Rate-limited per student number via a Firestore-backed window (holds across
 // serverless instances) and requires a passed liveness flag.
 //
@@ -90,20 +90,20 @@ export default async function handler(req, res) {
   }
 
   if (!stored) {
-    return res.status(400).json({ error: 'Face ID reset isn’t set up on this account yet. Sign in, then set it up under Settings → “Set up Face ID reset” - or ask your teacher to reset your password.' })
+    return res.status(400).json({ error: 'Face ID reset isn’t set up on this account yet. Sign in, then set it up under Settings → “Set up Face ID reset” - or ask your professor to reset your password.' })
   }
 
   // Throttle (cross-instance): count attempts in the window, then record this one.
   const now = Date.now()
   const recent = ((sig && sig.rl) || []).filter(t => now - t < WINDOW_MS)
   if (recent.length >= MAX_ATTEMPTS) {
-    return res.status(429).json({ error: 'Too many attempts. Please wait a few minutes, or ask your teacher to reset your password.' })
+    return res.status(429).json({ error: 'Too many attempts. Please wait a few minutes, or ask your professor to reset your password.' })
   }
   await patchFaceThrottle(projectId, accessToken, docId, [...recent, now].slice(-20))
 
   const dist = faceDistance(descriptor, stored)
   if (dist > THRESHOLD) {
-    return res.status(401).json({ match: false, error: 'That face did not match. Try again in good lighting, or ask your teacher to reset your password.' })
+    return res.status(401).json({ match: false, error: 'That face did not match. Try again in good lighting, or ask your professor to reset your password.' })
   }
 
   // ── Step 1 (verify only): no new password yet → confirm the match, change
@@ -130,11 +130,11 @@ export default async function handler(req, res) {
   try { await setPassword(projectId, accessToken, localId, newPassword) }
   catch (e) { return res.status(502).json({ error: 'Could not set your new password: ' + e.message }) }
 
-  // Close any open teacher reset window too (harmless if none).
+  // Close any open professor reset window too (harmless if none).
   try { await deleteResetSession(projectId, accessToken, docId) } catch {}
 
-  // Fully self-service: the teacher is NOT notified and NO record is written -
-  // a student resetting their own password leaves no teacher-facing footprint.
+  // Fully self-service: the professor is NOT notified and NO record is written -
+  // a student resetting their own password leaves no professor-facing footprint.
 
   return res.status(200).json({ ok: true })
 }

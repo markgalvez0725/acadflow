@@ -560,7 +560,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
   const { students, activities, saveStudents, db, fbReady, logAudit, latePolicy } = useData()
   const { toast, openDialog } = useUI()
   const [scores,        setScores]       = useState({})
-  const [feedbacks,     setFeedbacks]    = useState({}) // { [studentId]: string } - teacher feedback
+  const [feedbacks,     setFeedbacks]    = useState({}) // { [studentId]: string } - professor feedback
   const [rubricChecks,  setRubricChecks] = useState({}) // { [studentId]: { [criterionId]: bool } }
   const [waived,        setWaived]       = useState({}) // { [studentId]: bool } - late penalty waived
   const [aiFor,    setAiFor]    = useState(null)  // studentId for grading assist
@@ -627,7 +627,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
     const rubricSnapshot = hasRubric ? (rubricChecks[s.id] || {}) : undefined
 
     // Late penalty: deduct from the entered score unless the deadline was met or
-    // the teacher waived it. The effective (penalized) score is what gets stored.
+    // the professor waived it. The effective (penalized) score is what gets stored.
     const sub = (act.submissions || {})[s.id] || {}
     const li  = lateInfo(sub, act, latePolicy)
     const eff = applyLatePenalty(score, sub, act, latePolicy, waived[s.id])
@@ -642,7 +642,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
         [`submissions.${s.id}.latePenalty`]: penalized ? { percent: li.percent, days: li.days, rawScore: score } : null,
       }
       if (rubricSnapshot !== undefined) update[`submissions.${s.id}.rubricChecks`] = rubricSnapshot
-      // Persist teacher feedback only when the field was touched this session.
+      // Persist professor feedback only when the field was touched this session.
       if (feedbacks[s.id] !== undefined) update[`submissions.${s.id}.feedback`] = feedbacks[s.id].trim()
       await updateDoc(doc(db.current, 'activities', act.id), update)
       // Recompute the student's grade against the effective score (patch the
@@ -795,7 +795,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
   function applyAiGrade(studentId) {
     if (!aiResult) return
     setScores(prev => ({ ...prev, [studentId]: String(aiResult.score) }))
-    // Pre-fill the feedback box with the AI's notes so the teacher can review,
+    // Pre-fill the feedback box with the AI's notes so the professor can review,
     // edit, and save it for the student (previously it was shown but discarded).
     if (aiResult.feedback) setFeedbacks(prev => ({ ...prev, [studentId]: aiResult.feedback }))
     if (hasRubric && Array.isArray(aiResult.criteria)) {

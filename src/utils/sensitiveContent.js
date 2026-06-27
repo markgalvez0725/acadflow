@@ -1,7 +1,7 @@
 // ── On-device sensitive-content classifier ────────────────────────────────
 // Decides whether a message looks private enough to "smart-lock" (blur until
 // the reader deliberately reveals it). Runs entirely on-device, synchronously,
-// with no network and no model download - so it can hint live as the teacher or
+// with no network and no model download - so it can hint live as the professor or
 // student types. Multilingual (English + Filipino/Tagalog) to match the app.
 //
 // It is intentionally a transparent rules + lexicon model, not a black box: it

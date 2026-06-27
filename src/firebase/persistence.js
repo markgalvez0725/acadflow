@@ -173,7 +173,7 @@ export async function fbSaveRubricLibrary(db, rubrics) {
   return fbWithTimeout(setDoc(fbDoc(db, 'portal', 'rubricLibrary'), { rubrics }, { merge: true }))
 }
 
-// ── Message delete (teacher-side hard delete of a message document) ───────────
+// ── Message delete (professor-side hard delete of a message document) ───────────
 // Removes the whole message doc (and its nested replies). Used by the admin
 // Messages tab. Student-side "delete" hides locally instead - students must not
 // destroy shared/announcement docs for everyone.
@@ -216,7 +216,7 @@ export async function fbAddCommentReply(db, announcementId, commentId, reply) {
 }
 
 // Atomically append a reply to a message thread. Reading the current replies
-// inside a transaction prevents the lost-update race where teacher and student
+// inside a transaction prevents the lost-update race where professor and student
 // reply near-simultaneously and one reply silently overwrites the other.
 export async function fbAddMessageReply(db, msgId, reply, opts = {}) {
   if (!db || !msgId || !reply) return
@@ -311,6 +311,9 @@ export async function fbAddAuditLog(db, entry) {
 export async function persistAdmin(db, admin) {
   const payload = { user: admin.user, pass: admin.pass, email: admin.email };
   if (admin.resetPin) payload.resetPin = admin.resetPin;
+  // Always written (even when empty) so clearing the name/photo persists.
+  payload.name = admin.name || '';      // professor display name
+  payload.photo = admin.photo || null;  // base64 PNG/JPG professor photo
 
   // 1. Write localStorage immediately - this is what the UI depends on
   try {
@@ -393,7 +396,7 @@ export async function fbCancelMeeting(db, meetingId) {
 
 // ── Student feedback ───────────────────────────────────────────────────────
 // One doc per submission in the `studentFeedback` collection. Students create;
-// the teacher reads them in the Feedback Hub and updates the status.
+// the professor reads them in the Feedback Hub and updates the status.
 export async function fbSubmitStudentFeedback(db, feedback) {
   if (!db) throw new Error('Not connected.');
   const { doc: fbDoc, setDoc } = await import('firebase/firestore');

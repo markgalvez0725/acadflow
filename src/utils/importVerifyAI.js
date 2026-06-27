@@ -8,7 +8,7 @@
 //   verifyImportRows(rows, { classes, students }) → { [rowIndex]: string[] }
 //
 // Only rows with at least one warning appear in the map. Warnings never block an
-// import - they flag rows a teacher should eyeball before committing.
+// import - they flag rows a professor should eyeball before committing.
 
 import { COURSES } from '@/constants/courses.js'
 import { splitStudentName } from '@/utils/studentName.js'

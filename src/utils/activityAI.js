@@ -9,7 +9,7 @@
 //   • rubric        → the shared embedding model picks the best-fit rubric
 //                     archetype by MEANING (semantic match, multilingual)
 //   • grading       → embeddings estimate how well a submission covers each
-//                     rubric criterion → a draft score + feedback the teacher
+//                     rubric criterion → a draft score + feedback the professor
 //                     reviews. An honest coverage estimate, not an authority.
 
 import { ensureExtractor, embedAll, cos, prewarmEmbeddings } from '@/utils/embeddings'
@@ -133,10 +133,10 @@ export async function aiRubric(title, subject, instructions) {
 // ── Grading coverage estimate (on-device) ─────────────────────────────────
 /**
  * Estimate how well a pasted submission covers each rubric criterion using
- * embeddings, and turn that into a DRAFT score + feedback for the teacher to
+ * embeddings, and turn that into a DRAFT score + feedback for the professor to
  * review. This is a coverage heuristic, not authoritative essay grading.
  * @returns {Promise<{score:number, feedback:string, criteria:Array<{name,met,points}>}|null>}
- *   null when the model can't load (caller should tell the teacher).
+ *   null when the model can't load (caller should tell the professor).
  */
 export async function aiGrade({ title, subject, instructions, rubric, maxScore, submissionText }) {
   const text = String(submissionText || '').trim()

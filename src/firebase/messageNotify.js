@@ -15,7 +15,7 @@ function newId() {
 /**
  * Append an in-app notification to notifications/{ownerId}.
  * Runs inside a transaction so two notifications arriving close together (e.g.
- * a teacher sending several messages, or many students messaging the teacher)
+ * a professor sending several messages, or many students messaging the professor)
  * can't overwrite each other - which previously dropped badges silently.
  */
 export async function appendNotif(db, ownerId, notif) {
@@ -42,8 +42,8 @@ function notifBody(text, secure, max) {
   return (text || '').slice(0, max)
 }
 
-/** Teacher → one student: in-app notif + best-effort web push. */
-export async function notifyStudentMessage(db, studentId, body, fromLabel = 'your teacher', { secure = false } = {}) {
+/** Professor → one student: in-app notif + best-effort web push. */
+export async function notifyStudentMessage(db, studentId, body, fromLabel = 'your professor', { secure = false } = {}) {
   if (!studentId) return
   const title = 'New message from ' + fromLabel
   await appendNotif(db, studentId, {
@@ -58,13 +58,13 @@ export async function notifyStudentMessage(db, studentId, body, fromLabel = 'you
   }, { url: '/', tag: 'message' })
 }
 
-/** Teacher → many students (broadcast / announcement): in-app notif each + one push. */
+/** Professor → many students (broadcast / announcement): in-app notif each + one push. */
 export async function notifyStudentsBroadcast(db, studentIds, subject, { secure = false } = {}) {
   const ids = [...new Set((studentIds || []).filter(Boolean))]
   if (!ids.length) return
   await Promise.all(ids.map(id => appendNotif(db, id, {
     type: 'msg_out',
-    title: 'New announcement from your teacher',
+    title: 'New announcement from your professor',
     body: notifBody(subject, secure, 80),
     link: 'messages',
   })))

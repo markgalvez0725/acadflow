@@ -52,7 +52,7 @@ export default function DashboardTab() {
   )
 
   // Notify each flagged student once per new streak milestone (idempotent via
-  // remKey). Best-effort; runs when the teacher's dashboard sees the alerts.
+  // remKey). Best-effort; runs when the professor's dashboard sees the alerts.
   const notifiedRef = useRef(false)
   useEffect(() => {
     if (notifiedRef.current || !fbReady || !db?.current || !absenceAlerts.length) return
@@ -62,7 +62,7 @@ export default function DashboardTab() {
         remKey: `absent_${a.classId}_${a.subject}_${a.lastDate}_${a.streak}`,
         type: 'att_alert',
         title: 'Attendance check-in',
-        body: `You've missed ${a.streak} ${a.subject} sessions in a row. Please reach out to your teacher.`,
+        body: `You've missed ${a.streak} ${a.subject} sessions in a row. Please reach out to your professor.`,
         link: 'attendance',
       }
       fbPushReminderNotif(db.current, a.student.id, rem).then(created => {
@@ -78,14 +78,14 @@ export default function DashboardTab() {
   )
 
   // Send a one-tap check-in nudge (in-app notif + best-effort push). The remKey
-  // carries a timestamp so a teacher can re-send if needed.
+  // carries a timestamp so a professor can re-send if needed.
   const nudgeStudent = (r) => {
     if (!db?.current) return
     const top = r.reasons[0]?.text || 'your recent activity'
     const rem = {
       remKey: `nudge_${r.student.id}_${Date.now()}`,
       type: 'att_alert',
-      title: 'A message from your teacher',
+      title: 'A message from your professor',
       body: `Checking in - let's talk about ${top.toLowerCase()}. Reach out if you need help.`,
       link: 'overview',
     }
@@ -162,7 +162,7 @@ export default function DashboardTab() {
 
   if (!fbReady) return <SkeletonDashboard />
 
-  const adminName = admin?.name || admin?.displayName || 'Teacher'
+  const adminName = admin?.name || admin?.displayName || 'Professor'
   const hr = new Date().getHours()
   const greeting = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening'
 

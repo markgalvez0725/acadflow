@@ -605,9 +605,9 @@ function EditStudentModal({ student, onClose }) {
 }
 
 // ── Reset Password Modal ──────────────────────────────────────────────
-// Live, coordinated reset. The teacher opens a short reset window for one
+// Live, coordinated reset. The professor opens a short reset window for one
 // student; the student's own device claims a fresh temporary password and is
-// signed in automatically. No password is shown to or stored by the teacher.
+// signed in automatically. No password is shown to or stored by the professor.
 function ResetPasswordModal({ student, onClose }) {
   const { toast } = useUI()
 

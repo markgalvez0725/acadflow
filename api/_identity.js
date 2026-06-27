@@ -3,7 +3,7 @@
 // that actually decides whether a self-registration is auto-verified - it runs
 // on the server with the Admin SDK so a student's browser can never forge the
 // result. Keep the algorithm in sync with the client copy (the client one is
-// advisory: instant UX + the teacher's review detail).
+// advisory: instant UX + the professor's review detail).
 
 export const STRONG = 85
 export const PARTIAL = 60

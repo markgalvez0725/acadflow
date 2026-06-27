@@ -117,13 +117,13 @@ export default function ResourcesTab({ student: s, viewClassId, classes }) {
       <PageHeader
         crumb={<><Library size={13} /> Resources</>}
         title="Resource Hub"
-        subtitle={`${stats.total} material${stats.total === 1 ? '' : 's'} from your teacher`}
+        subtitle={`${stats.total} material${stats.total === 1 ? '' : 's'} from your professor`}
       />
 
       {!mine.length ? (
         <div className="empty">
           <div className="empty-icon"><Library size={40} /></div>
-          No resources posted yet. Your teacher's modules, slides, and links will appear here.
+          No resources posted yet. Your professor's modules, slides, and links will appear here.
         </div>
       ) : (
         <>

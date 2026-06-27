@@ -69,7 +69,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
     [quizzes, classId, subject]
   )
 
-  // Manual "+ column" extras the teacher adds in-modal (beyond app/imported ones).
+  // Manual "+ column" extras the professor adds in-modal (beyond app/imported ones).
   const [manualActExtra, setManualActExtra] = useState(0)
   const [manualQzExtra,  setManualQzExtra]  = useState(0)
 
@@ -841,7 +841,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
               <th rowSpan={2} title="Quizzes average - computed from individual scores">
                 Quiz Avg<br /><small className="font-normal text-ink3">auto</small>
               </th>
-              <th rowSpan={2} title="Attitude/Character grade - entered manually by teacher" style={{ background: 'var(--yellow-l)' }}>
+              <th rowSpan={2} title="Attitude/Character grade - entered manually by professor" style={{ background: 'var(--yellow-l)' }}>
                 Attitude<br /><small className="font-normal" style={{ color: 'var(--gold-var)' }}>you enter</small>
               </th>
               <th rowSpan={2} title="Attendance % - auto from records">
@@ -1390,7 +1390,7 @@ function SubjectCard({ cls, sub, studs, allStuds = [], eqScale, readOnly, onEdit
                   </td>
                   <td>
                     <span className={`badge ${BADGE_CLS_MAP[r.fgBadgeCls] || 'badge-gray'}`}
-                      title={r.rem === 'Pending' ? 'Final grade not yet fully uploaded by teacher' : ''}>
+                      title={r.rem === 'Pending' ? 'Final grade not yet fully uploaded by professor' : ''}>
                       {r.rem}
                     </span>
                   </td>
@@ -1777,7 +1777,7 @@ export default function GradesTab() {
     }
 
     // Recompute every row the way the app does and surface anything off before
-    // anything is written - the teacher reviews + confirms in the preview panel.
+    // anything is written - the professor reviews + confirms in the preview panel.
     const verify = verifyGradeRows(entries, { students, classId: effectiveId, subject: importSub, eqScale, gradeFloor })
     setImportPreview({ sub: importSub, entries, verify, fileName: file.name })
   }

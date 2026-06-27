@@ -54,7 +54,7 @@ export default function FaceResetModal({ initialNumber = '', onClose, onSuccess 
       })
       const data = await r.json().catch(() => ({}))
       if (r.status === 401) { setErr(data.error || 'That face did not match.'); go('nomatch'); return }
-      if (!r.ok) { setErr(data.error || 'Reset failed. Try again or ask your teacher.'); go('error'); return }
+      if (!r.ok) { setErr(data.error || 'Reset failed. Try again or ask your professor.'); go('error'); return }
       if (data.match) {
         stopStream(streamRef.current); streamRef.current = null
         descriptorRef.current = descriptor
@@ -170,7 +170,7 @@ export default function FaceResetModal({ initialNumber = '', onClose, onSuccess 
       {phase === 'number' ? (
         <form onSubmit={confirmNumber}>
           <p className="text-xs text-ink2" style={{ marginBottom: 14, lineHeight: 1.55 }}>
-            Enter your student number, then scan your face and choose a new password - no teacher needed.
+            Enter your student number, then scan your face and choose a new password - no professor needed.
             (Only works if you set up Face ID reset beforehand.)
           </p>
           <div className="field-float">

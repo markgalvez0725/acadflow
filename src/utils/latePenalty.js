@@ -3,7 +3,7 @@
 // portal/settings as `latePolicy`) and applied when grading an activity:
 // a submission whose submittedAt is past the deadline (plus an optional grace
 // window) loses `percentPerDay` of its earned score per day late, capped at
-// `maxPercent`. The teacher can waive the penalty per submission.
+// `maxPercent`. The professor can waive the penalty per submission.
 
 export const DEFAULT_LATE_POLICY = {
   enabled: false,      // off by default - opt-in

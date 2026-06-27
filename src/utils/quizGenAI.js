@@ -1,7 +1,7 @@
 // ── On-device AI quiz generator ───────────────────────────────────────────
 // Custom, in-browser replacement for the Gemini quiz endpoint. A neural
 // sentence-embedding model (paraphrase-multilingual-MiniLM-L12-v2, ~120 MB
-// quantized) runs entirely on the teacher's device via Transformers.js. It is
+// quantized) runs entirely on the professor's device via Transformers.js. It is
 // multilingual on purpose - the quizzes here are in Filipino/Tagalog, which an
 // English-only model embeds poorly. The lesson text NEVER leaves the browser.
 //
@@ -125,7 +125,7 @@ function mergeAlternates(list, answer) {
  * Grounded synonym mining for accepted answers. Returns candidate terms whose
  * embedding is very close to the answer's - but CONSERVATIVE on purpose: a high
  * floor + small cap, because embeddings can't fully separate a synonym from a
- * sibling/opposite. The teacher reviews every key, so we err toward precision.
+ * sibling/opposite. The professor reviews every key, so we err toward precision.
  */
 function mineSynonyms(answer, answerVec, candEntries, { min = 0.84, cap = 2 } = {}) {
   if (!answerVec) return []

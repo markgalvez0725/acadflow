@@ -82,10 +82,10 @@ export default function AdminLayout() {
   const unreadNotifCount = (adminNotifs || []).filter(n => !n.read).length
   const { loginTime, lastLogin, logout } = useAuth()
 
-  const adminName = admin?.name || admin?.displayName || 'Teacher'
+  const adminName = admin?.name || admin?.displayName || 'Professor'
   const adminInitial = adminName.charAt(0).toUpperCase()
 
-  // Web push (FCM) for the teacher - opt-in per device, no-op when unconfigured.
+  // Web push (FCM) for the professor - opt-in per device, no-op when unconfigured.
   const push = usePushNotifications({ db, fbReady, ownerId: 'admin', role: 'admin', toast })
   const unreadMsgCount = messages.filter(m => m.from !== 'admin' && !m.adminRead).length
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -203,7 +203,7 @@ export default function AdminLayout() {
         </Suspense>
       )}
 
-      {/* Student profile - globally openable from any teacher-side view (synced) */}
+      {/* Student profile - globally openable from any professor-side view (synced) */}
       <Suspense fallback={null}>
         <StudentProfileModal />
       </Suspense>

@@ -43,7 +43,7 @@ export default function AdminSidebar({ onSettingsOpen }) {
     return 0
   }
 
-  const adminName = admin?.name || admin?.displayName || 'Teacher'
+  const adminName = admin?.name || admin?.displayName || 'Professor'
   const adminInitial = adminName.charAt(0).toUpperCase()
 
   return (
@@ -53,7 +53,7 @@ export default function AdminSidebar({ onSettingsOpen }) {
         <img src="/logo.png" alt="AcadFlow" style={{ width: 32, height: 32, marginRight: 8, flexShrink: 0, objectFit: 'contain' }} />
         <div>
           <h2>AcadFlow</h2>
-          <span>Teacher Portal</span>
+          <span>Professor Portal</span>
         </div>
       </div>
 
@@ -92,7 +92,11 @@ export default function AdminSidebar({ onSettingsOpen }) {
       {/* Footer */}
       <div className="sb-footer">
         <div className="sb-user">
-          <div className="sb-avatar" style={{ flexShrink: 0 }}>{adminInitial}</div>
+          <div className="sb-avatar" style={{ flexShrink: 0, overflow: 'hidden', padding: 0 }}>
+            {admin?.photo
+              ? <img src={admin.photo} alt={adminName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : adminInitial}
+          </div>
           <div className="sb-user-info">
             <strong>{adminName}</strong>
             <span>{admin?.email || '-'}</span>

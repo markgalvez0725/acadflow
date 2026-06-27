@@ -36,7 +36,7 @@ export const STEP_DEFS = {
 }
 
 // The steps that apply to this student, captured once (at mount) for a STABLE
-// stepper. Password only appears for teacher-provisioned (temp-password) accounts.
+// stepper. Password only appears for professor-provisioned (temp-password) accounts.
 export function applicableSteps(student) {
   const s = verificationState(student)
   const keys = []
@@ -84,19 +84,19 @@ export function verificationGuidance(student, active) {
     case 'password':
       return {
         tone: 'accent', title: 'Set your password',
-        text: `${hi} 👋 First, set a password only you know. Enter the temporary password your teacher gave you, then choose a new one - at least 8 characters with an uppercase letter and a number.`,
+        text: `${hi} 👋 First, set a password only you know. Enter the temporary password your professor gave you, then choose a new one - at least 8 characters with an uppercase letter and a number.`,
       }
     case 'profile':
       return {
         tone: 'accent', title: 'Complete your profile',
         text: isPendingVerification(student)
           ? `Add a clear headshot: plain white background, business attire, facing the camera. I'll check it on your device, confirm it matches the face you just enrolled, and match you to your class roster automatically.`
-          : `Add a clear profile photo and confirm your name so your teacher can recognize you. I'll check the photo and confirm it matches your Face ID as you go.`,
+          : `Add a clear profile photo and confirm your name so your professor can recognize you. I'll check the photo and confirm it matches your Face ID as you go.`,
       }
     case 'awaiting':
       return {
         tone: 'warn', title: 'Almost there',
-        text: `Thanks - your details are in. I couldn't auto-confirm your identity just yet, so your teacher will review it shortly. You'll get the verified badge the moment they confirm. You can keep using the rest of the app meanwhile.`,
+        text: `Thanks - your details are in. I couldn't auto-confirm your identity just yet, so your professor will review it shortly. You'll get the verified badge the moment they confirm. You can keep using the rest of the app meanwhile.`,
       }
     case 'face':
       return {

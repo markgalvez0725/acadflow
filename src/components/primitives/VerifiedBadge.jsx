@@ -16,7 +16,7 @@ const PENDING_AMBER  = '#f59e0b'
  *  • pending → small amber "Pending" mark. With `onPendingClick` it becomes a
  *    button that routes the student to finish account setup so they turn Active.
  *  • none / unresolved → renders NOTHING (no account, unknown id, or a non-student
- *    author such as the teacher) - so it never shows a stray mark.
+ *    author such as the professor) - so it never shows a stray mark.
  *
  * Status is derived from the single source of truth (accountStatusKey), so this
  * never drifts from the gating/lock logic elsewhere.

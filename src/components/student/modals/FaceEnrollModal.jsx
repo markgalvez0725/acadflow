@@ -110,7 +110,7 @@ export default function FaceEnrollModal({ student, onClose, embedded = false, hi
         </div>
       )}
       <p className="text-xs text-ink2" style={{ marginBottom: 14 }}>
-        Enroll your face once so you can reset your own password later - no teacher needed.
+        Enroll your face once so you can reset your own password later - no professor needed.
       </p>
 
       {phase === 'done' ? (

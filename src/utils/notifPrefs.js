@@ -11,7 +11,7 @@
 export const NOTIF_CATEGORIES = [
   { key: 'activities',    label: 'Activities',    desc: 'New activities and submission updates' },
   { key: 'grades',        label: 'Grades',        desc: 'When your work is graded' },
-  { key: 'messages',      label: 'Messages',      desc: 'Direct messages from your teacher' },
+  { key: 'messages',      label: 'Messages',      desc: 'Direct messages from your professor' },
   { key: 'announcements', label: 'Announcements', desc: 'Class announcements' },
   { key: 'meetings',      label: 'Online classes', desc: 'Online class / meeting updates' },
 ]

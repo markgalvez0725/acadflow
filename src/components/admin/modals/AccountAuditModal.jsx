@@ -5,7 +5,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { auditAccounts, legacyActiveIds, nudgeTargets, incompleteProfiles, demoteCandidates } from '@/utils/accountAudit'
 
-// Teacher-side analyzer for EXISTING accounts (the AI identity check only runs at
+// Professor-side analyzer for EXISTING accounts (the AI identity check only runs at
 // registration). Shows verification coverage + flags integrity anomalies, with a
 // one-click "mark all legacy accounts verified" and a jump into each flagged row.
 export default function AccountAuditModal({ onClose, onOpenStudent }) {
@@ -34,7 +34,7 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
     if (!legacyIds.length) return
     const ok = await openDialog({
       title: `Mark ${legacyIds.length} legacy account${legacyIds.length > 1 ? 's' : ''} verified?`,
-      msg: 'These are active accounts that pre-date AI verification. Marking them teacher-verified clears the "never checked" state - it does not change their access.',
+      msg: 'These are active accounts that pre-date AI verification. Marking them professor-verified clears the "never checked" state - it does not change their access.',
       type: 'warn', confirmLabel: 'Mark verified', showCancel: true,
     })
     if (!ok) return
@@ -77,7 +77,7 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
 
   // The audit is computed live from the real-time roster, so it is always current
   // the moment this modal opens. This button re-evaluates the WHOLE roster on
-  // demand and reports the result, so the teacher can see the scan ran and pick
+  // demand and reports the result, so the professor can see the scan ran and pick
   // up any students added/changed since opening.
   function rescan() {
     setScanning(true)
@@ -108,7 +108,7 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
       <div className="grid gap-2 mb-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))' }}>
         {[
           ['AI-verified', coverage.ai, 'var(--green)'],
-          ['Teacher-verified', coverage.teacher, 'var(--green)'],
+          ['Professor-verified', coverage.teacher, 'var(--green)'],
           ['Legacy (unchecked)', coverage.legacy, coverage.legacy > 0 ? 'var(--yellow)' : undefined],
           ['Awaiting review', coverage.pendingVerify, coverage.pendingVerify > 0 ? 'var(--yellow)' : undefined],
         ].map(([label, val, color]) => (

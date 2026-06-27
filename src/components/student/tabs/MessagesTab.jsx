@@ -23,14 +23,14 @@ import { MessageSquare, GraduationCap, CheckCheck, Trash2, Check, Lock, Send, Ch
 
 const PER_PAGE = 10
 
-// A class/section or subject group chat - teacher-owned, students may not delete it.
+// A class/section or subject group chat - professor-owned, students may not delete it.
 function isGroupChat(m) {
   return m?.type === 'announcement' && (!!m.classId || (Array.isArray(m.classIds) && m.classIds.length > 0))
 }
 
 // Student-side "delete" hides items from this device's inbox only - it must NOT
 // delete the shared Firestore docs (announcements/direct threads belong to the
-// teacher too). Stored per student: { announce: [msgId…], directUpTo: ts }.
+// professor too). Stored per student: { announce: [msgId…], directUpTo: ts }.
 // The direct conversation is hidden only up to a timestamp, so any newer message
 // or reply brings it back automatically.
 function hiddenKey(sid) { return `acadflow_hidden_msgs_${sid}` }
@@ -73,7 +73,7 @@ export default function MessagesTab({ student: s, messages }) {
     if (!tokens.length) return
     const ok = await openDialog({
       title: `Remove ${tokens.length} item${tokens.length > 1 ? 's' : ''}?`,
-      msg: 'This hides the selected message(s) from your inbox on this device. Your teacher keeps their copy, and any new reply brings the conversation back.',
+      msg: 'This hides the selected message(s) from your inbox on this device. Your professor keeps their copy, and any new reply brings the conversation back.',
       type: 'danger', confirmLabel: 'Delete', showCancel: true,
     })
     if (!ok) return
@@ -96,8 +96,8 @@ export default function MessagesTab({ student: s, messages }) {
 
   // Screenshot log (Instagram / Messenger style): when a capture is detected
   // while a thread is open, drop a "… took a screenshot" notice into the
-  // conversation so BOTH the student and the teacher see it, and alert the
-  // teacher's feed. Detection is best-effort - see useScreenshotGuard for why
+  // conversation so BOTH the student and the professor see it, and alert the
+  // professor's feed. Detection is best-effort - see useScreenshotGuard for why
   // browsers (especially iOS Safari) can't catch every screenshot.
   useScreenshotGuard({
     enabled: view === 'thread',
@@ -148,7 +148,7 @@ export default function MessagesTab({ student: s, messages }) {
       const lastActivity = allReplies.length ? Math.max(latest.ts, ...allReplies.map(r => r.ts)) : latest.ts
       // Newest entry across messages AND replies, so the list preview reflects
       // the most recent line of the conversation (not just the last top-level
-      // message). Without this a teacher's latest reply never shows in the list.
+      // message). Without this a professor's latest reply never shows in the list.
       const allEntries = directMsgs.flatMap(m => [
         { body: m.body || '', from: m.from, ts: m.ts || 0, secure: m.secure },
         ...(m.replies || []).map(r => ({ body: r.body || '', from: r.from, ts: r.ts || 0, secure: r.secure })),
@@ -182,8 +182,8 @@ export default function MessagesTab({ student: s, messages }) {
   const slice = items.slice((page - 1) * PER_PAGE, page * PER_PAGE)
 
   // Keep the OPEN thread live: rebuild its entries from the latest messages so a
-  // teacher's reply (or another group member's) shows without reopening. The
-  // teacher side already does this via a memo; the student side previously froze
+  // professor's reply (or another group member's) shows without reopening. The
+  // professor side already does this via a memo; the student side previously froze
   // the thread to a snapshot taken at open time.
   useEffect(() => {
     if (view !== 'thread' || !activeKey) return
@@ -222,7 +222,7 @@ export default function MessagesTab({ student: s, messages }) {
     const directMsgs = allMsgs.filter(m => m.type !== 'announcement').sort((a, b) => a.ts - b.ts)
     if (!directMsgs.length) {
       // New conversation - open thread with empty, allow compose
-      setThreadTitle('Teacher')
+      setThreadTitle('Professor')
       setThreadEntries([])
       setReplyMsgId(null)
       setCanReply(true)
@@ -231,7 +231,7 @@ export default function MessagesTab({ student: s, messages }) {
       return
     }
     // Mark the whole conversation read - including the student's own messages
-    // that received a teacher reply, otherwise their readAt never updates and
+    // that received a professor reply, otherwise their readAt never updates and
     // the unread badge stays lit after reading.
     const teacherMsgIds = directMsgs.map(m => m.id)
     markRead(teacherMsgIds)
@@ -243,7 +243,7 @@ export default function MessagesTab({ student: s, messages }) {
       ;(m.replies || []).forEach(r => allEntries.push({ ...r, isMain: false }))
     })
     allEntries.sort((a, b) => a.ts - b.ts)
-    setThreadTitle('Teacher')
+    setThreadTitle('Professor')
     setThreadEntries(allEntries)
     setCanReply(true)
     setActiveKey('direct')
@@ -299,7 +299,7 @@ export default function MessagesTab({ student: s, messages }) {
       if (targetMsgId) {
         const newReply = { from: s.id, body: text, ts: Date.now(), ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}) }
         setThreadEntries(prev => [...prev, { ...newReply, isMain: false }])
-        // Atomic append - won't clobber a teacher reply sent at the same time.
+        // Atomic append - won't clobber a professor reply sent at the same time.
         await fbAddMessageReply(db.current, targetMsgId, newReply, { readerId: s.id, adminRead: false })
         // Notify teacher: in-app badge + best-effort web push.
         notifyAdminMessage(db.current, s.name || s.id, text, 'reply', { secure })
@@ -317,7 +317,7 @@ export default function MessagesTab({ student: s, messages }) {
         // Anchor the open thread to the new doc so a follow-up message threads as
         // a reply instead of creating another top-level message.
         setReplyMsgId(newId)
-        // Notify teacher of a brand-new conversation (was previously missing).
+        // Notify professor of a brand-new conversation (was previously missing).
         notifyAdminMessage(db.current, s.name || s.id, text, 'message', { secure })
       }
     } catch (e) {
@@ -329,22 +329,22 @@ export default function MessagesTab({ student: s, messages }) {
   }
 
   // Record a detected screenshot as an in-thread system notice (shown to the
-  // student now, and to the teacher when they open the thread) plus a teacher
+  // student now, and to the professor when they open the thread) plus a professor
   // alert. Only logs inline when a thread doc exists to anchor it to; otherwise
-  // it still notifies the teacher.
+  // it still notifies the professor.
   const lastShotRef = useRef(0)
   async function logScreenshot() {
     const now = Date.now()
     if (now - lastShotRef.current < 2500) return // collapse bursts
     lastShotRef.current = now
-    toast('Screenshot detected - your teacher has been notified.', 'warn')
+    toast('Screenshot detected - your professor has been notified.', 'warn')
     reportScreenshot?.(s, threadTitle)
     if (!fbReady || !db.current || !replyMsgId) return
     const sysEntry = { from: s.id, kind: 'screenshot', body: '', ts: now }
     setThreadEntries(prev => [...prev, { ...sysEntry, isMain: false }])
     try {
       await fbAddMessageReply(db.current, replyMsgId, sysEntry, { readerId: s.id, adminRead: false })
-    } catch (e) { /* best-effort - the teacher was still notified above */ }
+    } catch (e) { /* best-effort - the professor was still notified above */ }
   }
 
   // Live typing presence for the open thread (group_ for a group chat, else direct_).
@@ -369,7 +369,7 @@ export default function MessagesTab({ student: s, messages }) {
 
   function senderInfo(entry) {
     if (entry.from === s.id)    return { self: true,  name: 'You' }
-    if (entry.from === 'admin') return { self: false, name: 'Teacher', teacher: true }
+    if (entry.from === 'admin') return { self: false, name: 'Professor', teacher: true }
     const st = students.find(x => x.id === entry.from)
     return { self: false, name: st?.name || 'Member', id: entry.from }
   }
@@ -377,7 +377,7 @@ export default function MessagesTab({ student: s, messages }) {
   // Begin a quoted reply to a bubble (from a swipe or the hover reply icon).
   function startReplyTo(entry) {
     const info = senderInfo(entry)
-    const author = info.self ? 'You' : (info.name || 'Teacher')
+    const author = info.self ? 'You' : (info.name || 'Professor')
     const text = entry.secure ? '🔒 Private message' : (entry.body || '')
     setReplyingTo({ author, text: text.slice(0, 140) })
   }
@@ -388,7 +388,7 @@ export default function MessagesTab({ student: s, messages }) {
       return (
         <div className="empty" style={{ padding: '28px 18px' }}>
           <div className="empty-icon"><MessageSquare size={36} /></div>
-          {search ? 'No messages match your search.' : <>No messages yet.<br /><span style={{ fontSize: 12 }}>Messages from your teacher will appear here.</span></>}
+          {search ? 'No messages match your search.' : <>No messages yet.<br /><span style={{ fontSize: 12 }}>Messages from your professor will appear here.</span></>}
         </div>
       )
     }
@@ -407,7 +407,7 @@ export default function MessagesTab({ student: s, messages }) {
             {selectMode && <span className={`msg-checkbox ${sel ? 'checked' : ''}`} aria-hidden="true">{sel && <Check size={13} />}</span>}
             <div className="s-conv-avatar">T</div>
             <div className="s-conv-body">
-              <div className="s-conv-name">{item.hasUnread && <span className="unread-dot" />}Teacher</div>
+              <div className="s-conv-name">{item.hasUnread && <span className="unread-dot" />}Professor</div>
               <div className="s-conv-preview">{preview}</div>
               {replyHint && <div style={{ fontSize: 10, color: 'var(--green)', marginTop: 2 }}>{replyHint}</div>}
             </div>
@@ -424,7 +424,7 @@ export default function MessagesTab({ student: s, messages }) {
       const newestEntry = (lastRep && (lastRep.ts || 0) > (m.ts || 0)) ? lastRep : m
       const preview = previewText(m.body, { secure: newestEntry.secure })
       const replyCount = (m.replies || []).length
-      // Class/subject group chats are teacher-owned: students can't delete them.
+      // Class/subject group chats are professor-owned: students can't delete them.
       const locked = isGroupChat(m)
       const sel = selected.has(m.id)
       const active = activeKey === m.id
@@ -566,7 +566,7 @@ export default function MessagesTab({ student: s, messages }) {
                         </div>
                       </SwipeReply>
                       {isSelf && i === lastSelfIdx && (
-                        <div className={`msg-seen ${adminSeen ? 'read' : ''}`} title={adminSeen ? 'Read by teacher' : 'Delivered'}>
+                        <div className={`msg-seen ${adminSeen ? 'read' : ''}`} title={adminSeen ? 'Read by professor' : 'Delivered'}>
                           {adminSeen ? 'Seen' : 'Sent'} <CheckCheck size={13} />
                         </div>
                       )}

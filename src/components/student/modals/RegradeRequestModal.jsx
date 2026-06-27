@@ -18,7 +18,7 @@ function currentGradeFor(student, sub) {
 
 /**
  * Lets a student raise a structured grade-appeal / regrade request. It is sent
- * as a normal message to the teacher (type 'regrade_request') so it lands in
+ * as a normal message to the professor (type 'regrade_request') so it lands in
  * the existing Messages inbox and can be replied to like any conversation.
  */
 export default function RegradeRequestModal({ student: s, subjects = [], onClose }) {
@@ -56,7 +56,7 @@ export default function RegradeRequestModal({ student: s, subjects = [], onClose
       }
       await setDoc(doc(db.current, 'messages', newId), msg)
       notifyAdminMessage(db.current, s.name || s.id, `Regrade request for ${subject}: ${text}`, 'message')
-      toast('Regrade request sent to your teacher.', 'green')
+      toast('Regrade request sent to your professor.', 'green')
       onClose()
     } catch (e) {
       toast('Failed to send: ' + e.message, 'error')
@@ -69,7 +69,7 @@ export default function RegradeRequestModal({ student: s, subjects = [], onClose
     <Modal onClose={onClose} size="sm">
       <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}><RefreshCw size={18} /> Request a Regrade</h3>
       <p className="modal-sub">
-        Politely explain why you believe a grade should be reviewed. Your teacher receives this in their messages and can reply to you.
+        Politely explain why you believe a grade should be reviewed. Your professor receives this in their messages and can reply to you.
       </p>
 
       <label className="field-label" htmlFor="regrade-subject">Subject</label>

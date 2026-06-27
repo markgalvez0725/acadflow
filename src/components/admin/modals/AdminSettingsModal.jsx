@@ -210,6 +210,10 @@ function CredentialsTab() {
   const [pinConf,      setPinConf]      = useState('')
   const [saving,       setSaving]       = useState(false)
   const [emailStatus,  setEmailStatus]  = useState('idle') // idle | saving | saved
+  const [name,         setName]         = useState(admin.name || '')
+  const [nameStatus,   setNameStatus]   = useState('idle')
+  const [photo,        setPhoto]        = useState(admin.photo || null)
+  const photoRef = useRef(null)
 
   // Smart-check results (on-device, deterministic).
   const emailChk = checkEmail(email, { required: true })
@@ -234,6 +238,39 @@ function CredentialsTab() {
     }, 900)
     return () => clearTimeout(t)
   }, [email]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-save the professor name once it changes (debounced).
+  useEffect(() => {
+    const v = name.trim()
+    if (v === (admin.name || '')) return
+    setNameStatus('saving')
+    const t = setTimeout(async () => {
+      try {
+        await saveAdmin({ ...admin, name: v })
+        setNameStatus('saved')
+        setTimeout(() => setNameStatus('idle'), 1500)
+      } catch { setNameStatus('idle') }
+    }, 900)
+    return () => clearTimeout(t)
+  }, [name]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handlePhoto(e) {
+    const f = e.target.files?.[0]
+    if (photoRef.current) photoRef.current.value = ''
+    if (!f) return
+    if (!/^image\/(png|jpe?g)$/i.test(f.type)) { toast('Photo must be a PNG or JPG image.', 'error'); return }
+    try {
+      const { dataUrl } = await downscaleImage(f, 320)
+      setPhoto(dataUrl)
+      await saveAdmin({ ...admin, photo: dataUrl })
+      toast('Professor photo updated.', 'success')
+    } catch { toast('Could not read that image. Try another file.', 'error') }
+  }
+
+  async function removePhoto() {
+    setPhoto(null)
+    try { await saveAdmin({ ...admin, photo: null }) } catch {}
+  }
 
   async function handleChangePassword(e) {
     e.preventDefault()
@@ -265,6 +302,45 @@ function CredentialsTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
       <SmartCheckTag />
+
+      {/* Professor profile - name (auto-saves) + photo */}
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div className="form-label" style={{ fontWeight: 600, margin: 0 }}>Professor name</div>
+          <SaveStatus status={nameStatus} />
+        </div>
+        <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+          <div style={{ width: 64, height: 64, borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+            {photo
+              ? <img src={photo} alt="Professor" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--ink3)' }}>{(name.trim()[0] || 'P').toUpperCase()}</span>}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <input
+              className="form-input"
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Prof. Maria Santos"
+              maxLength={80}
+            />
+            <input ref={photoRef} type="file" accept="image/png,image/jpeg" onChange={handlePhoto} style={{ display: 'none' }} />
+            <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => photoRef.current?.click()}>
+                <Upload size={13} className="inline-block mr-1" />{photo ? 'Replace photo' : 'Upload photo'}
+              </button>
+              {photo && (
+                <button type="button" className="btn btn-ghost btn-sm" onClick={removePhoto}>
+                  <Trash2 size={13} className="inline-block mr-1" />Remove
+                </button>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 6 }}>Shown in the sidebar and on every report's "Prepared by" line. Photo is PNG/JPG, optional.</div>
+          </div>
+        </div>
+      </div>
+
+      <hr style={{ border: 'none', borderTop: '1px solid var(--border)' }} />
 
       {/* Email - auto-saves when valid */}
       <div>
@@ -950,10 +1026,14 @@ export default function AdminSettingsModal({ onClose, push }) {
   const identity = (
     <div className="sset-card">
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px' }}>
-        <span style={{ width: 42, height: 42, borderRadius: '50%', background: 'var(--accent-l)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15, flexShrink: 0 }}>AD</span>
+        <span style={{ width: 42, height: 42, borderRadius: '50%', background: 'var(--accent-l)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15, flexShrink: 0, overflow: 'hidden' }}>
+          {admin?.photo
+            ? <img src={admin.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : (admin?.name?.trim()?.[0]?.toUpperCase() || 'A')}
+        </span>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--ink)' }}>Administrator</div>
-          <div style={{ fontSize: 12, color: 'var(--ink3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{admin?.email || 'Teacher / staff account'}</div>
+          <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--ink)' }}>{admin?.name?.trim() || 'Administrator'}</div>
+          <div style={{ fontSize: 12, color: 'var(--ink3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{admin?.email || 'Professor / staff account'}</div>
         </div>
       </div>
     </div>

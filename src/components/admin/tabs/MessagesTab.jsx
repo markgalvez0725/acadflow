@@ -214,7 +214,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
 
   // Open subjects for the CURRENT semester → a group message reaches every
   // student enrolled in a current-semester class that teaches that subject.
-  // Listed even with 0 students enrolled yet: the teacher can create the group
+  // Listed even with 0 students enrolled yet: the professor can create the group
   // chat now, and students auto-join when they're added to the class.
   const subjectGroups = useMemo(() => {
     const bySubject = {}
@@ -377,7 +377,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
 function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename }) {
   const messagesEndRef = useRef(null)
   const chatKey = thread ? (thread.type === 'conversation' ? 'direct_' + thread.studentId : 'group_' + thread.msgId) : null
-  const { typers, notifyTyping, stopTyping } = useTyping(chatKey, { id: 'admin', name: 'Teacher' })
+  const { typers, notifyTyping, stopTyping } = useTyping(chatKey, { id: 'admin', name: 'Professor' })
   const [replyingTo, setReplyingTo] = useState(null) // { author, text } | null
 
   useEffect(() => {
@@ -926,7 +926,7 @@ export default function MessagesTab() {
     try {
       if (thread.type === 'conversation') {
         // Append to most recent student message - but if the student has never
-        // messaged (a teacher-started conversation), there's nothing to attach a
+        // messaged (a professor-started conversation), there's nothing to attach a
         // reply to. Send a fresh direct message doc instead so the reply isn't
         // silently dropped.
         const studentMsgs = messages.filter(m => m.from === thread.studentId).sort((a, b) => b.ts - a.ts)

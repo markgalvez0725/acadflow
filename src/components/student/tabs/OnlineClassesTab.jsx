@@ -99,7 +99,7 @@ export default function OnlineClassesTab({ student }) {
     return (
       <div className="empty">
         <div className="empty-icon"><Video size={40} /></div>
-        No online classes yet. Your teacher's scheduled and live sessions will appear here.
+        No online classes yet. Your professor's scheduled and live sessions will appear here.
       </div>
     )
   }
@@ -148,7 +148,7 @@ export default function OnlineClassesTab({ student }) {
             <Video size={24} style={{ color: 'var(--ink3)', flexShrink: 0 }} />
             <div>
               <div style={{ fontSize: 14, fontWeight: 700 }}>No classes scheduled</div>
-              <div style={{ fontSize: 12, color: 'var(--ink3)' }}>Your teacher's online sessions will appear here.</div>
+              <div style={{ fontSize: 12, color: 'var(--ink3)' }}>Your professor's online sessions will appear here.</div>
             </div>
           </div>
         )}

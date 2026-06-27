@@ -353,7 +353,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                   )}
                   {sub.feedback && (
                     <div style={{ marginTop: 8, padding: '8px 10px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3 }}>Teacher feedback</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3 }}>Professor feedback</div>
                       <div style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{sub.feedback}</div>
                     </div>
                   )}
@@ -362,7 +362,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                 <div className="sa-act-group" style={{ marginTop: 8 }}>
                   {!myGroup ? (
                     <div style={{ fontSize: 12, color: 'var(--ink3)' }}>
-                      <Users size={13} className="inline-block mr-1" />You're not assigned to a group yet - message your teacher.
+                      <Users size={13} className="inline-block mr-1" />You're not assigned to a group yet - message your professor.
                     </div>
                   ) : (
                     <>
@@ -462,7 +462,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                         ) : (
                           <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 4 }}>
                             The deadline has passed - you can no longer edit your link. If you need to make a change,{' '}
-                            <span style={{ color: 'var(--accent)', fontWeight: 600 }}>message your teacher.</span>
+                            <span style={{ color: 'var(--accent)', fontWeight: 600 }}>message your professor.</span>
                           </div>
                         )}
                       </div>

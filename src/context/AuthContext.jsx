@@ -17,12 +17,12 @@ function friendlyAuthError(e) {
   const c = (e && e.code) || ''
   if (c.includes('too-many-requests')) return 'Too many attempts. Please wait a few minutes and try again.'
   if (c.includes('network'))           return 'Network error. Check your connection and try again.'
-  if (c.includes('user-disabled'))     return 'This account has been disabled. Please contact your teacher.'
+  if (c.includes('user-disabled'))     return 'This account has been disabled. Please contact your professor.'
   if (c.includes('operation-not-allowed')) return 'Sign-in is not enabled yet. Ask the admin to turn on Email/Password sign-in.'
   return 'Incorrect login details. Please try again.'
 }
 
-// Claim a teacher-PROVISIONED account on first sign-in.
+// Claim a professor-PROVISIONED account on first sign-in.
 //
 // Add-Student / Import write a temporary-password HASH to the roster
 // (account.pass) and mark the account registered + _tempPass, but they do NOT
@@ -58,7 +58,7 @@ async function claimTempPassAccount(auth, snum, password) {
     }
     return true
   } catch (e) {
-    try { await deleteUser(createdUser) } catch (_) { /* leave for teacher reset */ }
+    try { await deleteUser(createdUser) } catch (_) { /* leave for professor reset */ }
     try { await signOut(auth) } catch (_) {}
     return false
   }
@@ -223,7 +223,7 @@ export function AuthProvider({ children }) {
     try {
       await signInWithEmailAndPassword(auth, studentEmail(snum), password)
     } catch (e) {
-      // Sign-in failed. It may be a teacher-provisioned account that has never
+      // Sign-in failed. It may be a professor-provisioned account that has never
       // been claimed (roster has a temp-password hash but no Auth user yet) - try
       // to claim it with the entered password before treating this as a failure.
       const claimed = await claimTempPassAccount(auth, snum, password)
@@ -257,7 +257,7 @@ export function AuthProvider({ children }) {
     }
     if (exists === false) {
       await signOut(auth)
-      return { ok: false, msg: 'Your student record was not found. Please contact your teacher.' }
+      return { ok: false, msg: 'Your student record was not found. Please contact your professor.' }
     }
 
     _startSession('student', { id: studentDocId(snum), _pending: true })

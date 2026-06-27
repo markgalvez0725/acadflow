@@ -67,7 +67,7 @@ export async function syncAdminFromFirebase(db) {
     const snap = await getDoc(doc(db, 'portal', 'admin'));
     if (!snap.exists()) return null;
     const d = snap.data();
-    if (d?.pass) return { user: d.user || 'admin', pass: d.pass, email: d.email || '', resetPin: d.resetPin || null };
+    if (d?.pass) return { user: d.user || 'admin', pass: d.pass, email: d.email || '', resetPin: d.resetPin || null, name: d.name || '', photo: d.photo || null };
     return null;
   } catch (e) {
     if (!e.message?.includes('offline')) console.warn('[Firebase] Admin sync failed:', e.message);

@@ -5,7 +5,7 @@
 // mix of function words, sentence rhythm, punctuation, and lexical variety - all
 // largely independent of topic. This is classic stylometry. We use it to flag
 // when a quiz attempt's writing style diverges sharply from the same student's
-// own past quizzes. It is a hint for the teacher to look closer - never a verdict.
+// own past quizzes. It is a hint for the professor to look closer - never a verdict.
 
 // Common function words (English + Tagalog). Their relative frequencies form the
 // core authorship fingerprint - content-neutral, so two quizzes on different

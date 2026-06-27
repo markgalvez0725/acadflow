@@ -1,6 +1,6 @@
-// ── Group-chat naming + course tags (shared by teacher inbox + student views) ──
+// ── Group-chat naming + course tags (shared by professor inbox + student views) ──
 // A group chat is an admin announcement targeting all / a class / a subject.
-// Both sides resolve the SAME display name so a teacher rename (or the auto
+// Both sides resolve the SAME display name so a professor rename (or the auto
 // name) shows identically to students.
 
 // courseShort() now lives with the canonical course list in @/constants/courses.
@@ -111,7 +111,7 @@ export function autoGroupName(m, classes = []) {
   return 'Group chat'
 }
 
-// The displayed group name: a teacher override if set, else the auto name.
+// The displayed group name: a professor override if set, else the auto name.
 export function groupName(m, classes = []) {
   return (m.groupName && m.groupName.trim()) ? m.groupName.trim() : autoGroupName(m, classes)
 }

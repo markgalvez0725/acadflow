@@ -268,7 +268,7 @@ function RecordRow({ rec, expanded, onToggle, onSync, busy }) {
             <CompCard label="Activities" stored={c.activities} live={v.drift ? v.live.components.activities : null} sub={`avg of ${v.breakdown.detail.activityItems.length} item${v.breakdown.detail.activityItems.length === 1 ? '' : 's'}`} />
             <CompCard label="Quizzes" stored={c.quizzes} live={v.drift ? v.live.components.quizzes : null} sub={`avg of ${v.breakdown.detail.quizItems.length} item${v.breakdown.detail.quizItems.length === 1 ? '' : 's'}`} />
             <CompCard label="Attendance" stored={c.attendance} live={v.drift ? v.live.components.attendance : null} sub={`${v.breakdown.detail.attendance.present} / ${v.breakdown.detail.attendance.held} held`} />
-            <CompCard label="Attitude" stored={c.attitude} sub="teacher input" />
+            <CompCard label="Attitude" stored={c.attitude} sub="professor input" />
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 13, marginBottom: 16 }}>

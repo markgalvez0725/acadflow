@@ -236,7 +236,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
       if (!fbReady || !db.current) throw new Error('Firebase not ready')
 
       // 1. Write submission to quiz doc - includes anti-cheat signals (timeTaken
-      //    and leftCount) so the teacher can flag suspicious attempts.
+      //    and leftCount) so the professor can flag suspicious attempts.
       const subPath = `submissions.${student.id}`
       await updateDoc(doc(db.current, 'quizzes', quiz.id), {
         [`${subPath}.score`]: score,
@@ -250,7 +250,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
       // 2. Cache the student's own per-quiz result for instant display in their
       // Grades/Overview. This lives in `quizResults` (NOT gradeComponents):
       // students may not write grade fields, and the authoritative score is the
-      // quiz-doc submission above, which the teacher's grade computation reads.
+      // quiz-doc submission above, which the professor's grade computation reads.
       const subject = quiz.subject
       const quizResults = student.quizResults || {}
       const existing = quizResults[subject] || []
@@ -705,7 +705,7 @@ export default function StudentQuizTab({ student, viewClassId }) {
       <div className="empty">
         <div className="empty-icon" style={{ fontSize: '2rem' }}><FileText size={32} /></div>
         <p>No quizzes assigned yet.</p>
-        <p className="text-xs text-ink3 mt-1">Your teacher will share quizzes here.</p>
+        <p className="text-xs text-ink3 mt-1">Your professor will share quizzes here.</p>
       </div>
     )
   }

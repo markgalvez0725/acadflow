@@ -2,7 +2,7 @@
 // A session "held" on a date is any date some classmate was present or excused
 // for that subject. A student is absent on a held date when they were neither
 // present nor excused. We surface the trailing run of absences (most recent
-// sessions) so teachers can catch disengagement before it shows up in grades.
+// sessions) so professors can catch disengagement before it shows up in grades.
 import { activeClassIds } from '@/utils/active'
 
 // attendance/excuse are Sets in memory but may be arrays in some code paths.

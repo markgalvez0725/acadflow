@@ -223,7 +223,7 @@ export default function StudentGradeEditModal() {
           const midRaw = (r.midtermExam ?? '').trim()
           const finRaw = (r.finalsExam ?? '').trim()
 
-          // Only touch subjects the teacher actually changed. This preserves
+          // Only touch subjects the professor actually changed. This preserves
           // manual-override grades (no exams) and avoids needless rewrites.
           if (midRaw === origMid && finRaw === origFin) continue
           changedSubs.push(sub)

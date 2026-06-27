@@ -1,6 +1,6 @@
 // ── Student: claim a one-time sign-in token during an open reset window ────
 // Called (polled) by the student's own device after they enter their student
-// number on the Forgot Password screen. While the teacher has an open reset
+// number on the Forgot Password screen. While the professor has an open reset
 // window for that student, the FIRST successful claim mints a one-time custom
 // sign-in token, closes the window (one-time use), and returns it so the device
 // can sign in. IMPORTANT: this does NOT change the student's password - their

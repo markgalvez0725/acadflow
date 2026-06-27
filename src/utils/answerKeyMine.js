@@ -4,7 +4,7 @@
 // paraphrases, translations, spelling variants too far for the fuzzy matcher.
 // Uses the shared on-device embedding model to judge *meaning* (nothing uploaded);
 // reuses quizScore's textMatches so we only look at answers that are currently
-// marked WRONG. Everything is a SUGGESTION - the teacher approves before any key
+// marked WRONG. Everything is a SUGGESTION - the professor approves before any key
 // changes (and, optionally, attempts are re-graded).
 
 import { ensureExtractor, embedAll, cos } from '@/utils/embeddings'

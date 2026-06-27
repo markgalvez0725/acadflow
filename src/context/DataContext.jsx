@@ -14,7 +14,7 @@ import {
 import { fbPushReminderNotif } from '@/firebase/reminders'
 import { serializeStudents } from '@/utils/attendance'
 import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase, saveSemesterToFirebase, saveLatePolicyToFirebase, saveGradeFloorToFirebase, saveBrandingToFirebase } from '@/firebase/settings'
-import { setReportBranding } from '@/export/reportTemplate'
+import { setReportBranding, setReportProfessor } from '@/export/reportTemplate'
 import { DEFAULT_LATE_POLICY, normalizeLatePolicy } from '@/utils/latePenalty'
 import { sendPushToOwners } from '@/firebase/pushTokens'
 import {
@@ -26,7 +26,7 @@ import { DEFAULT_EQ_SCALE } from '@/utils/grades'
 import { computeSubjectGrade, gradeInputHash, makeHistoryEntry, appendGradeHistory } from '@/utils/gradeEngine'
 import { ADMIN_EMAIL } from '@/constants/auth'
 
-// The audit log is teacher-only (its Firestore rule denies students). Only
+// The audit log is professor-only (its Firestore rule denies students). Only
 // attach its listener for the admin so student sessions don't trip a
 // "Missing or insufficient permissions" error on a collection they never read.
 function isAdminUser() {
@@ -66,7 +66,7 @@ export function DataProvider({ children }) {
   // School branding used on every exported report (school name, department,
   // address, base64 PNG/JPG logo). null = none set; exports fall back to AcadFlow.
   const [branding, setBranding]         = useState(null)
-  const [admin, setAdmin]               = useState({ user: 'admin', pass: 'Admin@1234', email: 'admin@school.edu', resetPin: null })
+  const [admin, setAdmin]               = useState({ user: 'admin', pass: 'Admin@1234', email: 'admin@school.edu', resetPin: null, name: '', photo: null })
 
   const _bootstrapping = useRef(false)
   const _authUnsubRef  = useRef(null)
@@ -235,7 +235,7 @@ export function DataProvider({ children }) {
     if (changed) await saveStudents(updated, [studentId])
   }, [students, saveStudents])
 
-  // Teacher approves/rejects a self-registered account's identity verification.
+  // Professor approves/rejects a self-registered account's identity verification.
   // Admin-only write (the Firestore rule blocks students from setting verified).
   // Approve → verified:true (Active); reject → verified:false (stays Pending).
   const verifyStudentAccount = useCallback(async (studentId, approved = true) => {
@@ -249,7 +249,7 @@ export function DataProvider({ children }) {
     if (changed) await saveStudents(updated, [studentId])
   }, [students, saveStudents])
 
-  // Stamp many accounts as teacher-verified in one write (used by the account
+  // Stamp many accounts as professor-verified in one write (used by the account
   // audit's "mark all legacy accounts verified"). Admin-only.
   const bulkVerifyAccounts = useCallback(async (ids) => {
     const idSet = new Set(ids || [])
@@ -483,6 +483,9 @@ export function DataProvider({ children }) {
   // (including direct exports that don't pass branding) is branded.
   useEffect(() => { setReportBranding(branding) }, [branding])
 
+  // Feed the professor's name into report headers + the "Prepared by" line.
+  useEffect(() => { setReportProfessor({ name: admin?.name || '', photo: admin?.photo || null }) }, [admin?.name, admin?.photo])
+
   // Branding for exports (school name, department, address, base64 logo).
   // Optimistic local set, then persist (strict: rethrow so the UI can surface).
   const saveBranding = useCallback(async (b) => {
@@ -521,7 +524,7 @@ export function DataProvider({ children }) {
   // ── Archive a class + auto-archive enrolled students' subject data ──────────
   // When called, each enrolled student's subject records for this class are
   // snapshotted into archivedSemesters[], then cleared from their active data,
-  // and the class is removed from their classIds. Teacher re-enrolls manually.
+  // and the class is removed from their classIds. Professor re-enrolls manually.
   const archiveClassWithStudents = useCallback(async (cls) => {
     const semLabel = semester
       ? (semester.label || `${semester.term} AY ${semester.year}`)
@@ -775,7 +778,7 @@ export function DataProvider({ children }) {
   // display + gradeComponents[subject].quizScores[quizId] for the gradebook).
   // Deleting the quiz doc leaves those stale, so the student still sees the
   // grade - clear them here. Recomputed term grades refresh next time the
-  // teacher opens/saves the grade sheet.
+  // professor opens/saves the grade sheet.
   const purgeQuizFromStudents = useCallback(async (quiz) => {
     const quizId = quiz?.id
     if (!quizId) return
@@ -975,7 +978,7 @@ export function DataProvider({ children }) {
 
     // Cross-check semester status: block if semester has ended
     if (semester?.status === 'ended') {
-      throw new Error('The enrollment period for this semester has ended. Contact your teacher for assistance.')
+      throw new Error('The enrollment period for this semester has ended. Contact your professor for assistance.')
     }
 
     // ── Identity verification: course + year level + section must all match ──
@@ -1002,7 +1005,7 @@ export function DataProvider({ children }) {
     const studentSection = student.section || primaryCls?.section || ''
     if (cls.section) {
       if (!studentSection) {
-        throw new Error('Your section is not set yet. Please ask your teacher to set your section before enrolling.')
+        throw new Error('Your section is not set yet. Please ask your professor to set your section before enrolling.')
       }
       if (normSection(studentSection) !== normSection(cls.section)) {
         throw new Error(`Section mismatch. This subject is for section "${cls.section}", but you belong to section "${studentSection}". You can only enroll in subjects for your own section.`)
@@ -1018,7 +1021,7 @@ export function DataProvider({ children }) {
     // `grades`/`gradeComponents`, so a self-enroll that seeded null grade slots
     // was rejected - and used to fail silently (the student looked enrolled
     // locally but wasn't saved). Grade slots are created lazily on read and by
-    // the teacher's gradebook, so they aren't needed here.
+    // the professor's gradebook, so they aren't needed here.
     const attendance = { ...student.attendance }
     const excuse     = { ...student.excuse }
     cls.subjects.forEach(sub => {
@@ -1105,7 +1108,7 @@ export function DataProvider({ children }) {
   // the student's classes, then mark them present in their own student doc.
   const studentCheckIn = useCallback(async (code, student) => {
     const c = (code || '').trim().toUpperCase()
-    if (!c) throw new Error('Enter the code your teacher shows.')
+    if (!c) throw new Error('Enter the code your professor shows.')
     const ids = student.classIds?.length ? student.classIds : (student.classId ? [student.classId] : [])
     const session = attendanceSessions.find(s => s.status === 'open' && s.code === c && ids.includes(s.classId))
     if (!session) throw new Error('That code is not valid or the session has closed.')
@@ -1134,7 +1137,7 @@ export function DataProvider({ children }) {
       classId: classId || student?.classId || null,
       category, subject, message,
     })
-    // Notify the teacher's feedback feed.
+    // Notify the professor's feedback feed.
     fbNotifyAdmin(dbRef.current, {
       type: 'feedback_new',
       title: 'New student feedback',
@@ -1152,7 +1155,7 @@ export function DataProvider({ children }) {
     ))
   }, [])
 
-  // ── Screenshot guard: best-effort report to the teacher ────────────────
+  // ── Screenshot guard: best-effort report to the professor ────────────────
   // Browsers (especially iOS Safari) can't reliably block or detect a
   // screenshot, so this is a deterrent signal, not a guarantee.
   const reportScreenshot = useCallback((student, threadLabel) => {
@@ -1169,7 +1172,7 @@ export function DataProvider({ children }) {
       studentId: student.id, studentName: student.name || student.id,
       classId, subject, date, reason: (reason || '').trim(),
     })
-    // Notify the teacher (in-app admin notification).
+    // Notify the professor (in-app admin notification).
     fbNotifyAdmin(dbRef.current, {
       title: 'New excuse request',
       body: `${student.name || student.id} - ${subject} (${date})`,

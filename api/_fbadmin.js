@@ -1,5 +1,5 @@
 // ── Shared Firebase Admin helpers (dependency-free) ───────────────────────
-// Used by the teacher-coordinated password reset endpoints. Builds a Google
+// Used by the professor-coordinated password reset endpoints. Builds a Google
 // OAuth access token from the project's service account, verifies Firebase ID
 // tokens, and talks to the Identity Toolkit Admin API + Firestore REST API.
 //
@@ -420,7 +420,7 @@ export async function appendAdminNotification(projectId, accessToken, notif) {
 }
 
 // Append an append-only audit-log doc (matches the client fbAddAuditLog shape so
-// the teacher's Audit Log tab renders it). Best-effort.
+// the professor's Audit Log tab renders it). Best-effort.
 export async function appendAuditLog(projectId, accessToken, entry) {
   const id = `audit_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
   const r = await fetch(`${fsBase(projectId)}/auditLog/${encodeURIComponent(id)}`, {
