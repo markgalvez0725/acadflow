@@ -350,9 +350,13 @@ function AnnouncementFormModal({ ann, onClose }) {
     }))
   }, [classOptions])
 
-  // Google Drive attachments (browser-only upload to the teacher's own Drive).
+  // Google Drive attachments. `attachments` are already in Drive (existing post +
+  // "Choose from Drive" picks); `pendingFiles` are newly added files staged
+  // locally and only uploaded when the post is published, so abandoned drafts
+  // never leave orphaned Drive files. `uploads` shows progress during that publish.
   const [attachments, setAttachments] = useState(ann?.attachments || [])
-  const [uploads, setUploads] = useState([]) // in-flight: { id, name, pct, error }
+  const [pendingFiles, setPendingFiles] = useState([]) // staged: { id, file, name, size, mimeType }
+  const [uploads, setUploads] = useState([]) // in-flight on publish: { id, name, pct, error }
   const photoInput = useRef(null)
   const fileInput  = useRef(null)
   // "Choose from Drive": browse files AcadFlow already uploaded and re-attach one.
@@ -368,18 +372,17 @@ function AnnouncementFormModal({ ann, onClose }) {
     ? 'All Classes'
     : (() => { const c = classes.find(x => x.id === classId); return c ? courseShort(c.name) : '' })()
 
+  // Stage files locally only - the actual Drive upload happens on publish.
   function addFiles(fileList) {
     if (!drive.connected) { toast('Connect Google Drive in Settings first.', 'error'); return }
-    if (!classId) { toast('Pick a class first so files go to the right folder.', 'error'); return }
-    Array.from(fileList || []).forEach(file => {
-      const uid = 'u' + Math.random().toString(36).slice(2)
-      setUploads(prev => [...prev, { id: uid, name: file.name, pct: 0, error: '' }])
-      driveUpload(file, { classLabel: driveClassLabel, onProgress: pct => setUploads(prev => prev.map(u => u.id === uid ? { ...u, pct } : u)) })
-        .then(att => { setAttachments(prev => [...prev, att]); setUploads(prev => prev.filter(u => u.id !== uid)) })
-        .catch(e => setUploads(prev => prev.map(u => u.id === uid ? { ...u, error: e?.message || 'Upload failed' } : u)))
-    })
+    const staged = Array.from(fileList || []).map(file => ({
+      id: 'p' + Math.random().toString(36).slice(2),
+      file, name: file.name, size: file.size, mimeType: file.type || '',
+    }))
+    if (staged.length) setPendingFiles(prev => [...prev, ...staged])
   }
   function removeAttachment(id) { setAttachments(prev => prev.filter(a => a.driveId !== id)) }
+  function removePending(id) { setPendingFiles(prev => prev.filter(p => p.id !== id)) }
 
   function loadDriveFiles() {
     setDriveLoading(true); setDriveError('')
@@ -427,8 +430,29 @@ function AnnouncementFormModal({ ann, onClose }) {
       const filled = topics.filter(t => t.trim())
       if (!filled.length) { setErr('Add at least one topic.'); return }
     }
+    if (pendingFiles.length && !drive.connected) { setErr('Connect Google Drive to upload the attached files.'); return }
     setSaving(true)
     try {
+      // Upload staged files to Drive now (on publish), then attach them. Each
+      // success is moved out of `pendingFiles` into `attachments` immediately, so
+      // a failed upload aborts cleanly and a retry only re-uploads what is left.
+      const uploaded = []
+      for (const pf of pendingFiles) {
+        setUploads(prev => [...prev, { id: pf.id, name: pf.name, pct: 0, error: '' }])
+        try {
+          const att = await driveUpload(pf.file, { classLabel: driveClassLabel, onProgress: pct => setUploads(prev => prev.map(u => u.id === pf.id ? { ...u, pct } : u)) })
+          uploaded.push(att)
+          setAttachments(prev => [...prev, att])
+          setPendingFiles(prev => prev.filter(p => p.id !== pf.id))
+          setUploads(prev => prev.filter(u => u.id !== pf.id))
+        } catch (e) {
+          setUploads(prev => prev.map(u => u.id === pf.id ? { ...u, error: e?.message || 'Upload failed' } : u))
+          setErr(`Could not upload "${pf.name}". ${e?.message || ''}`.trim())
+          setSaving(false)
+          return
+        }
+      }
+      const finalAttachments = [...attachments, ...uploaded]
       const announcement = {
         id:          ann?.id || annId(),
         type,
@@ -445,7 +469,7 @@ function AnnouncementFormModal({ ann, onClose }) {
         active:      ann?.active ?? true,
         expiresAt:   expiresAt ? new Date(expiresAt).getTime() : null,
         comments:    ann?.comments || [],
-        attachments: attachments,
+        attachments: finalAttachments,
         // Preserve fields not managed by this form so editing doesn't drop them.
         pinned:      ann?.pinned ?? false,
         publishAt:   ann?.publishAt ?? null,
@@ -602,6 +626,14 @@ function AnnouncementFormModal({ ann, onClose }) {
                   <button type="button" className="btn btn-ghost btn-sm" style={{ padding: '2px 6px' }} onClick={() => removeAttachment(a.driveId)} aria-label="Remove attachment"><X size={13} /></button>
                 </div>
               ))}
+              {pendingFiles.map(p => (
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 9, background: 'var(--bg2)', borderRadius: 8, padding: '8px 10px' }}>
+                  {/^image\//.test(p.mimeType || '') ? <ImageIcon size={16} style={{ color: '#10b981', flexShrink: 0 }} /> : <FileText size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} />}
+                  <span style={{ flex: 1, fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                  <span style={{ fontSize: 10.5, color: 'var(--ink3)', flexShrink: 0 }}>Uploads when posted</span>
+                  <button type="button" className="btn btn-ghost btn-sm" style={{ padding: '2px 6px' }} onClick={() => removePending(p.id)} aria-label="Remove file"><X size={13} /></button>
+                </div>
+              ))}
               {uploads.map(u => (
                 <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 9, background: 'var(--bg2)', borderRadius: 8, padding: '8px 10px' }}>
                   <Paperclip size={16} style={{ color: 'var(--ink3)', flexShrink: 0 }} />
@@ -670,7 +702,7 @@ function AnnouncementFormModal({ ann, onClose }) {
         {err && <div style={{ color: 'var(--red)', fontSize: 13 }}>{err}</div>}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
           <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : isEdit ? 'Update' : 'Post Announcement'}</button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? (pendingFiles.length ? 'Uploading…' : 'Saving…') : isEdit ? 'Update' : 'Post Announcement'}</button>
         </div>
       </div>
     </Modal>
