@@ -70,6 +70,7 @@ function Avatar({ author }) {
 export default function AnnouncementPost({
   ann, author, classObj, pinned = false, statusBadge = null,
   menuItems = [], viewerId, onToggleLike, commentAuthor,
+  domId, highlight = false,
 }) {
   const media = useMemo(() => mediaFromAnnouncement(ann), [ann])
   const hasMessage = ann.message && ann.message !== '<p></p>' && ann.message !== ''
@@ -96,14 +97,14 @@ export default function AnnouncementPost({
   function focusComposer() { composerRef.current?.focus() }
 
   return (
-    <article className="ig-post">
+    <article className={`ig-post${highlight ? ' ig-glow' : ''}`} id={domId}>
       <header className="ig-head">
         <Avatar author={author} />
         <div className="ig-id">
           <span className="ig-name">{author?.name || 'Professor'}</span>
           <BadgeCheck size={14} className="ig-check" />
           <span className="ig-dot">·</span>
-          <span className="ig-time">{timeAgo(ann.createdAt)}{cls ? ' · ' + cls : ''}</span>
+          <span className="ig-time">{timeAgo(ann.createdAt)}{cls ? ' · ' + cls : ''}{ann.subject ? ' · ' + ann.subject : ''}</span>
         </div>
         {pinned && <span className="ig-pin">Pinned</span>}
         {statusBadge}

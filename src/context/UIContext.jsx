@@ -126,6 +126,16 @@ export function UIProvider({ children }) {
   }, [])
   const clearPendingMessage = useCallback(() => setPendingMessageId(null), [])
 
+  // ── Deep-link a student into a specific Stream announcement (e.g. from the
+  // saved-announcements widget on the dashboard) so it scrolls into view and
+  // glows briefly. ──
+  const [pendingStreamAnnId, setPendingStreamAnnId] = useState(null)
+  const openStreamAnnouncement = useCallback(id => {
+    setPendingStreamAnnId(id || null)
+    setStudentTab('stream')
+  }, [])
+  const clearPendingStreamAnn = useCallback(() => setPendingStreamAnnId(null), [])
+
   return (
     <UIContext.Provider value={{
       theme, toggleTheme,
@@ -137,6 +147,7 @@ export function UIProvider({ children }) {
       viewStudentId, openStudentProfile, closeStudentProfile,
       editGradesStudentId, openEditGradesForStudent, closeEditGrades,
       pendingMessageId, openStudentMessageThread, clearPendingMessage,
+      pendingStreamAnnId, openStreamAnnouncement, clearPendingStreamAnn,
     }}>
       {children}
     </UIContext.Provider>

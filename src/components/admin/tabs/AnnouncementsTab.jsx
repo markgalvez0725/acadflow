@@ -390,7 +390,7 @@ function AnnouncementFormModal({ ann, onClose }) {
     if (!label) return ''
     if (type === 'no_class') return `No Class Today - ${label}`
     if (type === 'online_class') return `Online Class - ${label}`
-    if (type === 'meeting_topics') return `Meeting Topics - ${label}`
+    if (type === 'meeting_topics') return `Lesson topics - ${label}`
     return ''
   }, [type, selectedClass, classId])
 
@@ -511,7 +511,7 @@ function AnnouncementFormModal({ ann, onClose }) {
                 onChange={() => handleTypeChange('meeting_topics')}
               />
               <BookOpen size={15} style={{ color: 'var(--purple, #a855f7)' }} />
-              Meeting Topics
+              Lesson topics
             </label>
           </div>
         </div>
@@ -656,7 +656,7 @@ function AnnouncementDetailModal({ ann, classes, onClose, onEdit }) {
     return c.name + (c.section ? ` - ${c.section}` : '')
   }
 
-  const typeLabel = ann.type === 'no_class' ? 'No Class Today' : ann.type === 'online_class' ? 'Online Class' : 'Meeting Topics'
+  const typeLabel = ann.type === 'no_class' ? 'No Class Today' : ann.type === 'online_class' ? 'Online Class' : 'Lesson topics'
   const typeBadge = ann.type === 'no_class' ? 'badge-yellow' : ann.type === 'online_class' ? 'badge-blue' : 'badge-purple'
   const iconColor = ann.type === 'no_class' ? 'var(--yellow)' : ann.type === 'online_class' ? 'var(--accent)' : 'var(--purple, #a855f7)'
   const Icon = ann.type === 'no_class' ? CalendarOff : ann.type === 'online_class' ? Video : BookOpen
@@ -844,7 +844,7 @@ export default function AnnouncementsTab() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <span style={{ fontWeight: 600, fontSize: 14 }}>{ann.title}</span>
                       <span className={`badge ${ann.type === 'no_class' ? 'badge-yellow' : ann.type === 'online_class' ? 'badge-blue' : 'badge-purple'}`}>
-                        {ann.type === 'no_class' ? 'No Class' : ann.type === 'online_class' ? 'Online Class' : 'Meeting Topics'}
+                        {ann.type === 'no_class' ? 'No Class' : ann.type === 'online_class' ? 'Online Class' : 'Lesson topics'}
                       </span>
                       {effectivelyActive
                         ? <span className="badge badge-green">Active</span>

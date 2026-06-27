@@ -1,5 +1,6 @@
-import React, { useState, useMemo, useRef } from 'react'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { useData } from '@/context/DataContext'
+import { useUI } from '@/context/UIContext'
 import { activeClassIds } from '@/utils/active'
 import ExpandableHtml from '@/components/primitives/ExpandableHtml'
 import { sanitizeAnnouncementHtml } from '@/utils/sanitizeHtml'
@@ -96,7 +97,7 @@ function classLabel(classObj) {
 
 // Thin wrapper: the IG card lives in the shared AnnouncementPost; the student
 // side just supplies its kebab (Save / notifications) and comment identity.
-function AnnouncementCard({ item, classObj, student, author }) {
+function AnnouncementCard({ item, classObj, student, author, highlight }) {
   const { toggleAnnouncementLike, toggleSavedPost, toggleAnnouncementFollow } = useData()
   const ann = item.data
   const menuItems = student ? (() => {
@@ -117,6 +118,8 @@ function AnnouncementCard({ item, classObj, student, author }) {
       viewerId={student?.id}
       onToggleLike={toggleAnnouncementLike}
       commentAuthor={student ? { id: student.id, name: student.name || 'You', role: 'student' } : null}
+      domId={`annpost-${ann.id}`}
+      highlight={highlight}
     />
   )
 }
@@ -229,10 +232,12 @@ function AttendanceCard({ item, classObj }) {
 
 export default function StreamTab({ student, viewClassId, classes }) {
   const { activities, quizzes, announcements, fbReady, semester, admin } = useData()
+  const { pendingStreamAnnId, clearPendingStreamAnn } = useUI()
   const author = useMemo(() => ({ name: admin?.name || 'Professor', photo: admin?.photo || null }), [admin?.name, admin?.photo])
   const [filterType, setFilterType] = useState('all')
   const [filterSubject, setFilterSubject] = useState('all')
   const [streamPage, setStreamPage] = useState(0)
+  const [highlightId, setHighlightId] = useState(null)
 
   // Only current-semester, non-archived classes feed the stream.
   const studentClassIds = useMemo(
@@ -341,6 +346,25 @@ export default function StreamTab({ student, viewClassId, classes }) {
     return classes.find(c => c.id === item.classId) || null
   }
 
+  // Deep-link from the dashboard's saved-announcements widget: page to the post,
+  // scroll it into view, and let it glow briefly like a highlighted bulb.
+  useEffect(() => {
+    if (!pendingStreamAnnId) return
+    // Announcements only appear in the list when the type filter includes them.
+    if (filterType !== 'all' && filterType !== 'announcement') { setFilterType('all'); return }
+    const idx = streamItems.findIndex(it => it.type === 'announcement' && it.data.id === pendingStreamAnnId)
+    if (idx < 0) return
+    setStreamPage(Math.floor(idx / PAGE_SIZE))
+    setHighlightId(pendingStreamAnnId)
+    clearPendingStreamAnn()
+    const targetId = `annpost-${pendingStreamAnnId}`
+    const scrollT = setTimeout(() => {
+      document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 90)
+    const glowT = setTimeout(() => setHighlightId(null), 2600)
+    return () => { clearTimeout(scrollT); clearTimeout(glowT) }
+  }, [pendingStreamAnnId, streamItems, filterType, clearPendingStreamAnn])
+
   if (!fbReady) {
     return (
       <div className="s-feed" style={{ paddingBottom: 32 }}>
@@ -393,7 +417,7 @@ export default function StreamTab({ student, viewClassId, classes }) {
         return (
           <React.Fragment key={item.id}>
             {showGroup && <div className="s-feed-day">{label}</div>}
-            {item.type === 'announcement' && <AnnouncementCard item={item} classObj={classObj} student={student} author={author} />}
+            {item.type === 'announcement' && <AnnouncementCard item={item} classObj={classObj} student={student} author={author} highlight={highlightId === item.data.id} />}
             {item.type === 'activity' && <ActivityCard item={item} classObj={classObj} student={student} />}
             {item.type === 'quiz' && <QuizCard item={item} classObj={classObj} student={student} />}
             {item.type === 'grade' && <GradeCard item={item} classObj={classObj} />}

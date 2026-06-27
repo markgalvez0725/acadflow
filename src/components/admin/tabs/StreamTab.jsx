@@ -3,7 +3,8 @@ import { useData } from '@/context/DataContext'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import { useUI } from '@/context/UIContext'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
-import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, Clock, Users, Award, CheckCircle2, XCircle, AlertCircle, Plus, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered, Paperclip, Image as ImageIcon, FileText } from 'lucide-react'
+import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, Clock, Users, Award, CheckCircle2, XCircle, AlertCircle, Plus, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered, Paperclip, Image as ImageIcon, FileText, Sparkles } from 'lucide-react'
+import { composeAnnouncementMessage } from '@/utils/announceCompose'
 import { isConfigured as driveConfigured, getConnection as getDriveConnection, uploadFile as driveUpload } from '@/utils/googleDrive'
 import DOMPurify from 'dompurify'
 import { v4 as uuidv4 } from 'uuid'
@@ -112,7 +113,7 @@ function sanitizeHtml(html) {
 }
 
 // ── Rich Text Editor ───────────────────────────────────────────────────
-function RichTextEditor({ value, onChange, placeholder, rows = 3 }) {
+function RichTextEditor({ value, onChange, placeholder, rows = 3, onCompose }) {
   const editorRef = useRef(null)
   const isInitialized = useRef(false)
 
@@ -139,6 +140,17 @@ function RichTextEditor({ value, onChange, placeholder, rows = 3 }) {
     editorRef.current?.focus()
     document.execCommand('createLink', false, url)
     onChange(sanitizeHtml(editorRef.current.innerHTML))
+  }
+
+  function smartWrite() {
+    const html = onCompose?.()
+    if (!html) return
+    const clean = sanitizeHtml(html)
+    if (editorRef.current) {
+      editorRef.current.innerHTML = clean
+      onChange(clean)
+      editorRef.current.focus()
+    }
   }
 
   function insertTable() {
@@ -207,6 +219,19 @@ function RichTextEditor({ value, onChange, placeholder, rows = 3 }) {
         <button type="button" style={btnStyle} onMouseDown={e => { e.preventDefault(); insertTable() }} title="Insert table">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
         </button>
+        {onCompose && (
+          <>
+            <div style={{ flex: 1 }} />
+            <button
+              type="button"
+              onMouseDown={e => { e.preventDefault(); smartWrite() }}
+              title="Draft this message on-device from the details above"
+              style={{ ...btnStyle, gap: 4, padding: '3px 9px', color: 'var(--accent)', borderColor: 'color-mix(in srgb, var(--accent) 35%, transparent)', background: 'var(--accent-l)', fontWeight: 600, fontSize: 11.5 }}
+            >
+              <Sparkles size={13} /> Smart write
+            </button>
+          </>
+        )}
       </div>
       <div
         ref={editorRef}
@@ -241,6 +266,7 @@ function AnnouncementFormModal({ ann, onClose }) {
 
   const [type,        setType]        = useState(ann?.type        || 'no_class')
   const [classId,     setClassId]     = useState(ann?.classId     || '')
+  const [subject,     setSubject]     = useState(ann?.subject     || '')
   const [title,       setTitle]       = useState(ann?.title       || '')
   const [message,     setMessage]     = useState(ann?.message     || '')
   const [meetingLink, setMeetingLink] = useState(ann?.meetingLink || '')
@@ -284,17 +310,41 @@ function AnnouncementFormModal({ ann, onClose }) {
   function removeAttachment(id) { setAttachments(prev => prev.filter(a => a.driveId !== id)) }
 
   const selectedClass = classes.find(c => c.id === classId)
+
+  // The class picker doubles as a subject picker: each class expands into one
+  // option per subject (e.g. "BSEMC 3A - EMCP 108 Principle of 3D Animation").
+  // The composite value carries both, so picking one sets classId + subject.
+  const classOptions = useMemo(() => {
+    const opts = [{ value: 'all', label: 'All Classes', classId: 'all', subject: '' }]
+    classes.filter(c => !c.archived).forEach(c => {
+      const base = `${courseShort(c.name)}${c.section ? ` - ${c.section}` : ''}`
+      const subs = (c.subjects || []).filter(Boolean)
+      if (!subs.length) {
+        opts.push({ value: c.id, label: base, classId: c.id, subject: '' })
+      } else {
+        subs.forEach(sub => opts.push({ value: `${c.id}::${sub}`, label: `${base} - ${sub}`, classId: c.id, subject: sub }))
+      }
+    })
+    return opts
+  }, [classes])
+  const selectValue = classId ? (subject ? `${classId}::${subject}` : classId) : ''
+  const classLabel = classId === 'all' ? 'All Classes' : selectedClass ? `${courseShort(selectedClass.name)}${selectedClass.section ? ` ${selectedClass.section}` : ''}` : ''
+
   const autoTitle = useMemo(() => {
-    const label = classId === 'all' ? 'All Classes' : selectedClass ? `${selectedClass.name}${selectedClass.section ? ` ${selectedClass.section}` : ''}` : ''
-    if (!label) return ''
-    if (type === 'no_class') return `No Class Today - ${label}`
-    if (type === 'online_class') return `Online Class - ${label}`
-    if (type === 'meeting_topics') return `Meeting Topics - ${label}`
+    if (!classLabel) return ''
+    if (type === 'no_class') return `No Class Today - ${classLabel}`
+    if (type === 'online_class') return `Online Class - ${classLabel}`
+    if (type === 'meeting_topics') return `Lesson topics - ${classLabel}`
     return ''
-  }, [type, selectedClass, classId])
+  }, [type, classLabel])
 
   const [titleTouched, setTitleTouched] = useState(isEdit)
-  function handleClassChange(id) { setClassId(id); if (!titleTouched) setTitle('') }
+  function handleClassSelect(value) {
+    const opt = classOptions.find(o => o.value === value)
+    setClassId(opt ? opt.classId : '')
+    setSubject(opt ? opt.subject : '')
+    if (!titleTouched) setTitle('')
+  }
   function handleTypeChange(t)   { setType(t);   if (!titleTouched) setTitle('') }
 
   const displayTitle = titleTouched ? title : (autoTitle || title)
@@ -316,6 +366,7 @@ function AnnouncementFormModal({ ann, onClose }) {
         id:          ann?.id || annId(),
         type,
         classId,
+        subject:     classId === 'all' ? null : (subject || null),
         title:       finalTitle,
         message:     message.trim(),
         meetingLink: type === 'online_class' ? (meetingLink.trim() || null) : null,
@@ -345,29 +396,41 @@ function AnnouncementFormModal({ ann, onClose }) {
     <Modal onClose={onClose} title={isEdit ? 'Edit Announcement' : 'New Announcement'}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 320 }}>
         <div>
-          <label className="form-label">Class</label>
-          <select className="form-input" value={classId} onChange={e => handleClassChange(e.target.value)}>
-            <option value="">- Select class -</option>
-            <option value="all">All Classes</option>
-            {classes.filter(c => !c.archived).map(c => <option key={c.id} value={c.id}>{courseShort(c.name)}{c.section ? ` - ${c.section}` : ''}</option>)}
-          </select>
+          <label className="form-label">Announcement type</label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 4 }}>
+            {[
+              { v: 'no_class',       label: 'No class today', Icon: CalendarOff, color: 'var(--yellow)' },
+              { v: 'online_class',   label: 'Online class',   Icon: Video,      color: 'var(--accent)' },
+              { v: 'meeting_topics', label: 'Lesson topics',  Icon: BookOpen,   color: 'var(--purple, #a855f7)' },
+            ].map(({ v, label, Icon, color }) => {
+              const active = type === v
+              return (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => handleTypeChange(v)}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+                    padding: '11px 6px', borderRadius: 10, cursor: 'pointer', fontSize: 12.5,
+                    fontWeight: active ? 600 : 500,
+                    border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                    background: active ? 'var(--accent-l)' : 'var(--surface)',
+                    color: active ? 'var(--accent)' : 'var(--ink2)',
+                  }}
+                >
+                  <Icon size={18} style={{ color: active ? 'var(--accent)' : color }} />
+                  {label}
+                </button>
+              )
+            })}
+          </div>
         </div>
         <div>
-          <label className="form-label">Announcement type</label>
-          <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}>
-              <input type="radio" name="ann-type" value="no_class" checked={type === 'no_class'} onChange={() => handleTypeChange('no_class')} />
-              <CalendarOff size={15} style={{ color: 'var(--yellow)' }} /> No Class Today
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}>
-              <input type="radio" name="ann-type" value="online_class" checked={type === 'online_class'} onChange={() => handleTypeChange('online_class')} />
-              <Video size={15} style={{ color: 'var(--accent)' }} /> Online Class
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}>
-              <input type="radio" name="ann-type" value="meeting_topics" checked={type === 'meeting_topics'} onChange={() => handleTypeChange('meeting_topics')} />
-              <BookOpen size={15} style={{ color: 'var(--purple, #a855f7)' }} /> Meeting Topics
-            </label>
-          </div>
+          <label className="form-label">Class</label>
+          <select className="form-input" value={selectValue} onChange={e => handleClassSelect(e.target.value)}>
+            <option value="">- Select class -</option>
+            {classOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
         </div>
         <div>
           <label className="form-label">Title</label>
@@ -375,7 +438,13 @@ function AnnouncementFormModal({ ann, onClose }) {
         </div>
         <div>
           <label className="form-label">Message <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(optional)</span></label>
-          <RichTextEditor value={message} onChange={setMessage} placeholder="Additional details..." rows={3} />
+          <RichTextEditor
+            value={message}
+            onChange={setMessage}
+            placeholder="Additional details..."
+            rows={3}
+            onCompose={classId ? () => composeAnnouncementMessage({ type, classLabel, subject, topics, meetingLink }) : null}
+          />
         </div>
         {type === 'online_class' && (
           <div>
@@ -466,7 +535,7 @@ function AnnouncementDetailModal({ ann, classes, onClose, onEdit }) {
     return c ? c.name + (c.section ? ` - ${c.section}` : '') : classId
   }
 
-  const typeLabel = ann.type === 'no_class' ? 'No Class Today' : ann.type === 'online_class' ? 'Online Class' : 'Meeting Topics'
+  const typeLabel = ann.type === 'no_class' ? 'No Class Today' : ann.type === 'online_class' ? 'Online Class' : 'Lesson topics'
   const typeBadge = ann.type === 'no_class' ? 'badge-yellow' : ann.type === 'online_class' ? 'badge-blue' : 'badge-purple'
   const iconColor = ann.type === 'no_class' ? 'var(--yellow)' : ann.type === 'online_class' ? 'var(--accent)' : 'var(--purple, #a855f7)'
   const Icon = ann.type === 'no_class' ? CalendarOff : ann.type === 'online_class' ? Video : BookOpen

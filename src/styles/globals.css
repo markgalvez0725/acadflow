@@ -3440,6 +3440,13 @@ textarea.input { resize: vertical; }
    INSTAGRAM-STYLE ANNOUNCEMENT POST (student)
 ══════════════════════════════════════════ */
 .ig-post { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+.ig-glow { animation: ig-bulb-glow 2.4s ease-out 1; }
+@keyframes ig-bulb-glow {
+  0%   { box-shadow: 0 0 0 0 rgba(245,180,40,0); border-color: var(--border); }
+  12%  { box-shadow: 0 0 0 4px rgba(245,180,40,0.45), 0 0 22px 4px rgba(245,180,40,0.35); border-color: #f5b428; }
+  60%  { box-shadow: 0 0 0 4px rgba(245,180,40,0.30), 0 0 18px 3px rgba(245,180,40,0.25); border-color: #f5b428; }
+  100% { box-shadow: 0 0 0 0 rgba(245,180,40,0); border-color: var(--border); }
+}
 .ig-head { display: flex; align-items: center; gap: 9px; padding: 10px 12px; }
 .ig-av { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; overflow: hidden; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
 .ig-av img { width: 100%; height: 100%; object-fit: cover; }

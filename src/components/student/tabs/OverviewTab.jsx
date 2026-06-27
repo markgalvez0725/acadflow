@@ -5,7 +5,8 @@ import { computeSemesterWrapped } from '@/utils/semesterWrapped'
 import { useData } from '@/context/DataContext'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
-import { BookOpen, Clock, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, BarChart3, ChevronDown, ChevronRight, Sparkles } from 'lucide-react'
+import { BookOpen, Clock, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Sparkles, Bookmark } from 'lucide-react'
+import { courseShort } from '@/constants/courses'
 import { SkeletonDashboard } from '@/components/primitives/SkeletonLoader'
 import { useUI } from '@/context/UIContext'
 import PageHeader from '@/components/ds/PageHeader'
@@ -48,7 +49,7 @@ function AnnTypeBadge({ type }) {
   const map = {
     no_class:       { label: 'No Class Today',  cls: 'badge-yellow' },
     online_class:   { label: 'Online Class',     cls: 'badge-blue'   },
-    meeting_topics: { label: 'Meeting Topics',   cls: 'badge-purple' },
+    meeting_topics: { label: 'Lesson topics',    cls: 'badge-purple' },
   }
   const { label, cls } = map[type] || { label: type, cls: 'badge-gray' }
   return <span className={`badge ${cls}`}>{label}</span>
@@ -376,9 +377,116 @@ function AnnIcon({ type, size = 18 }) {
   return <Video size={size} />
 }
 
+function annClassLabel(ann, classes) {
+  if (ann.classId === 'all') return 'All Classes'
+  const c = classes.find(x => x.id === ann.classId)
+  return c ? `${courseShort(c.name)}${c.section ? ` ${c.section}` : ''}` : ''
+}
+function annSnippet(ann) {
+  if (ann.message) {
+    const tmp = document.createElement('div')
+    tmp.innerHTML = sanitizeAnn(ann.message)
+    const t = (tmp.textContent || tmp.innerText || '').replace(/\s+/g, ' ').trim()
+    if (t) return t
+  }
+  if (ann.type === 'meeting_topics' && ann.topics?.length) return ann.topics.filter(Boolean).join(' · ')
+  return ''
+}
+function annTimeAgo(ms) {
+  if (!ms) return ''
+  const m = Math.floor((Date.now() - ms) / 60000)
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  if (d < 7) return `${d}d ago`
+  return new Date(ms).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
+}
+
+// Dashboard widget: a carousel of the student's SAVED announcements (falls back
+// to the latest active ones when nothing is saved yet). Tapping a card jumps to
+// the post in the Stream tab, where it glows briefly.
+function SavedAnnouncementsWidget({ anns, isFallback, classes, onOpen }) {
+  const [idx, setIdx] = useState(0)
+  const safeIdx = anns.length ? Math.min(idx, anns.length - 1) : 0
+  const ann = anns[safeIdx]
+  if (!ann) return null
+  const color = annIconColor(ann.type)
+  const cls = annClassLabel(ann, classes)
+  const snippet = annSnippet(ann)
+  const open = () => onOpen(ann.id)
+  const go = step => setIdx(i => ((i + step) % anns.length + anns.length) % anns.length)
+  const navBtn = {
+    width: 30, flexShrink: 0, borderRadius: 8, border: '1px solid var(--border)',
+    background: 'var(--surface)', color: 'var(--ink2)', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  }
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: 'var(--ink2)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          <Bookmark size={14} style={{ color: 'var(--accent)' }} /> {isFallback ? 'Latest announcements' : 'Saved announcements'}
+        </span>
+        {anns.length > 1 && <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{safeIdx + 1} of {anns.length}</span>}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'stretch', gap: 8 }}>
+        {anns.length > 1 && (
+          <button type="button" style={navBtn} onClick={() => go(-1)} aria-label="Previous announcement"><ChevronLeft size={18} /></button>
+        )}
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label={`Open announcement: ${ann.title}`}
+          onClick={open}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open() } }}
+          style={{
+            flex: 1, minWidth: 0, cursor: 'pointer',
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            borderLeft: `3px solid ${color}`, borderRadius: '0 12px 12px 0', padding: '12px 14px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
+            <span style={{ color, flexShrink: 0, display: 'flex' }}><AnnIcon type={ann.type} size={15} /></span>
+            <span style={{ fontSize: 14, fontWeight: 700, color, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ann.title}</span>
+          </div>
+          {snippet && (
+            <div style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.5, marginBottom: 8, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{snippet}</div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ fontSize: 11, color: 'var(--ink3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {[cls, ann.subject, annTimeAgo(ann.createdAt)].filter(Boolean).join(' · ')}
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: 'var(--accent)', flexShrink: 0 }}>Tap to open <ChevronRight size={13} /></span>
+          </div>
+        </div>
+        {anns.length > 1 && (
+          <button type="button" style={navBtn} onClick={() => go(1)} aria-label="Next announcement"><ChevronRight size={18} /></button>
+        )}
+      </div>
+      {anns.length > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 9 }}>
+          {anns.map((a, i) => (
+            <button
+              key={a.id}
+              type="button"
+              aria-label={`Go to announcement ${i + 1}`}
+              onClick={() => setIdx(i)}
+              style={{ width: 7, height: 7, padding: 0, borderRadius: '50%', border: 'none', cursor: 'pointer', background: i === safeIdx ? 'var(--accent)' : 'var(--border)' }}
+            />
+          ))}
+        </div>
+      )}
+      {isFallback && (
+        <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 8 }}>Save announcements from the Stream to pin them here.</div>
+      )}
+    </div>
+  )
+}
+
 export default function OverviewTab({ student: s, viewClassId, classes }) {
   const { activities, students, eqScale, announcements, quizzes, semester, fbReady, liveMeetings, meetings, gradeFloor } = useData()
-  const { setStudentTab, toast } = useUI()
+  const { setStudentTab, toast, openStreamAnnouncement } = useUI()
 
   const [viewAnn, setViewAnn] = useState(null)
   const [chartsOpen, setChartsOpen] = useState(false)
@@ -402,6 +510,18 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
       (!ann.expiresAt || ann.expiresAt > now)
     ).sort((a, b) => b.createdAt - a.createdAt)
   }, [announcements, enrolledIds])
+
+  // Announcements the student saved (from the Stream kebab). These drive the
+  // dashboard widget; when none are saved we fall back to the latest active ones.
+  const savedAnnouncements = useMemo(() => {
+    const ids = new Set(s.savedPosts || [])
+    if (!ids.size) return []
+    return (announcements || [])
+      .filter(a => ids.has(a.id) && (a.classId === 'all' || enrolledIds.includes(a.classId)))
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+  }, [announcements, s.savedPosts, enrolledIds])
+  const widgetAnns = savedAnnouncements.length ? savedAnnouncements : activeAnnouncements
+  const widgetFallback = savedAnnouncements.length === 0
 
   const allEnrolledSubs = useMemo(
     () => activeSubjects(s, classes, semester),
@@ -563,80 +683,9 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
 
   return (
     <div className="student-overview">
-      {/* Announcement banners */}
-      {activeAnnouncements.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-          {/* Announcement legend */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 2 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Announcements:</span>
-            {[
-              { color: 'var(--yellow)', label: 'No Class' },
-              { color: 'var(--accent)', label: 'Online Class' },
-              { color: 'var(--purple)', label: 'Meeting Topics' },
-            ].map(({ color, label }) => (
-              <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--ink2)' }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
-                {label}
-              </span>
-            ))}
-          </div>
-          {activeAnnouncements.map(ann => (
-            <div
-              key={ann.id}
-              role="button"
-              tabIndex={0}
-              aria-label={`Open announcement: ${ann.title}`}
-              onClick={() => setViewAnn(ann)}
-              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setViewAnn(ann) } }}
-              style={{
-                display: 'flex', alignItems: 'flex-start', gap: 10,
-                padding: '12px 14px', borderRadius: 10,
-                background: annBgColor(ann.type),
-                border: `1px solid ${annBorderColor(ann.type)}`,
-                cursor: 'pointer',
-              }}
-            >
-              <div style={{ color: annIconColor(ann.type), flexShrink: 0, marginTop: 1 }}>
-                <AnnIcon type={ann.type} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 13, color: annIconColor(ann.type) }}>
-                  {ann.title}
-                </div>
-                {ann.message && (
-                  <div className="ann-message ann-message--preview" style={{ fontSize: 12, marginTop: 2 }} dangerouslySetInnerHTML={{ __html: sanitizeAnn(ann.message) }} />
-                )}
-                {ann.type === 'meeting_topics' && ann.topics?.length > 0 && (
-                  <ol style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 12, color: 'var(--ink2)', lineHeight: 1.8 }}>
-                    {ann.topics.map((t, i) => <li key={i}>{t}</li>)}
-                  </ol>
-                )}
-                {ann.type === 'online_class' && ann.meetingLink && (
-                  <a
-                    href={ann.meetingLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={e => e.stopPropagation()}
-                    style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600, marginTop: 4, display: 'inline-block' }}
-                  >
-                    Join Meeting →
-                  </a>
-                )}
-                {ann.moduleLink && (
-                  <a
-                    href={ann.moduleLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={e => e.stopPropagation()}
-                    style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600, marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                  >
-                    <Link size={12} /> View Module →
-                  </a>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+      {/* Saved-announcement widget (falls back to latest active announcements) */}
+      {widgetAnns.length > 0 && (
+        <SavedAnnouncementsWidget anns={widgetAnns} isFallback={widgetFallback} classes={classes} onOpen={openStreamAnnouncement} />
       )}
 
       {/* Page header */}
