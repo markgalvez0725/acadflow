@@ -55,8 +55,20 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
   const [q,    setQ]    = useState('')
   const [dragY, setDragY] = useState(0)       // mobile: live drag-to-dismiss offset (px)
   const [dragging, setDragging] = useState(false)
+  const [entered, setEntered] = useState(false) // mobile: false = sheet parked off-screen; flip true → slides up
   const dragRef = useRef({ startY: 0, h: 0, dy: 0, active: false })
   const sheetRef = useRef(null)
+
+  // Drive the open slide via the SAME transform pipeline as drag/close (one
+  // mechanism, no CSS keyframe). A keyframe animation with fill-mode would pin
+  // `transform` and override the drag offset, freezing the sheet — that was the
+  // bug. Park at translateY(100%), then rAF-flip to 0 so the transition animates.
+  useEffect(() => {
+    if (!open) { setEntered(false); return }
+    setEntered(false)
+    const id = requestAnimationFrame(() => requestAnimationFrame(() => setEntered(true)))
+    return () => cancelAnimationFrame(id)
+  }, [open])
 
   // Fresh navigation each time it opens. `initialView` deep-links straight to a
   // panel (e.g. a pending student auto-opened into "Get verified").
@@ -120,7 +132,7 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
       dragRef.current.active = false
       setDragging(false)
       // Past ~⅓ of the sheet (capped) → fling it the rest of the way out, then close.
-      if (dy > Math.min(sheetH * 0.32, 220)) { setDragY(sheetH); setTimeout(() => onClose?.(), 200) }
+      if (dy > Math.min(sheetH * 0.32, 220)) { setDragY(sheetH); setTimeout(() => onClose?.(), 280) }
       else setDragY(0)
     }
     window.addEventListener('pointermove', onMove, { passive: false })
@@ -245,10 +257,9 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
           style={{
             position: 'fixed', top: 0, left: 0, right: 0, height: '100dvh', zIndex: 801,
             background: 'var(--surface)',
-            display: 'flex', flexDirection: 'column',
-            transform: `translateY(${dragY}px)`,
-            transition: dragging ? 'none' : 'transform .26s cubic-bezier(.22,.8,.38,1)',
-            animation: 'ssetSheet .24s cubic-bezier(.22,.8,.38,1) both',
+            display: 'flex', flexDirection: 'column', willChange: 'transform',
+            transform: entered ? `translateY(${dragY}px)` : 'translateY(100%)',
+            transition: dragging ? 'none' : 'transform .3s cubic-bezier(.22,.8,.38,1)',
           }}
         >
           <div
