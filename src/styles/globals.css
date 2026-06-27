@@ -783,30 +783,33 @@ html[data-theme="dark"] .aflogo-dark { display: block; }
 .sb-brand {
   display: flex;
   align-items: center;
+  justify-content: center;   /* collapsed: cap centred in the rail, like the nav icons */
   gap: 12px;
   height: 62px;
-  padding: 0 8px;
+  padding: 0 6px;
   flex-shrink: 0;
   position: relative;
   /* NO overflow:hidden here - the logo slot must never be clippable. Only the
      wordmark (.sb-brand h2) clips itself while collapsed. */
 }
+/* Expanded/hover/open: left-align so the cap + wordmark read as one lockup. */
+.sidebar-wrap:hover .sb-brand,
+.sidebar-wrap.expanded .sb-brand,
+.sidebar-wrap.open .sb-brand { justify-content: flex-start; padding: 0 8px; }
 /* Fixed 48px logo slot = the 64px rail content width, so the mark is the SAME
    size and centred-on-the-rail position whether the sidebar is collapsed or
    expanded; only the text slides in beside it. */
 .sb-brand-logo {
-  flex: 0 0 48px;
-  width: 48px;
-  height: 48px;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   z-index: 1;
 }
-/* Belt-and-suspenders: the inline cap mark fills its slot and can never be
-   shrunk to 0 by a flex parent, whatever the wordmark beside it does. */
-.sb-brand-logo svg { width: 48px; height: 30px; flex: 0 0 auto; display: block; }
+/* Belt-and-suspenders: the inline cap mark uses the size BrandMark sets on the
+   <svg> (width/height attrs) and can never be shrunk to 0 by a flex parent. */
+.sb-brand-logo svg { flex: 0 0 auto; display: block; }
 .sb-brand h2 {
   /* Literal Bricolage stack (not var(--font-accent)) so the brand wordmark
      resolves even where the theme var doesn't reach. */
