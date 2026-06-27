@@ -57,28 +57,30 @@ function pdfImageFormat(dataUrl) {
 
 // ── PDF: branded header ────────────────────────────────────────────────────
 /**
- * Draw the shared report header: accent band, optional logo (left), school
- * name / department / address (left), and report title + subtitle (right).
- * Returns the y-coordinate after the header (34, matching the legacy header so
- * existing layouts are unchanged).
+ * Draw the shared report header as a LETTERHEAD (no solid color band): logo +
+ * school name / department / address on the left in dark ink, the report title
+ * in the accent color on the right with its meta, then a thin accent rule above
+ * the body. The accent still color-codes the report type, just subtly.
+ * Returns the y-coordinate after the header (34, so existing layouts are kept).
  *
  * @param {object} doc      jsPDF instance
  * @param {object} opts     { title, subtitle?, accent? = REPORT_ACCENTS.grades }
  * @param {object} [branding] overrides the cached branding
  * @returns {number} y after header
  */
+const INK = [33, 37, 41]
+const MUTED = [110, 116, 126]
+
 export function drawReportHeader(doc, { title = '', subtitle = '', accent = REPORT_ACCENTS.grades } = {}, branding) {
   const b = branding || getReportBranding() || {}
   const pageW = doc.internal.pageSize.getWidth()
-  const bandH = 26
 
   // Embed Plus Jakarta Sans + Lexend on this doc (overrides Helvetica -> Lexend
   // for the whole report); HEAD is the headings face, falling back to Helvetica.
   const fams = registerPdfFonts(doc)
   const HEAD = fams ? fams.head : 'helvetica'
-
-  doc.setFillColor(accent[0], accent[1], accent[2])
-  doc.rect(0, 0, pageW, bandH, 'F')
+  const prof = getReportProfessor()
+  const topY = 9
 
   // Logo (left), sized from stored aspect ratio so this stays synchronous.
   let textX = 10
@@ -88,49 +90,61 @@ export function drawReportHeader(doc, { title = '', subtitle = '', accent = REPO
       const maxH = 16
       let drawH = maxH, drawW = maxH * ratio
       if (drawW > 30) { drawW = 30; drawH = 30 / ratio }
-      doc.addImage(b.logo, pdfImageFormat(b.logo), 10, (bandH - drawH) / 2, drawW, drawH)
+      doc.addImage(b.logo, pdfImageFormat(b.logo), 10, topY, drawW, drawH)
       textX = 10 + drawW + 5
     } catch (e) { /* unreadable image - fall back to text-only */ }
   }
 
-  // School block (left)
-  doc.setTextColor(255, 255, 255)
-  doc.setFont(HEAD, 'bold')
-  doc.setFontSize(13)
-  doc.text(String(b.schoolName || 'AcadFlow'), textX, 10)
-  let ly = 15
-  if (b.department) {
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8)
-    doc.setTextColor(235, 238, 250)
-    doc.text(String(b.department), textX, ly); ly += 4
-  }
-  if (b.address) {
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(7)
-    doc.setTextColor(225, 230, 248)
-    doc.text(String(b.address), textX, ly)
-  }
+  // School block (left, dark ink)
+  doc.setTextColor(INK[0], INK[1], INK[2])
+  doc.setFont(HEAD, 'bold'); doc.setFontSize(14)
+  doc.text(String(b.schoolName || 'AcadFlow'), textX, topY + 5)
+  let ly = topY + 10
+  doc.setFont('helvetica', 'normal'); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2])
+  if (b.department) { doc.setFontSize(9); doc.text(String(b.department), textX, ly); ly += 4.5 }
+  if (b.address) { doc.setFontSize(8); doc.text(String(b.address), textX, ly) }
 
-  // Title + subtitle (right-aligned)
-  const prof = getReportProfessor()
-  doc.setTextColor(255, 255, 255)
-  doc.setFont(HEAD, 'bold')
-  doc.setFontSize(13)
-  doc.text(String(title), pageW - 10, 10, { align: 'right' })
+  // Right: title (accent) + meta (muted)
+  doc.setFont(HEAD, 'bold'); doc.setFontSize(15)
+  doc.setTextColor(accent[0], accent[1], accent[2])
+  doc.text(String(title), pageW - 10, topY + 5, { align: 'right' })
+  let ry = topY + 11
+  doc.setFont('helvetica', 'normal'); doc.setTextColor(MUTED[0], MUTED[1], MUTED[2])
   if (subtitle) {
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5)
-    doc.setTextColor(228, 234, 250)
-    // Cap to one line when a professor line follows so it stays inside the band.
+    doc.setFontSize(8)
     const lines = doc.splitTextToSize(String(subtitle), pageW / 2 - 6).slice(0, prof ? 1 : 2)
-    doc.text(lines, pageW - 10, 16, { align: 'right' })
+    doc.text(lines, pageW - 10, ry, { align: 'right' })
+    ry += 4 * lines.length
   }
   if (prof) {
-    doc.setFont(HEAD, 'normal'); doc.setFontSize(8)
-    doc.setTextColor(255, 255, 255)
-    doc.text(`Professor: ${prof.name}`, pageW - 10, 22, { align: 'right' })
+    doc.setFontSize(8)
+    doc.text(`Professor: ${prof.name}`, pageW - 10, ry, { align: 'right' })
   }
+
+  // Thin accent rule + hairline separating the header from the body.
+  doc.setFillColor(accent[0], accent[1], accent[2])
+  doc.rect(10, 28, pageW - 20, 0.9, 'F')
+  doc.setFillColor(224, 228, 234)
+  doc.rect(10, 29.2, pageW - 20, 0.3, 'F')
 
   doc.setTextColor(30, 30, 30)
   return 34
+}
+
+// Shared table-header styling for the lighter letterhead look: dark text on
+// white (no solid fill). Pair with headUnderline() for the accent underline.
+export function tableHeadStyles() {
+  return { fillColor: [255, 255, 255], textColor: INK, fontStyle: 'bold' }
+}
+
+// autoTable didDrawCell hook: draw an accent underline beneath each header cell.
+export function headUnderline(doc, accent = REPORT_ACCENTS.grades) {
+  return (d) => {
+    if (!d || d.section !== 'head') return
+    doc.setDrawColor(accent[0], accent[1], accent[2])
+    doc.setLineWidth(0.5)
+    doc.line(d.cell.x, d.cell.y + d.cell.height, d.cell.x + d.cell.width, d.cell.y + d.cell.height)
+  }
 }
 
 // ── PDF: branded footer (every page) ───────────────────────────────────────

@@ -6,7 +6,7 @@ import {
 } from '@/utils/grades.js'
 import { pdfHeader } from '@/export/pdfExport.js'
 import { courseShort } from '@/constants/courses'
-import { drawSignatures, getReportBranding } from '@/export/reportTemplate.js'
+import { drawSignatures, getReportBranding, tableHeadStyles, headUnderline, REPORT_ACCENTS } from '@/export/reportTemplate.js'
 import { preloadPdfFonts } from '@/export/pdfFonts.js'
 
 function fmtDate() {
@@ -74,7 +74,8 @@ function renderReportCard(doc, student, { classes = [], students = [], eqScale =
     head: [['Subject', 'Midterm', 'Finals', 'Final %', 'Equiv', 'Remark']],
     body: rows.length ? rows : [['No subjects enrolled', '', '', '', '', '']],
     theme: 'striped',
-    headStyles: { fillColor: [80, 70, 228], textColor: 255, fontStyle: 'bold', fontSize: 9 },
+    headStyles: { ...tableHeadStyles(), fontSize: 9 },
+    didDrawCell: headUnderline(doc, REPORT_ACCENTS.grades),
     bodyStyles: { fontSize: 9, textColor: [40, 40, 50] },
     columnStyles: {
       1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' },

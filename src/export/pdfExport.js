@@ -13,7 +13,7 @@ import {
 } from '@/utils/grades.js'
 import { sortByLastName } from '@/utils/format.js'
 import { courseShort } from '@/constants/courses'
-import { drawReportHeader, drawReportFooter, drawSignatures, REPORT_ACCENTS } from '@/export/reportTemplate.js'
+import { drawReportHeader, drawReportFooter, drawSignatures, REPORT_ACCENTS, tableHeadStyles, headUnderline } from '@/export/reportTemplate.js'
 import { preloadPdfFonts } from '@/export/pdfFonts.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -95,7 +95,8 @@ export async function buildGradesPDFDoc(data, students, classes) {
     head: [headers],
     body: [...rows, summaryRow],
     styles: { fontSize: 7.5, cellPadding: 2.5, overflow: 'linebreak' },
-    headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold' },
+    headStyles: tableHeadStyles(),
+    didDrawCell: headUnderline(doc, REPORT_ACCENTS.grades),
     alternateRowStyles: { fillColor: [248, 250, 252] },
     columnStyles: {
       0: { cellWidth: 36 },    // Student Name
@@ -194,7 +195,8 @@ export async function buildAttendancePDFDoc(data, students, classes) {
     head: [headers],
     body: [...rows, summaryRow],
     styles: { fontSize: 7.5, cellPadding: 2.5, overflow: 'linebreak' },
-    headStyles: { fillColor: [20, 83, 45], textColor: 255, fontStyle: 'bold' },
+    headStyles: tableHeadStyles(),
+    didDrawCell: headUnderline(doc, REPORT_ACCENTS.attendance),
     alternateRowStyles: { fillColor: [248, 250, 252] },
     columnStyles: {
       0: { cellWidth: 36 },
@@ -354,7 +356,8 @@ export async function buildStudentPDFDoc(s, classes, students, eqScale = DEFAULT
     head: gradeHead,
     body: gradeBody,
     styles: { fontSize: 8, cellPadding: 2.5 },
-    headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold' },
+    headStyles: tableHeadStyles(),
+    didDrawCell: headUnderline(doc, REPORT_ACCENTS.grades),
     alternateRowStyles: { fillColor: [248, 250, 252] },
     columnStyles: {
       0: { cellWidth: 40 },
@@ -402,7 +405,8 @@ export async function buildStudentPDFDoc(s, classes, students, eqScale = DEFAULT
     head: attHead,
     body: attBody,
     styles: { fontSize: 8, cellPadding: 2.5 },
-    headStyles: { fillColor: [20, 83, 45], textColor: 255, fontStyle: 'bold' },
+    headStyles: tableHeadStyles(),
+    didDrawCell: headUnderline(doc, REPORT_ACCENTS.attendance),
     alternateRowStyles: { fillColor: [248, 250, 252] },
     columnStyles: {
       0: { cellWidth: 40 },
@@ -463,7 +467,8 @@ async function buildScoreMatrixPDFDoc(data, { title, accent, fileBase }) {
     head: [headers],
     body: [...rows, summaryRow],
     styles: { fontSize: 7.5, cellPadding: 2.5, overflow: 'linebreak' },
-    headStyles: { fillColor: accent, textColor: 255, fontStyle: 'bold' },
+    headStyles: tableHeadStyles(),
+    didDrawCell: headUnderline(doc, accent),
     alternateRowStyles: { fillColor: [248, 250, 252] },
     columnStyles: {
       0: { cellWidth: 36 }, 1: { cellWidth: 16 }, 2: { cellWidth: 18 }, 3: { cellWidth: 12 },
