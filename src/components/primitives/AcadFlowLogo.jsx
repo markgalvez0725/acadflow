@@ -1,68 +1,33 @@
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 
-const LETTERS = 'AcadFlow'.split('')
+// The real AcadFlow brand lockups (PNG exports live in /public/brand). Picks the
+// variant + size, and for tone="auto" renders both the color and all-white
+// lockups, letting CSS swap them by theme so the wordmark never disappears on a
+// dark surface. variant: 'horizontal' | 'stacked' | 'mark'.
+const SRC = {
+  horizontal: { color: '/brand/logo-horizontal.png', white: '/brand/logo-horizontal-white.png', mono: '/brand/logo-horizontal-mono.png' },
+  stacked:    { color: '/brand/logo-stacked.png',    white: '/brand/logo-stacked-white.png',    mono: '/brand/logo-stacked-mono.png' },
+  mark:       { color: '/brand/logo-mark.png',       white: '/brand/logo-mark-white.png',       mono: '/brand/logo-mark.png' },
+}
+// Rendered height (px) per variant + size; width stays auto to keep the ratio.
+const HEIGHT = {
+  horizontal: { sm: 28, md: 38, lg: 52 },
+  stacked:    { sm: 52, md: 76, lg: 108 },
+  mark:       { sm: 28, md: 40, lg: 56 },
+}
 
-export default function AcadFlowLogo({ variant = 'horizontal', size = 'md', className = '' }) {
-  const [visible, setVisible] = useState(false)
+export default function AcadFlowLogo({ variant = 'horizontal', size = 'md', tone = 'auto', className = '' }) {
+  const src = SRC[variant] || SRC.horizontal
+  const h = (HEIGHT[variant] || HEIGHT.horizontal)[size] || (HEIGHT[variant] || HEIGHT.horizontal).md
+  const style = { height: h, width: 'auto', display: 'block' }
 
-  useEffect(() => {
-    const t1 = setTimeout(() => setVisible(true), 60)
-    return () => clearTimeout(t1)
-  }, [])
-
-  const imgCls  = { sm: 'w-9  h-9',  md: 'w-12 h-12', lg: 'w-16 h-16' }[size] ?? 'w-12 h-12'
-  const textCls = { sm: 'text-xl',   md: 'text-2xl',  lg: 'text-3xl'  }[size] ?? 'text-2xl'
-
-  const logoEl = (
-    <img
-      src="/logo.png"
-      alt=""
-      aria-hidden="true"
-      className={`${imgCls} object-contain acadflow-logo-img`}
-      style={{
-        opacity:    visible ? 1 : 0,
-        transform:  visible ? 'scale(1) translateY(0)' : 'scale(0.5) translateY(8px)',
-        transition: 'opacity .55s cubic-bezier(.34,1.56,.64,1), transform .55s cubic-bezier(.34,1.56,.64,1)',
-      }}
-    />
-  )
-
-  const wordmarkEl = (
-    <span
-      className={`acadflow-wordmark font-display font-bold tracking-tight ${textCls}`}
-      aria-label="AcadFlow"
-    >
-      {LETTERS.map((l, i) => (
-        <span
-          key={i}
-          aria-hidden="true"
-          style={{
-            display:    'inline',
-            position:   'relative',
-            opacity:    visible ? 1 : 0,
-            top:        visible ? '0em' : '0.28em',
-            transition: `opacity .38s ease ${0.12 + i * 0.045}s, top .38s cubic-bezier(.34,1.56,.64,1) ${0.12 + i * 0.045}s`,
-          }}
-        >
-          {l}
-        </span>
-      ))}
-    </span>
-  )
-
-  if (variant === 'stacked') {
+  if (tone === 'auto') {
     return (
-      <div className={`flex flex-col items-center gap-2 ${className}`}>
-        {logoEl}
-        {wordmarkEl}
-      </div>
+      <span className={`aflogo ${className}`}>
+        <img src={src.color} alt="AcadFlow" style={style} className="aflogo-light" />
+        <img src={src.white} alt="" aria-hidden="true" style={style} className="aflogo-dark" />
+      </span>
     )
   }
-
-  return (
-    <div className={`flex items-center gap-3 ${className}`}>
-      {logoEl}
-      {wordmarkEl}
-    </div>
-  )
+  return <img src={src[tone] || src.color} alt="AcadFlow" style={style} className={`aflogo ${className}`} />
 }
