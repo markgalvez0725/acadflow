@@ -2,12 +2,16 @@ import React, { useRef, useState } from 'react'
 import { findMentionQuery, applyMention, matchCandidates } from '@/utils/mentions'
 import { courseShort } from '@/constants/courses'
 
-// A single-line text input with an @mention autocomplete dropdown. Controlled
-// via value/onChange; calls onEnter when Enter is pressed (and no suggestion is
-// being chosen). candidates: [{ id, name }].
+// A text input with an @mention autocomplete dropdown. Controlled via
+// value/onChange; calls onEnter when Enter is pressed (and no suggestion is
+// being chosen). candidates: [{ id, name, photo? }].
+//   multiline - render a <textarea> (Enter sends, Shift+Enter = newline)
+//   onType    - fired on every change (e.g. typing-presence) after onChange
+//   onBlur    - extra blur handler (the dropdown still closes on its own)
 export default function MentionInput({
   value, onChange, onEnter, candidates = [],
   placeholder, disabled, className = 'form-input', style, inputRef: extRef,
+  multiline = false, rows = 1, onType, onBlur: extBlur,
 }) {
   const innerRef = useRef(null)
   const ref = extRef || innerRef
@@ -78,29 +82,32 @@ export default function MentionInput({
               }}
             >
               <span style={{
-                width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                width: 22, height: 22, borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
                 background: 'var(--accent-l)', color: 'var(--accent)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 10, fontWeight: 700,
-              }}>{c.name?.charAt(0)?.toUpperCase() || '?'}</span>
+              }}>{c.photo
+                ? <img src={c.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : (c.name?.charAt(0)?.toUpperCase() || '?')}</span>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{courseShort(c.name)}</span>
             </button>
           ))}
         </div>
       )}
-      <input
-        ref={ref}
-        className={className}
-        style={{ width: '100%', ...style }}
-        placeholder={placeholder}
-        value={value}
-        disabled={disabled}
-        onChange={e => { onChange(e.target.value); setCaret(e.target.selectionStart ?? 0); setOpen(true) }}
-        onKeyDown={onKeyDown}
-        onKeyUp={syncCaret}
-        onClick={syncCaret}
-        onBlur={() => setTimeout(() => setOpen(false), 120)}
-      />
+      {React.createElement(multiline ? 'textarea' : 'input', {
+        ref,
+        className,
+        rows: multiline ? rows : undefined,
+        style: { width: '100%', ...style },
+        placeholder,
+        value,
+        disabled,
+        onChange: e => { onChange(e.target.value); setCaret(e.target.selectionStart ?? 0); setOpen(true); onType?.() },
+        onKeyDown,
+        onKeyUp: syncCaret,
+        onClick: syncCaret,
+        onBlur: e => { setTimeout(() => setOpen(false), 120); extBlur?.(e) },
+      })}
     </div>
   )
 }

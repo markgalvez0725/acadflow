@@ -2425,9 +2425,14 @@ textarea.input { resize: vertical; }
 .msg-reply-pill { flex: 1; display: flex; align-items: center; background: var(--bg2); border: 1px solid var(--border); border-radius: 20px; padding: 0 6px 0 14px; transition: border-color .15s; }
 .msg-reply-pill:focus-within { border-color: var(--accent); }
 .msg-reply-input { flex: 1; border: none; background: transparent; outline: none; resize: none; font-family: var(--font-body); font-size: 0.9063rem; color: var(--ink); line-height: 1.45; padding: 9px 0; max-height: 104px; }
-.msg-send-circle { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; background: var(--grad-brand); color: #fff; cursor: pointer; transition: opacity .15s, transform .1s; }
-.msg-send-circle:disabled { opacity: .45; cursor: default; }
-.msg-send-circle:not(:disabled):active { transform: scale(.92); }
+/* The pill itself shows focus (border-color above), so the inner input must NOT
+   also paint the global focus-ring box-shadow - that drew a second box inside. */
+.msg-reply-input:focus-visible, .msg-search-pill input:focus-visible { box-shadow: none; }
+/* Plain stroke send icon - no circle/container, just the glyph in ink. */
+.msg-send-circle { flex-shrink: 0; border: none; display: flex; align-items: center; justify-content: center; background: none; color: var(--ink); cursor: pointer; padding: 6px; transition: opacity .15s, transform .1s, color .15s; }
+.msg-send-circle:not(:disabled):hover { color: var(--accent); }
+.msg-send-circle:disabled { opacity: .4; cursor: default; }
+.msg-send-circle:not(:disabled):active { transform: scale(.9); }
 
 /* Messages shell fills the viewport; leaves room for the floating bottom nav
    on phones (dynamic viewport unit accounts for mobile browser chrome). */
@@ -2447,6 +2452,11 @@ textarea.input { resize: vertical; }
 
 /* Sender name above a received group run */
 .msg-sender-name { font-size: 0.7813rem; font-weight: 600; color: var(--ink3); margin: 0 0 2px 30px; }
+
+/* @mention - highlighted token inside a message bubble. On a sent (filled)
+   bubble it sits on a translucent white chip so it reads on the brand fill. */
+.msg-mention { background: var(--accent-l); color: var(--accent); border-radius: 5px; padding: 0 4px; font-weight: 600; }
+.msg-bubble.sent .msg-mention { background: rgba(255,255,255,.24); color: #fff; }
 
 /* Thread header with avatar */
 .msg-thread-head { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; min-width: 0; overflow: hidden; }

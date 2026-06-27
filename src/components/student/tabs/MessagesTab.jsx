@@ -11,7 +11,10 @@ import { groupFlags, previewText } from '@/utils/messageThread'
 import TypingIndicator from '@/components/primitives/TypingIndicator'
 import { useTyping } from '@/hooks/useTyping'
 import { isClassCurrent } from '@/utils/active'
-import { notifyAdminMessage } from '@/firebase/messageNotify'
+import { notifyAdminMessage, notifyMention } from '@/firebase/messageNotify'
+import { resolveMentions } from '@/utils/mentions'
+import MentionInput from '@/components/primitives/MentionInput'
+import MessageText from '@/components/primitives/MessageText'
 import { fbAddMessageReply, fbMarkMessageRead } from '@/firebase/persistence'
 import Pagination from '@/components/primitives/Pagination'
 import KebabMenu from '@/components/primitives/KebabMenu'
@@ -43,8 +46,13 @@ function loadHidden(sid) {
 function saveHidden(sid, h) { try { localStorage.setItem(hiddenKey(sid), JSON.stringify(h)) } catch (e) {} }
 
 export default function MessagesTab({ student: s, messages }) {
-  const { db, fbReady, classes, semester, students, reportScreenshot } = useData()
+  const { db, fbReady, classes, semester, students, reportScreenshot, admin } = useData()
   const { toast, openDialog, pendingMessageId, clearPendingMessage, pendingMessageDraft, clearPendingMessageDraft } = useUI()
+
+  // The professor's display identity (shown to the student in place of a generic
+  // "Professor"/"T"). Falls back to "Professor" until the admin sets a name.
+  const profName = (admin?.name || '').trim() || 'Professor'
+  const profPhoto = admin?.photo || null
 
   // A group chat is "open" only while at least one of its classes is still in the
   // current semester. Once the semester/class ends, students can no longer reply.
@@ -192,7 +200,7 @@ export default function MessagesTab({ student: s, messages }) {
       : (messages.find(x => x.id === activeKey) ? [messages.find(x => x.id === activeKey)] : [])
     const entries = []
     src.forEach(m => {
-      entries.push({ from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, kind: m.kind, isMain: true })
+      entries.push({ from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, kind: m.kind, mentions: m.mentions, isMain: true })
       ;(m.replies || []).forEach(r => entries.push({ ...r, isMain: false }))
     })
     entries.sort((a, b) => a.ts - b.ts)
@@ -222,7 +230,7 @@ export default function MessagesTab({ student: s, messages }) {
     const directMsgs = allMsgs.filter(m => m.type !== 'announcement').sort((a, b) => a.ts - b.ts)
     if (!directMsgs.length) {
       // New conversation - open thread with empty, allow compose
-      setThreadTitle('Professor')
+      setThreadTitle(profName)
       setThreadEntries([])
       setReplyMsgId(null)
       setCanReply(true)
@@ -239,7 +247,7 @@ export default function MessagesTab({ student: s, messages }) {
     setReplyMsgId(lastMsg.id)
     const allEntries = []
     directMsgs.forEach(m => {
-      allEntries.push({ from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, kind: m.kind, isMain: true })
+      allEntries.push({ from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, kind: m.kind, mentions: m.mentions, isMain: true })
       ;(m.replies || []).forEach(r => allEntries.push({ ...r, isMain: false }))
     })
     allEntries.sort((a, b) => a.ts - b.ts)
@@ -256,7 +264,7 @@ export default function MessagesTab({ student: s, messages }) {
     markRead([msgId])
     setReplyMsgId(msgId)
     const allEntries = [
-      { from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, kind: m.kind, isMain: true },
+      { from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, kind: m.kind, mentions: m.mentions, isMain: true },
       ...(m.replies || []).map(r => ({ ...r, isMain: false })),
     ].sort((a, b) => a.ts - b.ts)
     setThreadTitle(groupName(m, classes))
@@ -289,6 +297,17 @@ export default function MessagesTab({ student: s, messages }) {
     return () => clearTimeout(t)
   }, [pendingMessageDraft]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Ping each @mentioned member (in-app notif + best-effort push). Secure drafts
+  // never leak their text into the notification.
+  function notifyMentioned(ids, text, secure) {
+    if (!ids?.length || !fbReady || !db.current) return
+    ids.forEach(id => notifyMention(db.current, id, {
+      fromName: s.name || s.id,
+      snippet: secure ? 'Private message' : text,
+      link: 'messages',
+    }))
+  }
+
   async function sendReply() {
     const text = replyText.trim()
     if (!text) return
@@ -304,18 +323,24 @@ export default function MessagesTab({ student: s, messages }) {
     const secure = secureOn
     const quote = replyingTo
     const targetMsgId = replyMsgId
+    // Resolve @mentions against the group members (empty list in a 1:1 thread,
+    // so this is a no-op there). Stored on the message for highlight + notify.
+    const mentionedIds = resolveMentions(text, mentionCandidates).filter(id => id !== s.id)
+    const mentions = mentionCandidates.filter(c => mentionedIds.includes(c.id)).map(c => ({ id: c.id, name: c.name }))
+    const mentionObj = mentions.length ? { mentions } : {}
     stopTyping()
     setSending(true)
     // Clear the composer optimistically for snappy UX; restored on failure.
     setReplyText(''); setSecureOn(false); setSecureTouched(false); setReplyingTo(null)
     try {
       if (targetMsgId) {
-        const newReply = { from: s.id, body: text, ts: Date.now(), ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}) }
+        const newReply = { from: s.id, body: text, ts: Date.now(), ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}), ...mentionObj }
         setThreadEntries(prev => [...prev, { ...newReply, isMain: false }])
         // Atomic append - won't clobber a professor reply sent at the same time.
         await fbAddMessageReply(db.current, targetMsgId, newReply, { readerId: s.id, adminRead: false })
         // Notify teacher: in-app badge + best-effort web push.
         notifyAdminMessage(db.current, s.name || s.id, text, 'reply', { secure })
+        notifyMentioned(mentionedIds, text, secure)
       } else {
         // New message to admin
         const newId = 'm' + Date.now() + Math.random().toString(36).slice(2, 6)
@@ -370,6 +395,15 @@ export default function MessagesTab({ student: s, messages }) {
   // ── Open thread context (right pane) ───────────────────────────────
   const groupMsg = (view === 'thread' && replyMsgId) ? messages.find(x => x.id === replyMsgId) : null
   const showGroup = groupMsg && isGroupMessage(groupMsg)
+  // Who the student can @mention: only in a group chat - the professor plus every
+  // classmate in the group (themselves excluded). Empty in a 1:1 thread, so the
+  // composer shows no mention popover there.
+  const mentionCandidates = useMemo(() => {
+    if (!showGroup || !groupMsg) return []
+    const out = [{ id: 'admin', name: profName, photo: profPhoto }]
+    groupMembers(groupMsg, students).forEach(m => { if (m.id !== s.id) out.push({ id: m.id, name: m.name, photo: m.photo }) })
+    return out
+  }, [showGroup, groupMsg, students, profName, profPhoto, s.id])
   const headerIsGroup = groupMsg && isGroupChat(groupMsg)
   const threadMemberCount = (showGroup && groupMsg) ? groupMembers(groupMsg, students).length : 0
   const threadSubtitle = showGroup
@@ -382,7 +416,7 @@ export default function MessagesTab({ student: s, messages }) {
 
   function senderInfo(entry) {
     if (entry.from === s.id)    return { self: true,  name: 'You' }
-    if (entry.from === 'admin') return { self: false, name: 'Professor', teacher: true }
+    if (entry.from === 'admin') return { self: false, name: profName, teacher: true, photo: profPhoto }
     const st = students.find(x => x.id === entry.from)
     return { self: false, name: st?.name || 'Member', id: entry.from }
   }
@@ -418,9 +452,9 @@ export default function MessagesTab({ student: s, messages }) {
         return (
           <div key="direct" className={`s-msg-thread-item${item.hasUnread ? ' unread' : ''}${sel ? ' selected' : ''}${active ? ' active' : ''}`} onClick={selectMode ? () => toggleSelect('direct') : openConversation} style={{ cursor: 'pointer' }}>
             {selectMode && <span className={`msg-checkbox ${sel ? 'checked' : ''}`} aria-hidden="true">{sel && <Check size={13} />}</span>}
-            <div className="s-conv-avatar">T</div>
+            <div className="s-conv-avatar">{profPhoto ? <img src={profPhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} /> : getInitials(profName)}</div>
             <div className="s-conv-body">
-              <div className="s-conv-name">{item.hasUnread && <span className="unread-dot" />}Professor</div>
+              <div className="s-conv-name">{item.hasUnread && <span className="unread-dot" />}{profName}</div>
               <div className="s-conv-preview">{preview}</div>
               {replyHint && <div style={{ fontSize: 10, color: 'var(--green)', marginTop: 2 }}>{replyHint}</div>}
             </div>
@@ -520,7 +554,7 @@ export default function MessagesTab({ student: s, messages }) {
                   <ChevronLeft size={20} />
                 </button>
                 <div className={`msg-thread-head-av ${showGroup ? 'announce' : ''}`}>
-                  {showGroup ? <Megaphone size={16} /> : <GraduationCap size={16} />}
+                  {showGroup ? <Megaphone size={16} /> : (profPhoto ? <img src={profPhoto} alt="" /> : <GraduationCap size={16} />)}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="font-semibold text-ink text-sm truncate">{threadTitle}</div>
@@ -557,7 +591,7 @@ export default function MessagesTab({ student: s, messages }) {
                         <div className={`msg-bubble-row ${isSelf ? 'sent' : 'received'}`} style={{ marginTop: sameAsPrev ? 2 : 8 }} title={timeLabel(entry.ts)}>
                           {!isSelf && (
                             <div className="msg-avatar-slot">
-                              {lastOfGroup && <div className="msg-avatar-sm">{info.teacher ? <GraduationCap size={13} /> : getInitials(info.name)}</div>}
+                              {lastOfGroup && <div className="msg-avatar-sm">{info.teacher ? (info.photo ? <img src={info.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} /> : <GraduationCap size={13} />) : getInitials(info.name)}</div>}
                             </div>
                           )}
                           <div className={`msg-bubble ${isSelf ? 'sent' : 'received'} ${lastOfGroup ? 'tail' : ''}`}>
@@ -574,7 +608,7 @@ export default function MessagesTab({ student: s, messages }) {
                               ? (isSelf
                                   ? <><span className="msg-own-private"><Lock size={10} /> Private</span><div style={{ whiteSpace: 'pre-wrap' }}>{entry.body}</div></>
                                   : <SecureBubble text={entry.body} />)
-                              : <div style={{ whiteSpace: 'pre-wrap' }}>{entry.body}</div>}
+                              : <MessageText text={entry.body} mentions={entry.mentions} />}
                           </div>
                         </div>
                       </SwipeReply>
@@ -627,14 +661,16 @@ export default function MessagesTab({ student: s, messages }) {
                       <Lock size={16} />
                     </button>
                     <div className="msg-reply-pill">
-                      <textarea
+                      <MentionInput
+                        multiline
                         className="msg-reply-input"
-                        rows={1}
                         placeholder="Message…"
                         value={replyText}
-                        onChange={e => { setReplyText(e.target.value); notifyTyping() }}
+                        onChange={setReplyText}
+                        onType={notifyTyping}
                         onBlur={() => stopTyping()}
-                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply() } }}
+                        onEnter={sendReply}
+                        candidates={mentionCandidates}
                       />
                     </div>
                     <button className="msg-send-circle" onClick={sendReply} disabled={sending || !replyText.trim()} title="Send">

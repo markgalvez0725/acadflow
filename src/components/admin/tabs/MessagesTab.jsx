@@ -10,9 +10,12 @@ import GroupMembers from '@/components/primitives/GroupMembers'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import TypingIndicator from '@/components/primitives/TypingIndicator'
 import { useTyping } from '@/hooks/useTyping'
-import { notifyStudentMessage, notifyStudentsBroadcast } from '@/firebase/messageNotify'
+import { notifyStudentMessage, notifyStudentsBroadcast, notifyMention } from '@/firebase/messageNotify'
+import { resolveMentions } from '@/utils/mentions'
 import { fbAddMessageReply, fbDeleteMessage } from '@/firebase/persistence'
 import Modal from '@/components/primitives/Modal'
+import MentionInput from '@/components/primitives/MentionInput'
+import MessageText from '@/components/primitives/MessageText'
 import KebabMenu from '@/components/primitives/KebabMenu'
 import { X, Pencil, Send, CheckCheck, Megaphone, Trash2, Search, ChevronDown, ChevronLeft, Check, BookOpen, SquarePen, MoreHorizontal, Camera, Lock } from 'lucide-react'
 import SecureBubble from '@/components/primitives/SecureBubble'
@@ -405,6 +408,8 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename })
   }
 
   const isGroup = thread.isGroup
+  // Mentionable members for a group chat - the professor can @tag any student in it.
+  const mentionCandidates = isGroup ? (thread.members || []).map(m => ({ id: m.id, name: m.name, photo: m.photo })) : []
   const memberCount = (thread.members || []).length
   const subtitle = isGroup ? `Group · ${memberCount} member${memberCount === 1 ? '' : 's'}` : thread.headerSub
   let lastSelfIdx = -1
@@ -479,7 +484,7 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename })
                       ? (isAdmin
                           ? <><span className="msg-own-private"><Lock size={10} /> Private</span><div style={{ whiteSpace: 'pre-wrap' }}>{entry.body}</div></>
                           : <SecureBubble text={entry.body} />)
-                      : <div style={{ whiteSpace: 'pre-wrap' }}>{entry.body}</div>}
+                      : <MessageText text={entry.body} mentions={entry.mentions} />}
                   </div>
                 </div>
               </SwipeReply>
@@ -503,13 +508,13 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename })
       <TypingIndicator typers={typers} />
 
       {/* Reply box */}
-      <ReplyBox key={chatKey} onSend={doReply} onType={notifyTyping} onStop={stopTyping} replyingTo={replyingTo} onCancelReply={() => setReplyingTo(null)} />
+      <ReplyBox key={chatKey} onSend={doReply} onType={notifyTyping} onStop={stopTyping} replyingTo={replyingTo} onCancelReply={() => setReplyingTo(null)} candidates={mentionCandidates} />
     </div>
   )
 }
 
 // ── Reply Box ─────────────────────────────────────────────────────────
-function ReplyBox({ onSend, onType, onStop, replyingTo, onCancelReply }) {
+function ReplyBox({ onSend, onType, onStop, replyingTo, onCancelReply, candidates = [] }) {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [secureOn, setSecureOn] = useState(false)
@@ -526,10 +531,6 @@ function ReplyBox({ onSend, onType, onStop, replyingTo, onCancelReply }) {
     await onSend(t, secure)
     setText(''); setSecureOn(false); setSecureTouched(false)
     setSending(false)
-  }
-
-  function handleKeyDown(e) {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
   }
 
   return (
@@ -561,13 +562,15 @@ function ReplyBox({ onSend, onType, onStop, replyingTo, onCancelReply }) {
           <Lock size={16} />
         </button>
         <div className="msg-reply-pill">
-          <textarea
+          <MentionInput
+            multiline
             className="msg-reply-input"
-            rows={1}
             value={text}
-            onChange={e => { setText(e.target.value); onType?.() }}
+            onChange={setText}
+            onType={onType}
             onBlur={() => onStop?.()}
-            onKeyDown={handleKeyDown}
+            onEnter={handleSend}
+            candidates={candidates}
             placeholder="Message…"
             disabled={sending}
           />
@@ -854,6 +857,7 @@ export default function MessagesTab() {
           secure: m.secure,
           quote: m.quote,
           kind: m.kind,
+          mentions: m.mentions,
           isMain: true,
           senderLabel: 'You',
           studentRead: anyRead,
@@ -867,6 +871,7 @@ export default function MessagesTab() {
           kind: r.kind,
           secure: r.secure,
           quote: r.quote,
+          mentions: r.mentions,
           isMain: false,
           senderLabel: r.from === 'admin' ? 'You' : peerName(students, r.from),
           studentRead: false,
@@ -921,7 +926,11 @@ export default function MessagesTab() {
       toast('Firebase not connected.', 'red')
       return
     }
-    const reply = { from: 'admin', body: text, ts: Date.now(), ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}) }
+    // Resolve @mentions against this group's members (empty for a 1:1 thread).
+    const mentionCandidates = thread.isGroup ? (thread.members || []).map(m => ({ id: m.id, name: m.name })) : []
+    const mentionedIds = resolveMentions(text, mentionCandidates)
+    const mentions = mentionCandidates.filter(c => mentionedIds.includes(c.id)).map(c => ({ id: c.id, name: c.name }))
+    const reply = { from: 'admin', body: text, ts: Date.now(), ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}), ...(mentions.length ? { mentions } : {}) }
 
     try {
       if (thread.type === 'conversation') {
@@ -959,6 +968,12 @@ export default function MessagesTab() {
         } else if (m.to && m.to !== 'admin') {
           notifyStudentMessage(db.current, m.to, text, undefined, { secure })
         }
+        // Targeted "mentioned you" ping on top of the group notification.
+        mentionedIds.forEach(id => notifyMention(db.current, id, {
+          fromName: 'Your professor',
+          snippet: secure ? 'Private message' : text,
+          link: 'messages',
+        }))
       }
     } catch (e) {
       toast('Failed to send reply: ' + e.message, 'red')

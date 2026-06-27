@@ -37,6 +37,27 @@ export function resolveMentions(text, candidates) {
   return [...new Set(ids)]
 }
 
+function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') }
+
+// Split `text` into ordered parts, flagging each "@Name" span that matches one
+// of `names` (longest first, so "@Ana Cruz" wins over "@Ana"), for highlighted
+// rendering. Always returns at least one part.
+export function splitMentions(text, names = []) {
+  const t = String(text || '')
+  const valid = [...new Set((names || []).filter(Boolean))].sort((a, b) => b.length - a.length)
+  if (!valid.length) return [{ text: t, mention: false }]
+  const re = new RegExp('@(?:' + valid.map(escapeRe).join('|') + ')', 'g')
+  const parts = []
+  let last = 0, m
+  while ((m = re.exec(t)) !== null) {
+    if (m.index > last) parts.push({ text: t.slice(last, m.index), mention: false })
+    parts.push({ text: m[0], mention: true })
+    last = m.index + m[0].length
+  }
+  if (last < t.length) parts.push({ text: t.slice(last), mention: false })
+  return parts
+}
+
 // Filter candidates for the dropdown by the current query (case-insensitive).
 // The list is already scoped to the post's audience (everyone for an "all" post,
 // otherwise just the class's enrolled students), so the cap is generous - the
