@@ -44,7 +44,7 @@ export default function StudentSidebar({ student, badges = {}, onSettings, onLog
     <div className="sidebar flex flex-col h-full">
       {/* Brand */}
       <div className="sb-brand">
-        <span className="sb-brand-logo"><BrandMark height={34} /></span>
+        <span className="sb-brand-logo"><BrandMark height={28} /></span>
         <h2 className="sb-brand-name">acadflow</h2>
       </div>
 
