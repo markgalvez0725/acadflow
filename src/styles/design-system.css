@@ -191,8 +191,18 @@
 .sidebar { background: var(--navy); border-right: 1px solid rgba(255,255,255,.06); }
 .sb-brand { background: transparent; }
 .sb-brand::after, .sb-brand::before { display: none; }
-/* Brand text is always on navy → keep it light (var(--ink) went dark in light theme) */
-.sb-brand h2 { color: #fff; }
+/* Brand text is always on navy → keep it light (var(--ink) went dark in light theme).
+   font-family is set HERE (design-system.css is imported UNLAYERED) so it beats the
+   unlayered global `h1,h2,h3 { font-family: var(--font-display) }` rule by specificity.
+   The same declaration inside globals.css @layer components loses to that unlayered
+   heading rule (cascade layers outrank specificity), which is why the wordmark kept
+   falling back to Plus Jakarta. */
+.sb-brand h2 {
+  color: #fff;
+  font-family: 'Bricolage Grotesque', 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-optical-sizing: auto;
+  text-transform: lowercase;
+}
 .sb-brand span { color: rgba(255,255,255,.55); }
 
 .sb-nav .nav-item { color: #c2cde6; }
