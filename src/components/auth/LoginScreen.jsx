@@ -568,7 +568,7 @@ export default function LoginScreen({ onRevealFaculty }) {
         <div className="auth2-main">
           {/* Brand (mobile / tablet only) */}
           <div className="auth2-brandtop">
-            <span onClick={handleLogoTap}><AcadFlowLogo variant="stacked" size="lg" className="justify-center" /></span>
+            <span onClick={handleLogoTap}><AcadFlowLogo variant="horizontal" size="lg" className="justify-center" /></span>
             <p className="auth2-tagline">Grades, attendance, and messages - live, in one calm place.</p>
           </div>
 

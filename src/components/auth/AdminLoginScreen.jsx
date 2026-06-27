@@ -129,7 +129,7 @@ export default function AdminLoginScreen() {
         <div className="auth2-main">
           {/* Brand (mobile / tablet only) */}
           <div className="auth2-brandtop">
-            <AcadFlowLogo variant="stacked" size="lg" className="justify-center" />
+            <AcadFlowLogo variant="horizontal" size="lg" className="justify-center" />
             <p className="auth2-tagline">Run your classroom from one live dashboard.</p>
           </div>
 

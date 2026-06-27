@@ -75,6 +75,8 @@
 
   --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
   --font-body:    'Lexend', system-ui, sans-serif;
+  /* Sign-in hero typing animation only - the third brand font */
+  --font-accent:  'Bricolage Grotesque', 'Plus Jakarta Sans', system-ui, sans-serif;
   --font-mono:    'Lexend', system-ui, sans-serif;
 
   --radius:    13px;
@@ -4464,8 +4466,8 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: -.02em; }
 /* Brand column lost its eyebrow, so keep the logo -> headline gap */
 .auth2-brand .auth2-headline { margin-top: 22px; }
 .auth2-headline {
-  font-family: var(--font-display);
-  font-size: 2.6rem; line-height: 1.12; font-weight: 700;
+  font-family: var(--font-accent);
+  font-size: 2.6rem; line-height: 1.12; font-weight: 800;
   letter-spacing: -.02em; color: var(--ink);
   margin-bottom: 14px;
 }
