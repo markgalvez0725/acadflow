@@ -46,7 +46,7 @@ export function styleFingerprint(text) {
     avgSentLen: sents.length ? words / sents.length : words,
     avgWordLen: words ? charCount / words : 0,
     ttr:        words ? new Set(toks).size / words : 0, // lexical diversity
-    punctRate:  words ? ((String(text || '').match(/[,;:?!--]/g) || []).length) / words : 0,
+    punctRate:  words ? ((String(text || '').match(/[,;:?!\u2010-\u2015\u2212-]/g) || []).length) / words : 0,
   }
 }
 

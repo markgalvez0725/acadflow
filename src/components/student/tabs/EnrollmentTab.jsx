@@ -21,7 +21,7 @@ function fmtDate(iso) {
 // { code, name }. Falls back to the whole string as the name when no code is present.
 function splitSubject(s) {
   const str = String(s || '').trim()
-  const m = str.match(/^(.*?)\s*[---]\s*(.+)$/)
+  const m = str.match(/^(.*?)\s*[\u2010-\u2015\u2212-]\s*(.+)$/)
   if (m && m[1] && m[2]) return { code: m[1].trim(), name: m[2].trim() }
   return { code: '', name: str }
 }

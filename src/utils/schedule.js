@@ -25,7 +25,7 @@ function parseDays(seg) {
 // on either or both ends, en/em dashes, and the common "10:00-1:30 PM" case
 // where only the end carries AM/PM.
 function parseTimes(seg) {
-  const s = (seg || '').replace(/[--]/g, '-')
+  const s = (seg || '').replace(/[\u2010-\u2015\u2212-]/g, '-')
   const re = /(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)?/g
   const found = []
   let m

@@ -96,7 +96,7 @@ export function checkPin(v) {
 export function checkAcademicYear(v) {
   const s = (v || '').trim()
   if (!s) return errV('Academic year is required')
-  const m = s.match(/^(\d{4})\s*[--]\s*(\d{4})$/)
+  const m = s.match(/^(\d{4})\s*[\u2010-\u2015\u2212-]\s*(\d{4})$/)
   if (!m) return warnV('Use the format 2025-2026')
   const a = +m[1], b = +m[2]
   if (b !== a + 1) return warnV('End year should be one after the start (e.g. 2025-2026)')

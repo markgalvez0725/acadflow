@@ -16,7 +16,7 @@ function semesterLabel(semester) {
 // hyphen vs en-dash, casing) don't cause a false "different semester" match.
 function normLabel(v) {
   return String(v || '')
-    .replace(/[‐--]/g, '-')   // any dash variant → hyphen
+    .replace(/[\u2010-\u2015\u2212-]/g, '-')   // any dash variant to hyphen
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase()
