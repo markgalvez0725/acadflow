@@ -3483,7 +3483,10 @@ textarea.input { resize: vertical; }
 .s-media-n2 { grid-template-columns: 1fr 1fr; }
 .s-media-n3 { grid-template-columns: 2fr 1fr; }
 .s-media-n4 { grid-template-columns: 1fr 1fr; }
-.s-media-cell { position: relative; border: none; padding: 0; cursor: pointer; background: var(--bg2); overflow: hidden; aspect-ratio: 1 / 1; }
+.s-media-cell { position: relative; border: none; padding: 0; background: var(--bg2); overflow: hidden; aspect-ratio: 1 / 1; }
+.s-media-cell-open { position: absolute; inset: 0; width: 100%; height: 100%; border: none; padding: 0; margin: 0; cursor: pointer; background: transparent; display: block; }
+.s-media-cell-dl { position: absolute; top: 6px; right: 6px; z-index: 2; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(0,0,0,.55); color: #fff; text-decoration: none; }
+.s-media-cell-dl:hover { background: rgba(0,0,0,.78); }
 .s-media-n1 .s-media-cell { aspect-ratio: 4 / 3; }
 .s-media-n3 .s-media-cell:first-child { grid-row: span 2; aspect-ratio: auto; }
 .s-media-img { width: 100%; height: 100%; object-fit: cover; display: block; }

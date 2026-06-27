@@ -36,10 +36,12 @@ function fileNameFromUrl(url) {
 function driveId(url) {
   let m = url.match(/drive\.google\.com\/file\/d\/([^/?#]+)/i)
   if (m) return m[1]
-  m = url.match(/drive\.google\.com\/(?:open|uc)\?[^#]*\bid=([^&#]+)/i)
+  m = url.match(/drive\.(?:google|usercontent\.google)\.com\/(?:open|uc|download)\?[^#]*\bid=([^&#]+)/i)
   if (m) return m[1]
   return null
 }
+
+const GDOC_EXPORT = { document: 'pdf', spreadsheets: 'xlsx', presentation: 'pptx' }
 
 function gDocsRef(url) {
   const m = url.match(/docs\.google\.com\/(document|spreadsheets|presentation)\/d\/([^/?#]+)/i)
@@ -68,7 +70,7 @@ export function formatBytes(n) {
 export function parseMediaLink(raw, meta = {}) {
   if (!raw || typeof raw !== 'string') return null
   const url = raw.trim()
-  if (!/^https:\/\//i.test(url)) return null
+  if (!/^https?:\/\//i.test(url)) return null
 
   const dId = driveId(url)
   if (dId) {
@@ -87,7 +89,9 @@ export function parseMediaLink(raw, meta = {}) {
     return {
       id: 'gdoc-' + gd.id, kind: 'doc', name: meta.name || GDOC_LABEL[gd.type] || 'Google file',
       embedUrl: `https://docs.google.com/${gd.type}/d/${gd.id}/preview`,
-      href: url, mime: meta.mime || '', size: meta.size || 0,
+      href: url,
+      downloadUrl: `https://docs.google.com/${gd.type}/d/${gd.id}/export?format=${GDOC_EXPORT[gd.type] || 'pdf'}`,
+      mime: meta.mime || '', size: meta.size || 0,
     }
   }
 

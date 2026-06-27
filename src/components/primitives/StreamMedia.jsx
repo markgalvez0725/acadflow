@@ -29,21 +29,36 @@ function Gallery({ items, indexOf, onOpen }) {
         const gi = indexOf(it)
         const Icon = fileIconFor(it)
         return (
-          <button
-            type="button"
-            key={it.id}
-            className="s-media-cell"
-            onClick={() => onOpen(gi)}
-            aria-label={`Open ${it.name || 'media'}`}
-          >
-            {broken[it.id]
-              ? <span className="s-media-fallback"><Icon size={30} /></span>
-              : <img src={it.imageUrl} alt={it.name || ''} loading="lazy" className="s-media-img" onError={() => setBroken(b => ({ ...b, [it.id]: true }))} />}
-            {(it.kind === 'youtube' || it.kind === 'video') && !broken[it.id] && (
-              <span className="s-media-play"><Play size={22} fill="currentColor" /></span>
+          <div key={it.id} className="s-media-cell">
+            <button
+              type="button"
+              className="s-media-cell-open"
+              onClick={() => onOpen(gi)}
+              aria-label={`Open ${it.name || 'media'}`}
+            >
+              {broken[it.id]
+                ? <span className="s-media-fallback"><Icon size={30} /></span>
+                : <img src={it.imageUrl} alt={it.name || ''} loading="lazy" className="s-media-img" onError={() => setBroken(b => ({ ...b, [it.id]: true }))} />}
+              {(it.kind === 'youtube' || it.kind === 'video') && !broken[it.id] && (
+                <span className="s-media-play"><Play size={22} fill="currentColor" /></span>
+              )}
+              {isLast && extra > 0 && <span className="s-media-more">+{extra}</span>}
+            </button>
+            {it.downloadUrl && (
+              <a
+                className="s-media-cell-dl"
+                href={it.downloadUrl}
+                target="_blank"
+                rel="noreferrer"
+                download
+                onClick={e => e.stopPropagation()}
+                aria-label={`Download ${it.name || 'file'}`}
+                title="Download"
+              >
+                <Download size={14} />
+              </a>
             )}
-            {isLast && extra > 0 && <span className="s-media-more">+{extra}</span>}
-          </button>
+          </div>
         )
       })}
     </div>
