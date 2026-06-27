@@ -19,7 +19,15 @@ export default function SemesterExportModal({ student, analysis, kind = 'report 
 
   const groups = analysis?.groups || []
   const allSubjects = [...new Set(groups.flatMap(g => g.subjects))]
+  const currentLabel = analysis?.currentLabel || ''
+  // Always offer a Current-semester row, even when the student has nothing on it
+  // (it renders disabled - "nothing to export yet").
+  const hasCurrentRow = groups.some(g => g.isCurrent || g.label === currentLabel)
+  const syntheticCurrent = (!hasCurrentRow && currentLabel)
+    ? [{ key: currentLabel, label: 'Current semester', term: currentLabel, isCurrent: true, subjects: [], count: 0, graded: 0 }]
+    : []
   const options = [
+    ...syntheticCurrent,
     ...groups.map(g => ({
       key: g.label, label: g.isCurrent ? 'Current semester' : 'Past semester',
       term: g.label, isCurrent: g.isCurrent, subjects: g.subjects, count: g.subjects.length, graded: g.gradedCount,

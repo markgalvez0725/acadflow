@@ -196,6 +196,11 @@ export default function ExportPreviewModal({ type, classId, subject, student: st
             onChange={e => setSemKey(e.target.value)}
             style={{ fontSize: 12.5, padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink)' }}
           >
+            {!studentSem.groups.some(g => g.isCurrent || g.label === studentSem.currentLabel) && studentSem.currentLabel && (
+              <option value={studentSem.currentLabel} disabled>
+                {'Current · ' + studentSem.currentLabel + ' (0)'}
+              </option>
+            )}
             {studentSem.groups.map(g => (
               <option key={g.label} value={g.label} disabled={!g.subjects.length}>
                 {(g.isCurrent ? 'Current' : 'Past') + ' · ' + g.label + ' (' + g.subjects.length + ')'}
