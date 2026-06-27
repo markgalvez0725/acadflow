@@ -90,6 +90,17 @@ export async function notifyMention(db, ownerId, { fromName, snippet, link = 'st
   }, { url: '/', tag: 'mention' })
 }
 
+/** New comment on a post the user follows ("Turn on notifications"). */
+export async function notifyPostFollowers(db, ownerIds, { fromName, postTitle, snippet } = {}) {
+  const ids = [...new Set((ownerIds || []).filter(Boolean))]
+  if (!ids.length) return
+  const where = postTitle ? `"${postTitle.slice(0, 40)}"` : 'a post you follow'
+  const title = 'New comment on ' + where
+  const body = ((fromName ? fromName + ': ' : '') + (snippet || '')).slice(0, 100)
+  await Promise.all(ids.map(id => appendNotif(db, id, { type: 'comment', title, body: body.slice(0, 80), link: 'stream' })))
+  sendPushToOwners(db, ids, { title, body: body || 'Open AcadFlow to read it.' }, { url: '/', tag: 'comment' })
+}
+
 /** Student → teacher: in-app admin notif + best-effort web push to admin. */
 export async function notifyAdminMessage(db, studentName, body, kind = 'message', { secure = false } = {}) {
   const title = (kind === 'reply' ? 'Reply from ' : 'Message from ') + (studentName || 'a student')

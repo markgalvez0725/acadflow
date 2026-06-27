@@ -27,6 +27,7 @@ const TYPE_TO_CATEGORY = {
   msg_out:           'messages',
   mention:           'messages',
   announce:          'announcements',
+  comment:           'announcements',
   meeting_scheduled: 'meetings',
   meeting_live:      'meetings',
   meeting_cancelled: 'meetings',

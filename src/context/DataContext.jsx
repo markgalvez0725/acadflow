@@ -5,7 +5,7 @@ import { fbStartListening, stopListening } from '@/firebase/listeners'
 import {
   persistStudentsSync, persistClassesSync, persistAdmin, loadAdminFromStorage,
   fbDeleteStudent, fbSaveAnnouncement, fbDeleteAnnouncement, fbPushAnnouncementNotifs,
-  fbAddAnnouncementComment, fbAddCommentReply, fbToggleAnnouncementLike, fbToggleSavedPost,
+  fbAddAnnouncementComment, fbAddCommentReply, fbToggleAnnouncementLike, fbToggleSavedPost, fbToggleAnnouncementFollow,
   fbSaveResource, fbDeleteResource, fbSaveRubricLibrary,
   fbSaveMeetLink, fbScheduleMeeting, fbStartMeeting, fbEndMeeting, fbCancelMeeting, fbPushMeetingNotifs,
   fbSetSubjectRep, fbDeleteClassRelatedData, fbAddAuditLog, fbRestoreFromBackup,
@@ -964,6 +964,19 @@ export function DataProvider({ children }) {
     catch { apply(!liked) }
   }, [])
 
+  // Follow a post for new-comment notifications. Optimistic with revert.
+  const toggleAnnouncementFollow = useCallback(async (announcementId, studentId, following) => {
+    const apply = (want) => setAnnouncements(prev => prev.map(a => {
+      if (a.id !== announcementId) return a
+      const cur = Array.isArray(a.followers) ? a.followers : []
+      const next = want ? [...new Set([...cur, studentId])] : cur.filter(id => id !== studentId)
+      return { ...a, followers: next }
+    }))
+    apply(following)
+    try { await fbToggleAnnouncementFollow(dbRef.current, announcementId, studentId, following) }
+    catch { apply(!following) }
+  }, [])
+
   // Save/bookmark a post on the student's own doc. Optimistic with revert.
   const toggleSavedPost = useCallback(async (studentId, announcementId, saved) => {
     const apply = (want) => setStudents(prev => prev.map(s => {
@@ -1249,7 +1262,7 @@ export function DataProvider({ children }) {
       activities, setActivities,
       adminNotifs, setAdminNotifs,
       quizzes, setQuizzes,
-      announcements, setAnnouncements, saveAnnouncement, deleteAnnouncement, pushAnnouncementNotifs, addAnnouncementComment, addCommentReply, toggleAnnouncementLike, toggleSavedPost,
+      announcements, setAnnouncements, saveAnnouncement, deleteAnnouncement, pushAnnouncementNotifs, addAnnouncementComment, addCommentReply, toggleAnnouncementLike, toggleSavedPost, toggleAnnouncementFollow,
       resources, setResources, saveResource, deleteResource,
       rubricLibrary, saveRubricToLibrary, deleteLibraryRubric,
       purgeQuizFromStudents,

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef } from 'react'
 import { useData } from '@/context/DataContext'
 import { activeClassIds } from '@/utils/active'
 import ExpandableHtml from '@/components/primitives/ExpandableHtml'
@@ -56,6 +56,7 @@ import StreamMedia from '@/components/primitives/StreamMedia'
 import MediaLightbox from '@/components/primitives/MediaLightbox'
 import TextCard from '@/components/primitives/TextCard'
 import CommentsSection from '@/components/primitives/CommentsSection'
+import KebabMenu from '@/components/primitives/KebabMenu'
 import { mediaFromAnnouncement, isPreviewableLink } from '@/utils/streamMedia'
 
 function timeAgo(ms) {
@@ -115,64 +116,46 @@ function Avatar({ author }) {
   )
 }
 
-// Instagram-style post detail: media, full caption, then the comment thread.
-function StudentAnnouncementModal({ ann, author, student, classObj, media, onOpenMedia, onClose }) {
-  const cls = classLabel(classObj)
-  const hasMessage = ann.message && ann.message !== '<p></p>' && ann.message !== ''
-  return (
-    <Modal onClose={onClose} size="md">
-      <div className="ig-modal">
-        <header className="ig-head" style={{ padding: 0, marginBottom: 12 }}>
-          <Avatar author={author} />
-          <div className="ig-id">
-            <span className="ig-name">{author?.name || 'Professor'}</span>
-            <BadgeCheck size={14} className="ig-check" />
-            {cls && <><span className="ig-dot">·</span><span className="ig-time">{cls}</span></>}
-          </div>
-        </header>
-        {ann.title && <div className="ig-modal-title">{ann.title}</div>}
-        {media.length > 0 && <div style={{ margin: '4px 0 12px' }}><StreamMedia items={media} onOpen={onOpenMedia} /></div>}
-        {hasMessage && <ExpandableHtml html={sanitizeAnnouncementHtml(ann.message)} style={{ fontSize: 14, color: 'var(--ink2)', lineHeight: 1.6 }} />}
-        {!hasMessage && ann.topics?.length > 0 && (
-          <ul style={{ margin: '4px 0', paddingLeft: 20, listStyle: 'disc', fontSize: 14, color: 'var(--ink2)', lineHeight: 1.7 }}>
-            {ann.topics.map((t, i) => <li key={i}>{t}</li>)}
-          </ul>
-        )}
-        {ann.meetingLink && <a href={ann.meetingLink} target="_blank" rel="noreferrer" className="stream-link-chip" style={{ marginTop: 8 }}><Video size={12} /> Join meeting</a>}
-        {ann.moduleLink && !isPreviewableLink(ann.moduleLink) && <a href={ann.moduleLink} target="_blank" rel="noreferrer" className="stream-link-chip" style={{ marginTop: 8 }}><BookOpen size={12} /> Module link</a>}
-        {student
-          ? <CommentsSection ann={ann} authorId={student.id} authorName={student.name || 'You'} role="student" />
-          : <div style={{ fontSize: 12, color: 'var(--ink3)', borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>Sign in to comment.</div>}
-      </div>
-    </Modal>
-  )
+// Minimal HTML escape for building a safe list from plain topic strings.
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]))
 }
 
 function AnnouncementCard({ item, classObj, student, author }) {
-  const { toggleAnnouncementLike, toggleSavedPost } = useData()
+  const { toggleAnnouncementLike, toggleSavedPost, toggleAnnouncementFollow } = useData()
   const ann = item.data
   const media = useMemo(() => mediaFromAnnouncement(ann), [ann])
   const hasMessage = ann.message && ann.message !== '<p></p>' && ann.message !== ''
-  const caption = useMemo(
-    () => hasMessage ? stripHtml(ann.message) : (ann.topics?.length ? ann.topics.join('  •  ') : ''),
-    [ann.message, ann.topics, hasMessage]
-  )
+  // The text-card renders the SAME sanitized rich-editor HTML as the editor.
+  const cardHtml = useMemo(() => {
+    if (hasMessage) return sanitizeAnnouncementHtml(ann.message)
+    if (ann.topics?.length) return sanitizeAnnouncementHtml('<ul>' + ann.topics.map(t => `<li>${escapeHtml(t)}</li>`).join('') + '</ul>')
+    return ''
+  }, [ann.message, ann.topics, hasMessage])
+  const caption = useMemo(() => stripHtml(ann.message), [ann.message])  // media-post caption only
   const cls = classLabel(classObj)
   const likes = ann.likes || []
   const liked = !!student && likes.includes(student.id)
   const likeCount = likes.length
   const saved = !!student && (student.savedPosts || []).includes(ann.id)
-  const commentCount = (ann.comments || []).length
+  const followed = !!student && (ann.followers || []).includes(student.id)
 
   const [lightbox, setLightbox] = useState(-1)
-  const [detail, setDetail] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const composerRef = useRef(null)
 
   const hasMedia = media.length > 0
-  const showTextCard = !hasMedia && (ann.title || caption)
+  const showTextCard = !hasMedia && (ann.title || cardHtml)
 
   function onLike() { if (student) toggleAnnouncementLike(ann.id, student.id, !liked) }
   function onSave() { if (student) toggleSavedPost(student.id, ann.id, !saved) }
+  function onFollow() { if (student) toggleAnnouncementFollow(ann.id, student.id, !followed) }
+  function focusComposer() { composerRef.current?.focus() }
+
+  const menuItems = student ? [
+    { label: saved ? 'Saved' : 'Save announcement', onClick: onSave },
+    { label: followed ? 'Turn off notifications' : 'Turn on notifications', onClick: onFollow },
+  ] : []
 
   return (
     <article className="ig-post">
@@ -185,13 +168,13 @@ function AnnouncementCard({ item, classObj, student, author }) {
           <span className="ig-time">{timeAgo(ann.createdAt)}</span>
         </div>
         {item.pinned && <span className="ig-pin">Pinned</span>}
-        <button className="ig-kebab" onClick={() => setDetail(true)} aria-label="Open post"><MoreHorizontal size={18} /></button>
+        <KebabMenu items={menuItems} icon={<MoreHorizontal size={18} />} label="Post options" />
       </header>
 
       {hasMedia && <div className="ig-media"><StreamMedia items={media} onOpen={i => setLightbox(i)} /></div>}
       {showTextCard && (
         <div className="ig-media">
-          <TextCard seed={ann.id} dateLabel={dateLabelOf(ann.createdAt)} title={ann.title} body={caption} footer={cls || 'AcadFlow'} onClick={() => setDetail(true)} />
+          <TextCard seed={ann.id} dateLabel={dateLabelOf(ann.createdAt)} title={ann.title} html={cardHtml} footer={cls || 'AcadFlow'} />
         </div>
       )}
 
@@ -200,42 +183,39 @@ function AnnouncementCard({ item, classObj, student, author }) {
           <button className={`ig-icon${liked ? ' liked' : ''}`} onClick={onLike} aria-label={liked ? 'Unlike' : 'Like'} title="Like">
             <Heart size={24} fill={liked ? 'currentColor' : 'none'} />
           </button>
-          <button className="ig-icon" onClick={() => setDetail(true)} aria-label="Comment" title="Comment">
+          <button className="ig-icon" onClick={focusComposer} aria-label="Comment" title="Comment">
             <MessageCircle size={24} style={{ transform: 'scaleX(-1)' }} />
           </button>
           {ann.meetingLink && (
             <a className="ig-icon" href={ann.meetingLink} target="_blank" rel="noreferrer" aria-label="Join meeting" title="Join meeting"><Send size={24} /></a>
           )}
         </div>
-        <button className={`ig-icon${saved ? ' saved' : ''}`} onClick={onSave} aria-label={saved ? 'Remove from saved' : 'Save'} title="Save">
-          <Bookmark size={24} fill={saved ? 'currentColor' : 'none'} />
-        </button>
       </div>
 
       <div className="ig-meta">
         {likeCount > 0 && <div className="ig-likes">{likeCount} like{likeCount !== 1 ? 's' : ''}</div>}
-        {(ann.title || (!showTextCard && caption)) && (
+        {hasMedia && (ann.title || caption) && (
           <div className={`ig-caption${expanded ? ' expanded' : ''}`}>
             <span className="ig-name">{author?.name || 'Professor'}</span>{' '}
             {ann.title && <span className="ig-captitle">{ann.title}</span>}
-            {!showTextCard && caption && <span> {caption}</span>}
+            {caption && <span> {caption}</span>}
           </div>
         )}
-        {!showTextCard && caption && caption.length > 140 && !expanded && (
+        {hasMedia && caption && caption.length > 140 && !expanded && (
           <button className="ig-more" onClick={() => setExpanded(true)}>more</button>
         )}
         {ann.moduleLink && !isPreviewableLink(ann.moduleLink) && (
           <a href={ann.moduleLink} target="_blank" rel="noreferrer" className="stream-link-chip" style={{ marginTop: 8, alignSelf: 'flex-start' }}><BookOpen size={12} /> Module link</a>
         )}
-        <button className="ig-viewcomments" onClick={() => setDetail(true)}>
-          {commentCount > 0 ? `View all ${commentCount} comment${commentCount !== 1 ? 's' : ''}` : 'Add a comment…'}
-        </button>
       </div>
 
-      {lightbox >= 0 && <MediaLightbox items={media} index={lightbox} onClose={() => setLightbox(-1)} onIndex={setLightbox} />}
-      {detail && (
-        <StudentAnnouncementModal ann={ann} author={author} student={student} classObj={classObj} media={media} onOpenMedia={i => setLightbox(i)} onClose={() => setDetail(false)} />
+      {student && (
+        <div className="ig-comments">
+          <CommentsSection ann={ann} authorId={student.id} authorName={student.name || 'You'} role="student" compact previewCount={2} composerRef={composerRef} />
+        </div>
       )}
+
+      {lightbox >= 0 && <MediaLightbox items={media} index={lightbox} onClose={() => setLightbox(-1)} onIndex={setLightbox} />}
     </article>
   )
 }

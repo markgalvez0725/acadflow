@@ -212,6 +212,22 @@ export async function fbToggleAnnouncementLike(db, announcementId, studentId, li
   }))
 }
 
+// Toggle a student following a post for new-comment notifications (atomic).
+// Stored on the announcement so any commenter can read the follower list and
+// notify them. Allowed by the same signed-in announcement write rule as likes.
+export async function fbToggleAnnouncementFollow(db, announcementId, studentId, following) {
+  if (!db || !announcementId || !studentId) return
+  const { doc: fbDoc } = await import('firebase/firestore')
+  const ref = fbDoc(db, 'announcements', announcementId)
+  return fbWithTimeout(runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref)
+    if (!snap.exists()) throw new Error('Announcement not found')
+    const cur = Array.isArray(snap.data().followers) ? snap.data().followers : []
+    const next = following ? [...new Set([...cur, studentId])] : cur.filter(id => id !== studentId)
+    transaction.update(ref, { followers: next })
+  }))
+}
+
 // Toggle a saved/bookmarked post on the student's OWN doc (atomic). Touches
 // only `savedPosts`, so gradeFieldsUntouched() in the Firestore rules still
 // passes - students may write their own non-grade fields.

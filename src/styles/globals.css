@@ -3490,13 +3490,24 @@ textarea.input { resize: vertical; }
 .s-media-file-meta { font-size: 0.75rem; color: var(--ink3); }
 .s-media-file-btn { flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; font-size: 0.8125rem; font-weight: 600; color: var(--accent); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; }
 
-/* Text-as-image card (text-only posts) */
-.s-textcard { display: flex; flex-direction: column; justify-content: center; width: 100%; aspect-ratio: 1 / 1; border: none; cursor: pointer; padding: 26px 24px; text-align: center; position: relative; overflow: hidden; }
-.s-textcard-inner { display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; flex: 1; min-height: 0; }
-.s-textcard-date { font-size: 0.75rem; font-weight: 700; letter-spacing: .1em; }
-.s-textcard-title { font-size: 1.25rem; font-weight: 800; line-height: 1.25; }
-.s-textcard-body { font-size: 0.9375rem; line-height: 1.55; opacity: .92; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
-.s-textcard-foot { font-size: 0.75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding-top: 12px; }
+/* Text-only post: renders the exact rich-editor HTML with a color accent */
+.s-textcard { position: relative; width: 100%; background: var(--surface); text-align: left; }
+.s-textcard-scroll { position: relative; max-height: 360px; overflow: hidden; padding: 16px 16px 12px; }
+.s-textcard-scroll.open { max-height: none; }
+.s-textcard-date { font-size: 0.7rem; font-weight: 700; letter-spacing: .1em; }
+.s-textcard-title { font-size: 1.0625rem; font-weight: 700; color: var(--ink); margin: 6px 0 10px; line-height: 1.3; }
+.s-textcard-body { font-size: 0.875rem; color: var(--ink2); line-height: 1.6; }
+.s-textcard-foot { font-size: 0.7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin-top: 14px; }
+.s-textcard-fade { position: absolute; left: 0; right: 0; bottom: 0; height: 64px; background: linear-gradient(transparent, var(--surface)); pointer-events: none; }
+.s-textcard-more { display: block; width: 100%; text-align: center; background: none; border: none; border-top: 1px solid var(--border); color: var(--accent); font-size: 0.8125rem; font-weight: 600; padding: 9px; cursor: pointer; }
+.s-textcard-more:hover { background: var(--bg2); }
+
+/* Inline comments + icon-only stroke send button */
+.ig-comments { padding: 0 12px 12px; }
+.ig-send { background: none; border: none; color: var(--accent); cursor: pointer; padding: 4px; display: flex; align-items: center; flex-shrink: 0; transition: transform .12s var(--ease-out), color .15s; }
+.ig-send:hover:not(:disabled) { transform: scale(1.08); }
+.ig-send:disabled { color: var(--ink3); opacity: .45; cursor: default; }
+.ig-send--ghost { color: var(--ink3); }
 
 /* Full-screen media lightbox */
 .s-lb { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,.92); display: flex; align-items: center; justify-content: center; }

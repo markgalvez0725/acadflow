@@ -1,34 +1,46 @@
-import React from 'react'
+import React, { useState, useRef, useLayoutEffect } from 'react'
 
-// Instagram-style "text as image" card for a text-only announcement (the
-// look of a news org's statement post). Deterministic tint picked from the
-// post id so each card is stable but the feed stays varied. Pure presentational.
+// Instagram-style "text as image" card for a text-only announcement. Renders
+// the SAME sanitized rich-editor HTML (headings, bold, highlight, lists, links,
+// tables, code) as the announcement body, with a per-post color accent and a
+// date/title header. Collapses tall content behind a "See more" that expands
+// inline (no modal). Deterministic accent from the post id keeps the feed varied
+// but stable.
 
-const TINTS = [
-  { bg: 'linear-gradient(160deg,#eef2ff,#e0e7ff)', ink: '#3730a3', sub: '#6366f1' },
-  { bg: 'linear-gradient(160deg,#ecfeff,#cffafe)', ink: '#155e75', sub: '#0891b2' },
-  { bg: 'linear-gradient(160deg,#fef2f2,#fee2e2)', ink: '#991b1b', sub: '#ef4444' },
-  { bg: 'linear-gradient(160deg,#f0fdf4,#dcfce7)', ink: '#166534', sub: '#22c55e' },
-  { bg: 'linear-gradient(160deg,#fffbeb,#fef3c7)', ink: '#92400e', sub: '#f59e0b' },
-  { bg: 'linear-gradient(160deg,#faf5ff,#f3e8ff)', ink: '#6b21a8', sub: '#a855f7' },
-]
+const ACCENTS = ['#6366f1', '#0891b2', '#ef4444', '#22c55e', '#f59e0b', '#a855f7', '#ec4899', '#14b8a6']
 
-function tintFor(seed = '') {
+function accentFor(seed = '') {
   let h = 0
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0
-  return TINTS[Math.abs(h) % TINTS.length]
+  return ACCENTS[Math.abs(h) % ACCENTS.length]
 }
 
-export default function TextCard({ seed, dateLabel, title, body, footer, onClick }) {
-  const t = tintFor(seed)
+export default function TextCard({ seed, dateLabel, title, html, footer }) {
+  const [open, setOpen] = useState(false)
+  const [overflowing, setOverflowing] = useState(false)
+  const scrollRef = useRef(null)
+  const accent = accentFor(seed)
+
+  // Measure once in the collapsed state to decide whether "See more" is needed.
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (el && !open) setOverflowing(el.scrollHeight > el.clientHeight + 4)
+  }, [html, title, open])
+
   return (
-    <button type="button" className="s-textcard" onClick={onClick} style={{ background: t.bg, color: t.ink }} aria-label={title || 'Open announcement'}>
-      <div className="s-textcard-inner">
-        {dateLabel && <div className="s-textcard-date" style={{ color: t.sub }}>{dateLabel}</div>}
+    <div className="s-textcard" style={{ borderTop: `3px solid ${accent}` }}>
+      <div ref={scrollRef} className={`s-textcard-scroll${open ? ' open' : ''}`}>
+        {dateLabel && <div className="s-textcard-date" style={{ color: accent }}>{dateLabel}</div>}
         {title && <div className="s-textcard-title">{title}</div>}
-        {body && <div className="s-textcard-body">{body}</div>}
+        {html && <div className="ann-message s-textcard-body" dangerouslySetInnerHTML={{ __html: html }} />}
+        {footer && <div className="s-textcard-foot" style={{ color: accent }}>{footer}</div>}
+        {!open && overflowing && <div className="s-textcard-fade" />}
       </div>
-      {footer && <div className="s-textcard-foot" style={{ color: t.sub }}>{footer}</div>}
-    </button>
+      {overflowing && (
+        <button type="button" className="s-textcard-more" onClick={() => setOpen(o => !o)}>
+          {open ? 'See less' : 'See more'}
+        </button>
+      )}
+    </div>
   )
 }
