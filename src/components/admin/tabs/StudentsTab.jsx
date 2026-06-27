@@ -1539,7 +1539,7 @@ export default function StudentsTab() {
                         { label: 'Edit', onClick: () => setEditStudent(s) },
                         s.account?.registered && { label: 'Reset password', onClick: () => setResetStudent(s) },
                         { label: 'Export report', onClick: () => setExportStudent(s) },
-                        { label: 'Report card (PDF)', onClick: () => buildStudentReportCard(s, { classes, students, eqScale, semester }) },
+                        { label: 'Report card (PDF)', onClick: () => exportReportCard(s) },
                         { label: 'Delete', onClick: () => handleDelete(s), danger: true },
                       ]} />
                     </div>
