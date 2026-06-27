@@ -3,9 +3,10 @@ import { useData } from '@/context/DataContext'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import { useUI } from '@/context/UIContext'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
-import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, Clock, Users, Award, CheckCircle2, XCircle, AlertCircle, Plus, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered, Paperclip, Image as ImageIcon, FileText, Sparkles, Library } from 'lucide-react'
+import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, Clock, Users, Award, CheckCircle2, XCircle, AlertCircle, Plus, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered, Paperclip, Image as ImageIcon, FileText, Sparkles, Library, FolderOpen, RefreshCw, Check, Loader2 } from 'lucide-react'
 import { composeAnnouncementMessage } from '@/utils/announceCompose'
-import { isConfigured as driveConfigured, getConnection as getDriveConnection, uploadFile as driveUpload } from '@/utils/googleDrive'
+import { isConfigured as driveConfigured, getConnection as getDriveConnection, uploadFile as driveUpload, listDriveFiles } from '@/utils/googleDrive'
+import { formatBytes, extOf } from '@/utils/streamMedia'
 import DOMPurify from 'dompurify'
 import { v4 as uuidv4 } from 'uuid'
 import ExpandableHtml from '@/components/primitives/ExpandableHtml'
@@ -289,6 +290,11 @@ function AnnouncementFormModal({ ann, onClose }) {
   const [uploads, setUploads] = useState([]) // in-flight: { id, name, pct, error }
   const photoInput = useRef(null)
   const fileInput  = useRef(null)
+  // "Choose from Drive": browse files AcadFlow already uploaded and re-attach one.
+  const [drivePickerOpen, setDrivePickerOpen] = useState(false)
+  const [driveFiles, setDriveFiles] = useState([])
+  const [driveLoading, setDriveLoading] = useState(false)
+  const [driveError, setDriveError] = useState('')
   const drive = getDriveConnection()
   // Drive folder for this post: AcadFlow / {program} / {Photos|Modules} / file.
   // Grouped by program only (BSIT, BSCS, ...), so every section's files share one
@@ -309,6 +315,25 @@ function AnnouncementFormModal({ ann, onClose }) {
     })
   }
   function removeAttachment(id) { setAttachments(prev => prev.filter(a => a.driveId !== id)) }
+
+  function loadDriveFiles() {
+    setDriveLoading(true); setDriveError('')
+    listDriveFiles()
+      .then(setDriveFiles)
+      .catch(e => setDriveError(e?.message || 'Could not load your Drive files.'))
+      .finally(() => setDriveLoading(false))
+  }
+  function toggleDrivePicker() {
+    setDrivePickerOpen(open => {
+      if (!open && !driveFiles.length && !driveLoading) loadDriveFiles()
+      return !open
+    })
+  }
+  function addDriveFile(f) {
+    setAttachments(prev => prev.some(a => a.driveId === f.driveId)
+      ? prev
+      : [...prev, { driveId: f.driveId, name: f.name, mimeType: f.mimeType, size: f.size }])
+  }
 
   const selectedClass = classes.find(c => c.id === classId)
 
@@ -512,10 +537,54 @@ function AnnouncementFormModal({ ann, onClose }) {
                   {u.error && <button type="button" className="btn btn-ghost btn-sm" style={{ padding: '2px 6px' }} onClick={() => setUploads(prev => prev.filter(x => x.id !== u.id))} aria-label="Dismiss"><X size={13} /></button>}
                 </div>
               ))}
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => photoInput.current?.click()}><ImageIcon size={14} style={{ marginRight: 5 }} /> Add photo</button>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => fileInput.current?.click()}><Paperclip size={14} style={{ marginRight: 5 }} /> Add file</button>
+                <button type="button" className={`btn btn-sm ${drivePickerOpen ? 'btn-primary' : 'btn-ghost'}`} onClick={toggleDrivePicker}><FolderOpen size={14} style={{ marginRight: 5 }} /> Choose from Drive</button>
               </div>
+              {drivePickerOpen && (
+                <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg2)', borderBottom: '1px solid var(--border)' }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink2)' }}>Your AcadFlow Drive files</span>
+                    <button type="button" className="btn btn-ghost btn-sm" style={{ padding: '2px 8px', fontSize: 11.5 }} onClick={loadDriveFiles} disabled={driveLoading}>
+                      <RefreshCw size={12} style={{ marginRight: 4 }} /> Refresh
+                    </button>
+                  </div>
+                  <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                    {driveLoading ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 12px', fontSize: 12.5, color: 'var(--ink3)' }}>
+                        <Loader2 size={14} className="spin" /> Loading your Drive files…
+                      </div>
+                    ) : driveError ? (
+                      <div style={{ padding: '14px 12px', fontSize: 12.5, color: 'var(--red)' }}>{driveError}</div>
+                    ) : driveFiles.length === 0 ? (
+                      <div style={{ padding: '14px 12px', fontSize: 12.5, color: 'var(--ink3)', lineHeight: 1.5 }}>
+                        No AcadFlow files yet. Upload one with Add photo / Add file and it will appear here next time.
+                      </div>
+                    ) : (
+                      driveFiles.map(f => {
+                        const added = attachments.some(a => a.driveId === f.driveId)
+                        const isImg = /^image\//.test(f.mimeType || '')
+                        const meta = [extOf(f.name).toUpperCase(), formatBytes(f.size)].filter(Boolean).join(' · ')
+                        return (
+                          <div key={f.driveId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderTop: '1px solid var(--border)', background: added ? 'var(--green-l)' : 'transparent' }}>
+                            {isImg ? <ImageIcon size={16} style={{ color: '#10b981', flexShrink: 0 }} /> : <FileText size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} />}
+                            <span style={{ flex: 1, minWidth: 0 }}>
+                              <span style={{ display: 'block', fontSize: 12.5, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.name}</span>
+                              {meta && <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{meta}</span>}
+                            </span>
+                            {added ? (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, color: 'var(--green)', flexShrink: 0 }}><Check size={13} /> Added</span>
+                            ) : (
+                              <button type="button" className="btn btn-ghost btn-sm" style={{ padding: '3px 9px', fontSize: 11.5 }} onClick={() => addDriveFile(f)}><Plus size={13} style={{ marginRight: 3 }} /> Add</button>
+                            )}
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
               <input ref={photoInput} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => { addFiles(e.target.files); e.target.value = '' }} />
               <input ref={fileInput} type="file" multiple style={{ display: 'none' }} onChange={e => { addFiles(e.target.files); e.target.value = '' }} />
             </div>

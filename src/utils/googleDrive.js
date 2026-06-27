@@ -155,6 +155,26 @@ export function disconnect() {
   clearFolderCache()
 }
 
+// List files AcadFlow previously uploaded so a teacher can re-attach one without
+// re-uploading. Under the drive.file scope the app can ONLY see files it created,
+// so a plain "not a folder, not trashed" query returns exactly those files - no
+// need to walk the folder tree. They were shared "anyone with link" on upload, so
+// the same preview/download pipeline works. Returns attachment-shaped descriptors.
+export async function listDriveFiles({ pageSize = 100 } = {}) {
+  const q = encodeURIComponent("mimeType != 'application/vnd.google-apps.folder' and trashed = false")
+  const fields = encodeURIComponent('files(id,name,mimeType,size,modifiedTime)')
+  const data = await driveFetch(
+    `https://www.googleapis.com/drive/v3/files?q=${q}&fields=${fields}&orderBy=modifiedTime desc&pageSize=${pageSize}&spaces=drive`
+  )
+  return (data.files || []).map(f => ({
+    driveId: f.id,
+    name: f.name || 'File',
+    mimeType: f.mimeType || '',
+    size: Number(f.size) || 0,
+    modifiedTime: f.modifiedTime || '',
+  }))
+}
+
 // Upload one File into AcadFlow / {classLabel} / {Photos|Modules}, make it
 // "anyone with link can view", and return an attachment descriptor.
 export function uploadFile(file, { onProgress, classLabel } = {}) {
