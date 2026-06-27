@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
-import { Lightbulb, Download, Upload, ShieldCheck, CalendarDays, KeyRound, Bell, Scale, Clock, DatabaseBackup, Flame, Palette, Building2, Trash2 } from 'lucide-react'
+import { Lightbulb, Download, Upload, ShieldCheck, CalendarDays, KeyRound, Bell, Scale, Clock, DatabaseBackup, Flame, Palette, Building2, Trash2, HardDrive } from 'lucide-react'
 import SettingsShell from '@/components/primitives/SettingsShell'
+import GoogleDriveTab from '@/components/admin/settings/GoogleDriveTab'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 import FieldCheck, { SaveStatus, SmartCheckTag } from '@/components/primitives/FieldCheck'
 import { checkEmail, checkPassword, checkMatch, checkPin, checkAcademicYear, checkDateOrder } from '@/utils/settingsVerify'
@@ -1050,6 +1051,9 @@ export default function AdminSettingsModal({ onClose, push }) {
     ] },
     { title: 'Reports and branding', rows: [
       { id: 'branding', Icon: Building2, label: 'Report branding', sub: 'Logo, school name, department, address', panel: () => <BrandingTab /> },
+    ] },
+    { title: 'Integrations', rows: [
+      { id: 'gdrive', Icon: HardDrive, label: 'Google Drive', sub: 'Upload files to Stream posts', panel: () => <GoogleDriveTab /> },
     ] },
     { title: 'Notifications', rows: [
       { id: 'notifs', Icon: Bell, label: 'Push notifications', sub: 'Browser alerts on this device', panel: () => <NotificationsTab push={push} /> },

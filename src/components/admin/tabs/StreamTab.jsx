@@ -3,7 +3,8 @@ import { useData } from '@/context/DataContext'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import { useUI } from '@/context/UIContext'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
-import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, Clock, Users, Award, CheckCircle2, XCircle, AlertCircle, Plus, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered } from 'lucide-react'
+import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, Clock, Users, Award, CheckCircle2, XCircle, AlertCircle, Plus, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered, Paperclip, Image as ImageIcon, FileText } from 'lucide-react'
+import { isConfigured as driveConfigured, getConnection as getDriveConnection, uploadFile as driveUpload } from '@/utils/googleDrive'
 import DOMPurify from 'dompurify'
 import { v4 as uuidv4 } from 'uuid'
 import ExpandableHtml from '@/components/primitives/ExpandableHtml'
@@ -256,6 +257,25 @@ function AnnouncementFormModal({ ann, onClose }) {
   const [err,    setErr]    = useState('')
   const [saving, setSaving] = useState(false)
 
+  // Google Drive attachments (browser-only upload to the teacher's own Drive).
+  const [attachments, setAttachments] = useState(ann?.attachments || [])
+  const [uploads, setUploads] = useState([]) // in-flight: { id, name, pct, error }
+  const photoInput = useRef(null)
+  const fileInput  = useRef(null)
+  const drive = getDriveConnection()
+
+  function addFiles(fileList) {
+    if (!drive.connected) { toast('Connect Google Drive in Settings first.', 'error'); return }
+    Array.from(fileList || []).forEach(file => {
+      const uid = 'u' + Math.random().toString(36).slice(2)
+      setUploads(prev => [...prev, { id: uid, name: file.name, pct: 0, error: '' }])
+      driveUpload(file, { onProgress: pct => setUploads(prev => prev.map(u => u.id === uid ? { ...u, pct } : u)) })
+        .then(att => { setAttachments(prev => [...prev, att]); setUploads(prev => prev.filter(u => u.id !== uid)) })
+        .catch(e => setUploads(prev => prev.map(u => u.id === uid ? { ...u, error: e?.message || 'Upload failed' } : u)))
+    })
+  }
+  function removeAttachment(id) { setAttachments(prev => prev.filter(a => a.driveId !== id)) }
+
   const selectedClass = classes.find(c => c.id === classId)
   const autoTitle = useMemo(() => {
     const label = classId === 'all' ? 'All Classes' : selectedClass ? `${selectedClass.name}${selectedClass.section ? ` ${selectedClass.section}` : ''}` : ''
@@ -298,6 +318,7 @@ function AnnouncementFormModal({ ann, onClose }) {
         active:      ann?.active ?? true,
         expiresAt:   expiresAt ? new Date(expiresAt).getTime() : null,
         comments:    ann?.comments || [],
+        attachments: attachments,
         // Preserve fields not managed by this form so editing doesn't drop them.
         pinned:      ann?.pinned ?? false,
         publishAt:   ann?.publishAt ?? null,
@@ -377,6 +398,42 @@ function AnnouncementFormModal({ ann, onClose }) {
         <div>
           <label className="form-label">Module link <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(optional)</span></label>
           <input className="form-input" value={moduleLink} placeholder="https://drive.google.com/..." onChange={e => setModuleLink(e.target.value)} />
+        </div>
+        <div>
+          <label className="form-label">Attachments <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(optional)</span></label>
+          {!driveConfigured() ? (
+            <div style={{ fontSize: 12, color: 'var(--ink3)', background: 'var(--bg2)', borderRadius: 8, padding: '8px 10px', lineHeight: 1.5 }}>
+              Google Drive is not set up for this deployment. You can still paste a Drive link above and it previews inline.
+            </div>
+          ) : !drive.connected ? (
+            <div style={{ fontSize: 12, color: 'var(--ink3)', background: 'var(--bg2)', borderRadius: 8, padding: '8px 10px', lineHeight: 1.5 }}>
+              Connect Google Drive in Settings to upload files and photos.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {attachments.map(a => (
+                <div key={a.driveId} style={{ display: 'flex', alignItems: 'center', gap: 9, background: 'var(--bg2)', borderRadius: 8, padding: '8px 10px' }}>
+                  {/^image\//.test(a.mimeType || '') ? <ImageIcon size={16} style={{ color: '#10b981', flexShrink: 0 }} /> : <FileText size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} />}
+                  <span style={{ flex: 1, fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
+                  <button type="button" className="btn btn-ghost btn-sm" style={{ padding: '2px 6px' }} onClick={() => removeAttachment(a.driveId)} aria-label="Remove attachment"><X size={13} /></button>
+                </div>
+              ))}
+              {uploads.map(u => (
+                <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 9, background: 'var(--bg2)', borderRadius: 8, padding: '8px 10px' }}>
+                  <Paperclip size={16} style={{ color: 'var(--ink3)', flexShrink: 0 }} />
+                  <span style={{ flex: 1, fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.name}</span>
+                  <span style={{ fontSize: 11, color: u.error ? 'var(--red)' : 'var(--accent)' }}>{u.error ? u.error : u.pct + '%'}</span>
+                  {u.error && <button type="button" className="btn btn-ghost btn-sm" style={{ padding: '2px 6px' }} onClick={() => setUploads(prev => prev.filter(x => x.id !== u.id))} aria-label="Dismiss"><X size={13} /></button>}
+                </div>
+              ))}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => photoInput.current?.click()}><ImageIcon size={14} style={{ marginRight: 5 }} /> Add photo</button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => fileInput.current?.click()}><Paperclip size={14} style={{ marginRight: 5 }} /> Add file</button>
+              </div>
+              <input ref={photoInput} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => { addFiles(e.target.files); e.target.value = '' }} />
+              <input ref={fileInput} type="file" multiple style={{ display: 'none' }} onChange={e => { addFiles(e.target.files); e.target.value = '' }} />
+            </div>
+          )}
         </div>
         <div>
           <label className="form-label">Expires at <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(optional)</span></label>
