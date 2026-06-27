@@ -21,11 +21,32 @@ const ROOT_NAME = 'AcadFlow'
 const GSI_SRC = 'https://accounts.google.com/gsi/client'
 
 const LS_EMAIL = 'gdrive_email'
+const SS_TOKEN = 'gdrive_token' // sessionStorage: { access_token, expires_at }
 const DIR_PREFIX = 'gdrive_dir:' // + `${parentId}/${name}` -> folderId
 
 let _gisPromise = null
 let _tokenClient = null
-let _token = null // { access_token, expires_at }
+
+// The access token is cached in sessionStorage (not just memory) so a page
+// reload within the ~1h lifetime reuses it instead of re-prompting Google. It is
+// scoped to the tab and cleared on disconnect.
+function loadStoredToken() {
+  try {
+    const raw = sessionStorage.getItem(SS_TOKEN)
+    if (raw) {
+      const t = JSON.parse(raw)
+      if (t && t.access_token && Date.now() < t.expires_at - 60000) return t
+    }
+  } catch { /* ignore */ }
+  return null
+}
+let _token = loadStoredToken() // { access_token, expires_at }
+
+function storeToken(access_token, expires_in) {
+  _token = { access_token, expires_at: Date.now() + (Number(expires_in) || 3600) * 1000 }
+  try { sessionStorage.setItem(SS_TOKEN, JSON.stringify(_token)) } catch { /* ignore */ }
+  return _token.access_token
+}
 
 export function isConfigured() { return !!CLIENT_ID }
 
@@ -56,6 +77,9 @@ async function getTokenClient() {
     _tokenClient = window.google.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID,
       scope: SCOPE,
+      // login_hint = the already-connected account, so a silent refresh skips the
+      // account chooser instead of prompting the teacher to pick/sign in again.
+      hint: localStorage.getItem(LS_EMAIL) || undefined,
       callback: () => {},
     })
   }
@@ -72,8 +96,7 @@ function requestToken(interactive) {
     getTokenClient().then(client => {
       client.callback = resp => {
         if (resp.error) { reject(new Error(resp.error_description || resp.error)); return }
-        _token = { access_token: resp.access_token, expires_at: Date.now() + (Number(resp.expires_in) || 3600) * 1000 }
-        resolve(_token.access_token)
+        resolve(storeToken(resp.access_token, resp.expires_in))
       }
       try { client.requestAccessToken({ prompt: interactive ? 'consent' : '' }) }
       catch (e) { reject(e) }
@@ -151,6 +174,7 @@ export function disconnect() {
     }
   } catch { /* ignore */ }
   _token = null
+  try { sessionStorage.removeItem(SS_TOKEN) } catch { /* ignore */ }
   localStorage.removeItem(LS_EMAIL)
   clearFolderCache()
 }
