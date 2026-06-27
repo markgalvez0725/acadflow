@@ -1,6 +1,6 @@
 # AcadFlow
 
-**Academic Management System** for admins (teachers/staff) and students — built with React, Vite, and Firebase Firestore.
+**Academic Management System** for admins (teachers/staff) and students - built with React, Vite, and Firebase Firestore.
 
 ---
 
@@ -11,47 +11,48 @@ AcadFlow is a web-based school portal that provides a unified platform to manage
 ## Features
 
 ### Admin Portal
-- **Dashboard** — class-wide KPIs, GWA/attendance charts, at-risk student monitoring
-- **Students** — roster management with grades and attendance overview; account verification (none → pending → active)
-- **Classes** — class and subject definitions (active vs. archived/past-semester)
-- **Grades** — fast spreadsheet-style entry (keyboard grid nav, search-as-you-type jump, undo/redo + autosave, speed-grading mode), missing/invalid-grade detector, and a single color-coded Excel template that computes grades in-sheet exactly as the app does. Imported "+ Activity / + Quiz" columns are **additive** (never overwrite app activities/quizzes), and a popup preview runs on-device AI verification of imported grades.
-- **Grade Integrity** — auditor that recomputes each stored grade from live components and flags mismatches (e.g. tampering or stale imports)
-- **Attendance** — calendar-based daily attendance tracking (Present / Absent / Excuse); excuse-request triage; import from file
-- **Activities** — post assignments with deadlines, rubric builder + reusable rubric library, and grade submissions; students are notified when graded
-- **Quiz** — create and manage quizzes; AI-generated questions; answer-key manager with fuzzy text auto-scoring and partial credit; quiz→gradebook auto-post; suspicious-submission flagging; distractor-quality auditor; clone quiz
-- **Stream** — class activity feed (announcements, grades, activities, quizzes, attendance) with rich-text announcements, comments, replies, and @mentions
-- **Calendar** — monthly calendar view of activities, quizzes, and announcements
-- **Online Classes** — schedule and manage Google Meet sessions; start/end/cancel meetings
-- **Resources** — share lesson files and links per class
-- **Messages** — one-on-one and broadcast messaging with @mentions, smart-lock for sensitive messages, and screenshot logging
-- **Feedback Hub** — collect and review student feedback submissions
-- **Audit Log** — chronological record of sensitive admin/account actions
-- **Notifications** — system-wide alerts and activity updates
-- **Settings** — admin credentials + recovery PIN, equivalence scale, semester, late-penalty policy, notifications, backup/restore, Firebase config
+- **Dashboard** - class-wide KPIs, GWA/attendance charts, at-risk student monitoring
+- **Students** - roster management with grades and attendance overview; account verification (none → pending → active)
+- **Classes** - class and subject definitions (active vs. archived/past-semester)
+- **Grades** - fast spreadsheet-style entry (keyboard grid nav, search-as-you-type jump, undo/redo + autosave, speed-grading mode), missing/invalid-grade detector, and a single color-coded Excel template that computes grades in-sheet exactly as the app does. Imported "+ Activity / + Quiz" columns are **additive** (never overwrite app activities/quizzes), and a popup preview runs on-device AI verification of imported grades.
+- **Grade Integrity** - auditor that recomputes each stored grade from live components and flags mismatches (e.g. tampering or stale imports)
+- **Attendance** - calendar-based daily attendance tracking (Present / Absent / Excuse); excuse-request triage; import from file
+- **Activities** - post assignments with deadlines, rubric builder + reusable rubric library, and grade submissions; students are notified when graded
+- **Quiz** - create and manage quizzes; AI-generated questions; answer-key manager with fuzzy text auto-scoring and partial credit; quiz→gradebook auto-post; suspicious-submission flagging; distractor-quality auditor; clone quiz
+- **Stream** - class activity feed (announcements, grades, activities, quizzes, attendance) with rich-text announcements, comments, replies, and @mentions
+- **Calendar** - monthly calendar view of activities, quizzes, and announcements
+- **Online Classes** - schedule and manage Google Meet sessions; start/end/cancel meetings
+- **Resources** - share lesson files and links per class
+- **Messages** - one-on-one and broadcast messaging with @mentions, smart-lock for sensitive messages, and screenshot logging
+- **Feedback Hub** - collect and review student feedback submissions
+- **Audit Log** - chronological record of sensitive admin/account actions
+- **Notifications** - system-wide alerts and activity updates
+- **Settings** - admin credentials + recovery PIN, equivalence scale, semester, late-penalty policy, notifications, backup/restore, Firebase config
 
 ### Student Portal
-- **Overview** — personal GWA, attendance rate, active announcements (with meeting and module links), recent activity, and per-subject Final Grade / Attendance charts
-- **Grades** — view grades per subject with assessment breakdowns and what-if projection
-- **Attendance** — personal attendance calendar and summary; submit excuse requests
-- **Activities / Assignments** — view and submit assignments; edit submission link before deadline
-- **Quiz** — take quizzes with auto-grading
-- **Stream** — class activity feed with announcement comments, replies, and @mentions
-- **Calendar** — personal calendar view of upcoming events; export to `.ics`
-- **Online Classes** — view and join scheduled Google Meet sessions
-- **Resources** — browse class lesson files and links
-- **Enrollment** — manage class enrollment
-- **Messages** — direct messaging with admin/teacher (smart-lock + screenshot guard)
-- **Feedback** — submit feedback to the teacher/staff
-- **Notifications** — personal notification feed with badge for unread items
+- **Overview** - personal GWA, attendance rate, active announcements (with meeting and module links), recent activity, and per-subject Final Grade / Attendance charts
+- **Grades** - view grades per subject with assessment breakdowns and what-if projection
+- **Attendance** - personal attendance calendar and summary; submit excuse requests
+- **Activities / Assignments** - view and submit assignments; edit submission link before deadline
+- **Quiz** - take quizzes with auto-grading
+- **Stream** - class activity feed with announcement comments, replies, and @mentions
+- **Calendar** - personal calendar view of upcoming events; export to `.ics`
+- **Online Classes** - view and join scheduled Google Meet sessions
+- **Resources** - browse class lesson files and links
+- **Enrollment** - manage class enrollment
+- **Messages** - direct messaging with admin/teacher (smart-lock + screenshot guard)
+- **Feedback** - submit feedback to the teacher/staff
+- **Notifications** - personal notification feed with badge for unread items
 
 ### General
 - Real-time sync via Firebase Firestore
-- Push notifications (Firebase Cloud Messaging) on grade posts, activity grading, announcements, and deadline reminders — fired both client-side (while open) and via a Vercel Cron job (while closed)
+- Push notifications (Firebase Cloud Messaging) on grade posts, activity grading, announcements, and deadline reminders - fired both client-side (while open) and via a Vercel Cron job (while closed)
 - On-device AI ($0, no data leaves the browser): grade-import verification, distractor auditing, excuse triage, identity/impersonation checks, and answer-key improvement, with optional Gemini-backed server endpoints that degrade gracefully when unconfigured
 - Biometric quick sign-in (Face ID / fingerprint via WebAuthn) as an opt-in convenience layer; password always remains the fallback
-- Teacher-coordinated student password reset (no plaintext password leaves the student's device) and admin recovery-PIN reset
+- Guided account verification: after first sign-in, a step-by-step flow inside Settings walks the student through setting their own password, enrolling Face ID, and adding a profile photo. The photo's face is computed on-device and matched server-side against the enrolled Face ID signature before it is accepted, so an account's photo is provably the real student. Completing all steps grants a verified badge and unlocks grades, quizzes, and activities. On-device guidance (deterministic, no external AI) narrates each step.
+- Teacher-coordinated student password reset (no plaintext password leaves the student's device), self-service Face ID password reset (the student's live face is matched server-side against an on-device-computed signature, with liveness; no temporary password), and admin recovery-PIN reset
 - Excel (.xlsx) and PDF export for grades, attendance, and report cards
-- Installable PWA with offline app shell
+- Installable PWA with offline app shell; mobile Settings opens full-screen with a drag-down-to-dismiss handle
 - Light and dark mode
 - 30-minute inactivity session timeout with tab-focus expiry check
 
@@ -60,10 +61,10 @@ AcadFlow is a web-based school portal that provides a unified platform to manage
 | Layer | Choice |
 |---|---|
 | Framework | React 19 + Vite 6 |
-| Routing | Role-based state routing (no URL router — tab state in `UIContext`) |
+| Routing | Role-based state routing (no URL router - tab state in `UIContext`) |
 | Styling | Tailwind CSS v4 |
 | Data | Firebase Firestore (modular SDK v10, long-poll) |
-| Server | Vercel serverless functions in `api/` (Node built-ins only) — AI, web push, password reset, cron reminders |
+| Server | Vercel serverless functions in `api/` (Node built-ins only) - AI, web push, password reset, cron reminders |
 | Exports | SheetJS + ExcelJS (Excel), jsPDF + AutoTable (PDF) via CDN |
 
 ## Getting Started
@@ -88,13 +89,13 @@ Create a `.env` file in the project root:
 VITE_FB_API_KEY=
 VITE_FB_PROJECT_ID=
 
-# Optional — defaults are derived from projectId if omitted
+# Optional - defaults are derived from projectId if omitted
 VITE_FB_AUTH_DOMAIN=
 VITE_FB_STORAGE_BUCKET=
 VITE_FB_MESSAGING_SENDER_ID=
 VITE_FB_APP_ID=
 
-# Optional — crypto key overrides (safe defaults apply for new installs)
+# Optional - crypto key overrides (safe defaults apply for new installs)
 VITE_PASS_SALT=
 VITE_EJS_SECRET=
 VITE_EJS_SALT=
@@ -199,18 +200,19 @@ Two storage patterns coexist:
 
 | Document | Purpose |
 |---|---|
-| `portal/classes` | Class list (a `list` array — editing one class rewrites the array) |
+| `portal/classes` | Class list (a `list` array - editing one class rewrites the array) |
 | `portal/config` | Equivalence scale, semester, late-penalty policy, portal settings |
 | `portal/settings` | Portal-wide settings |
 | `portal/admin` | Admin credentials (hashed password, email, reset PIN) |
 
 ## Security Notes
 
-- Passwords are SHA-256 hashed with a salt before storage — never stored in plaintext.
+- Passwords are SHA-256 hashed with a salt before storage - never stored in plaintext.
 - Firebase config is AES-encrypted in `localStorage`.
 - Plaintext Firebase config is removed from `localStorage` 3 seconds after init.
 - Login has per-key brute-force lockout tracked in `sessionStorage`.
 - Sessions expire after 30 minutes of inactivity; expiry is also checked on tab focus.
+- Face ID signatures live in a server-only `faceSignatures` collection (denied to all clients by Firestore rules); the browser never reads a stored descriptor, so it can't be replayed, and never writes one, so it can't be forged. Enrollment, login reset, and the profile-photo identity match all compare distances server-side at the same threshold.
 
 ## Enhancements
 

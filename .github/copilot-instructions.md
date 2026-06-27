@@ -1,8 +1,8 @@
-# AcadFlow — Copilot Instructions
+# AcadFlow - Copilot Instructions
 
 ## Stack
 
-React 19 + Vite 6 + Tailwind CSS v4 + Firebase Firestore (modular SDK v10). **Not Next.js** — no App Router, no `pages/` directory, no server components, no `next/*` imports.
+React 19 + Vite 6 + Tailwind CSS v4 + Firebase Firestore (modular SDK v10). **Not Next.js** - no App Router, no `pages/` directory, no server components, no `next/*` imports.
 
 ## Commands
 
@@ -25,7 +25,7 @@ There is no test runner or linter script in `package.json`.
 - `'admin'` → `AdminLayout`
 - `'student'` → `StudentLayout`
 
-Do **not** add `<Route>` components or `useNavigate`/`<Link>` — navigation between tabs is local state (`adminTab` / `studentTab`) inside `UIContext`.
+Do **not** add `<Route>` components or `useNavigate`/`<Link>` - navigation between tabs is local state (`adminTab` / `studentTab`) inside `UIContext`.
 
 ### Context Provider Tree
 
@@ -33,9 +33,9 @@ Do **not** add `<Route>` components or `useNavigate`/`<Link>` — navigation bet
 UIProvider → DataProvider → AuthProvider → AppRouter
 ```
 
-- **`UIContext`** — toast, theme (light/dark), `adminTab`, `studentTab`, dialog (replaces `alert`/`confirm`), loading bar
-- **`DataContext`** — Firebase bootstrap (`_bootstrap()`), all real-time Firestore listeners, all app data (`students`, `classes`, `messages`, `activities`, `announcements`, `onlineMeetings`, `quizzes`, `resources`, `studentFeedback`, …), all write helpers
-- **`AuthContext`** — session (`sessionRole`), login/logout, OTP helpers, inactivity timeout
+- **`UIContext`** - toast, theme (light/dark), `adminTab`, `studentTab`, dialog (replaces `alert`/`confirm`), loading bar
+- **`DataContext`** - Firebase bootstrap (`_bootstrap()`), all real-time Firestore listeners, all app data (`students`, `classes`, `messages`, `activities`, `announcements`, `onlineMeetings`, `quizzes`, `resources`, `studentFeedback`, …), all write helpers
+- **`AuthContext`** - session (`sessionRole`), login/logout, OTP helpers, inactivity timeout
 
 **Never read Firestore directly from components.** All data flows through `DataContext`.
 
@@ -64,8 +64,8 @@ UIProvider → DataProvider → AuthProvider → AppRouter
 ### CDN Globals (do not npm-import)
 
 SheetJS and jsPDF are loaded via CDN in `index.html`:
-- `window.XLSX` — Excel export (`src/export/excelExport.js`)
-- `window.jspdf` — PDF export (`src/export/pdfExport.js`)
+- `window.XLSX` - Excel export (`src/export/excelExport.js`)
+- `window.jspdf` - PDF export (`src/export/pdfExport.js`)
 
 ### Tailwind CSS v4
 
@@ -73,13 +73,13 @@ SheetJS and jsPDF are loaded via CDN in `index.html`:
 - Do not use v3 `@apply` patterns that conflict with v4's engine.
 - `cn()` utility in `src/utils/cn.ts` combines `clsx` + `tailwind-merge` for conditional class merging.
 
-### Security — Non-Negotiable Rules
+### Security - Non-Negotiable Rules
 
 - **Passwords:** SHA-256 + salt via `hashPassword()` / `verifyPassword()` in `src/utils/crypto.js`. Never store plaintext.
 - **Firebase config:** AES-encrypted with `encryptFbConfig()` before writing to `localStorage`. Plaintext config is removed 3 s after init.
 - **Login lockout:** `recordFailedAttempt()` / `isLockedOut()` in `src/utils/validate.js`.
 - **User-generated HTML:** Always sanitize with DOMPurify before rendering. Safe tag whitelist: `b, i, u, em, strong, mark, p, br, ul, ol, li, h3, h4`.
-- **Comment/reply IDs:** Use UUID v4 (`import { v4 as uuidv4 } from 'uuid'`) — never `Date.now()` or weak generation.
+- **Comment/reply IDs:** Use UUID v4 (`import { v4 as uuidv4 } from 'uuid'`) - never `Date.now()` or weak generation.
 - **Concurrent Firestore writes:** Use `runTransaction` for comment operations to prevent lost updates.
 
 ### Session & Inactivity

@@ -1,19 +1,19 @@
-# AcadFlow — Mobile App Guide
+# AcadFlow - Mobile App Guide
 
 This covers two ways to run AcadFlow as a mobile app, both using the exact same code and design as the website (so functions never drift):
 
-- **Part 1 — Install it today as an app (PWA).** No Mac, no Xcode, no app stores, no cost. Works on iPhone and Android in a few taps.
-- **Part 2 — Build real native apps (Capacitor)** for the App Store / Play Store, or to sideload.
+- **Part 1 - Install it today as an app (PWA).** No Mac, no Xcode, no app stores, no cost. Works on iPhone and Android in a few taps.
+- **Part 2 - Build real native apps (Capacitor)** for the App Store / Play Store, or to sideload.
 
 App URL: **https://acadflow-seven.vercel.app**
 
 ---
 
-## Part 1 — Install now as an app (PWA)
+## Part 1 - Install now as an app (PWA)
 
 The site is already a Progressive Web App: installed, it gets its own home-screen icon, runs full screen with no browser bars, works offline for cached screens, and supports notifications. Same screens, same functions as the website.
 
-### iPhone / iPad (use Safari — this does not work in Chrome on iOS)
+### iPhone / iPad (use Safari - this does not work in Chrome on iOS)
 
 1. Open **Safari** and go to `acadflow-seven.vercel.app`.
 2. Tap the **Share** button (the square with an up arrow, bottom center).
@@ -30,11 +30,11 @@ The site is already a Progressive Web App: installed, it gets its own home-scree
 
 > Tip: when the app asks to allow notifications, tap **Allow** so messages and alerts can reach you. The app updates itself automatically whenever you open it online.
 
-That's it — you have an installable app on both platforms right now, with zero build steps.
+That's it - you have an installable app on both platforms right now, with zero build steps.
 
 ---
 
-## Part 2 — Build native apps (Capacitor)
+## Part 2 - Build native apps (Capacitor)
 
 This wraps the same web build into true native iOS and Android projects you can run on a device or publish to the stores. The project is already configured (`capacitor.config.json` is in the repo: app id `app.acadflow.portal`, app name **AcadFlow**).
 
@@ -97,7 +97,7 @@ npx cap sync
 ## Sideload without the stores (free)
 
 - **Android:** copy the signed APK to your phone, open it, allow **Install unknown apps** when prompted. Done.
-- **iOS:** install straight from Xcode to your own iPhone with a free Apple ID (the app stops opening after 7 days — just re-run from Xcode to renew), or join the Apple Developer Program ($99/yr) for a permanent install.
+- **iOS:** install straight from Xcode to your own iPhone with a free Apple ID (the app stops opening after 7 days - just re-run from Xcode to renew), or join the Apple Developer Program ($99/yr) for a permanent install.
 
 ## Store fees (only if you publish)
 
@@ -111,8 +111,8 @@ npx cap sync
 - **White screen on launch:** you forgot `npm run build` or `npx cap sync`. Always run both after code changes.
 - **Firebase not connecting:** make sure `.env` has your `VITE_FB_*` values before `npm run build`, or sign in once and enter the config in Admin → Settings → Firebase (it's saved encrypted on the device).
 - **App icons / splash:** the icons in `/public` are used automatically; to regenerate every size, run `npm install @capacitor/assets` then `npx capacitor-assets generate`.
-- **Native push notifications:** the web push we set up works in the PWA. For native (Capacitor) push, add `@capacitor/push-notifications` and wire APNs (iOS) / FCM (Android) — a follow-up I can do when you're ready. The in-app notification badges work everywhere already.
+- **Native push notifications:** the web push we set up works in the PWA. For native (Capacitor) push, add `@capacitor/push-notifications` and wire APNs (iOS) / FCM (Android) - a follow-up I can do when you're ready. The in-app notification badges work everywhere already.
 
 ## Which should you use?
 
-Start with the **PWA** today — it's instant, free, and identical to the website on both phones. Move to the **native build** only when you specifically need App Store / Play Store distribution. Both come from the same code, so there's nothing to keep in sync by hand.
+Start with the **PWA** today - it's instant, free, and identical to the website on both phones. Move to the **native build** only when you specifically need App Store / Play Store distribution. Both come from the same code, so there's nothing to keep in sync by hand.

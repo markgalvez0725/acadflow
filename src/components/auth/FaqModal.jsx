@@ -25,7 +25,15 @@ const FAQ_ITEMS = [
   },
   {
     q: 'Is my data private and secure?',
-    a: `Yes. Passwords are never stored in plain text - they're hashed before saving, and sensitive configuration is encrypted. The app is served only over a secure (HTTPS) connection. Students can only ever see their own records, and password recovery is coordinated with your teacher so no password is exposed along the way. On your own device you can also enable a PIN or fingerprint/Face ID quick-unlock for faster, private sign-ins.`,
+    a: `Yes. Passwords are never stored in plain text - they're hashed before saving, and sensitive configuration is encrypted. The app is served only over a secure (HTTPS) connection. Students can only ever see their own records. Your profile photo is checked privately on your own device and matched against your enrolled Face ID, so the picture on an account is provably the real student and can't be faked. On your own device you can also enable a PIN or fingerprint/Face ID quick-unlock for faster, private sign-ins.`,
+  },
+  {
+    q: 'How do I get the verified badge?',
+    a: `The first time you sign in, AcadFlow guides you step by step in Settings - it opens automatically and walks you through three things: setting a password only you know, enrolling Face ID, and adding a clear profile photo. Your photo is verified right on your device and matched to the face you just enrolled, so it has to be really you. Once all the steps are done, a verified badge appears next to your name and your grades, quizzes, and activities unlock. The on-screen guide tells you exactly what to do at each step.`,
+  },
+  {
+    q: 'What if I forget my password?',
+    a: `On the login screen, choose "Reset with Face ID." After a quick liveness check your device scans your face, the server confirms it matches the face you enrolled, and then you set a brand-new password yourself - no teacher needed and no temporary password is ever shown. If you haven't set up Face ID yet, your teacher can still reset your password for you.`,
   },
   {
     q: 'How do I install AcadFlow as an app?',
@@ -39,7 +47,7 @@ Once installed, just open it like any other app - your login and data stay exact
   },
   {
     q: 'How do I get an account?',
-    a: `Students register themselves, but only against the class roster their teacher has already set up. You verify your identity with your student number, name, course, year, and section - so accounts stay tied to real, enrolled students. If your details don't match, ask your teacher to add or correct your record first.`,
+    a: `Students register themselves, but only against the class roster their teacher has already set up. You verify your identity with your student number, name, course, year, and section - so accounts stay tied to real, enrolled students. If your details don't match, ask your teacher to add or correct your record first. After you sign in, a short guided setup in Settings helps you finish verifying your account (see "How do I get the verified badge?").`,
   },
   {
     q: 'How much does it cost?',
