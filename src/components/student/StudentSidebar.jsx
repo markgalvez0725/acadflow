@@ -3,6 +3,7 @@ import { useUI } from '@/context/UIContext'
 import { useData } from '@/context/DataContext'
 import { studentStanding } from '@/utils/groupChat'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
+import BrandMark from '@/components/primitives/BrandMark'
 import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Settings, LogOut, ListChecks, MessageSquarePlus, MessageSquare } from 'lucide-react'
 
 // Flat, Instagram-style nav list (no section headers).
@@ -43,7 +44,7 @@ export default function StudentSidebar({ student, badges = {}, onSettings, onLog
     <div className="sidebar flex flex-col h-full">
       {/* Brand */}
       <div className="sb-brand">
-        <img src="/brand/logo-mark.svg" alt="AcadFlow" style={{ width: 42, height: 42, marginRight: 10, flexShrink: 0, objectFit: 'contain' }} />
+        <span className="sb-brand-logo"><BrandMark height={30} /></span>
         <div>
           <h2>AcadFlow</h2>
           <span>Student Portal</span>

@@ -2,6 +2,7 @@ import React from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
+import BrandMark from '@/components/primitives/BrandMark'
 import { LayoutDashboard, School, Users, BookOpen, CalendarCheck, Bell, ClipboardList, Settings, LogOut, FileQuestion, Rss, CalendarDays, Video, History, MessageSquare, MessageSquarePlus, ShieldCheck } from 'lucide-react'
 
 // Flat, Instagram-style nav list (no section headers).
@@ -49,7 +50,7 @@ export default function AdminSidebar({ onSettingsOpen }) {
     <div className="sidebar flex flex-col h-full">
       {/* Brand */}
       <div className="sb-brand">
-        <img src="/brand/logo-mark.svg" alt="AcadFlow" style={{ width: 42, height: 42, marginRight: 10, flexShrink: 0, objectFit: 'contain' }} />
+        <span className="sb-brand-logo"><BrandMark height={30} /></span>
         <div>
           <h2>AcadFlow</h2>
           <span>Professor Portal</span>

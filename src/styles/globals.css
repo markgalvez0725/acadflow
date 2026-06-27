@@ -748,14 +748,26 @@ html[data-theme="dark"] .aflogo-dark { display: block; }
 }
 
 .sb-brand {
-  padding: 18px 16px 14px;        /* logo pinned at 16px = centre of the 64px rail */
+  padding: 16px 8px 14px;
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 0;
+  gap: 8px;
   overflow: hidden;
   flex-shrink: 0;
   position: relative;
+}
+/* Fixed 48px logo slot = the 64px rail content width, so the mark is the SAME
+   size and centred-on-the-rail position whether the sidebar is collapsed or
+   expanded; only the text slides in beside it. */
+.sb-brand-logo {
+  width: 48px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
 }
 .sb-brand h2 {
   font-family: var(--font-display);
@@ -787,7 +799,6 @@ html[data-theme="dark"] .aflogo-dark { display: block; }
 }
 .sidebar-wrap.expanded .sb-brand span { opacity: 1; max-width: 160px; }
 
-.sb-brand img { position: relative; z-index: 1; }
 
 .sb-nav { padding: 8px 0; overflow-y: auto; flex: 1; }
 
