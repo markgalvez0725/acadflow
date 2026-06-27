@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react'
 import { findMentionQuery, applyMention, matchCandidates } from '@/utils/mentions'
+import { courseShort } from '@/constants/courses'
 
 // A single-line text input with an @mention autocomplete dropdown. Controlled
 // via value/onChange; calls onEnter when Enter is pressed (and no suggestion is
@@ -82,7 +83,7 @@ export default function MentionInput({
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 10, fontWeight: 700,
               }}>{c.name?.charAt(0)?.toUpperCase() || '?'}</span>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{courseShort(c.name)}</span>
             </button>
           ))}
         </div>

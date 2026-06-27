@@ -8,7 +8,7 @@ import KebabMenu from '@/components/primitives/KebabMenu'
 import { Plus, Pencil, School, Archive, ArchiveRestore, CalendarDays, Users, LockOpen, Lock, CheckCircle2, Copy, FileText, Trash2, Clock, MapPin, Search } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { buildClassReportCards } from '@/export/reportCard'
-import { courseOptions } from '@/constants/courses'
+import { courseOptions, courseShort } from '@/constants/courses'
 
 const PER_PAGE = 12
 
@@ -94,7 +94,7 @@ function AddClassModal({ onClose, prefill = null }) {
           <label>Course Name <span className="text-red-500">*</span></label>
           <select value={name} onChange={e => { setName(e.target.value); if (!courseReq) setCourseReq(e.target.value) }}>
             <option value="">- Select course -</option>
-            {courseOptions(name).map(c => <option key={c} value={c}>{c}</option>)}
+            {courseOptions(name).map(c => <option key={c} value={c}>{courseShort(c)}</option>)}
           </select>
         </div>
         <div className="field">
@@ -127,7 +127,7 @@ function AddClassModal({ onClose, prefill = null }) {
           </label>
           <select value={courseReq} onChange={e => setCourseReq(e.target.value)}>
             <option value="">- Same as course name -</option>
-            {courseOptions(courseReq).map(c => <option key={c} value={c}>{c}</option>)}
+            {courseOptions(courseReq).map(c => <option key={c} value={c}>{courseShort(c)}</option>)}
           </select>
         </div>
         <div className="field">
@@ -277,7 +277,7 @@ function EditClassModal({ cls, onClose }) {
           <label>Course Name <span className="text-red-500">*</span></label>
           <select value={name} onChange={e => setName(e.target.value)}>
             <option value="">- Select course -</option>
-            {courseOptions(name).map(c => <option key={c} value={c}>{c}</option>)}
+            {courseOptions(name).map(c => <option key={c} value={c}>{courseShort(c)}</option>)}
           </select>
         </div>
         <div className="field">
@@ -310,7 +310,7 @@ function EditClassModal({ cls, onClose }) {
           </label>
           <select value={courseReq} onChange={e => setCourseReq(e.target.value)}>
             <option value="">- Same as course name -</option>
-            {courseOptions(courseReq).map(c => <option key={c} value={c}>{c}</option>)}
+            {courseOptions(courseReq).map(c => <option key={c} value={c}>{courseShort(c)}</option>)}
           </select>
         </div>
         <div className="field">
@@ -619,7 +619,7 @@ export default function ClassesTab() {
                   {/* Header: course + section, kebab */}
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--ink)', lineHeight: 1.3 }}>{cls.name}</div>
+                      <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--ink)', lineHeight: 1.3 }} title={cls.name}>{courseShort(cls.name)}</div>
                       <div style={{ display: 'flex', gap: 5, marginTop: 4, flexWrap: 'wrap' }}>
                         <Badge variant="blue">{cls.section}</Badge>
                         {cls.archived && <Badge variant="yellow">Archived</Badge>}

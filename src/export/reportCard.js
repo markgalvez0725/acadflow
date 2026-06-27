@@ -5,6 +5,7 @@ import {
   gradeInfo, combineEquiv, computeFinalGradeFromTerms, getGWA, getAttRate, DEFAULT_EQ_SCALE,
 } from '@/utils/grades.js'
 import { pdfHeader } from '@/export/pdfExport.js'
+import { courseShort } from '@/constants/courses'
 
 function fmtDate() {
   return new Date().toLocaleDateString('en-PH', { dateStyle: 'long' })
@@ -39,7 +40,7 @@ function renderReportCard(doc, student, { classes = [], students = [], eqScale =
   doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(90, 90, 100)
   const info = [
     `Student No: ${student.snum || student.id || '-'}`,
-    `Course: ${student.course || '-'}`,
+    `Course: ${courseShort(student.course) || '-'}`,
     primaryClass ? `Class: ${primaryClass.name}${primaryClass.section ? ' - ' + primaryClass.section : ''}` : null,
   ].filter(Boolean)
   doc.text(info.join('     '), 12, y)

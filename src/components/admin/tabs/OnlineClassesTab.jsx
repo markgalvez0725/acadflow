@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio } from 'lucide-react'
+import { courseShort } from '@/constants/courses'
 
 export default function OnlineClassesTab() {
   const { classes, meetings, saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting } = useData()
@@ -193,7 +194,7 @@ export default function OnlineClassesTab() {
                     <Video size={17} />
                   </span>
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cls.name}</div>
+                    <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={cls.name}>{courseShort(cls.name)}</div>
                     <div style={{ fontSize: 11, color: 'var(--ink3)' }}>{subjects ? `${subjects.length} subject${subjects.length !== 1 ? 's' : ''}` : 'No subjects yet'}</div>
                   </div>
                   {cls.section && (
@@ -377,7 +378,7 @@ export default function OnlineClassesTab() {
 }
 
 function classLabel(cls) {
-  return cls?.section ? `${cls.name} - ${cls.section}` : cls?.name || 'Class'
+  return cls?.section ? `${courseShort(cls.name)} - ${cls.section}` : courseShort(cls?.name) || 'Class'
 }
 
 function MeetingRow({ m, onStart, onEnd, onCancel }) {

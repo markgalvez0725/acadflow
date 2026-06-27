@@ -15,6 +15,7 @@ import ThemeToggle from '@/components/primitives/ThemeToggle'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { useReminders } from '@/hooks/useReminders'
 import { activeClasses, activeClassIds, activeSubjects } from '@/utils/active'
+import { courseShort } from '@/constants/courses'
 import { studentSeesMessage } from '@/utils/studentMessages'
 import { computePassedSubjects } from '@/utils/passedSubjects'
 import { isNotifAllowed } from '@/utils/notifPrefs'
@@ -457,7 +458,7 @@ export default function StudentLayout() {
                 onChange={e => setViewClassId(e.target.value)}
               >
                 {enrolledClasses.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}{c.section ? ` - ${c.section}` : ''}</option>
+                  <option key={c.id} value={c.id}>{courseShort(c.name)}{c.section ? ` - ${c.section}` : ''}</option>
                 ))}
               </select>
             )}

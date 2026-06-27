@@ -8,6 +8,7 @@ import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import MentionInput from '@/components/primitives/MentionInput'
 import { resolveMentions } from '@/utils/mentions'
 import { notifyMention } from '@/firebase/messageNotify'
+import { courseShort } from '@/constants/courses'
 import { fmtDateTime as formatDate } from '@/utils/format'
 import { Megaphone, Plus, Trash2, CalendarOff, Video, BookOpen, ToggleLeft, ToggleRight, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered, Clock } from 'lucide-react'
 
@@ -469,7 +470,7 @@ function AnnouncementFormModal({ ann, onClose }) {
             <option value="all">All Classes</option>
             {classes.filter(c => !c.archived).map(c => (
               <option key={c.id} value={c.id}>
-                {c.name}{c.section ? ` - ${c.section}` : ''}
+                {courseShort(c.name)}{c.section ? ` - ${c.section}` : ''}
               </option>
             ))}
           </select>

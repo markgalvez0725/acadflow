@@ -12,6 +12,7 @@ import {
   DEFAULT_EQ_SCALE,
 } from '@/utils/grades.js'
 import { sortByLastName } from '@/utils/format.js'
+import { courseShort } from '@/constants/courses'
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -303,7 +304,7 @@ export function buildStudentPDFDoc(s, classes, students, eqScale = DEFAULT_EQ_SC
   const attRate = getAttRate(s, students, classes)
   const gwaInfo = gwa != null ? equivInfo(gwa.toFixed(2)) : { rem: 'No Grade' }
 
-  const subtitle = `${s.id}  ·  ${s.course || '-'}  ·  ${s.year || '-'}  ·  Exported: ${fmtDate()}`
+  const subtitle = `${s.id}  ·  ${courseShort(s.course) || '-'}  ·  ${s.year || '-'}  ·  Exported: ${fmtDate()}`
   let y = pdfHeader(doc, 'Student Report', subtitle)
 
   // ── Student info card ─────────────────────────────────────────────────
@@ -316,7 +317,7 @@ export function buildStudentPDFDoc(s, classes, students, eqScale = DEFAULT_EQ_SC
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   doc.setTextColor(100)
-  doc.text(`Course: ${s.course || '-'}  |  Year: ${s.year || '-'}  |  Student No.: ${s.id}`, 14, y + 12)
+  doc.text(`Course: ${courseShort(s.course) || '-'}  |  Year: ${s.year || '-'}  |  Student No.: ${s.id}`, 14, y + 12)
   if (s.dob) doc.text(`Date of Birth: ${s.dob}  |  Mobile: ${s.mobile || '-'}`, 14, y + 17)
 
   y += 24

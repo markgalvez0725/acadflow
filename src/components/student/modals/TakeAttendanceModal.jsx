@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { sortByLastName } from '@/utils/format'
+import { courseShort } from '@/constants/courses'
 import Modal from '@/components/primitives/Modal'
 import { CalendarDays, Check, ClipboardList, X, UserCheck } from 'lucide-react'
 
@@ -84,7 +85,7 @@ export default function TakeAttendanceModal({ classId, subject, onClose }) {
         <UserCheck size={16} />
         <h3 className="mb-0">Take Attendance</h3>
       </div>
-      <p className="modal-sub mb-3">{subject} · {cls?.name} {cls?.section}</p>
+      <p className="modal-sub mb-3">{subject} · <span title={cls?.name || ''}>{courseShort(cls?.name)}</span> {cls?.section}</p>
 
       {/* Date banner */}
       <div className="rounded-lg p-3 mb-3 flex items-center justify-between flex-wrap gap-2"

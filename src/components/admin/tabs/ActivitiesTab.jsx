@@ -3,6 +3,7 @@ import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { sortByLastName } from '@/utils/format'
+import { courseShort } from '@/constants/courses'
 import { getHeldDays, computeTerms, scoredPercent, round2 } from '@/utils/grades'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
@@ -335,7 +336,7 @@ function ActivityFormModal({ act, onClose }) {
           <label className="text-xs font-semibold text-ink2 mb-1 block">Class <span className="text-red-500">*</span></label>
           <select className="input w-full" value={classId} onChange={e => handleClassChange(e.target.value)} disabled={isEdit}>
             <option value="">- Select Class -</option>
-            {classes.filter(c => !c.archived).map(c => <option key={c.id} value={c.id}>{c.name} {c.section}</option>)}
+            {classes.filter(c => !c.archived).map(c => <option key={c.id} value={c.id}>{courseShort(c.name)} {c.section}</option>)}
           </select>
         </div>
         <div className="field flex-1">
@@ -1280,7 +1281,7 @@ export default function ActivitiesTab() {
               {readOnly && <Badge variant="yellow">Archived</Badge>}
             </div>
             <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
-              {cls ? cls.name + ' ' + cls.section : '-'} · Max: {act.maxScore} pts
+              {cls ? courseShort(cls.name) + ' ' + cls.section : '-'} · Max: {act.maxScore} pts
             </div>
             <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 3 }}>
               Deadline: {dlLabel} · {act.isGroup ? `${groupsSubmitted}/${groupCount} group${groupCount === 1 ? '' : 's'} submitted` : `${submitted}/${subs.length} submitted`} · {graded} graded

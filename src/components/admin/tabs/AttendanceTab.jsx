@@ -3,7 +3,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { sortByLastName, fmtDateShort } from '@/utils/format'
 import { getHeldDays } from '@/utils/grades'
-import { classTag } from '@/utils/groupChat'
+import { classTag, courseShort } from '@/utils/groupChat'
 import { triageExcuses } from '@/utils/excuseTriage'
 import { prewarmEmbeddings } from '@/utils/embeddings'
 import { subjectSessionDates, trailingAbsenceStreak } from '@/utils/attendanceRisk'
@@ -477,7 +477,7 @@ function AttendanceCalendarModal({ classId, subject, readOnly, onClose }) {
       <div className="flex items-center justify-between mb-3">
         <div>
           <h3 className="mb-0"><CalendarDays size={16} className="inline-block mr-1 align-text-bottom" />Attendance</h3>
-          <p className="modal-sub mb-0">{subject} · {cls?.name} {cls?.section}</p>
+          <p className="modal-sub mb-0">{subject} · <span title={cls?.name || ''}>{courseShort(cls?.name)}</span> {cls?.section}</p>
         </div>
       </div>
 
@@ -699,7 +699,7 @@ function SetRepModal({ classId, subject, studs, onClose }) {
         <UserCheck size={16} />
         <h3 className="mb-0">Set Attendance Representative</h3>
       </div>
-      <p className="modal-sub mb-4">{subject} · {cls?.name} {cls?.section}</p>
+      <p className="modal-sub mb-4">{subject} · <span title={cls?.name || ''}>{courseShort(cls?.name)}</span> {cls?.section}</p>
 
       {current && (
         <div className="rounded-lg p-3 mb-3 flex items-center justify-between gap-2"

@@ -18,9 +18,8 @@ import { Download, Upload, KeyRound, GraduationCap, CheckCircle2, Pencil, Plus, 
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { buildStudentReportCard } from '@/export/reportCard'
 import { exportStudentRosterExcel, exportStudentImportTemplate, parseStudentImportExcel } from '@/export/excelExport'
-import { courseOptions, courseFromShort } from '@/constants/courses'
+import { courseOptions, courseFromShort, courseShort } from '@/constants/courses'
 import { classMatchesCourseYear } from '@/utils/enrollment'
-import { courseShort } from '@/utils/groupChat'
 import { activeSubjects } from '@/utils/active'
 import { splitStudentName, buildStudentName } from '@/utils/studentName'
 import { verifyImportRows } from '@/utils/importVerifyAI'
@@ -179,7 +178,7 @@ function AddStudentModal({ onClose }) {
           <label>Course / Program <span className="text-red-500">*</span></label>
           <select value={course} onChange={e => setCourse(e.target.value)}>
             <option value="">- Select course -</option>
-            {courseOptions(course).map(c => <option key={c} value={c}>{c}</option>)}
+            {courseOptions(course).map(c => <option key={c} value={c}>{courseShort(c)}</option>)}
           </select>
         </div>
         <div className="field">
@@ -442,7 +441,7 @@ function EditStudentModal({ student, onClose }) {
           <label>Course / Program <span className="text-red-500">*</span></label>
           <select value={course} onChange={e => setCourse(e.target.value)}>
             <option value="">- Select course -</option>
-            {courseOptions(course).map(c => <option key={c} value={c}>{c}</option>)}
+            {courseOptions(course).map(c => <option key={c} value={c}>{courseShort(c)}</option>)}
           </select>
         </div>
         <div className="field">
@@ -954,7 +953,7 @@ function ImportStudentsModal({ onClose }) {
                     <td className="text-ink3">{i + 2}</td>
                     <td className="font-mono">{r.id || '-'}</td>
                     <td>{r.name || '-'}</td>
-                    <td>{r.course || '-'}</td>
+                    <td title={r.course || ''}>{courseShort(r.course) || '-'}</td>
                     <td>{r.year || '1st Year'}</td>
                     <td>{r.section || '-'}</td>
                     <td>
@@ -1118,6 +1117,7 @@ export default function StudentsTab() {
         s.name?.toLowerCase().includes(q) ||
         s.id?.toLowerCase().includes(q) ||
         (s.course || '').toLowerCase().includes(q) ||
+        courseShort(s.course).toLowerCase().includes(q) ||
         (s.account?.email || '').toLowerCase().includes(q)
       )
     })
@@ -1440,20 +1440,20 @@ export default function StudentsTab() {
                         </button>
                       </td>
                       <td><span className="stu-id-pill">{s.id}</span></td>
-                      <td className="hidden lg:table-cell"><span className="stu-course-cell">{s.course || '-'}</span></td>
+                      <td className="hidden lg:table-cell"><span className="stu-course-cell" title={s.course || ''}>{courseShort(s.course) || '-'}</span></td>
                       <td>
                         {!enrolledClasses.length ? (
                           <span style={{ color: 'var(--ink3)', fontStyle: 'italic', fontSize: 12 }}>Unassigned</span>
                         ) : enrolledClasses.length === 1 ? (
-                          <span style={{ fontSize: 12 }}>{enrolledClasses[0].name} {enrolledClasses[0].section}</span>
+                          <span style={{ fontSize: 12 }} title={enrolledClasses[0].name}>{courseShort(enrolledClasses[0].name)} {enrolledClasses[0].section}</span>
                         ) : (
                           <span>
-                            <span style={{ fontSize: 12, fontWeight: 600 }}>
-                              {(enrolledClasses.find(c => c.id === s.classId) || enrolledClasses[0]).name}{' '}
+                            <span style={{ fontSize: 12, fontWeight: 600 }} title={(enrolledClasses.find(c => c.id === s.classId) || enrolledClasses[0]).name}>
+                              {courseShort((enrolledClasses.find(c => c.id === s.classId) || enrolledClasses[0]).name)}{' '}
                               {(enrolledClasses.find(c => c.id === s.classId) || enrolledClasses[0]).section}
                             </span>
                             {enrolledClasses.filter(c => c.id !== s.classId).map(c => (
-                              <span key={c.id} style={{ display: 'block', fontSize: 10, color: 'var(--accent)', marginTop: 2 }}>+{c.name} {c.section}</span>
+                              <span key={c.id} style={{ display: 'block', fontSize: 10, color: 'var(--accent)', marginTop: 2 }} title={c.name}>+{courseShort(c.name)} {c.section}</span>
                             ))}
                           </span>
                         )}
@@ -1546,13 +1546,13 @@ export default function StudentsTab() {
                   <div className="grid gap-x-3 gap-y-1.5 mt-2.5 pt-2.5" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', borderTop: '1px solid var(--border)', fontSize: 12 }}>
                     <div className="min-w-0">
                       <div className="text-ink3" style={{ fontSize: 11 }}>Course</div>
-                      <div className="text-ink2 truncate">{s.course || '-'}</div>
+                      <div className="text-ink2 truncate" title={s.course || ''}>{courseShort(s.course) || '-'}</div>
                     </div>
                     <div className="min-w-0">
                       <div className="text-ink3" style={{ fontSize: 11 }}>Class</div>
                       {!primaryCls
                         ? <div style={{ color: 'var(--ink3)', fontStyle: 'italic' }}>Unassigned</div>
-                        : <div className="truncate">{primaryCls.name} {primaryCls.section}{extras > 0 ? <span style={{ color: 'var(--accent)' }}> +{extras}</span> : null}</div>}
+                        : <div className="truncate" title={primaryCls.name}>{courseShort(primaryCls.name)} {primaryCls.section}{extras > 0 ? <span style={{ color: 'var(--accent)' }}> +{extras}</span> : null}</div>}
                     </div>
                     <div className="min-w-0" style={{ gridColumn: '1 / -1' }}>
                       <div className="text-ink3" style={{ fontSize: 11 }}>Email</div>

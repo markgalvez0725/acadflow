@@ -10,7 +10,7 @@ import { exportMasterGradingReport } from '@/export/excelExport'
 import { exportGradingSheet, parseGradingSheetImport, exportCurrentGrades } from '@/export/gradingSheet'
 import { verifyGradeRows } from '@/utils/gradeImportVerifyAI'
 import { makeHistoryEntry, appendGradeHistory } from '@/utils/gradeEngine'
-import { classTag } from '@/utils/groupChat'
+import { classTag, courseShort } from '@/utils/groupChat'
 import { pushStudentNotif } from '@/firebase/studentNotif'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
@@ -692,7 +692,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
         <div>
           <h3 className="mb-0"><Pencil size={16} className="inline-block mr-1 align-text-bottom" />Edit Grades</h3>
           <p className="modal-sub mb-0">
-            Subject: <strong>{subject}</strong> · {cls?.name} {cls?.section}
+            Subject: <strong>{subject}</strong> · <span title={cls?.name || ''}>{courseShort(cls?.name)}</span> {cls?.section}
           </p>
         </div>
         <div className="text-xs text-ink2">
@@ -1485,7 +1485,7 @@ function GradeImportPreviewModal({ preview, cls, onCancel, onConfirm }) {
       <div className="flex items-start justify-between flex-wrap gap-2 mb-1">
         <div>
           <h3 className="mb-0"><Sparkles size={16} className="inline-block mr-1 align-text-bottom" style={{ color: 'var(--accent)' }} />Review import - {sub}</h3>
-          <p className="modal-sub mb-0">{cls?.name} {cls?.section} · <span className="text-ink3">{fileName}</span></p>
+          <p className="modal-sub mb-0"><span title={cls?.name || ''}>{courseShort(cls?.name)}</span> {cls?.section} · <span className="text-ink3">{fileName}</span></p>
         </div>
       </div>
 

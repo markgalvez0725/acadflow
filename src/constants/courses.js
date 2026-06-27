@@ -9,6 +9,29 @@ export const COURSES = [
   'BS Computer Science',
 ]
 
+// The four short course codes, in the order they map below.
+const COURSE_SHORTS = ['BSEMC', 'BSIS', 'BSCS', 'BSIT']
+
+// Map a course (full name OR an already-short code) to its short code:
+// BSEMC / BSIS / BSCS / BSIT. This is the single source of truth for how a
+// course is DISPLAYED everywhere (roster, dropdowns, headers, exports). The
+// stored student.course / class.courseReq stay full names (enrollment matching
+// relies on them); only the on-screen label is shortened. An unknown/legacy
+// value is returned unchanged so nothing ever renders blank. Mirrors
+// courseFromShort(), which expands a code back to the full canonical name.
+export function courseShort(course) {
+  const raw = String(course || '').trim()
+  if (!raw) return ''
+  const compact = raw.toUpperCase().replace(/[^A-Z]/g, '')
+  for (const code of COURSE_SHORTS) if (compact.includes(code)) return code
+  const c = raw.toLowerCase()
+  if (c.includes('entertainment') || c.includes('multimedia')) return 'BSEMC'
+  if (c.includes('information system')) return 'BSIS'
+  if (c.includes('computer science')) return 'BSCS'
+  if (c.includes('information technology')) return 'BSIT'
+  return raw
+}
+
 // Returns the option list, prepending any existing/legacy value that isn't in
 // the canonical list so editing an older record never silently drops its course.
 export function courseOptions(current) {

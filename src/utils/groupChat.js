@@ -3,21 +3,11 @@
 // Both sides resolve the SAME display name so a teacher rename (or the auto
 // name) shows identically to students.
 
-const COURSE_SHORTS = ['BSEMC', 'BSIS', 'BSCS', 'BSIT']
-
-// Map a course (full name or code) to its short code: BSEMC / BSIS / BSCS / BSIT.
-export function courseShort(course) {
-  const raw = String(course || '').trim()
-  if (!raw) return ''
-  const compact = raw.toUpperCase().replace(/[^A-Z]/g, '')
-  for (const code of COURSE_SHORTS) if (compact.includes(code)) return code
-  const c = raw.toLowerCase()
-  if (c.includes('entertainment') || c.includes('multimedia')) return 'BSEMC'
-  if (c.includes('information system')) return 'BSIS'
-  if (c.includes('computer science')) return 'BSCS'
-  if (c.includes('information technology')) return 'BSIT'
-  return raw
-}
+// courseShort() now lives with the canonical course list in @/constants/courses.
+// Re-exported here so existing `import { courseShort } from '@/utils/groupChat'`
+// call sites keep working.
+import { courseShort } from '@/constants/courses'
+export { courseShort }
 
 // Combine a year digit and a section into a "3A" suffix without doubling the
 // year when the section already encodes it (e.g. section "3A" + year "3").

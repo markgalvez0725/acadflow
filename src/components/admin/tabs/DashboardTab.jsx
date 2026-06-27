@@ -8,6 +8,7 @@ import { fbPushReminderNotif } from '@/firebase/reminders'
 import { sendPushToOwners } from '@/firebase/pushTokens'
 import { computeAssessmentStats } from '@/utils/assessmentStats'
 import { sortByLastName } from '@/utils/format'
+import { courseShort } from '@/constants/courses'
 import Badge from '@/components/primitives/Badge'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import DonutChart from '@/components/charts/DonutChart'
@@ -282,7 +283,7 @@ export default function DashboardTab() {
                       <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.student.name}</span>
                       <VerifiedBadge student={r.student} size={14} />
                     </div>
-                    <div className="ds-stud-id">{r.student.id}{cls ? ` · ${cls.name} ${cls.section}` : ''}</div>
+                    <div className="ds-stud-id">{r.student.id}{cls ? ` · ${courseShort(cls.name)} ${cls.section}` : ''}</div>
                     <div style={{ fontSize: 11, color: 'var(--ink2)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {r.reasons.slice(0, 2).map(rs => rs.text).join(' · ')}
                     </div>
@@ -344,7 +345,7 @@ export default function DashboardTab() {
                         <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</span>
                         <VerifiedBadge student={s} size={14} />
                       </div>
-                      <div className="ds-stud-id">{s.id}{cls ? ` · ${cls.name} ${cls.section}` : ''}</div>
+                      <div className="ds-stud-id">{s.id}{cls ? ` · ${courseShort(cls.name)} ${cls.section}` : ''}</div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flex: 'none' }}>
                       <Badge variant={st.variant}>{gwa !== null ? gwa.toFixed(1) : '-'}</Badge>

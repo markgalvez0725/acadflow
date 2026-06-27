@@ -10,6 +10,7 @@ import { subjectColor } from '@/utils/subjectColor'
 import { activeClassIds, activeSubjects } from '@/utils/active'
 import { accountStatus } from '@/utils/accountStatus'
 import { buildStudentReportCard } from '@/export/reportCard'
+import { courseShort } from '@/constants/courses'
 import {
   BarChart3, CalendarCheck, BookOpen, ClipboardList, FileDown,
   ChevronDown, ChevronRight, GraduationCap, Clock,
@@ -127,10 +128,10 @@ export default function StudentProfileModal() {
             <VerifiedBadge student={student} size={17} />
           </h3>
           <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
-            #{student.id} · {student.course || '-'} · {student.year || '-'}
+            #{student.id} · <span title={student.course || ''}>{courseShort(student.course) || '-'}</span> · {student.year || '-'}
           </div>
           <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 2 }}>
-            {enrolledClasses.map(c => `${c.name} ${c.section}`).join(' · ') || 'Unassigned'} · Account: {acct}
+            {enrolledClasses.map(c => `${courseShort(c.name)} ${c.section}`).join(' · ') || 'Unassigned'} · Account: {acct}
           </div>
         </div>
       </div>

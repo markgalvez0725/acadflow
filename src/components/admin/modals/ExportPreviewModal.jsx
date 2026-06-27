@@ -13,6 +13,7 @@ import {
   buildAttendanceWorkbook,
   buildStudentWorkbook,
 } from '@/export/excelExport'
+import { courseShort } from '@/constants/courses'
 import {
   buildGradesPDFDoc,
   buildAttendancePDFDoc,
@@ -59,8 +60,8 @@ export default function ExportPreviewModal({ type, classId, subject, student: st
   const title = type === 'student'
     ? `Student Report - ${studentProp?.name || ''}`
     : type === 'grades'
-      ? `Grades - ${cls ? cls.name + ' ' + cls.section : ''} · ${subject || ''}`
-      : `Attendance - ${cls ? cls.name + ' ' + cls.section : ''} · ${subject || ''}`
+      ? `Grades - ${cls ? courseShort(cls.name) + ' ' + cls.section : ''} · ${subject || ''}`
+      : `Attendance - ${cls ? courseShort(cls.name) + ' ' + cls.section : ''} · ${subject || ''}`
 
   // ── Download handlers ───────────────────────────────────────────────
   async function handleExcel() {

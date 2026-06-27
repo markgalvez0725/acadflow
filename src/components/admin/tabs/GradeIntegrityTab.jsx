@@ -6,6 +6,7 @@ import {
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { verifyPublishedGrade } from '@/utils/gradeEngine'
+import { courseShort } from '@/constants/courses'
 
 // ── Grade Integrity ────────────────────────────────────────────────────────
 // Every published grade, its full computation breakdown, a publish history
@@ -52,7 +53,7 @@ export default function GradeIntegrityTab() {
         const v = verifyPublishedGrade(s, sub, ctx)
         const cls = classes.find(c => enrolledIds.includes(c.id) && c.subjects?.includes(sub))
           || classes.find(c => c.subjects?.includes(sub))
-        const courseLabel = cls ? `${cls.name}${cls.section ? ' ' + cls.section : ''}` : '-'
+        const courseLabel = cls ? `${courseShort(cls.name)}${cls.section ? ' ' + cls.section : ''}` : '-'
         out.push({
           key: s.id + '|' + sub,
           studentId: s.id, name: s.name || s.id, sub,

@@ -5,7 +5,7 @@ import { useUI } from '@/context/UIContext'
 import { sortByLastName, dayLabel, getInitials, fmtTime as timeLabel, relativeTime } from '@/utils/format'
 import { groupFlags, previewText } from '@/utils/messageThread'
 import { isClassCurrent } from '@/utils/active'
-import { isGroupMessage, autoGroupName, groupName, studentTag, groupMembers } from '@/utils/groupChat'
+import { isGroupMessage, autoGroupName, groupName, studentTag, groupMembers, courseShort } from '@/utils/groupChat'
 import GroupMembers from '@/components/primitives/GroupMembers'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import TypingIndicator from '@/components/primitives/TypingIndicator'
@@ -79,7 +79,7 @@ function RecipientPicker({ students, classes, classGroups, classBroadcasts, subj
     if (typeof value === 'string' && value.startsWith('class:')) {
       const cid = value.slice(6)
       const cls = classes.find(c => c.id === cid)
-      return { label: cls ? `All in ${cls.name} ${cls.section}` : 'Class broadcast', sub: 'Announcement', announce: true }
+      return { label: cls ? `All in ${courseShort(cls.name)} ${cls.section}` : 'Class broadcast', sub: 'Announcement', announce: true }
     }
     if (typeof value === 'string' && value.startsWith('subject:')) {
       const name = value.slice(8)
@@ -130,7 +130,7 @@ function RecipientPicker({ students, classes, classGroups, classBroadcasts, subj
                 </button>
                 {(classBroadcasts || []).map(cls => {
                   const v = 'class:' + cls.id
-                  const label = `${cls.name}${cls.section ? ' ' + cls.section : ''}`
+                  const label = `${courseShort(cls.name)}${cls.section ? ' ' + cls.section : ''}`
                   return (
                     <button type="button" key={v} className="recipient-opt" onClick={() => pick(v)}>
                       <Avatar char={<Megaphone size={15} />} announce size={30} />
@@ -202,7 +202,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
     const groups = {}
     students.forEach(s => {
       const cls = classes.find(c => c.id === s.classId)
-      const label = cls ? cls.name + ' ' + cls.section : 'Unassigned'
+      const label = cls ? courseShort(cls.name) + ' ' + cls.section : 'Unassigned'
       if (!groups[label]) groups[label] = []
       groups[label].push(s)
     })

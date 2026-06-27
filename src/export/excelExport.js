@@ -124,7 +124,7 @@ function rosterData(students, classes, semester) {
     // Only CURRENT-semester (non-archived) subjects - past/archived classes drop off.
     const subjects = activeSubjects(s, classes, semester).join(', ')
     const n = splitStudentName(s.name)
-    return [idx + 1, s.id, n.last, n.first, n.middle, courseShort(s.course) || s.course || '', s.year || '', subjects, primary?.section || '']
+    return [idx + 1, s.id, n.last, n.first, n.middle, courseShort(s.course) || '', s.year || '', subjects, primary?.section || '']
   })
   // Dropdown sources - NOT the column data. Subjects = the distinct subjects across
   // the app's CURRENT-semester (non-archived) classes only. Courses = the canonical
@@ -456,7 +456,7 @@ export function buildGradesData(classId, students, classes, eqScale = DEFAULT_EQ
     const avgInfo   = avgEq != null ? equivInfo(avgEqStr) : { ltr: '-', rem: 'No Grade' }
 
     return [
-      s.name, s.id, s.course || '', s.year || '',
+      s.name, s.id, courseShort(s.course) || '', s.year || '',
       ...subGrades,
       avgEqStr,
       avgEqStr,
@@ -527,7 +527,7 @@ export function buildAttendanceData(classId, students, classes) {
     const totalPresent = presentCounts.reduce((a, b) => a + b, 0)
     const overallRate  = getAttRate(s, students, classes)
     return [
-      s.name, s.id, s.course || '', s.year || '',
+      s.name, s.id, courseShort(s.course) || '', s.year || '',
       ...presentCounts,
       ...rates,
       totalPresent,
@@ -614,7 +614,7 @@ export function buildGradesWorkbook(data, students, classes, eqScale = DEFAULT_E
       const mtInfo = midG != null ? gradeInfo(midG, eqScale) : { eq: '-' }
       const ftInfo = finG != null ? gradeInfo(finG, eqScale) : { eq: '-' }
       return [
-        s.name, s.id, s.course || '', s.year || '',
+        s.name, s.id, courseShort(s.course) || '', s.year || '',
         midG ?? '-', finG ?? '-',
         (midG != null && finG != null) ? ((midG + finG) / 2).toFixed(2) : '-',
         info.eq, info.ltr, info.rem,
@@ -738,7 +738,7 @@ export function buildStudentWorkbook(s, classes, students, eqScale = DEFAULT_EQ_
   // ── Grades sheet ──────────────────────────────────────────────────────
   const gradeRows = [
     [`STUDENT GRADE REPORT - ${s.name}`],
-    [`Student No.: ${s.id}  |  Course: ${s.course || '-'}  |  Year: ${s.year || '-'}`],
+    [`Student No.: ${s.id}  |  Course: ${courseShort(s.course) || '-'}  |  Year: ${s.year || '-'}`],
     [`Exported: ${exportDate}  |  GWA: ${gwa != null ? gwa.toFixed(2) : '-'}`],
     [],
     ['Subject', 'Midterm (%)', 'Finals (%)', 'Midterm Equiv', 'Finals Equiv', 'Final Equiv', 'Letter', 'Remark', 'Uploaded'],
@@ -865,7 +865,7 @@ export function exportMasterGradingReport({ students, classes, eqScale = DEFAULT
                            : 'Passed'
     const primaryCls = classes.find(c => enrolledIds.includes(c.id))
     return [
-      idx + 1, s.id, s.name, s.course || '', s.year || '',
+      idx + 1, s.id, s.name, courseShort(s.course) || '', s.year || '',
       primaryCls?.name || '', primaryCls?.section || '',
       allSubs.length, passed, failed, conditional, pending,
       gwaEquiv, attRateStr, overallStatus,
@@ -929,7 +929,7 @@ export function exportMasterGradingReport({ students, classes, eqScale = DEFAULT
       'GWA (Equiv)', 'Avg Att %', 'Overall Status',
     ]
     const ovRows = roster.map((s, idx) => {
-      const row = [idx + 1, s.id, s.name, s.course || '', s.year || '']
+      const row = [idx + 1, s.id, s.name, courseShort(s.course) || '', s.year || '']
       subs.forEach(sub => {
         const { eq, rem } = gradeInfoForStudent(s, sub, eqScale)
         row.push(eq, rem)
@@ -989,7 +989,7 @@ export function exportMasterGradingReport({ students, classes, eqScale = DEFAULT
         const cs      = comp.midtermCS != null ? comp.midtermCS : comp.finalsCS ?? null
         const { eq, ltr, rem } = gradeInfoForStudent(s, sub, eqScale)
         return [
-          idx + 1, s.id, s.name, s.course || '', s.year || '',
+          idx + 1, s.id, s.name, courseShort(s.course) || '', s.year || '',
           comp.activities  != null ? comp.activities  : '-',
           comp.quizzes     != null ? comp.quizzes     : '-',
           attRate          != null ? attRate           : '-',
@@ -1241,7 +1241,7 @@ export function buildStudentPreviewHTML(s, classes, students, eqScale = DEFAULT_
     <div style="font-family:sans-serif;max-width:700px">
       <div style="background:#1e3a8a;color:#fff;padding:14px 18px;border-radius:10px 10px 0 0">
         <div style="font-size:16px;font-weight:700">${s.name}</div>
-        <div style="font-size:11px;opacity:.8;margin-top:3px">${s.id} · ${s.course || '-'} · ${s.year || '-'}</div>
+        <div style="font-size:11px;opacity:.8;margin-top:3px">${s.id} · ${courseShort(s.course) || '-'} · ${s.year || '-'}</div>
       </div>
       <div style="display:flex;gap:12px;padding:10px 18px;background:#eff6ff;border:1px solid #bfdbfe">
         <div style="flex:1;text-align:center">

@@ -659,7 +659,7 @@ export default function LoginScreen({ onRevealFaculty }) {
               <div className="field-float field-float--select">
                 <select value={regCourse} onChange={e => setRegCourse(e.target.value)}>
                   <option value="">- Select course -</option>
-                  {courseOptions(regCourse).map(c => <option key={c} value={c}>{c}</option>)}
+                  {courseOptions(regCourse).map(c => <option key={c} value={c}>{courseShort(c)}</option>)}
                 </select>
                 <label>Course / Program</label>
               </div>

@@ -4,6 +4,7 @@ import { activeClassIds } from '@/utils/active'
 import ExpandableHtml from '@/components/primitives/ExpandableHtml'
 import { sanitizeAnnouncementHtml } from '@/utils/sanitizeHtml'
 import { streamGroupLabel as getGroupLabel, fmtDateTime as formatDate } from '@/utils/format'
+import { courseShort } from '@/constants/courses'
 
 const PAGE_SIZE = 10
 
@@ -82,7 +83,7 @@ function TypeBadge({ type }) {
 }
 
 function classLabel(classObj) {
-  return classObj?.name ? `${classObj.name}${classObj.section ? ' · ' + classObj.section : ''}` : ''
+  return classObj?.name ? `${courseShort(classObj.name)}${classObj.section ? ' · ' + classObj.section : ''}` : ''
 }
 
 function AnnouncementCard({ item, classObj }) {

@@ -5,6 +5,7 @@ import {
   ShieldCheck, ArrowRight, Unlink, CheckCircle2,
 } from 'lucide-react'
 import { activeClassIds } from '@/utils/active'
+import { courseShort } from '@/constants/courses'
 
 const IMMINENT_MS = 15 * 60 * 1000 // a class "starting soon" - show one-tap join
 
@@ -66,7 +67,7 @@ export default function OnlineClassesTab({ student }) {
 
   const classNameById = useMemo(() => {
     const map = {}
-    classes.forEach(c => { map[c.id] = c.section ? `${c.name} - ${c.section}` : c.name })
+    classes.forEach(c => { map[c.id] = c.section ? `${courseShort(c.name)} - ${c.section}` : courseShort(c.name) })
     return map
   }, [classes])
 

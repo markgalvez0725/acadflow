@@ -15,7 +15,7 @@ import { compareStyle, collectQuizText } from '@/utils/stylometry'
 import { mineAnswerKey } from '@/utils/answerKeyMine'
 import { computeQuizScore } from '@/utils/quizScore'
 import { quizItemAnalysis } from '@/utils/quizStats'
-import { classTag } from '@/utils/groupChat'
+import { classTag, courseShort } from '@/utils/groupChat'
 
 
 function quizId() {
@@ -528,7 +528,7 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
                   title={`${c.name} ${c.section}${subs ? ' - ' + subs : ''}`}
                   className={`btn btn-sm ${classIds.includes(c.id) ? 'btn-primary' : 'btn-ghost'}`}
                   style={{ fontSize: 12, height: 'auto', padding: '6px 11px', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.3, gap: 1 }}>
-                  <span style={{ fontWeight: 700 }}>{classTag(c) || `${c.name} ${c.section}`}</span>
+                  <span style={{ fontWeight: 700 }}>{classTag(c) || `${courseShort(c.name)} ${c.section}`}</span>
                   <span style={{ fontSize: 10.5, fontWeight: 500, opacity: 0.85 }}>{subs || 'No subjects'}</span>
                 </button>
               )
@@ -1477,7 +1477,7 @@ export default function QuizTab() {
               const { label, variant } = statusInfo(q)
               const clsNames = (q.classIds || []).map(id => {
                 const c = classes.find(x => x.id === id)
-                return c ? `${c.name} ${c.section}` : id
+                return c ? `${courseShort(c.name)} ${c.section}` : id
               }).join(', ')
               const attempted = Object.keys(q.submissions || {}).length
               const openLabel = new Date(q.openAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -1538,7 +1538,7 @@ export default function QuizTab() {
                   const { label, variant } = statusInfo(q)
                   const clsNames = (q.classIds || []).map(id => {
                     const c = classes.find(x => x.id === id)
-                    return c ? `${c.name} ${c.section}` : id
+                    return c ? `${courseShort(c.name)} ${c.section}` : id
                   }).join(', ')
                   const attempted = Object.keys(q.submissions || {}).length
                   const openLabel = new Date(q.openAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })

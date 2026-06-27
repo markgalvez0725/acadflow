@@ -8,6 +8,7 @@ import {
   CalendarDays, Clock, MapPin, AlertTriangle, TimerOff, Bell,
   Archive, ChevronDown, ChevronRight, Info,
 } from 'lucide-react'
+import { courseShort } from '@/constants/courses'
 
 // ── Helpers ───────────────────────────────────────────────────────────
 function fmtDate(iso) {
@@ -63,8 +64,11 @@ function ContextStrip({ semester, student, openCount }) {
     statusVal = semester.label || `${semester.term} AY ${semester.year}`; accent = 'var(--ink3)'
   }
 
-  const courseVal = student.course
+  const courseFull = student.course
     ? `${student.course}${student.year ? ` · ${student.year}` : ''}`
+    : 'Not set'
+  const courseVal = student.course
+    ? `${courseShort(student.course)}${student.year ? ` · ${student.year}` : ''}`
     : 'Not set'
 
   return (
@@ -75,7 +79,7 @@ function ContextStrip({ semester, student, openCount }) {
       </div>
       <div className="px-3.5 py-2.5">
         <div className="text-[11px] uppercase tracking-wide text-[var(--ink3)]">Your course</div>
-        <div className="text-xs font-semibold text-[var(--ink)] mt-0.5 truncate" title={courseVal}>
+        <div className="text-xs font-semibold text-[var(--ink)] mt-0.5 truncate" title={courseFull}>
           {student.course ? courseVal : <span className="text-red-500 font-medium">Not set</span>}
         </div>
       </div>
@@ -217,7 +221,7 @@ function ClassCard({ cls, student, onEnroll, busy, isCurrentSem, semesterStatus,
           {(featured || cls.section) && (
             <div className="text-xs text-[var(--ink3)] mt-0.5 truncate">
               {featured
-                ? <>{cls.name}{cls.section && <> · Section <strong className="font-medium text-[var(--ink2)]">{cls.section}</strong></>}</>
+                ? <><span title={cls.name}>{courseShort(cls.name)}</span>{cls.section && <> · Section <strong className="font-medium text-[var(--ink2)]">{cls.section}</strong></>}</>
                 : <>Section <strong className="font-medium text-[var(--ink2)]">{cls.section}</strong></>}
             </div>
           )}
@@ -274,8 +278,8 @@ function ClassCard({ cls, student, onEnroll, busy, isCurrentSem, semesterStatus,
         <div className="flex items-start gap-1.5 text-xs text-red-500 bg-red-50 dark:bg-red-900/15 px-2.5 py-2 rounded-lg">
           <XCircle size={13} className="shrink-0 mt-0.5" />
           <span>
-            Requires <strong>{cls.courseReq || cls.name}</strong>.
-            Your course is <strong>{student.course || 'not set'}</strong>.
+            Requires <strong title={cls.courseReq || cls.name}>{courseShort(cls.courseReq || cls.name)}</strong>.
+            Your course is <strong title={student.course || ''}>{courseShort(student.course) || 'not set'}</strong>.
           </span>
         </div>
       )}

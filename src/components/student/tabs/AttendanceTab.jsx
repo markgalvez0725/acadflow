@@ -6,6 +6,7 @@ import { CalendarCheck, Calendar, CheckCircle2, FileCheck, XCircle, Award, UserC
 import TakeAttendanceModal from '@/components/student/modals/TakeAttendanceModal'
 import StandingRing from '@/components/primitives/StandingRing'
 import { activeClassIds, activeSubjects } from '@/utils/active'
+import { courseShort } from '@/constants/courses'
 
 const DAY_LETTERS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 const THRESHOLD = 80 // % present required to stay in good standing
@@ -406,7 +407,7 @@ function SubjectDetail({ sub, student: s, cls, students }) {
       <div className="att2-sub-head">
         <div>
           <div className="att2-sub-name">{sub}</div>
-          {cls && <div className="att2-sub-meta">{cls.name} · {cls.section} · {cls.schedule}</div>}
+          {cls && <div className="att2-sub-meta" title={cls.name}>{courseShort(cls.name)} · {cls.section} · {cls.schedule}</div>}
         </div>
         <div className="att2-sub-rate" style={{ color: rateColor }}>{rate.toFixed(0)}%</div>
       </div>

@@ -3,6 +3,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { ChevronLeft, ChevronRight, CalendarDays, X, ClipboardList, FileQuestion, Megaphone, Clock3 } from 'lucide-react'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
+import { courseShort } from '@/constants/courses'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -242,7 +243,7 @@ export default function CalendarTab() {
             >
               <option value="all">All Classes</option>
               {activeClasses.map(c => (
-                <option key={c.id} value={c.id}>{c.name}{c.section ? ` - ${c.section}` : ''}</option>
+                <option key={c.id} value={c.id}>{courseShort(c.name)}{c.section ? ` - ${c.section}` : ''}</option>
               ))}
             </select>
           </div>

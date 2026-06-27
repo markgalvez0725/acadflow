@@ -8,6 +8,7 @@ import {
   FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Users, GraduationCap,
   Sun, Moon, Download, CornerDownLeft, ArrowUp, ArrowDown, User, Building2, Sparkles, History, Library, ListChecks, MessageSquare, MessageSquarePlus, ShieldCheck,
 } from 'lucide-react'
+import { courseShort } from '@/constants/courses'
 
 // Tab catalogs mirror AdminLayout / StudentLayout nav (kept in sync manually).
 const ADMIN_TABS = [
@@ -179,9 +180,9 @@ export default function CommandPalette() {
         entities.push({
           id: 'student:' + s.id,
           label: s.name || s.id,
-          hint: [s.snum || s.id, s.course].filter(Boolean).join(' · '),
+          hint: [s.snum || s.id, courseShort(s.course)].filter(Boolean).join(' · '),
           section: 'Students',
-          keywords: `${s.name || ''} ${s.snum || ''} ${s.id} ${s.course || ''}`,
+          keywords: `${s.name || ''} ${s.snum || ''} ${s.id} ${s.course || ''} ${courseShort(s.course)}`,
           Icon: User,
           run: () => { openStudentProfile?.(s.id); setOpen(false) },
         })
@@ -189,10 +190,10 @@ export default function CommandPalette() {
       classes.filter((c) => !c.archived).forEach((c) => {
         entities.push({
           id: 'class:' + c.id,
-          label: `${c.name}${c.section ? ' · ' + c.section : ''}`,
+          label: `${courseShort(c.name)}${c.section ? ' · ' + c.section : ''}`,
           hint: (c.subjects || []).slice(0, 3).join(', '),
           section: 'Classes',
-          keywords: `${c.name} ${c.section || ''} ${(c.subjects || []).join(' ')}`,
+          keywords: `${c.name} ${courseShort(c.name)} ${c.section || ''} ${(c.subjects || []).join(' ')}`,
           Icon: Building2,
           run: () => { setAdminTab('classes'); toast?.(`Open Classes → ${c.name}`, 'info', 2500); setOpen(false) },
         })

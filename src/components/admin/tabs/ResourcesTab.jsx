@@ -4,6 +4,7 @@ import { useUI } from '@/context/UIContext'
 import PageHeader from '@/components/ds/PageHeader'
 import { Library, Plus, Trash2, ExternalLink } from 'lucide-react'
 import { RESOURCE_TYPES, resourceType } from '@/utils/resourceTypes'
+import { courseShort } from '@/constants/courses'
 
 export default function ResourcesTab() {
   const { classes, resources, saveResource, deleteResource } = useData()
@@ -85,7 +86,7 @@ export default function ResourcesTab() {
           <select value={cid} onChange={e => { setClassId(e.target.value); setSubject('') }}>
             {activeClasses.length === 0 && <option value="">No classes yet</option>}
             {activeClasses.map(c => (
-              <option key={c.id} value={c.id}>{c.name}{c.section ? ` · ${c.section}` : ''}</option>
+              <option key={c.id} value={c.id}>{courseShort(c.name)}{c.section ? ` · ${c.section}` : ''}</option>
             ))}
           </select>
           <label>Class</label>
