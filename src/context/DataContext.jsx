@@ -5,7 +5,7 @@ import { fbStartListening, stopListening } from '@/firebase/listeners'
 import {
   persistStudentsSync, persistClassesSync, persistAdmin, loadAdminFromStorage,
   fbDeleteStudent, fbSaveAnnouncement, fbDeleteAnnouncement, fbPushAnnouncementNotifs,
-  fbAddAnnouncementComment, fbAddCommentReply, fbToggleAnnouncementLike, fbToggleSavedPost, fbToggleAnnouncementFollow,
+  fbAddAnnouncementComment, fbAddCommentReply, fbEditAnnouncementComment, fbDeleteAnnouncementComment, fbEditCommentReply, fbDeleteCommentReply, fbToggleAnnouncementLike, fbToggleSavedPost, fbToggleAnnouncementFollow,
   fbSaveRubricLibrary,
   fbSaveMeetLink, fbScheduleMeeting, fbStartMeeting, fbEndMeeting, fbCancelMeeting, fbPushMeetingNotifs,
   fbSetSubjectRep, fbDeleteClassRelatedData, fbAddAuditLog, fbRestoreFromBackup,
@@ -993,6 +993,40 @@ export function DataProvider({ children }) {
     await fbAddCommentReply(dbRef.current, announcementId, commentId, reply)
   }, [])
 
+  // Edit / delete a comment or reply. Optimistic; the listener reconciles with
+  // the transactional write. Authorization (own comment only) is enforced in the UI.
+  const editAnnouncementComment = useCallback(async (announcementId, commentId, text) => {
+    setAnnouncements(prev => prev.map(a => a.id === announcementId
+      ? { ...a, comments: (a.comments || []).map(c => c.id === commentId ? { ...c, text, editedAt: Date.now() } : c) }
+      : a))
+    await fbEditAnnouncementComment(dbRef.current, announcementId, commentId, text)
+  }, [])
+
+  const deleteAnnouncementComment = useCallback(async (announcementId, commentId) => {
+    setAnnouncements(prev => prev.map(a => a.id === announcementId
+      ? { ...a, comments: (a.comments || []).filter(c => c.id !== commentId) }
+      : a))
+    await fbDeleteAnnouncementComment(dbRef.current, announcementId, commentId)
+  }, [])
+
+  const editCommentReply = useCallback(async (announcementId, commentId, replyId, text) => {
+    setAnnouncements(prev => prev.map(a => a.id === announcementId
+      ? { ...a, comments: (a.comments || []).map(c => c.id === commentId
+          ? { ...c, replies: (c.replies || []).map(r => r.id === replyId ? { ...r, text, editedAt: Date.now() } : r) }
+          : c) }
+      : a))
+    await fbEditCommentReply(dbRef.current, announcementId, commentId, replyId, text)
+  }, [])
+
+  const deleteCommentReply = useCallback(async (announcementId, commentId, replyId) => {
+    setAnnouncements(prev => prev.map(a => a.id === announcementId
+      ? { ...a, comments: (a.comments || []).map(c => c.id === commentId
+          ? { ...c, replies: (c.replies || []).filter(r => r.id !== replyId) }
+          : c) }
+      : a))
+    await fbDeleteCommentReply(dbRef.current, announcementId, commentId, replyId)
+  }, [])
+
   // ── Enrollment helpers ─────────────────────────────────────────────────
   // Enroll a student in a class: validates course match, initialises subject
   // slots, then persists. Throws on validation failure so the caller can show
@@ -1249,7 +1283,7 @@ export function DataProvider({ children }) {
       activities, setActivities,
       adminNotifs, setAdminNotifs,
       quizzes, setQuizzes,
-      announcements, setAnnouncements, saveAnnouncement, deleteAnnouncement, pushAnnouncementNotifs, addAnnouncementComment, addCommentReply, toggleAnnouncementLike, toggleSavedPost, toggleAnnouncementFollow,
+      announcements, setAnnouncements, saveAnnouncement, deleteAnnouncement, pushAnnouncementNotifs, addAnnouncementComment, addCommentReply, editAnnouncementComment, deleteAnnouncementComment, editCommentReply, deleteCommentReply, toggleAnnouncementLike, toggleSavedPost, toggleAnnouncementFollow,
       rubricLibrary, saveRubricToLibrary, deleteLibraryRubric,
       purgeQuizFromStudents,
       syncDriftedGrades,

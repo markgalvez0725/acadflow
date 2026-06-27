@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { useData } from '@/context/DataContext'
-import { MessageSquare, CornerDownRight, Send, X } from 'lucide-react'
+import { MessageSquare, CornerDownRight, Send, X, MoreHorizontal, Check } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
+import KebabMenu from '@/components/primitives/KebabMenu'
 import MentionInput from '@/components/primitives/MentionInput'
 import { resolveMentions } from '@/utils/mentions'
 import { notifyMention, notifyPostFollowers } from '@/firebase/messageNotify'
@@ -18,8 +19,20 @@ import { classIdsOf, annClassIds } from '@/utils/announce'
 //   authorId   - id stamped on comments this user posts
 //   authorName - display name for this user
 //   role       - 'teacher' | 'student'
+
+// Inline editor shown in place of a comment / reply while it is being edited.
+function EditRow({ value, onChange, onSave, onCancel, saving, candidates, small = false }) {
+  return (
+    <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+      <MentionInput className="form-input" style={{ fontSize: small ? 12 : 13, padding: '7px 14px', borderRadius: 999 }} placeholder="Edit comment…" value={value} onChange={onChange} onEnter={onSave} candidates={candidates} disabled={saving} />
+      <button type="button" className="ig-send" onClick={onSave} disabled={saving || !value.trim()} aria-label="Save"><Check size={small ? 16 : 19} /></button>
+      <button type="button" className="ig-send ig-send--ghost" onClick={onCancel} disabled={saving} aria-label="Cancel"><X size={small ? 15 : 18} /></button>
+    </div>
+  )
+}
+
 export default function CommentsSection({ ann, authorId, authorName, role, compact = false, previewCount = 0, composerRef = null }) {
-  const { addAnnouncementComment, addCommentReply, students = [], db } = useData()
+  const { addAnnouncementComment, addCommentReply, editAnnouncementComment, deleteAnnouncementComment, editCommentReply, deleteCommentReply, students = [], db } = useData()
   const allComments = ann.comments || []
 
   // On a post shared to several classes, a STUDENT only sees comments from their
@@ -126,6 +139,41 @@ export default function CommentsSection({ ann, authorId, authorName, role, compa
     }
   }
 
+  // Edit / delete own comments + replies (the professor may also delete any, for
+  // moderation). `editing` is the entry being edited: { commentId, replyId? }.
+  const [editing, setEditing] = useState(null)
+  const [editText, setEditText] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
+  const canEdit = e => e.authorId === authorId
+  const canDelete = e => e.authorId === authorId || role === 'teacher'
+
+  function startEdit(commentId, replyId, text) { setEditing({ commentId, replyId }); setEditText(text) }
+  function cancelEdit() { setEditing(null); setEditText('') }
+  async function saveEdit() {
+    const text = editText.trim()
+    if (!text || !editing) return
+    setEditSaving(true)
+    try {
+      if (editing.replyId) await editCommentReply(ann.id, editing.commentId, editing.replyId, text)
+      else await editAnnouncementComment(ann.id, editing.commentId, text)
+      cancelEdit()
+    } finally {
+      setEditSaving(false)
+    }
+  }
+  function commentMenu(c) {
+    return [
+      canEdit(c) && { label: 'Edit', onClick: () => startEdit(c.id, null, c.text) },
+      canDelete(c) && { label: 'Delete', danger: true, onClick: () => deleteAnnouncementComment(ann.id, c.id) },
+    ]
+  }
+  function replyMenu(c, r) {
+    return [
+      canEdit(r) && { label: 'Edit', onClick: () => startEdit(c.id, r.id, r.text) },
+      canDelete(r) && { label: 'Delete', danger: true, onClick: () => deleteCommentReply(ann.id, c.id, r.id) },
+    ]
+  }
+
   return (
     <div style={{ borderTop: '1px solid var(--border)', paddingTop: compact ? 10 : 14, marginTop: 4 }}>
       {!compact && (
@@ -167,8 +215,15 @@ export default function CommentsSection({ ann, authorId, authorName, role, compa
                 <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 'auto' }}>
                   {new Date(c.createdAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                 </span>
+                <KebabMenu items={commentMenu(c)} icon={<MoreHorizontal size={14} />} size={14} label="Comment options" />
               </div>
-              <div style={{ fontSize: 13, color: 'var(--ink)', marginTop: 2, lineHeight: 1.5 }}>{c.text}</div>
+              {editing && editing.commentId === c.id && !editing.replyId ? (
+                <EditRow value={editText} onChange={setEditText} onSave={saveEdit} onCancel={cancelEdit} saving={editSaving} candidates={mentionCandidates} />
+              ) : (
+                <div style={{ fontSize: 13, color: 'var(--ink)', marginTop: 2, lineHeight: 1.5 }}>
+                  {c.text}{c.editedAt && <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 5 }}>(edited)</span>}
+                </div>
+              )}
               <button className="btn btn-ghost btn-sm" style={{ fontSize: 11, padding: '2px 6px', marginTop: 4, color: 'var(--ink2)' }} onClick={() => setReplyTo(replyTo === c.id ? null : c.id)}>
                 <CornerDownRight size={11} style={{ marginRight: 3 }} /> Reply
               </button>
@@ -199,8 +254,15 @@ export default function CommentsSection({ ann, authorId, authorName, role, compa
                       <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 'auto' }}>
                         {new Date(r.createdAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                       </span>
+                      <KebabMenu items={replyMenu(c, r)} icon={<MoreHorizontal size={13} />} size={13} label="Reply options" />
                     </div>
-                    <div style={{ fontSize: 12, color: 'var(--ink)', marginTop: 2, lineHeight: 1.5 }}>{r.text}</div>
+                    {editing && editing.commentId === c.id && editing.replyId === r.id ? (
+                      <EditRow value={editText} onChange={setEditText} onSave={saveEdit} onCancel={cancelEdit} saving={editSaving} candidates={mentionCandidates} small />
+                    ) : (
+                      <div style={{ fontSize: 12, color: 'var(--ink)', marginTop: 2, lineHeight: 1.5 }}>
+                        {r.text}{r.editedAt && <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 5 }}>(edited)</span>}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

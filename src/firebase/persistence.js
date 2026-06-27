@@ -238,7 +238,7 @@ export async function fbAddCommentReply(db, announcementId, commentId, reply) {
   if (!db || !announcementId || !commentId || !reply) return
   const { doc: fbDoc } = await import('firebase/firestore')
   const ref = fbDoc(db, 'announcements', announcementId)
-  
+
   return fbWithTimeout(runTransaction(db, async (transaction) => {
     const snap = await transaction.get(ref)
     if (!snap.exists()) throw new Error('Announcement not found')
@@ -251,6 +251,47 @@ export async function fbAddCommentReply(db, announcementId, commentId, reply) {
     )
     transaction.update(ref, { comments: updated })
   }))
+}
+
+// Edit / delete a comment or a reply. All transactional: they re-read the live
+// comments array and apply the change by id, so concurrent comments from other
+// devices are never clobbered. `editedAt` marks an edited entry.
+async function commentsTxn(db, announcementId, apply) {
+  const { doc: fbDoc } = await import('firebase/firestore')
+  const ref = fbDoc(db, 'announcements', announcementId)
+  return fbWithTimeout(runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref)
+    if (!snap.exists()) throw new Error('Announcement not found')
+    const comments = Array.isArray(snap.data().comments) ? snap.data().comments : []
+    transaction.update(ref, { comments: apply(comments) })
+  }))
+}
+
+export async function fbEditAnnouncementComment(db, announcementId, commentId, text) {
+  if (!db || !announcementId || !commentId) return
+  return commentsTxn(db, announcementId, comments =>
+    comments.map(c => c.id === commentId ? { ...c, text, editedAt: Date.now() } : c))
+}
+
+export async function fbDeleteAnnouncementComment(db, announcementId, commentId) {
+  if (!db || !announcementId || !commentId) return
+  return commentsTxn(db, announcementId, comments => comments.filter(c => c.id !== commentId))
+}
+
+export async function fbEditCommentReply(db, announcementId, commentId, replyId, text) {
+  if (!db || !announcementId || !commentId || !replyId) return
+  return commentsTxn(db, announcementId, comments =>
+    comments.map(c => c.id === commentId
+      ? { ...c, replies: (c.replies || []).map(r => r.id === replyId ? { ...r, text, editedAt: Date.now() } : r) }
+      : c))
+}
+
+export async function fbDeleteCommentReply(db, announcementId, commentId, replyId) {
+  if (!db || !announcementId || !commentId || !replyId) return
+  return commentsTxn(db, announcementId, comments =>
+    comments.map(c => c.id === commentId
+      ? { ...c, replies: (c.replies || []).filter(r => r.id !== replyId) }
+      : c))
 }
 
 // Atomically append a reply to a message thread. Reading the current replies
