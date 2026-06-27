@@ -18,7 +18,7 @@ import { activeClasses, activeClassIds, activeSubjects } from '@/utils/active'
 import { studentSeesMessage } from '@/utils/studentMessages'
 import { computePassedSubjects } from '@/utils/passedSubjects'
 import { isNotifAllowed } from '@/utils/notifPrefs'
-import { isPendingVerification, needsFaceStep } from '@/utils/accountStatus'
+import { isPendingVerification, needsFaceStep, accountStatusKey } from '@/utils/accountStatus'
 import { dataGapReasons } from '@/utils/accountAudit'
 import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare, Library, ListChecks, MessageSquarePlus, Hourglass, Camera, Circle, ScanFace } from 'lucide-react'
 
@@ -120,11 +120,8 @@ const FeedbackTab      = lazy(() => import('./tabs/FeedbackTab'))
 
 // Lazy-load modals
 const EditProfileModal         = lazy(() => import('./modals/EditProfileModal'))
-const AccountVerifiedModal     = lazy(() => import('./modals/AccountVerifiedModal'))
-const ForceChangePasswordModal = lazy(() => import('./modals/ForceChangePasswordModal'))
 const StudentActionSheet       = lazy(() => import('./modals/StudentActionSheet'))
 const FaceEnrollModal          = lazy(() => import('./modals/FaceEnrollModal'))
-const ProfileSetupModal        = lazy(() => import('./modals/ProfileSetupModal'))
 const NotifyPrompt             = lazy(() => import('./NotifyPrompt'))
 const OnboardingTour           = lazy(() => import('./OnboardingTour'))
 const SubjectPassedModal       = lazy(() => import('./modals/SubjectPassedModal'))
@@ -195,26 +192,10 @@ export default function StudentLayout() {
   const faceStep = needsFaceStep(student)   // step 2: Face ID enrollment required
   const gated = pendingVerify || faceStep   // not fully Active until both steps done
 
-  // Prompt the incomplete-setup modal on every load (and re-open when the pending
-  // step changes), until both steps are done. Closing it ("Later") only hides it
-  // until the next load or the next step.
-  const setupStep = pendingVerify ? 'verify' : faceStep ? 'face' : 'done'
-  const [setupModalOpen, setSetupModalOpen] = useState(false)
-  useEffect(() => { setSetupModalOpen(setupStep !== 'done') }, [setupStep])
-
-  // Backup prompting — "Later" must never let an incomplete account slip through.
-  // While setup is unfinished, re-surface the modal redundantly so the student is
-  // guaranteed to keep being prompted: (a) whenever they open a gated tab, and
-  // (b) on a recurring timer even while idle on an ungated tab. The render guard
-  // below keeps it from stacking over the profile editor / Face ID flow.
-  useEffect(() => {
-    if (setupStep !== 'done' && PENDING_GATED_TABS.has(studentTab)) setSetupModalOpen(true)
-  }, [studentTab, setupStep])
-  useEffect(() => {
-    if (setupStep === 'done') return undefined
-    const id = setInterval(() => setSetupModalOpen(true), 90_000)
-    return () => clearInterval(id)
-  }, [setupStep])
+  // Needs onboarding = a registered account that isn't fully Active yet.
+  // EVERYTHING required to fix it (own password → profile → identity → Face ID →
+  // verified badge) now lives in ONE guided VerificationCenter inside Settings.
+  const needsOnboarding = !!student?.account?.registered && accountStatusKey(student) !== 'active'
 
   const [viewClassId, setViewClassId] = useState(null)
   const effectiveClassId = viewClassId || enrolledClasses[0]?.id || null
@@ -251,38 +232,35 @@ export default function StudentLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
 
-  // Force change password modal
-  const [forcePassOpen,    setForcePassOpen]    = useState(false)
-  const [forcePassIsForced, setForcePassIsForced] = useState(false)
-
-  // Teacher-provisioned accounts (Add Student / Import) start on a temporary
-  // password. Force a change before they use the portal — the modal can't be
-  // dismissed until they set their own password (which clears `_tempPass`).
-  useEffect(() => {
-    if (student?.account?._tempPass) {
-      setForcePassIsForced(true)
-      setForcePassOpen(true)
-    }
-  }, [student?.account?._tempPass])
-
-  // Profile / account sheet
+  // Profile / account sheet. The standalone editor is only for ACTIVE students
+  // (Notifications tab / header). Onboarding edits happen inside the center.
   const [profileOpen, setProfileOpen] = useState(false)
-  const [profileForced, setProfileForced] = useState(false)
-  const [verifiedCelebrate, setVerifiedCelebrate] = useState(false)
-
-  // After the temporary password is changed, a teacher-provisioned student must
-  // complete their profile once before using the portal. Gated behind !_tempPass
-  // so it runs only AFTER the password step (which forces a logout/re-login).
-  useEffect(() => {
-    const a = student?.account
-    if (a && a.needsProfileSetup === true && !a._tempPass) {
-      setProfileForced(true)
-      setProfileOpen(true)
-    }
-  }, [student?.account?.needsProfileSetup, student?.account?._tempPass])
 
   const [actionSheetOpen, setActionSheetOpen] = useState(false)
+  const [actionSheetView, setActionSheetView] = useState('home')
   const [faceModalOpen, setFaceModalOpen] = useState(false)
+
+  // Single redirect into the guided verification flow (Settings → Get verified).
+  const openVerify = () => { setActionSheetView('getverified'); setActionSheetOpen(true) }
+
+  // Auto-open the student into "Get verified" ONCE per load while onboarding is
+  // incomplete (replaces the old forced-password + forced-profile + setup-checklist
+  // + 90s-nag stack). Re-surfaces only when a gated tab is opened — no timer.
+  const autoVerifyRef = useRef(false)
+  useEffect(() => {
+    if (needsOnboarding && !autoVerifyRef.current) {
+      autoVerifyRef.current = true
+      setActionSheetView('getverified')
+      setActionSheetOpen(true)
+    }
+    if (!needsOnboarding) autoVerifyRef.current = false
+  }, [needsOnboarding])
+  useEffect(() => {
+    if (needsOnboarding && PENDING_GATED_TABS.has(studentTab)) {
+      setActionSheetView('getverified')
+      setActionSheetOpen(true)
+    }
+  }, [studentTab, needsOnboarding])
 
   // Celebrate newly-passed subjects (once each, per device). A queue lets us
   // show one congrats overlay at a time if several pass together.
@@ -312,14 +290,14 @@ export default function StudentLayout() {
     setPassedQueue(q => [...q, ...fresh])
   }, [student, classes, semester, eqScale])
 
-  // First-run onboarding tour — once per device, never during a forced reset.
+  // First-run onboarding tour — once per device, never during verification setup.
   const [tourOpen, setTourOpen] = useState(false)
   useEffect(() => {
-    if (!student?.id || forcePassOpen || profileForced) return
+    if (!student?.id || needsOnboarding) return
     let seen = true
     try { seen = !!localStorage.getItem(`onboarding_seen:${student.id}`) } catch (e) { /* ignore */ }
     if (!seen) setTourOpen(true)
-  }, [student?.id, forcePassOpen, profileForced])
+  }, [student?.id, needsOnboarding])
 
   // Web push (FCM) — opt-in per device, no-op when unsupported/unconfigured
   const push = usePushNotifications({ db, fbReady, ownerId: student?.id, role: 'student', toast })
@@ -372,12 +350,12 @@ export default function StudentLayout() {
   useEffect(() => {
     if (!student) return
     if (!push.supported || push.permission !== 'default') return
-    if (forcePassOpen || tourOpen) return
+    if (needsOnboarding || tourOpen) return
     if (notifyShownRef.current === loginTime) return
     notifyShownRef.current = loginTime
     const t = setTimeout(() => setNotifyPromptOpen(true), 1500)
     return () => clearTimeout(t)
-  }, [student, push.supported, push.permission, forcePassOpen, loginTime, tourOpen])
+  }, [student, push.supported, push.permission, needsOnboarding, loginTime, tourOpen])
 
   // Close the popup the moment permission stops being actionable.
   useEffect(() => {
@@ -512,8 +490,8 @@ export default function StudentLayout() {
         <StudentSidebar
           student={student}
           badges={badges}
-          onSettings={() => setActionSheetOpen(true)}
-          onCompleteSetup={() => setSetupModalOpen(true)}
+          onSettings={() => { setActionSheetView('home'); setActionSheetOpen(true) }}
+          onCompleteSetup={openVerify}
           onLogout={() => logout('manual')}
         />
       </div>
@@ -577,13 +555,13 @@ export default function StudentLayout() {
                     : <><strong>Step 2 of 2 — set up Face ID.</strong> Activate your account to unlock grades, quizzes and activities. A camera is required.</>}
               </span>
               {needsPhoto && (
-                <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }} onClick={() => setProfileOpen(true)}>
-                  <Camera size={14} style={{ marginRight: 5 }} /> Add photo
+                <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }} onClick={openVerify}>
+                  <Camera size={14} style={{ marginRight: 5 }} /> Get verified
                 </button>
               )}
               {faceStep && (
-                <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }} onClick={() => setFaceModalOpen(true)}>
-                  <ScanFace size={14} style={{ marginRight: 5 }} /> Set up Face ID
+                <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }} onClick={openVerify}>
+                  <ScanFace size={14} style={{ marginRight: 5 }} /> Get verified
                 </button>
               )}
             </div>
@@ -592,8 +570,8 @@ export default function StudentLayout() {
             <Suspense fallback={<SkeletonRows />}>
               {gated && PENDING_GATED_TABS.has(studentTab) && (
                 pendingVerify
-                  ? <PendingVerificationGate student={student} onCompleteProfile={() => setProfileOpen(true)} onContact={() => setStudentTab('messages')} />
-                  : <FaceSetupGate onSetup={() => setFaceModalOpen(true)} />
+                  ? <PendingVerificationGate student={student} onCompleteProfile={openVerify} onContact={() => setStudentTab('messages')} />
+                  : <FaceSetupGate onSetup={openVerify} />
               )}
               {(!gated || !PENDING_GATED_TABS.has(studentTab)) && <>
               {studentTab === 'stream'        && <StreamTab        student={student} viewClassId={effectiveClassId} classes={classes} />}
@@ -665,7 +643,7 @@ export default function StudentLayout() {
                   <span>{t.label}</span>
                 </button>
               ))}
-              <button className="ds-tile" onClick={() => { setMoreOpen(false); setActionSheetOpen(true) }}>
+              <button className="ds-tile" onClick={() => { setMoreOpen(false); setActionSheetView('home'); setActionSheetOpen(true) }}>
                 <Settings size={22} />
                 <span>Account</span>
               </button>
@@ -679,41 +657,26 @@ export default function StudentLayout() {
       )}
 
       {/* Modals */}
+      {/* Standalone profile editor — ACTIVE students only (header / Notifications
+          tab). Onboarding profile edits happen inside the VerificationCenter. */}
       {profileOpen && (
         <Suspense fallback={null}>
           <EditProfileModal
             student={student}
-            forced={profileForced}
-            onClose={() => {
-              const wasForced = profileForced
-              setProfileOpen(false)
-              setProfileForced(false)
-              // Reaching onClose in forced mode means the profile was saved
-              // (it can't be dismissed otherwise) → onboarding is complete.
-              if (wasForced) setVerifiedCelebrate(true)
-            }}
+            onClose={() => setProfileOpen(false)}
           />
         </Suspense>
       )}
 
-      {verifiedCelebrate && (
-        <Suspense fallback={null}>
-          <AccountVerifiedModal studentName={student?.name} onClose={() => setVerifiedCelebrate(false)} />
-        </Suspense>
-      )}
-      {forcePassOpen && (
-        <Suspense fallback={null}>
-          <ForceChangePasswordModal student={student} forced={forcePassIsForced} onClose={() => setForcePassOpen(false)} />
-        </Suspense>
-      )}
       <Suspense fallback={null}>
         <StudentActionSheet
           open={actionSheetOpen}
           onClose={() => setActionSheetOpen(false)}
-          onCompleteSetup={() => setSetupModalOpen(true)}
+          onContact={() => setStudentTab('messages')}
           onLogout={() => logout('manual')}
           student={student}
           push={push}
+          initialView={actionSheetView}
         />
       </Suspense>
 
@@ -733,19 +696,6 @@ export default function StudentLayout() {
       {faceModalOpen && (
         <Suspense fallback={null}>
           <FaceEnrollModal student={student} onClose={() => setFaceModalOpen(false)} />
-        </Suspense>
-      )}
-
-      {setupModalOpen && gated && !profileOpen && !faceModalOpen && (
-        <Suspense fallback={null}>
-          <ProfileSetupModal
-            step1Done={!pendingVerify}
-            step2Done={!!student?.account?.faceResetEnabled}
-            needsPhoto={needsPhoto}
-            onCompleteProfile={() => { setSetupModalOpen(false); setProfileOpen(true) }}
-            onSetupFace={() => { setSetupModalOpen(false); setFaceModalOpen(true) }}
-            onClose={() => setSetupModalOpen(false)}
-          />
         </Suspense>
       )}
 

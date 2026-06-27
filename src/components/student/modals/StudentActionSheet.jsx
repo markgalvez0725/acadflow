@@ -1,11 +1,14 @@
-import React from 'react'
-import { Pencil, KeyRound, LogOut, Bell, BellRing, Lock, Fingerprint, ScanFace, Palette } from 'lucide-react'
+import React, { useRef } from 'react'
+import { Pencil, KeyRound, LogOut, Bell, BellRing, Lock, Fingerprint, ScanFace, Palette, ShieldCheck } from 'lucide-react'
 import { isBiometricSupported } from '@/utils/biometric'
+import { accountStatusKey } from '@/utils/accountStatus'
+import { verifyBannerSub } from '@/utils/verificationGuide'
 import { useUI } from '@/context/UIContext'
 import { useData } from '@/context/DataContext'
 import { studentStanding } from '@/utils/groupChat'
 import SettingsShell from '@/components/primitives/SettingsShell'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
+import VerificationCenter from './VerificationCenter'
 import EditProfileModal from './EditProfileModal'
 import NotifPrefsModal from './NotifPrefsModal'
 import ForceChangePasswordModal from './ForceChangePasswordModal'
@@ -25,27 +28,40 @@ import FaceEnrollModal from './FaceEnrollModal'
  * push-enable row stays an instant action (it just triggers a permission prompt,
  * there's no screen to show). Pending-badge + logout are actions.
  *
+ * While the account isn't fully Active, a pinned "Get verified" banner appears at
+ * the top and drills into the guided VerificationCenter (password → profile →
+ * identity → Face ID → verified badge). `initialView="getverified"` deep-links
+ * straight into it (used by the auto-open-on-load redirect).
+ *
  * Props:
  *  - open {boolean} · onClose {fn}
- *  - onCompleteSetup · onLogout {fn}
+ *  - onContact · onLogout {fn}
  *  - student {object} — current student (name/photo/standing)
  *  - push {object} — push-notification controller
+ *  - initialView {string} — panel id to open straight into ('home' by default)
  */
 export default function StudentActionSheet({
   open,
   onClose,
-  onCompleteSetup,
+  onContact,
   onLogout,
   student,
   push,
+  initialView = 'home',
 }) {
   const { theme, toggleTheme } = useUI()
   const { classes = [] } = useData()
+  // Latch the "Get verified" banner for the whole time the sheet is open: when the
+  // account flips to Active mid-flow the live flag drops, but we must keep the
+  // panel mounted so the VerificationCenter can show its congratulatory screen.
+  const verifyLatchRef = useRef(false)
 
-  if (!open) return null
+  if (!open) { verifyLatchRef.current = false; return null }
 
   const faceOn = !!student?.account?.faceResetEnabled
   const pushOn = push?.permission === 'granted'
+  if (student?.account?.registered && accountStatusKey(student) !== 'active') verifyLatchRef.current = true
+  const needsVerify = verifyLatchRef.current
 
   const idLine = (() => {
     const snum = student?.snum || student?.id
@@ -79,7 +95,7 @@ export default function StudentActionSheet({
             <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {student.name || 'Student'}
             </span>
-            <VerifiedBadge student={student} size={15} showPendingLabel onPendingClick={() => { onClose?.(); onCompleteSetup?.() }} />
+            <VerifiedBadge student={student} size={15} showPendingLabel />
           </div>
           <div style={{ fontSize: 12, color: 'var(--ink3)' }}>{idLine}</div>
         </div>
@@ -88,6 +104,11 @@ export default function StudentActionSheet({
   )
 
   const groups = [
+    // Pinned "Get verified" banner — only while the account isn't fully Active.
+    ...(needsVerify ? [{ title: null, rows: [
+      { id: 'getverified', tone: 'accent', Icon: ShieldCheck, label: 'Get verified', sub: verifyBannerSub(student),
+        panel: () => <VerificationCenter student={student} onDone={() => onClose?.()} onContact={() => { onClose?.(); onContact?.() }} /> },
+    ] }] : []),
     { title: 'Account', rows: [
       { id: 'profile', Icon: Pencil, label: 'Edit profile', sub: 'Name, photo, contact details',
         panel: ({ onDone }) => <EditProfileModal embedded student={student} onClose={onDone} /> },
@@ -141,6 +162,7 @@ export default function StudentActionSheet({
       identity={identity}
       groups={groups}
       footer={footer}
+      initialView={initialView}
     />
   )
 }

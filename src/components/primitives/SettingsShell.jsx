@@ -46,7 +46,7 @@ function rowKind(r) {
   return 'action'
 }
 
-export default function SettingsShell({ open, onClose, title = 'Settings', identity, groups = [], footer = null, searchable = false }) {
+export default function SettingsShell({ open, onClose, title = 'Settings', identity, groups = [], footer = null, searchable = false, initialView = 'home' }) {
   const isMobile = useIsMobile()
   const allRows = useMemo(() => groups.flatMap(g => g.rows), [groups])
   const firstPanel = useMemo(() => allRows.find(r => r.panel), [allRows])
@@ -54,8 +54,15 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
   const [sel,  setSel]  = useState(null)      // wide: selected panel rowId
   const [q,    setQ]    = useState('')
 
-  // Fresh navigation each time it opens.
-  useEffect(() => { if (open) { setView('home'); setSel(firstPanel?.id ?? null); setQ('') } }, [open, firstPanel?.id])
+  // Fresh navigation each time it opens. `initialView` deep-links straight to a
+  // panel (e.g. a pending student auto-opened into "Get verified").
+  useEffect(() => {
+    if (!open) return
+    const target = initialView && initialView !== 'home' && allRows.some(r => r.id === initialView && r.panel) ? initialView : null
+    setView(isMobile ? (target || 'home') : 'home')
+    setSel(target || firstPanel?.id || null)
+    setQ('')
+  }, [open, firstPanel?.id, initialView]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Lock body scroll while open.
   useEffect(() => {
@@ -113,7 +120,10 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
 
   function Row({ r, first }) {
     const k = rowKind(r)
-    const icoStyle = r.iconBg ? { background: r.iconBg, color: r.iconColor } : undefined
+    const accent = r.tone === 'accent'
+    const icoStyle = r.iconBg
+      ? { background: r.iconBg, color: r.iconColor }
+      : accent ? { background: 'var(--accent)', color: '#fff' } : undefined
     const border = first ? 'none' : '1px solid var(--border)'
     if (k === 'control') {
       return (
@@ -128,19 +138,20 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
       )
     }
     const active = !isMobile && k === 'panel' && sel === r.id
+    const tinted = accent || active
     return (
       <button
         type="button"
         className="sset-row"
         onClick={() => activate(r)}
-        style={{ borderTop: border, background: active ? 'var(--accent-l)' : undefined }}
+        style={{ borderTop: border, background: tinted ? 'var(--accent-l)' : undefined }}
       >
         <span className="sset-ico" style={icoStyle}><r.Icon size={17} /></span>
         <span className="sset-rtext">
-          <span className="sset-rlabel" style={active ? { color: 'var(--accent)' } : undefined}>{r.label}</span>
-          {r.sub && <span className="sset-rsub">{r.sub}</span>}
+          <span className="sset-rlabel" style={tinted ? { color: 'var(--accent)' } : undefined}>{r.label}</span>
+          {r.sub && <span className="sset-rsub" style={accent ? { color: 'var(--accent)' } : undefined}>{r.sub}</span>}
         </span>
-        <ChevronRight size={18} style={{ color: 'var(--ink3)', flexShrink: 0 }} />
+        <ChevronRight size={18} style={{ color: accent ? 'var(--accent)' : 'var(--ink3)', flexShrink: 0 }} />
       </button>
     )
   }
