@@ -55,6 +55,31 @@ export function checkPassword(v) {
   return okV('Good password')
 }
 
+// Stricter new-password rule for flows that require an uppercase letter + a
+// number (and that the new password differs from the current one) — keeps the
+// smart-check in lockstep with what the save actually enforces.
+export function checkNewPassword(v, { current = '' } = {}) {
+  const s = v || ''
+  if (!s) return idleV('')
+  if (s.length < 8) return errV('Use at least 8 characters')
+  if (!/[A-Z]/.test(s)) return warnV('Add an uppercase letter')
+  if (!/\d/.test(s)) return warnV('Add a number')
+  if (current && s === current) return errV('Must differ from your current password')
+  return okV('Strong password')
+}
+
+// Strictly-descending check for the equivalency scale (each tier's minimum must
+// be lower than the one above it). `vals` is the numeric array top→bottom.
+export function checkDescending(vals = [], labels = []) {
+  for (let i = 1; i < vals.length; i++) {
+    if (!(vals[i] < vals[i - 1])) {
+      const a = labels[i] ?? i, b = labels[i - 1] ?? (i - 1)
+      return errV(`${a} must be lower than ${b}`)
+    }
+  }
+  return okV('Scale is valid (each tier lower than the last)')
+}
+
 export function checkMatch(a, b, label = 'Passwords') {
   if (!b) return idleV('')
   if (a !== b) return errV(`${label} don’t match yet`)

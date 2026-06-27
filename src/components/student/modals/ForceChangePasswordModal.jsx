@@ -4,7 +4,9 @@ import { useData } from '@/context/DataContext'
 import { useAuth } from '@/context/AuthContext'
 import { getFbAuth } from '@/firebase/firebaseInit'
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth'
-import { KeyRound, Check, X } from 'lucide-react'
+import { KeyRound, Check, X, ChevronLeft } from 'lucide-react'
+import FieldCheck from '@/components/primitives/FieldCheck'
+import { checkNewPassword, checkMatch } from '@/utils/settingsVerify'
 
 // Voluntary password change for the signed-in student. Uses Firebase Auth:
 // reauthenticate with the current password, then update to the new one.
@@ -24,6 +26,12 @@ export default function ForceChangePasswordModal({ student: s, onClose, forced =
   const [pwDone, setPwDone] = useState(false)
   const pwChangedRef = useRef(false)
   const inputRef = useRef(null)
+
+  // On-device smart check — kept in lockstep with the rules handleSubmitPassword
+  // enforces. Passwords never auto-save (security): these only guide + gate.
+  const newChk   = checkNewPassword(pass, { current: oldPass })
+  const matchChk = checkMatch(pass, pass2)
+  const blocked  = !pwDone && (newChk.state !== 'ok' || matchChk.state !== 'ok' || !oldPass)
 
   useEffect(() => { setTimeout(() => inputRef.current?.focus(), 100) }, [])
 
@@ -104,6 +112,12 @@ export default function ForceChangePasswordModal({ student: s, onClose, forced =
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(10,20,50,.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, backdropFilter: 'blur(3px)' }}>
       <div role="dialog" aria-modal="true" aria-label="Change password" style={{ background: 'var(--surface)', borderRadius: 20, padding: '28px 24px', width: '100%', maxWidth: 420, boxShadow: '0 24px 64px rgba(0,0,0,.3)' }}>
 
+        {!forced && (
+          <button type="button" onClick={onClose} disabled={saving} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink2)', fontSize: 13, fontWeight: 600, padding: 0, marginBottom: 6 }}>
+            <ChevronLeft size={16} /> Back
+          </button>
+        )}
+
         <div style={{ textAlign: 'center', marginBottom: 18 }}>
           <div style={{ marginBottom: 8, color: 'var(--accent)' }}><KeyRound size={40} style={{ display: 'inline-block' }} /></div>
           <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: 6 }}>{forced ? 'Set your own password' : 'Change your password'}</h3>
@@ -145,6 +159,7 @@ export default function ForceChangePasswordModal({ student: s, onClose, forced =
             onChange={e => setPass(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSubmitPassword()}
           />
+          <FieldCheck result={newChk} />
         </div>
 
         <div style={{ marginBottom: 16 }}>
@@ -158,13 +173,14 @@ export default function ForceChangePasswordModal({ student: s, onClose, forced =
             onChange={e => setPass2(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSubmitPassword()}
           />
+          <FieldCheck result={matchChk} />
         </div>
 
         <button
           className="btn btn-primary"
           style={{ width: '100%', padding: 12, fontSize: 14, fontWeight: 700 }}
           onClick={handleSubmitPassword}
-          disabled={saving}
+          disabled={saving || blocked}
         >
           {saving ? 'Saving…' : <><Check size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />{pwDone ? 'Finish' : 'Change password'}</>}
         </button>

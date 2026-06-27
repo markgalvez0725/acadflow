@@ -3,7 +3,7 @@ import { Lightbulb, Download, Upload, ShieldCheck, CalendarDays, KeyRound, Bell,
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 import FieldCheck, { SaveStatus, SmartCheckTag } from '@/components/primitives/FieldCheck'
-import { checkEmail, checkPassword, checkMatch, checkPin } from '@/utils/settingsVerify'
+import { checkEmail, checkPassword, checkMatch, checkPin, checkAcademicYear, checkDateOrder, checkDescending } from '@/utils/settingsVerify'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { encryptFbConfig } from '@/utils/crypto'
@@ -125,6 +125,8 @@ function SemesterTab() {
   const [saving,    setSaving]    = useState(false)
 
   const previewLabel = term && year ? `${term} AY ${year.trim()}` : ''
+  const yearChk = checkAcademicYear(year)
+  const dateChk = checkDateOrder(startDate, endDate)
 
   async function handleSave(e) {
     e.preventDefault()
@@ -191,6 +193,7 @@ function SemesterTab() {
               onChange={e => setYear(e.target.value)}
               placeholder="e.g. 2025-2026"
             />
+            <FieldCheck result={yearChk} />
           </div>
         </div>
 
@@ -211,6 +214,7 @@ function SemesterTab() {
             <input className="form-input" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
           </div>
         </div>
+        <FieldCheck result={dateChk} />
 
         {previewLabel && (
           <div className="text-xs bg-[var(--surface2)] rounded-lg px-3 py-2 text-[var(--ink2)]">
@@ -219,7 +223,7 @@ function SemesterTab() {
         )}
 
         <div>
-          <button className="btn btn-primary btn-sm" type="submit" disabled={saving}>
+          <button className="btn btn-primary btn-sm" type="submit" disabled={saving || yearChk.state === 'error' || dateChk.state === 'error'}>
             {saving ? 'Saving…' : 'Save Semester Info'}
           </button>
         </div>
@@ -396,6 +400,8 @@ function EquivScaleTab() {
     }))
   }, [scores, eqScale])
 
+  const descChk = checkDescending(scores.map(s => parseFloat(s) || 0), EQ_LABELS)
+
   function handleChange(i, val) {
     setScores(prev => { const n = [...prev]; n[i] = val; return n })
   }
@@ -472,12 +478,14 @@ function EquivScaleTab() {
         ))}
       </div>
 
+      <FieldCheck result={descChk} />
+
       {/* Buttons */}
       <div className="flex gap-2 flex-wrap">
-        <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving}>
+        <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving || descChk.state === 'error'}>
           {saving ? 'Saving…' : 'Save Scale'}
         </button>
-        <button className="btn btn-ghost btn-sm" onClick={handleSetDefault} disabled={settingDefault}>{settingDefault ? 'Saving…' : 'Set as Default'}</button>
+        <button className="btn btn-ghost btn-sm" onClick={handleSetDefault} disabled={settingDefault || descChk.state === 'error'}>{settingDefault ? 'Saving…' : 'Set as Default'}</button>
         <button className="btn btn-ghost btn-sm" onClick={handleReset}>Reset to Default</button>
       </div>
 
