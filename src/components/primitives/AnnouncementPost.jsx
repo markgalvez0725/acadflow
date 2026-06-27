@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react'
-import { Heart, MessageCircle, Send, BadgeCheck, MoreHorizontal, BookOpen } from 'lucide-react'
+import { Heart, MessageCircle, Send, BadgeCheck, MoreHorizontal, BookOpen, CalendarOff, Video, Library } from 'lucide-react'
 import { courseShort } from '@/constants/courses'
 import { sanitizeAnnouncementHtml } from '@/utils/sanitizeHtml'
 import StreamMedia from '@/components/primitives/StreamMedia'
@@ -41,6 +41,15 @@ function classLabelOf(classObj) {
   return classObj?.name ? `${courseShort(classObj.name)}${classObj.section ? ' · ' + classObj.section : ''}` : ''
 }
 
+// Category pill metadata per announcement type (color + icon), shown in the
+// caption in place of the old "Type - Class" title.
+const TYPE_META = {
+  no_class:       { label: 'No Class Today', Icon: CalendarOff, bg: 'var(--yellow-l)', fg: 'var(--yellow)' },
+  online_class:   { label: 'Online Class',   Icon: Video,      bg: 'var(--accent-l)', fg: 'var(--accent)' },
+  meeting_topics: { label: 'Lesson topics',  Icon: BookOpen,   bg: 'var(--purple-l)', fg: 'var(--purple)' },
+  resource_hub:   { label: 'Resource Hub',   Icon: Library,    bg: 'var(--teal-l)',   fg: 'var(--teal)' },
+}
+
 function dateLabelOf(ms) {
   if (!ms) return ''
   return new Date(ms).toLocaleDateString('en-PH', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()
@@ -68,7 +77,7 @@ function Avatar({ author }) {
 }
 
 export default function AnnouncementPost({
-  ann, author, classObj, classLabel: classLabelProp = '', pinned = false, statusBadge = null,
+  ann, author, classObj, classPills = [], pinned = false, statusBadge = null,
   menuItems = [], viewerId, onToggleLike, commentAuthor,
   domId, highlight = false,
 }) {
@@ -81,7 +90,7 @@ export default function AnnouncementPost({
     return ''
   }, [ann.message, ann.topics, hasMessage])
   const caption = useMemo(() => stripHtml(ann.message), [ann.message])
-  const cls = classLabelProp || classLabelOf(classObj)
+  const typeMeta = TYPE_META[ann.type] || null
   const likes = ann.likes || []
   const liked = !!viewerId && likes.includes(viewerId)
   const likeCount = likes.length
@@ -91,7 +100,10 @@ export default function AnnouncementPost({
   const composerRef = useRef(null)
 
   const hasMedia = media.length > 0
-  const showTextCard = !hasMedia && (ann.title || cardHtml)
+  // Text card only when there's actual body content (message or topics); a
+  // type-only post now shows just its caption pills.
+  const showTextCard = !hasMedia && !!cardHtml
+  const TypeIcon = typeMeta?.Icon
 
   function onLike() { if (viewerId && onToggleLike) onToggleLike(ann.id, viewerId, !liked) }
   function focusComposer() { composerRef.current?.focus() }
@@ -104,7 +116,7 @@ export default function AnnouncementPost({
           <span className="ig-name">{author?.name || 'Professor'}</span>
           <BadgeCheck size={14} className="ig-check" />
           <span className="ig-dot">·</span>
-          <span className="ig-time">{timeAgo(ann.createdAt)}{cls ? ' · ' + cls : ''}{ann.subject ? ' · ' + ann.subject : ''}</span>
+          <span className="ig-time">{timeAgo(ann.createdAt)}</span>
         </div>
         {pinned && <span className="ig-pin">Pinned</span>}
         {statusBadge}
@@ -114,7 +126,7 @@ export default function AnnouncementPost({
       {hasMedia && <div className="ig-media"><StreamMedia items={media} onOpen={i => setLightbox(i)} /></div>}
       {showTextCard && (
         <div className="ig-media">
-          <TextCard seed={ann.id} dateLabel={dateLabelOf(ann.createdAt)} title={ann.title} html={cardHtml} footer={cls || 'AcadFlow'} />
+          <TextCard seed={ann.id} dateLabel={dateLabelOf(ann.createdAt)} title="" html={cardHtml} footer="" />
         </div>
       )}
 
@@ -133,12 +145,20 @@ export default function AnnouncementPost({
       </div>
 
       <div className="ig-meta">
-        {likeCount > 0 && <div className="ig-likes">{likeCount} like{likeCount !== 1 ? 's' : ''}</div>}
-        {hasMedia && (ann.title || caption) && (
-          <div className={`ig-caption${expanded ? ' expanded' : ''}`}>
-            {ann.title && <span className="ig-captitle">{ann.title}</span>}
-            {caption && <span>{ann.title ? ' ' : ''}{caption}</span>}
+        {(typeMeta || classPills.length > 0 || ann.subject) && (
+          <div className="ig-pills">
+            {typeMeta && (
+              <span className="ig-pill" style={{ background: typeMeta.bg, color: typeMeta.fg }}>
+                {TypeIcon && <TypeIcon size={12} />} {typeMeta.label}
+              </span>
+            )}
+            {classPills.map(p => <span key={p} className="ig-pill ig-pill-class">{p}</span>)}
+            {ann.subject && <span className="ig-pill ig-pill-subject">{ann.subject}</span>}
           </div>
+        )}
+        {likeCount > 0 && <div className="ig-likes">{likeCount} like{likeCount !== 1 ? 's' : ''}</div>}
+        {hasMedia && caption && (
+          <div className={`ig-caption${expanded ? ' expanded' : ''}`}>{caption}</div>
         )}
         {hasMedia && caption && caption.length > 140 && !expanded && (
           <button className="ig-more" onClick={() => setExpanded(true)}>more</button>

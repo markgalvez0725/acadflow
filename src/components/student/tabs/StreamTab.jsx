@@ -60,7 +60,7 @@ import CommentsSection from '@/components/primitives/CommentsSection'
 import KebabMenu from '@/components/primitives/KebabMenu'
 import AnnouncementPost from '@/components/primitives/AnnouncementPost'
 import { mediaFromAnnouncement, isPreviewableLink } from '@/utils/streamMedia'
-import { annReaches, annClassIds } from '@/utils/announce'
+import { annReaches, annClassIds, announcementClassPills } from '@/utils/announce'
 
 function timeAgo(ms) {
   if (!ms) return ''
@@ -98,7 +98,7 @@ function classLabel(classObj) {
 
 // Thin wrapper: the IG card lives in the shared AnnouncementPost; the student
 // side just supplies its kebab (Save / notifications) and comment identity.
-function AnnouncementCard({ item, classObj, student, author, highlight }) {
+function AnnouncementCard({ item, classObj, classPills, student, author, highlight }) {
   const { toggleAnnouncementLike, toggleSavedPost, toggleAnnouncementFollow } = useData()
   const ann = item.data
   const menuItems = student ? (() => {
@@ -114,6 +114,7 @@ function AnnouncementCard({ item, classObj, student, author, highlight }) {
       ann={ann}
       author={author}
       classObj={classObj}
+      classPills={classPills}
       pinned={item.pinned}
       menuItems={menuItems}
       viewerId={student?.id}
@@ -421,7 +422,7 @@ export default function StreamTab({ student, viewClassId, classes }) {
         return (
           <React.Fragment key={item.id}>
             {showGroup && <div className="s-feed-day">{label}</div>}
-            {item.type === 'announcement' && <AnnouncementCard item={item} classObj={classObj} student={student} author={author} highlight={highlightId === item.data.id} />}
+            {item.type === 'announcement' && <AnnouncementCard item={item} classObj={classObj} classPills={announcementClassPills(item.data, classes, effectiveClassIds)} student={student} author={author} highlight={highlightId === item.data.id} />}
             {item.type === 'activity' && <ActivityCard item={item} classObj={classObj} student={student} />}
             {item.type === 'quiz' && <QuizCard item={item} classObj={classObj} student={student} />}
             {item.type === 'grade' && <GradeCard item={item} classObj={classObj} />}

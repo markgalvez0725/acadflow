@@ -3,6 +3,8 @@
 // check reads the same way, and stay backward-compatible with old posts that
 // only have a single `classId`.
 
+import { courseShort } from '@/constants/courses'
+
 // The student ids a `student`/`class` record belongs to.
 export function classIdsOf(x) {
   if (!x) return []
@@ -32,4 +34,23 @@ export function annReaches(ann, viewerClassIds) {
   if (!targets.length) return true // broadcast
   const set = viewerClassIds instanceof Set ? viewerClassIds : new Set(viewerClassIds || [])
   return targets.some(id => set.has(id))
+}
+
+// Short "COURSE SECTION" labels for the post's target classes, as caption pills.
+// Pass `scopeClassIds` to limit them to a viewer's own classes (students only see
+// their pill); pass null for the professor (sees every target). Broadcast -> one
+// "All classes" pill.
+export function announcementClassPills(ann, classes, scopeClassIds = null) {
+  if (annIsBroadcast(ann)) return ['All classes']
+  let ids = annClassIds(ann)
+  if (scopeClassIds) {
+    const set = scopeClassIds instanceof Set ? scopeClassIds : new Set(scopeClassIds || [])
+    ids = ids.filter(id => set.has(id))
+  }
+  return ids
+    .map(id => {
+      const c = (classes || []).find(x => x.id === id)
+      return c ? `${courseShort(c.name)}${c.section ? ' ' + c.section : ''}` : null
+    })
+    .filter(Boolean)
 }

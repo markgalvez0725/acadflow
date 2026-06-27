@@ -3466,6 +3466,10 @@ textarea.input { resize: vertical; }
 .ig-icon:active { transform: scale(.88); }
 .ig-icon.liked { color: #ef4444; }
 .ig-meta { padding: 2px 12px 12px; display: flex; flex-direction: column; gap: 3px; }
+.ig-pills { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 5px; }
+.ig-pill { display: inline-flex; align-items: center; gap: 4px; font-size: 0.6875rem; font-weight: 600; line-height: 1; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+.ig-pill-class { background: var(--accent-l); color: var(--accent); }
+.ig-pill-subject { background: var(--green-l); color: var(--green); }
 .ig-likes { font-weight: 700; font-size: 0.875rem; color: var(--ink); }
 .ig-caption { font-size: 0.875rem; color: var(--ink2); line-height: 1.45; }
 .ig-caption:not(.expanded) { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

@@ -5,7 +5,7 @@ import { useUI } from '@/context/UIContext'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, Clock, Users, Award, CheckCircle2, XCircle, AlertCircle, Plus, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered, Paperclip, Image as ImageIcon, FileText, Sparkles, Library, FolderOpen, RefreshCw, Check, Loader2, CheckSquare, Square } from 'lucide-react'
 import { composeAnnouncementMessage } from '@/utils/announceCompose'
-import { annClassIds, annIsBroadcast } from '@/utils/announce'
+import { annClassIds, annIsBroadcast, announcementClassPills } from '@/utils/announce'
 import { isConfigured as driveConfigured, getConnection as getDriveConnection, uploadFile as driveUpload, listDriveFiles } from '@/utils/googleDrive'
 import { formatBytes, extOf } from '@/utils/streamMedia'
 import DOMPurify from 'dompurify'
@@ -402,10 +402,11 @@ function AnnouncementFormModal({ ann, onClose }) {
 
   const autoTitle = useMemo(() => {
     if (!classLabel) return ''
-    if (type === 'no_class') return `No Class Today - ${classLabel}`
-    if (type === 'online_class') return `Online Class - ${classLabel}`
-    if (type === 'meeting_topics') return `Lesson topics - ${classLabel}`
-    if (type === 'resource_hub') return `Resource Hub - ${classLabel}`
+    // Title is the category name only; course/section/subject now show as pills.
+    if (type === 'no_class') return 'No Class Today'
+    if (type === 'online_class') return 'Online Class'
+    if (type === 'meeting_topics') return 'Lesson topics'
+    if (type === 'resource_hub') return 'Resource Hub'
     return ''
   }, [type, classLabel])
 
@@ -741,21 +742,10 @@ function adminClassLabel(classObj) {
   return classObj?.name ? `${classObj.name}${classObj.section ? ' · ' + classObj.section : ''}` : ''
 }
 
-// A short header label for an announcement's audience: a single class name, the
-// first class + "+N" for several, or "All classes" for a broadcast.
-function announcementClassLabel(ann, classes) {
-  if (annIsBroadcast(ann)) return 'All classes'
-  const names = annClassIds(ann)
-    .map(id => { const c = classes.find(x => x.id === id); return c ? `${courseShort(c.name)}${c.section ? ' ' + c.section : ''}` : null })
-    .filter(Boolean)
-  if (!names.length) return ''
-  return names.length === 1 ? names[0] : `${names[0]} +${names.length - 1}`
-}
-
 // Thin wrapper: the IG card lives in the shared AnnouncementPost; the teacher
 // side supplies its management kebab (Edit/Pin/Deactivate/Delete) + status badge
 // and posts comments as the professor.
-function AnnouncementCard({ item, classObj, classLabel, author, viewerId, onToggleLike, onEdit, onToggleActive, onTogglePin, onDelete }) {
+function AnnouncementCard({ item, classObj, classPills, author, viewerId, onToggleLike, onEdit, onToggleActive, onTogglePin, onDelete }) {
   const ann = item.data
   const pinned = !!item.pinned   // effective (respects expiry), computed by the feed
   const expired = ann.expiresAt && ann.expiresAt < Date.now()
@@ -774,7 +764,7 @@ function AnnouncementCard({ item, classObj, classLabel, author, viewerId, onTogg
       ann={ann}
       author={author}
       classObj={classObj}
-      classLabel={classLabel}
+      classPills={classPills}
       pinned={pinned}
       statusBadge={statusBadge}
       menuItems={menuItems}
@@ -1177,7 +1167,7 @@ export default function StreamTab() {
               <AnnouncementCard
                 item={item}
                 classObj={classObj}
-                classLabel={announcementClassLabel(item.data, classes)}
+                classPills={announcementClassPills(item.data, classes)}
                 author={author}
                 viewerId={viewerId}
                 onToggleLike={toggleAnnouncementLike}
