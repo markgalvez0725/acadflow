@@ -25,7 +25,9 @@ const HEIGHT = {
   mark:       { sm: 30, md: 44, lg: 60 },
 }
 
-export default function AcadFlowLogo({ variant = 'horizontal', size = 'md', tone = 'auto', className = '' }) {
+// Memoized: the sign-in screens re-render rapidly during the headline typing
+// animation; without this the logo would re-render (and flicker) on every tick.
+function AcadFlowLogo({ variant = 'horizontal', size = 'md', tone = 'auto', className = '' }) {
   const src = SRC[variant] || SRC.horizontal
   const h = (HEIGHT[variant] || HEIGHT.horizontal)[size] || (HEIGHT[variant] || HEIGHT.horizontal).md
 
@@ -49,3 +51,5 @@ export default function AcadFlowLogo({ variant = 'horizontal', size = 'md', tone
     />
   )
 }
+
+export default React.memo(AcadFlowLogo)

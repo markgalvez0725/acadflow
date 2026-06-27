@@ -593,7 +593,7 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 .aflogo-solo { display: block; }
 html[data-theme="dark"] .aflogo-light { display: none; }
 html[data-theme="dark"] .aflogo-dark { display: block; }
-.aflogo svg { height: 100%; width: auto; display: block; animation: afLogoIn .5s cubic-bezier(.34,1.56,.64,1) both; }
+.aflogo svg { height: 100%; width: auto; display: block; }
 @keyframes afLogoIn { from { opacity: 0; transform: translateY(6px) scale(.96); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .aflogo img { animation: none; } }
 

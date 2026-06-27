@@ -5,10 +5,15 @@ import React from 'react'
 // `height`; width follows the mark's natural ratio via the viewBox. The purple
 // gradient matches the brand lockups.
 export default function BrandMark({ height = 30, className = '', style, title = 'AcadFlow' }) {
+  // Explicit width (from the viewBox ratio) so the inline SVG doesn't collapse
+  // to 0 when it's a direct flex child (e.g. the sidebar's centred logo slot).
+  const width = Math.round(height * (179.5 / 112))
   return (
     <svg
       className={className}
-      style={{ height, width: 'auto', display: 'block', ...style }}
+      width={width}
+      height={height}
+      style={{ display: 'block', ...style }}
       viewBox="53.9 88 179.5 112"
       xmlns="http://www.w3.org/2000/svg"
       role="img"
