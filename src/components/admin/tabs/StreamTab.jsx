@@ -263,13 +263,18 @@ function AnnouncementFormModal({ ann, onClose }) {
   const photoInput = useRef(null)
   const fileInput  = useRef(null)
   const drive = getDriveConnection()
+  // Folder name for this post's class: AcadFlow / {this} / {Photos|Modules} / file
+  const driveClassLabel = classId === 'all'
+    ? 'All Classes'
+    : (() => { const c = classes.find(x => x.id === classId); return c ? `${courseShort(c.name)}${c.section ? ' ' + c.section : ''}`.trim() : '' })()
 
   function addFiles(fileList) {
     if (!drive.connected) { toast('Connect Google Drive in Settings first.', 'error'); return }
+    if (!classId) { toast('Pick a class first so files go to the right folder.', 'error'); return }
     Array.from(fileList || []).forEach(file => {
       const uid = 'u' + Math.random().toString(36).slice(2)
       setUploads(prev => [...prev, { id: uid, name: file.name, pct: 0, error: '' }])
-      driveUpload(file, { onProgress: pct => setUploads(prev => prev.map(u => u.id === uid ? { ...u, pct } : u)) })
+      driveUpload(file, { classLabel: driveClassLabel, onProgress: pct => setUploads(prev => prev.map(u => u.id === uid ? { ...u, pct } : u)) })
         .then(att => { setAttachments(prev => [...prev, att]); setUploads(prev => prev.filter(u => u.id !== uid)) })
         .catch(e => setUploads(prev => prev.map(u => u.id === uid ? { ...u, error: e?.message || 'Upload failed' } : u)))
     })

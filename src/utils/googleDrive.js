@@ -1,22 +1,27 @@
 // Browser-only Google Drive integration for teacher file uploads on the Stream.
 //
 // Uses Google Identity Services (GIS) token client with the `drive.file` scope -
-// the app can ONLY see files it creates, so the consent is light and no Google
-// verification is needed. No server and no refresh token: the access token lives
-// in memory for ~1 hour and is re-requested (silently when the teacher has
-// already consented) on demand. $0 - files live in the teacher's own Drive and
-// students only ever load the public preview link.
+// the app can ONLY see files/folders it creates, so the consent is light and no
+// Google verification is needed. No server and no refresh token: the access
+// token lives in memory for ~1 hour and is re-requested (silently when the
+// teacher has already consented) on demand. $0 - files live in the teacher's own
+// Drive and students only ever load the public preview link.
 //
-// Requires VITE_GOOGLE_CLIENT_ID. When it is unset, isConfigured() is false and
-// the UI shows a "not configured" hint instead of a dead button.
+// Files are filed into a nested tree the app builds and reuses:
+//   AcadFlow / {Class label} / {Photos | Modules} / file
+// (images -> Photos, everything else -> Modules). Each folder id is cached in
+// localStorage keyed by its parent so the tree is only looked up once.
+//
+// Requires VITE_GOOGLE_CLIENT_ID. When unset, isConfigured() is false and the
+// UI shows a "not configured" hint instead of a dead button.
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 const SCOPE = 'https://www.googleapis.com/auth/drive.file'
-const FOLDER_NAME = 'AcadFlow Stream'
+const ROOT_NAME = 'AcadFlow'
 const GSI_SRC = 'https://accounts.google.com/gsi/client'
 
 const LS_EMAIL = 'gdrive_email'
-const LS_FOLDER = 'gdrive_folder'
+const DIR_PREFIX = 'gdrive_dir:' // + `${parentId}/${name}` -> folderId
 
 let _gisPromise = null
 let _tokenClient = null
@@ -29,7 +34,6 @@ export function getConnection() {
     configured: isConfigured(),
     connected: !!localStorage.getItem(LS_EMAIL),
     email: localStorage.getItem(LS_EMAIL) || '',
-    folderId: localStorage.getItem(LS_FOLDER) || '',
   }
 }
 
@@ -93,26 +97,42 @@ async function driveFetch(url, opts = {}) {
   return resp.json()
 }
 
-// Find or create the /AcadFlow Stream folder; cache its id locally.
-async function ensureFolder() {
-  const cached = localStorage.getItem(LS_FOLDER)
+// Find-or-create a single folder `name` under `parentId` ('root' for My Drive).
+async function ensureFolder(name, parentId) {
+  const key = DIR_PREFIX + parentId + '/' + name
+  const cached = localStorage.getItem(key)
   if (cached) return cached
-  const q = encodeURIComponent(`name='${FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`)
-  const found = await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&spaces=drive`)
+  const safe = String(name).replace(/'/g, "\\'")
+  const q = encodeURIComponent(`name='${safe}' and mimeType='application/vnd.google-apps.folder' and trashed=false and '${parentId}' in parents`)
+  const found = await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)&spaces=drive`)
   let id = found?.files?.[0]?.id
   if (!id) {
     const created = await driveFetch('https://www.googleapis.com/drive/v3/files?fields=id', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' }),
+      body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] }),
     })
     id = created.id
   }
-  if (id) localStorage.setItem(LS_FOLDER, id)
+  if (id) localStorage.setItem(key, id)
   return id
 }
 
-// Connect: interactive consent, then cache the user's email + ensure the folder.
+// Walk/create a path of folder names; returns the leaf folder id.
+async function ensureFolderPath(segments) {
+  let parent = 'root'
+  for (const seg of segments.filter(Boolean)) parent = await ensureFolder(seg, parent)
+  return parent
+}
+
+function clearFolderCache() {
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const k = localStorage.key(i)
+    if (k && k.startsWith(DIR_PREFIX)) localStorage.removeItem(k)
+  }
+}
+
+// Connect: interactive consent, cache the user's email, pre-create the root.
 export async function connect() {
   if (!isConfigured()) throw new Error('Google Drive is not configured.')
   await requestToken(true)
@@ -120,7 +140,7 @@ export async function connect() {
     const about = await driveFetch('https://www.googleapis.com/drive/v3/about?fields=user(emailAddress,displayName)')
     localStorage.setItem(LS_EMAIL, about?.user?.emailAddress || 'Connected')
   } catch { localStorage.setItem(LS_EMAIL, 'Connected') }
-  await ensureFolder()
+  await ensureFolderPath([ROOT_NAME])
   return getConnection()
 }
 
@@ -132,16 +152,17 @@ export function disconnect() {
   } catch { /* ignore */ }
   _token = null
   localStorage.removeItem(LS_EMAIL)
-  localStorage.removeItem(LS_FOLDER)
+  clearFolderCache()
 }
 
-// Upload one File to the folder, make it "anyone with link can view", and
-// return an attachment descriptor for announcement.attachments[].
-export function uploadFile(file, { onProgress } = {}) {
+// Upload one File into AcadFlow / {classLabel} / {Photos|Modules}, make it
+// "anyone with link can view", and return an attachment descriptor.
+export function uploadFile(file, { onProgress, classLabel } = {}) {
   return new Promise((resolve, reject) => {
     (async () => {
       const token = await getToken()
-      const folderId = await ensureFolder()
+      const kind = /^image\//.test(file.type || '') ? 'Photos' : 'Modules'
+      const folderId = await ensureFolderPath([ROOT_NAME, classLabel || 'General', kind])
       const meta = { name: file.name, ...(folderId ? { parents: [folderId] } : {}) }
       const boundary = 'acadflow' + Math.random().toString(36).slice(2)
       const head = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: ${file.type || 'application/octet-stream'}\r\n\r\n`
