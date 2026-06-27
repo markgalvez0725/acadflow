@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react'
-import { Lightbulb, Download, Upload, ShieldCheck, CalendarDays, KeyRound, Bell, Scale, Clock, DatabaseBackup, Flame } from 'lucide-react'
+import { Lightbulb, Download, Upload, ShieldCheck, CalendarDays, KeyRound, Bell, Scale, Clock, DatabaseBackup, Flame, ChevronRight, ChevronLeft, Search, Palette } from 'lucide-react'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 import { useData } from '@/context/DataContext'
@@ -10,15 +10,48 @@ import { verifyPassword, hashPassword } from '@/utils/crypto'
 import { gradeInfo, DEFAULT_EQ_SCALE } from '@/utils/grades'
 import { saveSettingsToFirebase } from '@/firebase/settings'
 
-const TABS = [
-  { id: 'semester', label: 'Semester',      Icon: CalendarDays },
-  { id: 'cred',     label: 'Credentials',   Icon: KeyRound },
-  { id: 'notifs',   label: 'Notifications', Icon: Bell },
-  { id: 'eq',       label: 'Equiv Scale',   Icon: Scale },
-  { id: 'late',     label: 'Grading Rules', Icon: Clock },
-  { id: 'data',     label: 'Backup',        Icon: DatabaseBackup },
-  { id: 'firebase', label: 'Firebase',      Icon: Flame },
+// Grouped settings landing (Facebook/Instagram-style sections). Each row drills
+// into one of the existing panel components below — same panels, regrouped nav.
+const SETTINGS_GROUPS = [
+  { title: 'Account and security', rows: [
+    { id: 'cred', label: 'Email and password', sub: 'Login email, password, recovery PIN', Icon: KeyRound },
+  ] },
+  { title: 'Academic setup', rows: [
+    { id: 'semester', label: 'Semester and enrollment', sub: 'Term, year, open or close classes', Icon: CalendarDays },
+    { id: 'eq',       label: 'Grade equivalency scale', sub: 'Score to equivalent mapping',        Icon: Scale },
+    { id: 'late',     label: 'Grading rules',           sub: 'Late penalty, minimum grade floor',  Icon: Clock },
+  ] },
+  { title: 'Notifications', rows: [
+    { id: 'notifs', label: 'Push notifications', sub: 'Browser alerts on this device', Icon: Bell },
+  ] },
+  { title: 'Data and system', rows: [
+    { id: 'data',     label: 'Backup and restore',  sub: 'Download or restore a snapshot', Icon: DatabaseBackup },
+    { id: 'firebase', label: 'Firebase connection', sub: 'Database credentials',           Icon: Flame },
+  ] },
 ]
+
+const PANEL_TITLE = {
+  cred:     'Email and password',
+  semester: 'Semester and enrollment',
+  eq:       'Grade equivalency scale',
+  late:     'Grading rules',
+  notifs:   'Push notifications',
+  data:     'Backup and restore',
+  firebase: 'Firebase connection',
+}
+
+function SettingsRow({ row, first, onClick }) {
+  return (
+    <button type="button" className="aset-row" onClick={onClick} style={{ borderTop: first ? 'none' : '1px solid var(--border)' }}>
+      <span className="aset-ico"><row.Icon size={17} /></span>
+      <span style={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
+        <span style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>{row.label}</span>
+        <span style={{ display: 'block', fontSize: 12, color: 'var(--ink3)', marginTop: 1 }}>{row.sub}</span>
+      </span>
+      <ChevronRight size={18} style={{ color: 'var(--ink3)', flexShrink: 0 }} />
+    </button>
+  )
+}
 
 // ── Notifications Tab ──────────────────────────────────────────────────────────
 function NotificationsTab({ push }) {
@@ -791,66 +824,116 @@ function DataTab() {
 }
 
 // ── Main Modal ────────────────────────────────────────────────────────────────
+// Grouped landing → drill into one panel. `view` is 'home' or a panel id; the
+// existing panel components are unchanged, only the navigation around them is.
 export default function AdminSettingsModal({ onClose, push }) {
-  const [activeTab, setActiveTab] = useState('semester')
+  const { admin } = useData()
+  const [view, setView] = useState('home')
+  const [q, setQ]       = useState('')
+
+  function renderPanel(id) {
+    switch (id) {
+      case 'cred':     return <CredentialsTab />
+      case 'semester': return <SemesterTab />
+      case 'eq':       return <EquivScaleTab />
+      case 'late':     return <LatePolicyTab />
+      case 'notifs':   return <NotificationsTab push={push} />
+      case 'data':     return <DataTab />
+      case 'firebase': return <FirebaseTab />
+      default:         return null
+    }
+  }
+
+  const ql = q.trim().toLowerCase()
+  const matches = ql
+    ? SETTINGS_GROUPS.flatMap(g => g.rows).filter(r => `${r.label} ${r.sub}`.toLowerCase().includes(ql))
+    : null
+
+  const styleTag = (
+    <style>{`
+      .aset-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; background: none; border: none; cursor: pointer; transition: background .12s }
+      .aset-row:hover { background: var(--bg2) }
+      .aset-ico { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: var(--accent-l); color: var(--accent); flex-shrink: 0 }
+      .aset-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden }
+      .aset-back { display: inline-flex; align-items: center; gap: 4px; background: none; border: none; cursor: pointer; color: var(--ink2); font-size: 13px; font-weight: 600; padding: 0; margin-bottom: 8px }
+      .aset-back:hover { color: var(--ink) }
+    `}</style>
+  )
+
+  if (view !== 'home') {
+    return (
+      <Modal onClose={onClose} size="lg">
+        {styleTag}
+        <button type="button" className="aset-back" onClick={() => setView('home')}>
+          <ChevronLeft size={16} /> Settings
+        </button>
+        <ModalHeader title={PANEL_TITLE[view]} />
+        {renderPanel(view)}
+      </Modal>
+    )
+  }
 
   return (
     <Modal onClose={onClose} size="lg">
-      <ModalHeader title="Admin Settings" onClose={onClose} />
+      {styleTag}
+      <ModalHeader title="Settings" />
 
-      {/* Appearance — theme toggle */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '4px 0 16px', marginBottom: 16, borderBottom: '1px solid var(--border)' }}>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--ink)' }}>Appearance</div>
-          <div style={{ fontSize: 12, color: 'var(--ink3)' }}>Switch between light and dark mode</div>
+      {/* Identity */}
+      <div className="aset-card" style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px' }}>
+          <span style={{ width: 42, height: 42, borderRadius: '50%', background: 'var(--accent-l)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15, flexShrink: 0 }}>AD</span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--ink)' }}>Administrator</div>
+            <div style={{ fontSize: 12, color: 'var(--ink3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{admin?.email || 'Teacher / staff account'}</div>
+          </div>
         </div>
-        <ThemeToggle style={{ position: 'static', width: 38, height: 38, fontSize: 15, flexShrink: 0 }} />
       </div>
 
-      {/* Section nav — wrapping pills so all sections fit at any width */}
-      <div
-        role="tablist"
-        aria-label="Settings sections"
-        style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20 }}
-      >
-        {TABS.map(t => {
-          const active = activeTab === t.id
-          return (
-            <button
-              key={t.id}
-              role="tab"
-              aria-selected={active}
-              onClick={() => setActiveTab(t.id)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '7px 12px',
-                fontSize: 12.5,
-                fontWeight: active ? 700 : 500,
-                color: active ? '#fff' : 'var(--ink2)',
-                background: active ? 'var(--accent)' : 'var(--surface2)',
-                border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
-                borderRadius: 999,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                transition: 'background .15s ease, color .15s ease, border-color .15s ease',
-              }}
-            >
-              <t.Icon size={14} />
-              {t.label}
-            </button>
-          )
-        })}
+      {/* Search */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 999, padding: '8px 14px', marginBottom: 18 }}>
+        <Search size={15} style={{ color: 'var(--ink3)', flexShrink: 0 }} />
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search settings" style={{ border: 'none', background: 'none', outline: 'none', flex: 1, fontSize: 13, color: 'var(--ink)' }} />
       </div>
 
-      {activeTab === 'semester'  && <SemesterTab />}
-      {activeTab === 'cred'     && <CredentialsTab />}
-      {activeTab === 'notifs'   && <NotificationsTab push={push} />}
-      {activeTab === 'eq'       && <EquivScaleTab />}
-      {activeTab === 'late'     && <LatePolicyTab />}
-      {activeTab === 'data'     && <DataTab />}
-      {activeTab === 'firebase' && <FirebaseTab />}
+      {matches ? (
+        matches.length ? (
+          <div className="aset-card" style={{ marginBottom: 16 }}>
+            {matches.map((row, i) => (
+              <SettingsRow key={row.id} row={row} first={i === 0} onClick={() => { setQ(''); setView(row.id) }} />
+            ))}
+          </div>
+        ) : (
+          <div style={{ fontSize: 13, color: 'var(--ink3)', textAlign: 'center', padding: '20px 0' }}>No settings match “{q}”.</div>
+        )
+      ) : (
+        <>
+          {SETTINGS_GROUPS.map(g => (
+            <div key={g.title} style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 12, color: 'var(--ink3)', margin: '0 0 6px 4px' }}>{g.title}</div>
+              <div className="aset-card">
+                {g.rows.map((row, i) => (
+                  <SettingsRow key={row.id} row={row} first={i === 0} onClick={() => setView(row.id)} />
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {/* Appearance — inline theme toggle */}
+          <div style={{ marginBottom: 4 }}>
+            <div style={{ fontSize: 12, color: 'var(--ink3)', margin: '0 0 6px 4px' }}>Appearance</div>
+            <div className="aset-card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px' }}>
+                <span className="aset-ico"><Palette size={17} /></span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>Theme</div>
+                  <div style={{ fontSize: 12, color: 'var(--ink3)' }}>Light or dark mode</div>
+                </div>
+                <ThemeToggle style={{ position: 'static', width: 36, height: 36, fontSize: 15, flexShrink: 0 }} />
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </Modal>
   )
 }

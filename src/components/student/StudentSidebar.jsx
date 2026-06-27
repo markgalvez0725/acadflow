@@ -1,7 +1,7 @@
 import React from 'react'
 import { useUI } from '@/context/UIContext'
 import { useData } from '@/context/DataContext'
-import { studentYearTag } from '@/utils/groupChat'
+import { studentStanding } from '@/utils/groupChat'
 import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Settings, LogOut, Library, ListChecks, MessageSquarePlus, MessageSquare } from 'lucide-react'
 
 // Flat, Instagram-style nav list (no section headers).
@@ -36,7 +36,7 @@ export default function StudentSidebar({ student, badges = {}, onSettings, onLog
   const name = student?.name || 'Student'
   const initial = name.charAt(0).toUpperCase()
   const snum = student?.snum || student?.id || '—'
-  const tag = studentYearTag(student)
+  const tag = studentStanding(student, classes)
   const subText = tag && tag !== snum ? `${tag} - ${snum}` : snum
 
   return (

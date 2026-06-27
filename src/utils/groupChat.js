@@ -67,6 +67,20 @@ export function studentYearTag(student) {
   return [courseShort(student.course), ordinalYear(student.year)].filter(Boolean).join(' ').trim()
 }
 
+// The student's own identity tag: course + year + section when a section is
+// known (e.g. "BSEMC 3A"), otherwise course + ordinal year while they have no
+// section yet (e.g. "BSEMC 3rd"). Needs the classes array to resolve the section
+// from the student's primary class. Used by the sidebar + settings header.
+export function studentStanding(student, classes = []) {
+  if (!student) return ''
+  const cs  = courseShort(student.course)
+  const yr  = (String(student.year || '').match(/\d+/) || [''])[0]
+  const cid = student.classId || (student.classIds && student.classIds[0])
+  const sec = (classes.find(c => c.id === cid) || {}).section || ''
+  if (sec) return `${cs} ${yearSection(yr, sec)}`.trim()        // "BSEMC 3A"
+  return [cs, ordinalYear(student.year)].filter(Boolean).join(' ').trim()  // "BSEMC 3rd"
+}
+
 export function isGroupMessage(m) {
   return m?.from === 'admin' && m?.type === 'announcement'
 }
