@@ -42,16 +42,36 @@ function hasGrade(student, sub) {
 export function analyzeStudentSemesters(student, classes = [], semester = null) {
   const currentLabel = currentSemLabel(semester)
   const map = new Map()
+  const ensure = (label, isCur) => {
+    const key = label || currentLabel || 'Earlier term'
+    if (!map.has(key)) map.set(key, { label: key, isCurrent: !!isCur, subjects: new Set() })
+    const g = map.get(key)
+    if (isCur) g.isCurrent = true
+    return g
+  }
 
+  // 1) Authoritative grouping from the student's enrolled classes.
   for (const id of enrolledClassIds(student)) {
     const cls = classes.find(c => c.id === id)
     if (!cls) continue
     const isCur = isClassCurrent(cls, semester)
-    const label = cls.activeSemester || (isCur ? currentLabel : '') || 'Earlier term'
-    if (!map.has(label)) map.set(label, { label, isCurrent: isCur, subjects: new Set() })
-    const g = map.get(label)
+    const g = ensure(cls.activeSemester || (isCur ? currentLabel : ''), isCur)
     ;(cls.subjects || []).forEach(s => g.subjects.add(s))
-    if (isCur) g.isCurrent = true
+  }
+
+  // 2) Any recorded subject (graded or just on file) NOT covered by an enrolled
+  // class - e.g. a class that was unenrolled/archived. Find any class that
+  // teaches that subject to recover its semester; otherwise fall back to current.
+  const covered = new Set([...map.values()].flatMap(g => [...g.subjects]))
+  const recorded = new Set([
+    ...Object.keys(student?.gradeComponents || {}),
+    ...Object.keys(student?.grades || {}),
+  ])
+  for (const sub of recorded) {
+    if (covered.has(sub)) continue
+    const cls = classes.find(c => (c.subjects || []).includes(sub))
+    const isCur = cls ? isClassCurrent(cls, semester) : false
+    ensure((cls && cls.activeSemester) || (isCur ? currentLabel : ''), isCur).subjects.add(sub)
   }
 
   let groups = [...map.values()].map(g => {
@@ -66,11 +86,15 @@ export function analyzeStudentSemesters(student, classes = [], semester = null) 
   const recommended = currentHasGrades ? current.label : (firstGraded?.label || groups[0]?.label || 'all')
   const hasMultiple = groups.length > 1
 
-  let narration = ''
+  let narration
   if (hasMultiple) {
     narration = currentHasGrades
       ? `These grades span ${groups.length} semesters. Choose the current term or a past one to export.`
       : `These grades span ${groups.length} semesters. The current term${currentLabel ? ` (${currentLabel})` : ''} has no posted grades for this student yet, so the grades on record are from a past semester. Pick what to export.`
+  } else if (groups.length === 1) {
+    narration = `One term on record: ${groups[0].label}. Confirm or switch the term to export.`
+  } else {
+    narration = 'No class on record for this student - exporting all grades on file.'
   }
 
   return { groups, currentLabel, hasMultiple, currentHasGrades, recommended, narration }

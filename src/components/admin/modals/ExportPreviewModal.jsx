@@ -186,7 +186,7 @@ export default function ExportPreviewModal({ type, classId, subject, student: st
         </div>
       </div>
 
-      {type === 'student' && studentSem?.hasMultiple && (
+      {type === 'student' && studentSem && studentSem.groups.length > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', background: 'var(--accent-l)', borderRadius: 10, padding: '10px 12px', margin: '0 0 10px' }}>
           <span style={{ fontSize: 11.5, color: 'var(--accent)', lineHeight: 1.5, flex: 1, minWidth: 180 }}>
             <strong>On-device check:</strong> {studentSem.narration}
@@ -197,11 +197,11 @@ export default function ExportPreviewModal({ type, classId, subject, student: st
             style={{ fontSize: 12.5, padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink)' }}
           >
             {studentSem.groups.map(g => (
-              <option key={g.label} value={g.label} disabled={!g.gradedCount}>
-                {(g.isCurrent ? 'Current' : 'Past') + ' · ' + g.label + ' (' + g.gradedCount + ')'}
+              <option key={g.label} value={g.label} disabled={!g.subjects.length}>
+                {(g.isCurrent ? 'Current' : 'Past') + ' · ' + g.label + ' (' + g.subjects.length + ')'}
               </option>
             ))}
-            <option value="all">All semesters ({studentSem.groups.reduce((n, g) => n + g.gradedCount, 0)})</option>
+            <option value="all">All semesters ({[...new Set(studentSem.groups.flatMap(g => g.subjects))].length})</option>
           </select>
         </div>
       )}

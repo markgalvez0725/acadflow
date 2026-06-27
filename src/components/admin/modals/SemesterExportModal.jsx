@@ -19,13 +19,12 @@ export default function SemesterExportModal({ student, analysis, kind = 'report 
 
   const groups = analysis?.groups || []
   const allSubjects = [...new Set(groups.flatMap(g => g.subjects))]
-  const allGraded = groups.reduce((n, g) => n + g.gradedCount, 0)
   const options = [
     ...groups.map(g => ({
       key: g.label, label: g.isCurrent ? 'Current semester' : 'Past semester',
-      term: g.label, isCurrent: g.isCurrent, subjects: g.subjects, count: g.gradedCount,
+      term: g.label, isCurrent: g.isCurrent, subjects: g.subjects, count: g.subjects.length, graded: g.gradedCount,
     })),
-    { key: 'all', label: 'All semesters', term: 'Everything on record, grouped by term', isCurrent: false, all: true, subjects: allSubjects, count: allGraded },
+    { key: 'all', label: 'All semesters', term: 'Everything on record, grouped by term', isCurrent: false, all: true, subjects: allSubjects, count: allSubjects.length, graded: groups.reduce((n, g) => n + g.gradedCount, 0) },
   ]
   const sel = options.find(o => o.key === key)
   const selIsPast = sel && !sel.all && !sel.isCurrent

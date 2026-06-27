@@ -24,13 +24,9 @@ export function useStudentReportCardExport() {
 
   const trigger = useCallback((student) => {
     const analysis = analyzeStudentSemesters(student, classes, semester)
-    if (!analysis.hasMultiple) {
-      const only = analysis.groups[0]
-      doExport(student, only ? only.label : 'all', analysis)
-    } else {
-      setPending({ student, analysis })
-    }
-  }, [classes, semester, doExport])
+    // Always show the semester check so the professor confirms / picks the term.
+    setPending({ student, analysis })
+  }, [classes, semester])
 
   const modal = pending ? (
     <SemesterExportModal
