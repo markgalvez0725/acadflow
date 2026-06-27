@@ -5,7 +5,7 @@ import { fbStartListening, stopListening } from '@/firebase/listeners'
 import {
   persistStudentsSync, persistClassesSync, persistAdmin, loadAdminFromStorage,
   fbDeleteStudent, fbSaveAnnouncement, fbDeleteAnnouncement, fbPushAnnouncementNotifs,
-  fbAddAnnouncementComment, fbAddCommentReply,
+  fbAddAnnouncementComment, fbAddCommentReply, fbToggleAnnouncementLike, fbToggleSavedPost,
   fbSaveResource, fbDeleteResource, fbSaveRubricLibrary,
   fbSaveMeetLink, fbScheduleMeeting, fbStartMeeting, fbEndMeeting, fbCancelMeeting, fbPushMeetingNotifs,
   fbSetSubjectRep, fbDeleteClassRelatedData, fbAddAuditLog, fbRestoreFromBackup,
@@ -950,6 +950,33 @@ export function DataProvider({ children }) {
     await fbAddAnnouncementComment(dbRef.current, announcementId, comment)
   }, [])
 
+  // Like a post (Instagram-style). Optimistic; reverts the local entry if the
+  // atomic write fails so the heart never lies about the persisted state.
+  const toggleAnnouncementLike = useCallback(async (announcementId, studentId, liked) => {
+    const apply = (want) => setAnnouncements(prev => prev.map(a => {
+      if (a.id !== announcementId) return a
+      const cur = Array.isArray(a.likes) ? a.likes : []
+      const next = want ? [...new Set([...cur, studentId])] : cur.filter(id => id !== studentId)
+      return { ...a, likes: next }
+    }))
+    apply(liked)
+    try { await fbToggleAnnouncementLike(dbRef.current, announcementId, studentId, liked) }
+    catch { apply(!liked) }
+  }, [])
+
+  // Save/bookmark a post on the student's own doc. Optimistic with revert.
+  const toggleSavedPost = useCallback(async (studentId, announcementId, saved) => {
+    const apply = (want) => setStudents(prev => prev.map(s => {
+      if (s.id !== studentId) return s
+      const cur = Array.isArray(s.savedPosts) ? s.savedPosts : []
+      const next = want ? [...new Set([...cur, announcementId])] : cur.filter(id => id !== announcementId)
+      return { ...s, savedPosts: next }
+    }))
+    apply(saved)
+    try { await fbToggleSavedPost(dbRef.current, studentId, announcementId, saved) }
+    catch { apply(!saved) }
+  }, [])
+
   const addCommentReply = useCallback(async (announcementId, commentId, reply) => {
     setAnnouncements(prev => prev.map(a =>
       a.id === announcementId
@@ -1222,7 +1249,7 @@ export function DataProvider({ children }) {
       activities, setActivities,
       adminNotifs, setAdminNotifs,
       quizzes, setQuizzes,
-      announcements, setAnnouncements, saveAnnouncement, deleteAnnouncement, pushAnnouncementNotifs, addAnnouncementComment, addCommentReply,
+      announcements, setAnnouncements, saveAnnouncement, deleteAnnouncement, pushAnnouncementNotifs, addAnnouncementComment, addCommentReply, toggleAnnouncementLike, toggleSavedPost,
       resources, setResources, saveResource, deleteResource,
       rubricLibrary, saveRubricToLibrary, deleteLibraryRubric,
       purgeQuizFromStudents,

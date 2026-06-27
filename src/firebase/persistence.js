@@ -196,6 +196,38 @@ export async function fbAddAnnouncementComment(db, announcementId, comment) {
   }))
 }
 
+// Toggle a student's like on an announcement (atomic). `liked` is the desired
+// end state; reading inside the transaction means concurrent likers from
+// different devices never clobber each other's entry.
+export async function fbToggleAnnouncementLike(db, announcementId, studentId, liked) {
+  if (!db || !announcementId || !studentId) return
+  const { doc: fbDoc } = await import('firebase/firestore')
+  const ref = fbDoc(db, 'announcements', announcementId)
+  return fbWithTimeout(runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref)
+    if (!snap.exists()) throw new Error('Announcement not found')
+    const cur = Array.isArray(snap.data().likes) ? snap.data().likes : []
+    const next = liked ? [...new Set([...cur, studentId])] : cur.filter(id => id !== studentId)
+    transaction.update(ref, { likes: next })
+  }))
+}
+
+// Toggle a saved/bookmarked post on the student's OWN doc (atomic). Touches
+// only `savedPosts`, so gradeFieldsUntouched() in the Firestore rules still
+// passes - students may write their own non-grade fields.
+export async function fbToggleSavedPost(db, studentId, announcementId, saved) {
+  if (!db || !studentId || !announcementId) return
+  const { doc: fbDoc } = await import('firebase/firestore')
+  const ref = fbDoc(db, 'students', studentId)
+  return fbWithTimeout(runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref)
+    if (!snap.exists()) throw new Error('Student not found')
+    const cur = Array.isArray(snap.data().savedPosts) ? snap.data().savedPosts : []
+    const next = saved ? [...new Set([...cur, announcementId])] : cur.filter(id => id !== announcementId)
+    transaction.update(ref, { savedPosts: next })
+  }))
+}
+
 export async function fbAddCommentReply(db, announcementId, commentId, reply) {
   if (!db || !announcementId || !commentId || !reply) return
   const { doc: fbDoc } = await import('firebase/firestore')
