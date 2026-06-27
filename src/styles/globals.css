@@ -3455,7 +3455,7 @@ textarea.input { resize: vertical; }
 .ig-name { font-weight: 700; font-size: 0.875rem; color: var(--ink); white-space: nowrap; }
 .ig-check { color: #1d9bf0; fill: #1d9bf0; stroke: var(--surface); flex-shrink: 0; }
 .ig-dot { color: var(--ink3); }
-.ig-time { font-size: 0.8125rem; color: var(--ink3); white-space: nowrap; }
+.ig-time { font-size: 0.8125rem; color: var(--ink3); white-space: nowrap; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ig-pin { font-size: 10px; font-weight: 700; color: var(--accent); background: var(--accent-l, rgba(59,130,246,.12)); padding: 2px 8px; border-radius: 999px; flex-shrink: 0; }
 .ig-kebab { background: none; border: none; color: var(--ink2); cursor: pointer; padding: 4px; display: flex; flex-shrink: 0; }
 .ig-media { width: 100%; }
