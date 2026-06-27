@@ -18,10 +18,14 @@ let _branding = null
 export function setReportBranding(b) { _branding = (b && typeof b === 'object') ? b : null }
 export function getReportBranding() { return _branding }
 
-// ── Professor cache (the admin's display name, set once from DataContext) ───
-// Printed in the report header and on the "Prepared by" signature line.
+// ── Professor cache (the admin's display NAME only, set from DataContext) ───
+// Printed in the report header and on the "Prepared by" signature line. By
+// design this stores only the name - the professor PHOTO is never exported.
 let _professor = null
-export function setReportProfessor(p) { _professor = (p && p.name) ? p : null }
+export function setReportProfessor(p) {
+  const name = p && typeof p.name === 'string' ? p.name.trim() : ''
+  _professor = name ? { name } : null
+}
 export function getReportProfessor() { return _professor }
 
 // Accent colors per report type (RGB). Drives the header band + table head.

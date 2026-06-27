@@ -483,8 +483,9 @@ export function DataProvider({ children }) {
   // (including direct exports that don't pass branding) is branded.
   useEffect(() => { setReportBranding(branding) }, [branding])
 
-  // Feed the professor's name into report headers + the "Prepared by" line.
-  useEffect(() => { setReportProfessor({ name: admin?.name || '', photo: admin?.photo || null }) }, [admin?.name, admin?.photo])
+  // Feed only the professor's NAME into report headers + the "Prepared by"
+  // line. The professor photo is intentionally never passed to the export layer.
+  useEffect(() => { setReportProfessor({ name: admin?.name || '' }) }, [admin?.name])
 
   // Branding for exports (school name, department, address, base64 logo).
   // Optimistic local set, then persist (strict: rethrow so the UI can surface).
