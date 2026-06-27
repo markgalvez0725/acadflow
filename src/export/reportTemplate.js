@@ -28,6 +28,15 @@ export function setReportProfessor(p) {
 }
 export function getReportProfessor() { return _professor }
 
+// "Mark Arnold Galvez" -> "Prof. Mark Arnold Galvez", but leave an existing
+// honorific (Prof./Dr./Engr./Atty./Mr./Ms./Mrs./Sir/Rev.) untouched.
+export function professorWithTitle(name) {
+  const n = String(name || '').trim()
+  if (!n) return n
+  if (/^(prof|dr|engr|atty|sir|ms|mr|mrs|sr|rev)\b\.?/i.test(n)) return n
+  return `Prof. ${n}`
+}
+
 // Accent colors per report type (RGB). Drives the header band + table head.
 export const REPORT_ACCENTS = {
   grades:     [29, 78, 216],   // blue
@@ -176,7 +185,7 @@ export function drawSignatures(doc, y, roles = ['Prepared by', 'Verified by']) {
     // Print the professor's name on the preparer's signature line.
     if (/prepared/i.test(role) && prof?.name) {
       doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(40)
-      doc.text(String(prof.name), x + colW / 2, by + 10, { align: 'center', maxWidth: colW - 4 })
+      doc.text(professorWithTitle(prof.name), x + colW / 2, by + 10, { align: 'center', maxWidth: colW - 4 })
       doc.setFont('helvetica', 'normal'); doc.setTextColor(90)
     }
     doc.setDrawColor(120)
