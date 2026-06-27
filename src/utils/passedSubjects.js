@@ -1,6 +1,6 @@
 import { gradeInfo, combineEquiv } from '@/utils/grades'
 
-// Subjects this student has officially PASSED — both terms uploaded and the
+// Subjects this student has officially PASSED - both terms uploaded and the
 // combined remark is "Passed". Returns [{ subject, eq }]. Used to celebrate.
 export function computePassedSubjects(student, subjects = [], eqScale) {
   const out = []

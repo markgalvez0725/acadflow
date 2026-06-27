@@ -3,8 +3,8 @@ import React from 'react'
 /**
  * App-level error boundary.
  *
- * Catches render / lifecycle errors anywhere below it — including the context
- * providers and the router — and shows a friendly, self-contained fallback
+ * Catches render / lifecycle errors anywhere below it - including the context
+ * providers and the router - and shows a friendly, self-contained fallback
  * instead of a blank white screen.
  *
  * The fallback deliberately depends on NOTHING that could itself be broken:
@@ -84,7 +84,7 @@ export default class ErrorBoundary extends React.Component {
             Something went wrong
           </h1>
           <p style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--ink2, #5b6478)', margin: '0 0 20px' }}>
-            AcadFlow ran into an unexpected error. Your data is safe — try again,
+            AcadFlow ran into an unexpected error. Your data is safe - try again,
             or reload the app to recover.
           </p>
 

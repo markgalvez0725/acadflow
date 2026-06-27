@@ -1,4 +1,4 @@
-// ── Portal settings — Firebase-primary (equiv scale, grade weights) ───────
+// ── Portal settings - Firebase-primary (equiv scale, grade weights) ───────
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { fbWithTimeout } from './firebaseInit'
 import { DEFAULT_EQ_SCALE } from '@/utils/grades'

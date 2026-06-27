@@ -154,7 +154,7 @@ export default function CalendarTab({ student, viewClassId, classes }) {
     return Object.values(eventMap).flat().filter(ev => ev.ts >= now).sort((a, b) => a.ts - b.ts).slice(0, 5)
   }, [eventMap])
 
-  // Deterministic "Schedule Watch" — past-due, next-up, busy days in the next 7
+  // Deterministic "Schedule Watch" - past-due, next-up, busy days in the next 7
   // days. Recomputed from the same event map the grid renders. No AI/network.
   const watch = useMemo(() => {
     const now = Date.now()
@@ -173,13 +173,13 @@ export default function CalendarTab({ student, viewClassId, classes }) {
 
     const f = []
     if (pastDue.length)
-      f.push({ tone: 'bad', Icon: AlertTriangle, lead: `${pastDue.length} past due`, text: ` — ${pastDue[0].title}${pastDue.length > 1 ? ` +${pastDue.length - 1}` : ''}, not ${pastDue[0].type === 'quiz' ? 'taken' : 'submitted'}.` })
+      f.push({ tone: 'bad', Icon: AlertTriangle, lead: `${pastDue.length} past due`, text: ` - ${pastDue[0].title}${pastDue.length > 1 ? ` +${pastDue.length - 1}` : ''}, not ${pastDue[0].type === 'quiz' ? 'taken' : 'submitted'}.` })
     if (next)
-      f.push({ tone: 'info', Icon: ArrowRight, lead: 'Next up', text: ` — ${next.title}, ${relDay(next.ts, now)}.` })
+      f.push({ tone: 'info', Icon: ArrowRight, lead: 'Next up', text: ` - ${next.title}, ${relDay(next.ts, now)}.` })
     if (busy)
-      f.push({ tone: 'warn', Icon: CalendarClock, lead: 'Busy day', text: ` — ${shortDay(busy.k)} has ${busy.n} deadlines.` })
+      f.push({ tone: 'warn', Icon: CalendarClock, lead: 'Busy day', text: ` - ${shortDay(busy.k)} has ${busy.n} deadlines.` })
     if (!f.length)
-      f.push({ tone: 'good', Icon: CalendarCheck, lead: 'Clear week', text: ' — nothing due in the next 7 days.' })
+      f.push({ tone: 'good', Icon: CalendarCheck, lead: 'Clear week', text: ' - nothing due in the next 7 days.' })
     const lead = weekAhead.length
       ? `${weekAhead.length} event${weekAhead.length > 1 ? 's' : ''} in the next 7 days.`
       : 'Nothing scheduled this week.'

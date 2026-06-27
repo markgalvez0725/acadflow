@@ -1,6 +1,6 @@
 // ── PDF Export Layer ──────────────────────────────────────────────────────
-// Uses window.jspdf (jsPDF + autoTable plugin — loaded via CDN <script> in index.html).
-// All functions accept explicit (students, classes) args — no globals.
+// Uses window.jspdf (jsPDF + autoTable plugin - loaded via CDN <script> in index.html).
+// All functions accept explicit (students, classes) args - no globals.
 
 import {
   gradeInfoForStudent,
@@ -34,10 +34,10 @@ function safeFileName(str) {
  * Draws the standard AcadFlow PDF header (blue bar, title, subtitle).
  * Returns the y-coordinate after the header (y = 34).
  *
- * @param {object} doc — jsPDF instance
+ * @param {object} doc - jsPDF instance
  * @param {string} title
  * @param {string} subtitle
- * @param {object} [cls] — class record (optional)
+ * @param {object} [cls] - class record (optional)
  * @returns {number} y = 34
  */
 export function pdfHeader(doc, title, subtitle, cls) {
@@ -72,7 +72,7 @@ export function pdfHeader(doc, title, subtitle, cls) {
  * Builds and saves a landscape A4 PDF grades report for a class.
  * Includes a stats bar and a color-coded autoTable.
  *
- * @param {object} data — from buildGradesData()
+ * @param {object} data - from buildGradesData()
  * @param {object[]} students
  * @param {object[]} classes
  */
@@ -84,7 +84,7 @@ export function buildGradesPDFDoc(data, students, classes) {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
   const pageW = doc.internal.pageSize.getWidth()
 
-  const subtitle = `${cls.name || cls.id}  ·  Section: ${cls.section || '—'}  ·  S.Y. ${cls.sy || '—'}  ·  Exported: ${fmtDate()}`
+  const subtitle = `${cls.name || cls.id}  ·  Section: ${cls.section || '-'}  ·  S.Y. ${cls.sy || '-'}  ·  Exported: ${fmtDate()}`
   let y = pdfHeader(doc, 'Grade Summary', subtitle, cls)
 
   // Stats bar
@@ -173,7 +173,7 @@ export function buildGradesPDFDoc(data, students, classes) {
  * Builds and saves a landscape A4 PDF attendance report for a class.
  * Includes a stats bar and a color-coded autoTable.
  *
- * @param {object} data — from buildAttendanceData()
+ * @param {object} data - from buildAttendanceData()
  * @param {object[]} students
  * @param {object[]} classes
  */
@@ -185,7 +185,7 @@ export function buildAttendancePDFDoc(data, students, classes) {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
   const pageW = doc.internal.pageSize.getWidth()
 
-  const subtitle = `${cls.name || cls.id}  ·  Section: ${cls.section || '—'}  ·  S.Y. ${cls.sy || '—'}  ·  Exported: ${fmtDate()}`
+  const subtitle = `${cls.name || cls.id}  ·  Section: ${cls.section || '-'}  ·  S.Y. ${cls.sy || '-'}  ·  Exported: ${fmtDate()}`
   let y = pdfHeader(doc, 'Attendance Summary', subtitle, cls)
 
   // Stats bar (green theme)
@@ -211,7 +211,7 @@ export function buildAttendancePDFDoc(data, students, classes) {
   doc.setTextColor(22, 101, 52)
   doc.text(`≥90% (Good): ${goodCount}`, 48, y + 4)
   doc.setTextColor(133, 77, 14)
-  doc.text(`80–89% (Warning): ${warnCount}`, 92, y + 4)
+  doc.text(`80-89% (Warning): ${warnCount}`, 92, y + 4)
   doc.setTextColor(153, 27, 27)
   doc.text(`<80% (At Risk): ${poorCount}`, 148, y + 4)
   doc.setTextColor(30, 30, 30)
@@ -281,9 +281,9 @@ export function buildAttendancePDFDoc(data, students, classes) {
  * Includes: student info card, 3 summary boxes (GWA / Attendance / Status),
  * grades table, and attendance table.
  *
- * @param {object} s — student record
+ * @param {object} s - student record
  * @param {object[]} classes
- * @param {object[]} students — full roster
+ * @param {object[]} students - full roster
  * @param {object[]} [eqScale]
  */
 export function buildStudentPDFDoc(s, classes, students, eqScale = DEFAULT_EQ_SCALE) {
@@ -303,7 +303,7 @@ export function buildStudentPDFDoc(s, classes, students, eqScale = DEFAULT_EQ_SC
   const attRate = getAttRate(s, students, classes)
   const gwaInfo = gwa != null ? equivInfo(gwa.toFixed(2)) : { rem: 'No Grade' }
 
-  const subtitle = `${s.id}  ·  ${s.course || '—'}  ·  ${s.year || '—'}  ·  Exported: ${fmtDate()}`
+  const subtitle = `${s.id}  ·  ${s.course || '-'}  ·  ${s.year || '-'}  ·  Exported: ${fmtDate()}`
   let y = pdfHeader(doc, 'Student Report', subtitle)
 
   // ── Student info card ─────────────────────────────────────────────────
@@ -316,8 +316,8 @@ export function buildStudentPDFDoc(s, classes, students, eqScale = DEFAULT_EQ_SC
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   doc.setTextColor(100)
-  doc.text(`Course: ${s.course || '—'}  |  Year: ${s.year || '—'}  |  Student No.: ${s.id}`, 14, y + 12)
-  if (s.dob) doc.text(`Date of Birth: ${s.dob}  |  Mobile: ${s.mobile || '—'}`, 14, y + 17)
+  doc.text(`Course: ${s.course || '-'}  |  Year: ${s.year || '-'}  |  Student No.: ${s.id}`, 14, y + 12)
+  if (s.dob) doc.text(`Date of Birth: ${s.dob}  |  Mobile: ${s.mobile || '-'}`, 14, y + 17)
 
   y += 24
 
@@ -326,14 +326,14 @@ export function buildStudentPDFDoc(s, classes, students, eqScale = DEFAULT_EQ_SC
   const boxes = [
     {
       label: 'GWA',
-      value: gwa != null ? gwa.toFixed(2) : '—',
+      value: gwa != null ? gwa.toFixed(2) : '-',
       sub:   gwaInfo.rem,
       fill:  [239, 246, 255],
       text:  [30, 64, 175],
     },
     {
       label: 'Attendance',
-      value: attRate != null ? `${attRate}%` : '—',
+      value: attRate != null ? `${attRate}%` : '-',
       sub:   attRate != null ? (attRate >= 90 ? 'Good Standing' : attRate >= 80 ? 'Warning' : 'At Risk') : 'No Data',
       fill:  [240, 253, 244],
       text:  [20, 83, 45],
@@ -381,13 +381,13 @@ export function buildStudentPDFDoc(s, classes, students, eqScale = DEFAULT_EQ_SC
     const finG   = comp.finals  ?? null
     const info   = gradeInfoForStudent(s, sub, eqScale)
     const ts     = s.gradeUploadedAt?.[sub]
-    const uploaded = ts ? new Date(ts).toLocaleDateString('en-PH', { dateStyle: 'short' }) : '—'
+    const uploaded = ts ? new Date(ts).toLocaleDateString('en-PH', { dateStyle: 'short' }) : '-'
 
-    const displayEq  = info.eq  !== '—' ? info.eq  : (midG != null ? gradeInfo(midG, eqScale).eq  : '—')
-    const displayLtr = info.ltr !== '—' ? info.ltr : (midG != null ? gradeInfo(midG, eqScale).ltr : '—')
+    const displayEq  = info.eq  !== '-' ? info.eq  : (midG != null ? gradeInfo(midG, eqScale).eq  : '-')
+    const displayLtr = info.ltr !== '-' ? info.ltr : (midG != null ? gradeInfo(midG, eqScale).ltr : '-')
     const displayRem = info.rem !== 'Pending' ? info.rem : (midG != null ? 'Midterm Only' : 'Pending')
 
-    return [sub, midG ?? '—', finG ?? '—', displayEq, displayLtr, displayRem, uploaded]
+    return [sub, midG ?? '-', finG ?? '-', displayEq, displayLtr, displayRem, uploaded]
   })
 
   doc.autoTable({
@@ -434,8 +434,8 @@ export function buildStudentPDFDoc(s, classes, students, eqScale = DEFAULT_EQ_SC
     const present = attSet instanceof Set ? attSet.size : (Array.isArray(attSet) ? attSet.length : 0)
     const excused = exSet  instanceof Set ? exSet.size  : (Array.isArray(exSet)  ? exSet.length  : 0)
     const absent  = Math.max(0, held - present - excused)
-    const rate    = held > 0 ? parseFloat(((present / held) * 100).toFixed(1)) : '—'
-    return [sub, held, present, excused, absent, typeof rate === 'number' ? `${rate}%` : '—']
+    const rate    = held > 0 ? parseFloat(((present / held) * 100).toFixed(1)) : '-'
+    return [sub, held, present, excused, absent, typeof rate === 'number' ? `${rate}%` : '-']
   })
 
   doc.autoTable({

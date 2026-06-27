@@ -149,7 +149,7 @@ function AddStudentModal({ onClose }) {
       <p className="modal-sub">Enter the student's name, identifiers, then enroll them in classes.</p>
       {err && <div className="err-msg mb-3">{err}</div>}
 
-      {/* Name — captured in parts, stored as "SURNAME, First M.I." */}
+      {/* Name - captured in parts, stored as "SURNAME, First M.I." */}
       <div className="field">
         <label>Last Name <span className="text-red-500">*</span></label>
         <input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Dela Cruz" />
@@ -178,7 +178,7 @@ function AddStudentModal({ onClose }) {
         <div className="field">
           <label>Course / Program <span className="text-red-500">*</span></label>
           <select value={course} onChange={e => setCourse(e.target.value)}>
-            <option value="">— Select course —</option>
+            <option value="">- Select course -</option>
             {courseOptions(course).map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
@@ -190,22 +190,22 @@ function AddStudentModal({ onClose }) {
         </div>
       </div>
 
-      {/* Enrollment — only classes matching the course + year are offered */}
+      {/* Enrollment - only classes matching the course + year are offered */}
       <div className="field">
         <label>Primary Class <span className="font-normal text-ink3">(home class for grades &amp; attendance)</span></label>
         <select value={classId} disabled={!classesReady} onChange={e => { setClassId(e.target.value); setExtraIds(prev => prev.filter(x => x !== e.target.value)) }}>
-          <option value="">{classesReady ? (matchingClasses.length ? '— Select a class —' : 'No classes match this course & year') : 'Select course & year first'}</option>
+          <option value="">{classesReady ? (matchingClasses.length ? '- Select a class -' : 'No classes match this course & year') : 'Select course & year first'}</option>
           {matchingClasses.map(c => (
             <option key={c.id} value={c.id}>{c.section} · {classSubjectsLabel(c)}</option>
           ))}
         </select>
         {classesReady && primaryCls && (
           <div className="text-xs text-ink3 mt-1">
-            Section <strong className="text-ink">{inheritedSection || '—'}</strong> · {(primaryCls.subjects || []).length} subject{(primaryCls.subjects || []).length !== 1 ? 's' : ''}: {(primaryCls.subjects || []).join(', ') || 'none'}
+            Section <strong className="text-ink">{inheritedSection || '-'}</strong> · {(primaryCls.subjects || []).length} subject{(primaryCls.subjects || []).length !== 1 ? 's' : ''}: {(primaryCls.subjects || []).join(', ') || 'none'}
           </div>
         )}
         {classesReady && !matchingClasses.length && (
-          <div className="text-xs text-ink3 mt-1">No class is set up for this course &amp; year yet — create one in the <strong>Classes</strong> tab, or add the student without a class for now.</div>
+          <div className="text-xs text-ink3 mt-1">No class is set up for this course &amp; year yet - create one in the <strong>Classes</strong> tab, or add the student without a class for now.</div>
         )}
       </div>
 
@@ -235,7 +235,7 @@ function AddStudentModal({ onClose }) {
           <div>
             <div className="text-xs font-bold text-ink"><KeyRound size={14} /> Initial Password</div>
             <div className="text-xs text-ink3 mt-0.5">
-              Default: <code className="font-mono text-ink">Welcome@2026</code> — student must change on first login.
+              Default: <code className="font-mono text-ink">Welcome@2026</code> - student must change on first login.
             </div>
           </div>
           <label className="flex items-center gap-1.5 text-xs font-semibold text-accent cursor-pointer">
@@ -300,7 +300,7 @@ function EditStudentModal({ student, onClose }) {
   )
 
   // Primary-class options: the matching classes PLUS the student's CURRENT
-  // primary class even if it no longer matches — so editing never hides an
+  // primary class even if it no longer matches - so editing never hides an
   // existing assignment.
   const primaryOptions = useMemo(() => {
     const m = new Map(matchingClasses.map(c => [c.id, c]))
@@ -310,7 +310,7 @@ function EditStudentModal({ student, onClose }) {
   }, [matchingClasses, classId, classes])
 
   // Additional-class options: matching classes (minus the primary) PLUS any
-  // already-enrolled extra class that doesn't match — kept visible so stray
+  // already-enrolled extra class that doesn't match - kept visible so stray
   // cross-course enrollments can be seen and removed, never silently hidden.
   const additionalOptions = useMemo(() => {
     const m = new Map(matchingClasses.filter(c => c.id !== classId).map(c => [c.id, c]))
@@ -425,7 +425,7 @@ function EditStudentModal({ student, onClose }) {
       )}
       <div className="field">
         <label>Student Number {isRegistered
-          ? <span className="text-ink3 font-normal">(locked — student has an account)</span>
+          ? <span className="text-ink3 font-normal">(locked - student has an account)</span>
           : <span className="text-red-500">*</span>}</label>
         <input
           value={snum}
@@ -441,7 +441,7 @@ function EditStudentModal({ student, onClose }) {
         <div className="field">
           <label>Course / Program <span className="text-red-500">*</span></label>
           <select value={course} onChange={e => setCourse(e.target.value)}>
-            <option value="">— Select course —</option>
+            <option value="">- Select course -</option>
             {courseOptions(course).map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
@@ -456,14 +456,14 @@ function EditStudentModal({ student, onClose }) {
       <div className="field">
         <label>Primary Class <span className="font-normal text-ink3">(home class for grades &amp; attendance)</span></label>
         <select value={classId} onChange={e => { setClassId(e.target.value); setExtraIds(prev => prev.filter(x => x !== e.target.value)) }}>
-          <option value="">— Unassigned —</option>
+          <option value="">- Unassigned -</option>
           {primaryOptions.map(c => {
             const matches = classMatchesCourseYear(course, year, c)
             return <option key={c.id} value={c.id}>{c.section} · {classSubjectsLabel(c)}{matches ? '' : ` (${courseShort(c.name)})`}</option>
           })}
         </select>
         <div className="text-xs text-ink3 mt-1">
-          Section <strong className="text-ink">{inheritedSection || '—'}</strong>
+          Section <strong className="text-ink">{inheritedSection || '-'}</strong>
           {primaryCls && <> · {(primaryCls.subjects || []).length} subject{(primaryCls.subjects || []).length !== 1 ? 's' : ''}: {(primaryCls.subjects || []).join(', ') || 'none'}</>}
         </div>
       </div>
@@ -493,7 +493,7 @@ function EditStudentModal({ student, onClose }) {
             })}
           </div>
           {additionalOptions.some(c => extraIds.includes(c.id) && !classMatchesCourseYear(course, year, c)) && (
-            <div className="text-xs text-ink3 mt-1.5">Yellow chips are enrolled outside this course/year — tap to remove if no longer applicable.</div>
+            <div className="text-xs text-ink3 mt-1.5">Yellow chips are enrolled outside this course/year - tap to remove if no longer applicable.</div>
           )}
         </div>
       )}
@@ -515,8 +515,8 @@ function EditStudentModal({ student, onClose }) {
             const k = accountStatusKey(student)
             if (k === 'none')   return <Badge variant="gray">No account yet</Badge>
             if (k === 'active') return <Badge variant="green"><CheckCircle2 size={14} /> Active{student.account.email ? ` (${student.account.email})` : ''}</Badge>
-            if (isPendingVerification(student)) return <Badge variant="yellow"><Hourglass size={14} /> Pending — awaiting verification</Badge>
-            return <Badge variant="yellow"><Hourglass size={14} /> Pending — not yet activated</Badge>
+            if (isPendingVerification(student)) return <Badge variant="yellow"><Hourglass size={14} /> Pending - awaiting verification</Badge>
+            return <Badge variant="yellow"><Hourglass size={14} /> Pending - not yet activated</Badge>
           })()}
           {isPendingVerification(student) && (() => {
             const v = verificationInfo(student)
@@ -524,11 +524,11 @@ function EditStudentModal({ student, onClose }) {
             return (
               <div className="mt-2 p-2.5 rounded-lg" style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}>
                 <div className="text-xs text-ink2" style={{ lineHeight: 1.5 }}>
-                  Self-registered. AI identity match: <strong style={{ color: 'var(--ink)' }}>{v?.confidence != null ? `${v.confidence}%` : '—'}</strong>
+                  Self-registered. AI identity match: <strong style={{ color: 'var(--ink)' }}>{v?.confidence != null ? `${v.confidence}%` : '-'}</strong>
                   {detail ? <> · <span className="text-ink3">{detail}</span></> : null}
                 </div>
                 <div className="flex gap-2 mt-2">
-                  <button type="button" className="btn btn-primary btn-sm" onClick={async () => { try { await verifyStudentAccount(student.id, true); toast('Verified — account is now active.', 'green') } catch (e) { toast('Failed: ' + e.message, 'red') } }}>
+                  <button type="button" className="btn btn-primary btn-sm" onClick={async () => { try { await verifyStudentAccount(student.id, true); toast('Verified - account is now active.', 'green') } catch (e) { toast('Failed: ' + e.message, 'red') } }}>
                     <ShieldCheck size={14} /> Approve
                   </button>
                   <button type="button" className="btn btn-ghost btn-sm" onClick={async () => { try { await verifyStudentAccount(student.id, false); toast('Left pending.', 'gray') } catch (e) { toast('Failed: ' + e.message, 'red') } }}>
@@ -649,7 +649,7 @@ function ResetPasswordModal({ student, onClose }) {
         <>
           <p className="modal-sub">
             This starts a live reset for <strong>{student.name}</strong> (#{student.id}).
-            The student sets their own new password on their device — you never have to
+            The student sets their own new password on their device - you never have to
             handle or share one.
           </p>
 
@@ -938,7 +938,7 @@ function ImportStudentsModal({ onClose }) {
           <div className="flex items-center gap-1.5 mb-2 text-xs text-ink3">
             <Sparkles size={13} className="text-accent shrink-0" />
             {counts.review > 0
-              ? <span>AI check flagged <strong className="text-amber-600">{counts.review}</strong> row{counts.review !== 1 ? 's' : ''} to review — advisory only, won’t block import.</span>
+              ? <span>AI check flagged <strong className="text-amber-600">{counts.review}</strong> row{counts.review !== 1 ? 's' : ''} to review - advisory only, won’t block import.</span>
               : <span>AI check: the filled-in file looks good.</span>}
           </div>
 
@@ -952,11 +952,11 @@ function ImportStudentsModal({ onClose }) {
                 {pageRows.map(({ r, i, hasError, warns, review }) => (
                   <tr key={i} className={hasError ? 'bg-red-50 dark:bg-red-950/20' : review ? 'bg-amber-50 dark:bg-amber-950/20' : ''}>
                     <td className="text-ink3">{i + 2}</td>
-                    <td className="font-mono">{r.id || '—'}</td>
-                    <td>{r.name || '—'}</td>
-                    <td>{r.course || '—'}</td>
+                    <td className="font-mono">{r.id || '-'}</td>
+                    <td>{r.name || '-'}</td>
+                    <td>{r.course || '-'}</td>
                     <td>{r.year || '1st Year'}</td>
-                    <td>{r.section || '—'}</td>
+                    <td>{r.section || '-'}</td>
                     <td>
                       {hasError
                         ? <span className="text-red-500 inline-flex items-center gap-1"><AlertTriangle size={12} className="shrink-0" /> {errors[i]}</span>
@@ -988,7 +988,7 @@ function ImportStudentsModal({ onClose }) {
       <div className="bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800/50 rounded-lg px-3 py-2 mb-3 text-xs text-yellow-800 dark:text-yellow-300">
         <strong>Default password for imported students:</strong>{' '}
         <code className="font-mono bg-yellow-100 dark:bg-yellow-900/50 px-1 rounded">Welcome@2026</code>
-        {' '}— students will be required to change it on first login.
+        {' '}- students will be required to change it on first login.
       </div>
 
       <div className="modal-footer">
@@ -1280,7 +1280,7 @@ export default function StudentsTab() {
         </div>
       </div>
 
-      {/* Summary metric cards — also act as quick filters */}
+      {/* Summary metric cards - also act as quick filters */}
       <div className="grid gap-2 mb-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))' }}>
         {[
           { key: 'all',        label: 'Total students', value: counts.all },
@@ -1318,7 +1318,7 @@ export default function StudentsTab() {
         )}
       </div>
 
-      {/* Verification queue — self-registered students awaiting identity approval */}
+      {/* Verification queue - self-registered students awaiting identity approval */}
       {counts.verify > 0 && (
         <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg flex-wrap" style={{ background: 'rgba(234,179,8,.12)', border: '1px solid var(--yellow, #ca8a04)' }}>
           <ShieldCheck size={16} className="shrink-0" style={{ color: 'var(--yellow-d, #854d0e)' }} />
@@ -1331,7 +1331,7 @@ export default function StudentsTab() {
         </div>
       )}
 
-      {/* Attention banner — surfaces students needing placement or activation */}
+      {/* Attention banner - surfaces students needing placement or activation */}
       {(counts.unassigned > 0 || counts.pending > 0) && (
         <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg flex-wrap" style={{ background: 'var(--yellow-l, #fef9c3)', border: '1px solid var(--yellow, #ca8a04)' }}>
           <AlertTriangle size={16} className="shrink-0" style={{ color: 'var(--yellow-d, #854d0e)' }} />
@@ -1368,7 +1368,7 @@ export default function StudentsTab() {
         </select>
       </div>
 
-      {/* Bulk action bar — appears when one or more students are selected */}
+      {/* Bulk action bar - appears when one or more students are selected */}
       {selected.size > 0 && (
         <div className="flex items-center gap-2 mb-3 flex-wrap" style={{ padding: '8px 12px', borderRadius: 10, background: 'var(--accent-l)', border: '1px solid var(--border)' }}>
           <span style={{ fontWeight: 600, fontSize: 13 }}>{selected.size} selected</span>
@@ -1440,7 +1440,7 @@ export default function StudentsTab() {
                         </button>
                       </td>
                       <td><span className="stu-id-pill">{s.id}</span></td>
-                      <td className="hidden lg:table-cell"><span className="stu-course-cell">{s.course || '—'}</span></td>
+                      <td className="hidden lg:table-cell"><span className="stu-course-cell">{s.course || '-'}</span></td>
                       <td>
                         {!enrolledClasses.length ? (
                           <span style={{ color: 'var(--ink3)', fontStyle: 'italic', fontSize: 12 }}>Unassigned</span>
@@ -1461,7 +1461,7 @@ export default function StudentsTab() {
                       <td className="hidden lg:table-cell">
                         {s.account?.email
                           ? <span className="stu-email-cell">{s.account.email}</span>
-                          : <span style={{ color: 'var(--ink3)', fontSize: 12 }}>—</span>}
+                          : <span style={{ color: 'var(--ink3)', fontSize: 12 }}>-</span>}
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         {(() => {
@@ -1488,7 +1488,7 @@ export default function StudentsTab() {
             </table>
           </div>
 
-          {/* Phone layout — card per student, no sideways scroll */}
+          {/* Phone layout - card per student, no sideways scroll */}
           <div className="sm:hidden flex flex-col gap-2">
             {/* Select-all bar */}
             <label className="flex items-center gap-2 text-xs text-ink2 px-1 cursor-pointer">
@@ -1546,7 +1546,7 @@ export default function StudentsTab() {
                   <div className="grid gap-x-3 gap-y-1.5 mt-2.5 pt-2.5" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', borderTop: '1px solid var(--border)', fontSize: 12 }}>
                     <div className="min-w-0">
                       <div className="text-ink3" style={{ fontSize: 11 }}>Course</div>
-                      <div className="text-ink2 truncate">{s.course || '—'}</div>
+                      <div className="text-ink2 truncate">{s.course || '-'}</div>
                     </div>
                     <div className="min-w-0">
                       <div className="text-ink3" style={{ fontSize: 11 }}>Class</div>
@@ -1556,7 +1556,7 @@ export default function StudentsTab() {
                     </div>
                     <div className="min-w-0" style={{ gridColumn: '1 / -1' }}>
                       <div className="text-ink3" style={{ fontSize: 11 }}>Email</div>
-                      <div className="text-ink2 truncate">{s.account?.email || '—'}</div>
+                      <div className="text-ink2 truncate">{s.account?.email || '-'}</div>
                     </div>
                   </div>
                 </div>

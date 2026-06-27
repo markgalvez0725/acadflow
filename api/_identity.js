@@ -1,6 +1,6 @@
 // ── Server-side identity scorer (authoritative gate) ──────────────────────
 // Dependency-free mirror of src/utils/identityVerify.js. This is the version
-// that actually decides whether a self-registration is auto-verified — it runs
+// that actually decides whether a self-registration is auto-verified - it runs
 // on the server with the Admin SDK so a student's browser can never forge the
 // result. Keep the algorithm in sync with the client copy (the client one is
 // advisory: instant UX + the teacher's review detail).

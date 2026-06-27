@@ -26,10 +26,10 @@ function friendlyAuthError(e) {
 //
 // Add-Student / Import write a temporary-password HASH to the roster
 // (account.pass) and mark the account registered + _tempPass, but they do NOT
-// create a Firebase Auth user — so the very first sign-in has nothing to
+// create a Firebase Auth user - so the very first sign-in has nothing to
 // authenticate against and fails. This creates that Auth user from the entered
 // password, but ONLY when the roster confirms it's a registered temp-password
-// account AND the entered password matches the stored hash — so a stranger can't
+// account AND the entered password matches the stored hash - so a stranger can't
 // seize an unclaimed account with an arbitrary password. Returns true on success
 // (the student is now signed in); false leaves nothing behind to claim.
 async function claimTempPassAccount(auth, snum, password) {
@@ -224,7 +224,7 @@ export function AuthProvider({ children }) {
       await signInWithEmailAndPassword(auth, studentEmail(snum), password)
     } catch (e) {
       // Sign-in failed. It may be a teacher-provisioned account that has never
-      // been claimed (roster has a temp-password hash but no Auth user yet) — try
+      // been claimed (roster has a temp-password hash but no Auth user yet) - try
       // to claim it with the entered password before treating this as a failure.
       const claimed = await claimTempPassAccount(auth, snum, password)
       if (!claimed) {
@@ -241,7 +241,7 @@ export function AuthProvider({ children }) {
     // the new auth token yet, so the first read can be denied by security rules.
     // We retry a few times (forcing the ID token to mint first) and only treat
     // the account as missing when a read SUCCEEDS and the doc truly is absent.
-    // A read that keeps failing is treated as "unknown" — we let login proceed
+    // A read that keeps failing is treated as "unknown" - we let login proceed
     // and StudentLayout resolves the record from the live listener instead of
     // falsely locking the student out.
     let exists = null // null = read never succeeded (unknown); true/false = known
@@ -276,7 +276,7 @@ export function AuthProvider({ children }) {
     setLoginTime(null)
     setLastLogin(null)
     if (reason === 'timeout') {
-      console.log('[Auth] Session expired — logged out.')
+      console.log('[Auth] Session expired - logged out.')
     }
   }, [])
 

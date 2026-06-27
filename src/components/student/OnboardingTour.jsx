@@ -17,7 +17,7 @@ const STEPS = [
   },
   {
     Icon: LayoutDashboard, color: 'var(--accent)', tab: 'overview',
-    title: 'Home — your day at a glance',
+    title: 'Home - your day at a glance',
     body: 'The top strip shows classes today, what’s due soon, open quizzes, and announcements. Tap any chip to jump straight there.',
   },
   {
@@ -33,7 +33,7 @@ const STEPS = [
   {
     Icon: Library, color: 'var(--accent)', tab: 'resources',
     title: 'Resources & messages',
-    body: 'Find modules, slides, and links in the Resource Hub — and message your teacher anytime from the chat bubble.',
+    body: 'Find modules, slides, and links in the Resource Hub - and message your teacher anytime from the chat bubble.',
   },
 ]
 

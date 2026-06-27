@@ -29,7 +29,7 @@ export function deserializeStudents(arr) {
     const out = { ...s, attendance, excuse };
     delete out._att;
     delete out._exc;
-    // Student names are shown UPPERCASE everywhere — normalize at the single
+    // Student names are shown UPPERCASE everywhere - normalize at the single
     // point every student record enters memory, so all reads/exports follow.
     if (out.name != null) out.name = String(out.name).toUpperCase();
     if (out.account?._tempPass) out.forceChangePassword = true;

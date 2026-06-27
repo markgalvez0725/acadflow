@@ -2,18 +2,18 @@
 // Custom, in-browser replacement for the Gemini quiz endpoint. A neural
 // sentence-embedding model (paraphrase-multilingual-MiniLM-L12-v2, ~120 MB
 // quantized) runs entirely on the teacher's device via Transformers.js. It is
-// multilingual on purpose — the quizzes here are in Filipino/Tagalog, which an
+// multilingual on purpose - the quizzes here are in Filipino/Tagalog, which an
 // English-only model embeds poorly. The lesson text NEVER leaves the browser.
 //
 // The model is NOT used to *write* questions (which would risk hallucinating
-// facts not in the lesson). It is used to UNDERSTAND the lesson — to rank which
+// facts not in the lesson). It is used to UNDERSTAND the lesson - to rank which
 // sentences matter, to pick multiple-choice distractors that are semantically
 // near-misses (plausibly confusable, not random), and to drop near-duplicate
 // questions. Every question and answer is still drawn verbatim from the lesson,
 // so the output is grounded and safe to grade.
 //
 // generateQuizAI() returns null when the model can't load or the lesson is too
-// thin — the caller then falls back to the instant rule-based drafter.
+// thin - the caller then falls back to the instant rule-based drafter.
 
 import { splitSentences, keyTerms, definitions } from '@/utils/quizGen'
 import { ensureExtractor, embedAll, cos, prewarmEmbeddings } from '@/utils/embeddings'
@@ -60,15 +60,15 @@ function mmrOrder(vecs, centroid, lambda = 0.72) {
 }
 
 /**
- * Embedding-aware MCQ distractors: terms whose meaning is NEAR the answer —
+ * Embedding-aware MCQ distractors: terms whose meaning is NEAR the answer -
  * related enough to be tempting, not synonyms or identical.
  */
 // Distractor similarity bands by difficulty. `prefer:'high'` orders the closest
 // (most confusable) terms first; `prefer:'low'` orders the most different first.
 const DIST_BANDS = {
-  easy:   { lo: 0.12, hi: 0.45, prefer: 'low'  }, // clearly different — easy to eliminate
+  easy:   { lo: 0.12, hi: 0.45, prefer: 'low'  }, // clearly different - easy to eliminate
   medium: { lo: 0.30, hi: 0.82, prefer: 'high' }, // the original confusable band
-  hard:   { lo: 0.55, hi: 0.90, prefer: 'high' }, // near-misses — hard to tell apart
+  hard:   { lo: 0.55, hi: 0.90, prefer: 'high' }, // near-misses - hard to tell apart
 }
 
 function smartDistractors(answer, terms, termVec, answerVec, n = 3, difficulty = 'medium') {
@@ -80,7 +80,7 @@ function smartDistractors(answer, terms, termVec, answerVec, n = 3, difficulty =
     if (!v) continue
     if (Math.abs(t.length - answer.length) > 40) continue
     const s = cos(v, answerVec)
-    if (s > 0.92) continue            // basically a synonym — skip
+    if (s > 0.92) continue            // basically a synonym - skip
     scored.push({ t, s })
   }
   const cfg = DIST_BANDS[difficulty] || DIST_BANDS.medium
@@ -123,7 +123,7 @@ function mergeAlternates(list, answer) {
 
 /**
  * Grounded synonym mining for accepted answers. Returns candidate terms whose
- * embedding is very close to the answer's — but CONSERVATIVE on purpose: a high
+ * embedding is very close to the answer's - but CONSERVATIVE on purpose: a high
  * floor + small cap, because embeddings can't fully separate a synonym from a
  * sibling/opposite. The teacher reviews every key, so we err toward precision.
  */
@@ -158,7 +158,7 @@ const TEXT_TYPES = new Set(['short_answer', 'fill_in_the_blank', 'identification
  * text) and merges them with the deterministic separator split. Questions that
  * already have acceptedAnswers are left untouched.
  * @returns {Promise<{questions:Array, touched:number, aiUsed:boolean}|null>}
- *   null when the model can't load — caller should fall back to split-only.
+ *   null when the model can't load - caller should fall back to split-only.
  */
 export async function smartAutoKey(questions, { contextText = '' } = {}) {
   const list = questions || []
@@ -321,7 +321,7 @@ export async function generateQuizAI(text, { count = 10, types = ['multiple_choi
           swap = best
         }
         if (present && swap && Math.random() < 0.5) {
-          item = { id: qid(), type: 'true_false', question: r.s.replace(reFor(present), swap), answer: 'False', explanation: `False — the lesson refers to "${present}", not "${swap}".` }
+          item = { id: qid(), type: 'true_false', question: r.s.replace(reFor(present), swap), answer: 'False', explanation: `False - the lesson refers to "${present}", not "${swap}".` }
         } else {
           item = { id: qid(), type: 'true_false', question: r.s, answer: 'True', explanation: 'This statement is taken directly from the lesson.' }
         }

@@ -3,9 +3,9 @@ import React, { useState, useEffect, useMemo } from 'react'
 /**
  * SemesterCalendarChip
  * A modern navbar badge showing:
- *  – A mini calendar icon with the current day number
- *  – The semester label (e.g. "1st Semester AY 2026-2027")
- *  – Days remaining / elapsed info when start/end dates are set
+ *  - A mini calendar icon with the current day number
+ *  - The semester label (e.g. "1st Semester AY 2026-2027")
+ *  - Days remaining / elapsed info when start/end dates are set
  */
 export default function SemesterCalendarChip({ semester, className = '' }) {
   const [now, setNow] = useState(() => new Date())
@@ -50,7 +50,7 @@ export default function SemesterCalendarChip({ semester, className = '' }) {
   const isActive   = semester.status === 'active'
   const isUpcoming = semester.status === 'upcoming'
 
-  // Colour tokens — no background, text colour only
+  // Colour tokens - no background, text colour only
   const chipCls = isActive
     ? 'text-[var(--accent)]'
     : isUpcoming

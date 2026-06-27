@@ -4,7 +4,7 @@ const UIContext = createContext(null)
 
 // Map the semantic type names used across the app (success/error/warn/info) onto
 // the six colour variants the toast renderer actually styles. Without this every
-// success/error toast silently fell through to the default "dark" variant — which
+// success/error toast silently fell through to the default "dark" variant - which
 // is also the one that became invisible in dark mode.
 const TOAST_TYPE_ALIAS = {
   success: 'green',
@@ -27,7 +27,7 @@ export function UIProvider({ children }) {
   const dialogResolveRef = useRef(null)
   const [isLoading, setIsLoading]   = useState(false)
   const loadingCount = useRef(0)
-  // Globally-shared "view student profile" target — any teacher-side button can
+  // Globally-shared "view student profile" target - any teacher-side button can
   // open the same profile modal by id, keeping every entry point in sync.
   const [viewStudentId, setViewStudentId] = useState(null)
 
@@ -66,9 +66,9 @@ export function UIProvider({ children }) {
 
   // ── Toast ───────────────────────────────────────────────────────────────
   // Remember the last toast so we can collapse rapid duplicates. The same toast
-  // fires twice in several situations — React StrictMode double-invoking an
+  // fires twice in several situations - React StrictMode double-invoking an
   // effect, a Firestore onSnapshot echo re-running a notification effect, or a
-  // handler bound twice — and the user sees every message appear doubled. We
+  // handler bound twice - and the user sees every message appear doubled. We
   // suppress an identical (message + type) toast within a short window.
   const lastToastRef = useRef({ key: '', at: 0 })
   const toast = useCallback((msg, type = 'dark', duration = 3500) => {
@@ -83,7 +83,7 @@ export function UIProvider({ children }) {
 
   // Toast with an inline action button (e.g. "Undo"). The action runs on click;
   // the toast stays up longer so there is time to react. Action toasts are not
-  // deduped — repeating one (e.g. several "Undo" prompts) is intentional.
+  // deduped - repeating one (e.g. several "Undo" prompts) is intentional.
   const toastAction = useCallback((msg, { label, onAction, type = 'dark', duration = 7000 } = {}) => {
     const id = Date.now() + Math.random()
     setToastQueue(q => [...q, { id, msg, type: normalizeToastType(type), duration, action: { label, onAction } }])

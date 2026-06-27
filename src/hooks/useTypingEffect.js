@@ -7,9 +7,9 @@ import { useState, useEffect } from 'react'
  *   [['Line 1', '\nLine 2'], ['Other line 1', '\nOther line 2'], ...]
  * @param {{ speed?, deleteSpeed?, startDelay?, holdDelay? }} options
  * @returns {{ displayed: string[], done: boolean, phraseIndex: number }}
- *   `displayed`   – segments of the CURRENT phrase typed so far
- *   `done`        – true while fully typed & holding (cursor hidden)
- *   `phraseIndex` – which phrase is active (for keying renders)
+ *   `displayed`   - segments of the CURRENT phrase typed so far
+ *   `done`        - true while fully typed & holding (cursor hidden)
+ *   `phraseIndex` - which phrase is active (for keying renders)
  */
 export function useTypingEffect(
   phrases,
@@ -44,7 +44,7 @@ export function useTypingEffect(
     function typePhase(parts, segIdx, charIdx) {
       if (cancelled) return
       if (segIdx >= parts.length) {
-        // Fully typed — hold, then delete
+        // Fully typed - hold, then delete
         setDone(true)
         schedule(() => deletePhase(parts, parts.length - 1), holdDelay)
         return
@@ -66,7 +66,7 @@ export function useTypingEffect(
       if (cancelled) return
       setDone(false)
       if (segIdx < 0) {
-        // All deleted — advance to next phrase and restart
+        // All deleted - advance to next phrase and restart
         pIdx = (pIdx + 1) % allPhrases.length
         schedule(startCycle, startDelay)
         return

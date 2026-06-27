@@ -1,8 +1,8 @@
 // ── Class schedule parsing & conflict detection ───────────────────────────
-// Class schedules are free text (e.g. "MWF 8:00–9:30 AM", "TTh 1:00-2:30 PM").
+// Class schedules are free text (e.g. "MWF 8:00-9:30 AM", "TTh 1:00-2:30 PM").
 // We best-effort parse them into day + time-range blocks so we can warn a
 // student when a class they're about to enroll in overlaps one they're already
-// in. Anything we can't confidently parse returns null and is simply skipped —
+// in. Anything we can't confidently parse returns null and is simply skipped -
 // we never raise a false conflict on an unrecognized format.
 
 
@@ -25,7 +25,7 @@ function parseDays(seg) {
 // on either or both ends, en/em dashes, and the common "10:00-1:30 PM" case
 // where only the end carries AM/PM.
 function parseTimes(seg) {
-  const s = (seg || '').replace(/[–—]/g, '-')
+  const s = (seg || '').replace(/[--]/g, '-')
   const re = /(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)?/g
   const found = []
   let m
@@ -45,7 +45,7 @@ function parseTimes(seg) {
 
   let start = toMin(found[0], found[1].mer)
   const end = toMin(found[1], found[1].mer)
-  // "10:00-1:30 PM" — applying PM to the start made it later than the end, so
+  // "10:00-1:30 PM" - applying PM to the start made it later than the end, so
   // the start is really the AM of the same clock face.
   if (start >= end && found[1].mer === 'PM' && !found[0].mer) start -= 12 * 60
   if (!(end > start)) return null

@@ -15,7 +15,7 @@ export default function SecureBubble({ text }) {
       className={`msg-secure${shown ? ' revealed' : ''}`}
       role="button"
       tabIndex={0}
-      aria-label={shown ? 'Private message, revealed' : 'Private message — press and hold to reveal'}
+      aria-label={shown ? 'Private message, revealed' : 'Private message - press and hold to reveal'}
       title={shown ? 'Release to hide' : 'Press and hold to reveal'}
       onPointerDown={reveal}
       onPointerUp={hide}

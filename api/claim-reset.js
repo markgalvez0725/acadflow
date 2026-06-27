@@ -3,7 +3,7 @@
 // number on the Forgot Password screen. While the teacher has an open reset
 // window for that student, the FIRST successful claim mints a one-time custom
 // sign-in token, closes the window (one-time use), and returns it so the device
-// can sign in. IMPORTANT: this does NOT change the student's password — their
+// can sign in. IMPORTANT: this does NOT change the student's password - their
 // current password stays valid until they deliberately set a new one. A window
 // that's opened but never completed therefore changes nothing. If no window is
 // open yet, responds { pending }.
@@ -43,7 +43,7 @@ export default async function handler(req, res) {
 
   if (!session || !session.authorized) return res.status(200).json({ pending: true })
   if (Date.now() > session.expiresAt) {
-    // Expired — clean up and report no active window.
+    // Expired - clean up and report no active window.
     try { await deleteResetSession(projectId, accessToken, docId) } catch {}
     return res.status(200).json({ pending: true, expired: true })
   }
@@ -52,7 +52,7 @@ export default async function handler(req, res) {
   try { await deleteResetSession(projectId, accessToken, docId) } catch {}
 
   // Find the account and mint a one-time sign-in token. The password is NOT
-  // changed here — the student keeps their current password until they choose a
+  // changed here - the student keeps their current password until they choose a
   // new one, so a reset window that's opened but never completed is harmless.
   let localId
   try {

@@ -2,7 +2,7 @@
 // Turns a student's own semester data into a story-ready stat pack: GWA, best
 // and most-improved subject, attendance highlights, work submitted/on-time,
 // quizzes, and a playful "persona". Pure derived view over existing
-// DataContext data — no new Firestore reads/writes, mirroring riskScore.js.
+// DataContext data - no new Firestore reads/writes, mirroring riskScore.js.
 
 import { getGWA, getAttRate, computeFinalGradeFromTerms } from '@/utils/grades'
 import { activeClassIds, activeSubjects } from '@/utils/active'
@@ -20,9 +20,9 @@ function subjectFinal(s, sub) {
 // Order matters: the most distinctive achievement wins.
 function derivePersona(m) {
   if (m.mostImproved && m.mostImproved.delta >= 5)
-    return { key: 'comeback', title: 'The Comeback Kid', blurb: `You turned it around in ${m.mostImproved.sub} — up ${m.mostImproved.delta} points from midterms to finals.` }
+    return { key: 'comeback', title: 'The Comeback Kid', blurb: `You turned it around in ${m.mostImproved.sub} - up ${m.mostImproved.delta} points from midterms to finals.` }
   if (m.attRate != null && m.attRate >= 98)
-    return { key: 'present', title: 'Always There', blurb: `Near-perfect attendance. You showed up — again and again.` }
+    return { key: 'present', title: 'Always There', blurb: `Near-perfect attendance. You showed up - again and again.` }
   if (m.gwa != null && m.gwa >= 90)
     return { key: 'ace', title: 'The High Achiever', blurb: `A GWA in the 90s. Consistently excellent work all semester.` }
   if (m.onTimeRate != null && m.onTimeRate >= 95 && m.actSubmitted >= 3)
@@ -30,7 +30,7 @@ function derivePersona(m) {
   if (m.gwa != null && m.gwa >= 85)
     return { key: 'steady', title: 'The Steady Climber', blurb: `Solid, dependable performance across all your subjects.` }
   if (m.qzAvg != null && m.qzAvg >= 85)
-    return { key: 'quiz', title: 'Quiz Whiz', blurb: `You aced the quizzes — ${m.qzAvg}% average. Sharp recall.` }
+    return { key: 'quiz', title: 'Quiz Whiz', blurb: `You aced the quizzes - ${m.qzAvg}% average. Sharp recall.` }
   return { key: 'journey', title: 'The Work in Progress', blurb: `Every semester is a chapter. Here's how yours unfolded.` }
 }
 

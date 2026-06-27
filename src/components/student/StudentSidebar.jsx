@@ -36,7 +36,7 @@ export default function StudentSidebar({ student, badges = {}, onSettings, onLog
 
   const name = student?.name || 'Student'
   const initial = name.charAt(0).toUpperCase()
-  const snum = student?.snum || student?.id || '—'
+  const snum = student?.snum || student?.id || '-'
   const tag = studentStanding(student, classes)
   const subText = tag && tag !== snum ? `${tag} - ${snum}` : snum
 
@@ -51,7 +51,7 @@ export default function StudentSidebar({ student, badges = {}, onSettings, onLog
         </div>
       </div>
 
-      {/* Nav — flat list */}
+      {/* Nav - flat list */}
       <nav className="sb-nav flex-1 overflow-y-auto">
         {NAV_ITEMS.map(item => {
           const badge = item.badgeId ? getBadge(item.badgeId) : 0

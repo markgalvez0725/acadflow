@@ -1,12 +1,12 @@
 // ── Distractor-quality auditor (#24) ──────────────────────────────────────────
 // Flags weak multiple-choice options using the shared on-device embedding model
-// — never generation, so nothing is invented. Pure analysis + advisory findings:
-//   • ambiguous     — a distractor too close in meaning to the correct answer
-//   • duplicate     — two options that mean the same thing (string or embedding)
-//   • tooeasy       — a distractor unrelated to the question (an obvious giveaway)
-//   • empty         — a blank option
-//   • length        — the correct answer is much longer than every distractor
-//   • position bias — the key sits in the same slot across most questions (quiz-level)
+// - never generation, so nothing is invented. Pure analysis + advisory findings:
+//   • ambiguous     - a distractor too close in meaning to the correct answer
+//   • duplicate     - two options that mean the same thing (string or embedding)
+//   • tooeasy       - a distractor unrelated to the question (an obvious giveaway)
+//   • empty         - a blank option
+//   • length        - the correct answer is much longer than every distractor
+//   • position bias - the key sits in the same slot across most questions (quiz-level)
 // Degrades gracefully: if the model can't load, the model-free checks (empty,
 // exact duplicate, length tell, position bias) still run. Reuses the singleton
 // model from embeddings.js (the same one quiz generation / Auto-key prewarm).
@@ -44,7 +44,7 @@ export async function auditDistractors(questions) {
   if (withKey >= 4) {
     const top = Object.entries(slots).sort((a, b) => b[1] - a[1])[0]
     if (top && top[1] / withKey >= 0.7) {
-      quizNotes.push(`The correct answer is option ${L(Number(top[0]))} in ${top[1]} of ${withKey} questions — vary its position so it isn't predictable.`)
+      quizNotes.push(`The correct answer is option ${L(Number(top[0]))} in ${top[1]} of ${withKey} questions - vary its position so it isn't predictable.`)
     }
   }
 
@@ -83,7 +83,7 @@ export async function auditDistractors(questions) {
       if (!String(o).trim()) issues.push({ slot: i, type: 'empty', msg: `Option ${L(i)} is empty.` })
     })
 
-    // Duplicates — exact (normalized) or embedding near-duplicate. Flag the later slot.
+    // Duplicates - exact (normalized) or embedding near-duplicate. Flag the later slot.
     for (let i = 0; i < opts.length; i++) {
       for (let j = i + 1; j < opts.length; j++) {
         if (!opts[i].trim() || !opts[j].trim()) continue
@@ -93,7 +93,7 @@ export async function auditDistractors(questions) {
       }
     }
 
-    // Ambiguous-with-key and too-easy distractors — needs embeddings + a known key.
+    // Ambiguous-with-key and too-easy distractors - needs embeddings + a known key.
     if (vecs && ci >= 0) {
       const keyVec = vecs[ci]
       opts.forEach((o, i) => {
@@ -101,20 +101,20 @@ export async function auditDistractors(questions) {
         const simKey = cos(vecs[i], keyVec)
         const simStem = stemVec ? cos(vecs[i], stemVec) : 0
         if (simKey >= T_AMBIGUOUS) {
-          issues.push({ slot: i, type: 'ambiguous', msg: `Option ${L(i)} is very close in meaning to the correct answer — may be ambiguous or unfair.` })
+          issues.push({ slot: i, type: 'ambiguous', msg: `Option ${L(i)} is very close in meaning to the correct answer - may be ambiguous or unfair.` })
         } else if (Math.max(simKey, simStem) <= T_UNRELATED) {
-          issues.push({ slot: i, type: 'tooeasy', msg: `Option ${L(i)} seems unrelated to the question — students may rule it out instantly.` })
+          issues.push({ slot: i, type: 'tooeasy', msg: `Option ${L(i)} seems unrelated to the question - students may rule it out instantly.` })
         }
       })
     }
 
-    // Length tell — the correct answer is noticeably longer than every distractor.
+    // Length tell - the correct answer is noticeably longer than every distractor.
     if (ci >= 0 && opts.length >= 3) {
       const keyLen = opts[ci].trim().length
       const others = opts.filter((_, i) => i !== ci).map(o => o.trim().length)
       const maxOther = Math.max(0, ...others)
       if (keyLen >= 18 && maxOther > 0 && keyLen >= maxOther * 1.6) {
-        issues.push({ slot: ci, type: 'length', msg: `The correct answer is much longer than the others — length can give it away.` })
+        issues.push({ slot: ci, type: 'length', msg: `The correct answer is much longer than the others - length can give it away.` })
       }
     }
 

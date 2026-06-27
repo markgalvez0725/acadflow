@@ -21,13 +21,13 @@ export default function ForceChangePasswordModal({ student: s, onClose, forced =
   const [error,   setError]   = useState('')
   const [saving,  setSaving]  = useState(false)
   // True once the Firebase Auth password is changed but the account-status write
-  // hasn't confirmed yet — lets the user retry the sync WITHOUT re-doing (and
+  // hasn't confirmed yet - lets the user retry the sync WITHOUT re-doing (and
   // failing) the one-time password change.
   const [pwDone, setPwDone] = useState(false)
   const pwChangedRef = useRef(false)
   const inputRef = useRef(null)
 
-  // On-device smart check — kept in lockstep with the rules handleSubmitPassword
+  // On-device smart check - kept in lockstep with the rules handleSubmitPassword
   // enforces. Passwords never auto-save (security): these only guide + gate.
   const newChk   = checkNewPassword(pass, { current: oldPass })
   const matchChk = checkMatch(pass, pass2)
@@ -38,7 +38,7 @@ export default function ForceChangePasswordModal({ student: s, onClose, forced =
   // Clear the temporary-password flag in Firebase. This MUST land, or the forced
   // prompt returns on the next sign-in. We write through saveStudents DIRECTLY
   // (not the idempotent markAccountActive) so every retry genuinely re-hits
-  // Firestore — saveStudents updates local state optimistically, so an
+  // Firestore - saveStudents updates local state optimistically, so an
   // idempotency check would otherwise short-circuit a retry after a failed write.
   async function persistActive() {
     let lastErr
@@ -81,7 +81,7 @@ export default function ForceChangePasswordModal({ student: s, onClose, forced =
           return setError('Your current password is incorrect.')
         }
         await updatePassword(user, pass)
-        // Auth password is now changed — never re-run it (a retry would fail on
+        // Auth password is now changed - never re-run it (a retry would fail on
         // "new must differ from current"). Only the status sync below may retry.
         pwChangedRef.current = true
         setPwDone(true)

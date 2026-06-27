@@ -7,7 +7,7 @@
 // Setup (one-time):
 //   1. Vercel → Settings → Environment Variables → add CRON_SECRET = <random string>.
 //      Vercel automatically sends it as `Authorization: Bearer <CRON_SECRET>`.
-//   2. FB_ADMIN_SERVICE_ACCOUNT (or FCM_SERVICE_ACCOUNT) must already be set —
+//   2. FB_ADMIN_SERVICE_ACCOUNT (or FCM_SERVICE_ACCOUNT) must already be set -
 //      the same service account used by /api/send-push works here.
 //
 // This endpoint only sends WEB PUSH (best-effort). The in-app notification +
@@ -124,7 +124,7 @@ export default async function handler(req, res) {
         messages.push({
           token: tk,
           title: `Reminder: ${act.title}`,
-          body: `${act.subject || ''} — due ${dlLabel}. Don't forget to submit.`,
+          body: `${act.subject || ''} - due ${dlLabel}. Don't forget to submit.`,
         })
       }
     }
@@ -152,7 +152,7 @@ export default async function handler(req, res) {
   ))
   const sent = results.filter(r => r.status === 'fulfilled' && r.value).length
 
-  // Mark the activities we reminded for — updateMask touches only this field.
+  // Mark the activities we reminded for - updateMask touches only this field.
   await Promise.allSettled(activitiesToMark.map(id =>
     fetch(`${fsBase(projectId)}/activities/${encodeURIComponent(id)}?updateMask.fieldPaths=reminderSentAt`, {
       method: 'PATCH',

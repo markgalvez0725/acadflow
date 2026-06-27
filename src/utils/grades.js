@@ -1,8 +1,8 @@
 // ── Grade computation utilities ────────────────────────────────────────────
-// Pure functions — no DOM, no React. All globals (eqScale, classes, students)
+// Pure functions - no DOM, no React. All globals (eqScale, classes, students)
 // are passed as arguments instead of being read from module scope.
 
-// CSS color token for a 0–100 percentage by the standard pass thresholds
+// CSS color token for a 0-100 percentage by the standard pass thresholds
 // (≥85 good / ≥75 warn / below fail; muted when there's no value).
 export function pctColor(p) {
   if (p == null) return 'var(--ink3)';
@@ -27,7 +27,7 @@ export const DEFAULT_EQ_SCALE = [
 // Uses threshold-only matching (g >= minScore) sorted highest-first so there
 // are no gaps between tiers when scores land on decimal values.
 export function gradeInfo(g, eqScale = DEFAULT_EQ_SCALE) {
-  if (g === null || g === undefined) return { eq: '—', ltr: '—', rem: 'No Grade' };
+  if (g === null || g === undefined) return { eq: '-', ltr: '-', rem: 'No Grade' };
   const sorted = [...eqScale].sort((a, b) => b.minScore - a.minScore);
   for (const tier of sorted) {
     if (g >= tier.minScore) return { eq: tier.eq, ltr: tier.ltr, rem: tier.rem };
@@ -40,7 +40,7 @@ export function gradeInfo(g, eqScale = DEFAULT_EQ_SCALE) {
 // model the grade computation uses, so the settings "smart check" stays in sync
 // with how grades are actually computed. Returns a FieldCheck-compatible
 // { state: 'ok'|'warn'|'error', msg } the settings panel can gate the save on.
-//   • every tier minimum must be a number within 0–100
+//   • every tier minimum must be a number within 0-100
 //   • minimums must be strictly descending (highest equivalent first)
 //   • the scale must round-trip through gradeInfo at the passing boundary, so the
 //     grade engine reads the same Passed/Failed cut the teacher intends
@@ -59,19 +59,19 @@ export function validateEqScale(scale = []) {
   }
   // Passing boundary must agree with the grading engine (gradeInfo).
   const passes = scale.filter(t => t.rem === 'Passed');
-  if (!passes.length) return { state: 'warn', msg: 'No passing tier — every grade would fail' };
+  if (!passes.length) return { state: 'warn', msg: 'No passing tier - every grade would fail' };
   const passMin = Math.min(...passes.map(t => Number(t.minScore)));
   if (gradeInfo(passMin, scale).rem !== 'Passed' || gradeInfo(passMin - 0.01, scale).rem === 'Passed') {
     return { state: 'warn', msg: 'Passing boundary doesn’t line up with the grading engine' };
   }
-  return { state: 'ok', msg: `In sync with grading — passing at ${passMin}% and above` };
+  return { state: 'ok', msg: `In sync with grading - passing at ${passMin}% and above` };
 }
 
 // ── Equivalency string → letter/remark ───────────────────────────────────
 export function equivInfo(eq) {
-  if (!eq || eq === '—') return { ltr: '—', rem: 'No Grade' };
+  if (!eq || eq === '-') return { ltr: '-', rem: 'No Grade' };
   const n = parseFloat(eq);
-  if (isNaN(n)) return { ltr: '—', rem: 'No Grade' };
+  if (isNaN(n)) return { ltr: '-', rem: 'No Grade' };
   if (n <= 1.00) return { ltr: 'A+', rem: 'Passed' };
   if (n <= 1.25) return { ltr: 'A+', rem: 'Passed' };
   if (n <= 1.50) return { ltr: 'A',  rem: 'Passed' };
@@ -101,11 +101,11 @@ const EQUIV_COMBINE_TABLE = {
 };
 
 export function combineEquiv(midEq, finEq) {
-  if (!midEq || midEq === '—') {
-    if (!finEq || finEq === '—') return { eq: '—', ltr: '—', rem: 'No Grade' };
+  if (!midEq || midEq === '-') {
+    if (!finEq || finEq === '-') return { eq: '-', ltr: '-', rem: 'No Grade' };
     return { eq: finEq, ...equivInfo(finEq) };
   }
-  if (!finEq || finEq === '—') {
+  if (!finEq || finEq === '-') {
     return { eq: midEq, ...equivInfo(midEq) };
   }
   const row = EQUIV_COMBINE_TABLE[midEq];
@@ -132,14 +132,14 @@ export function gradeInfoForStudent(s, sub, eqScale = DEFAULT_EQ_SCALE) {
   const ts   = s.gradeUploadedAt?.[sub];
   if (midG != null && finG != null && ts)
     return combineEquiv(gradeInfo(midG, eqScale).eq, gradeInfo(finG, eqScale).eq);
-  return { eq: '—', ltr: '—', rem: 'Pending' };
+  return { eq: '-', ltr: '-', rem: 'Pending' };
 }
 
 // ── Grade % computation ────────────────────────────────────────────────────
 // Rounding policy: intermediate values (Class Standing, Midterm Term, Finals
 // Term) are kept at FULL precision; only the final grade % is rounded to 2 dp.
 // Component values fed in (activities, quizzes, attendance, attitude, exams)
-// must already be percentages (0–100).
+// must already be percentages (0-100).
 
 export const round2 = n => (n === null || n === undefined || isNaN(n)) ? null : parseFloat(Number(n).toFixed(2));
 
@@ -175,7 +175,7 @@ export function computeTerms({ activities = null, quizzes = null, attendance = n
 }
 
 // ── GWA (General Weighted Average) ────────────────────────────────────────
-// classes array is passed in — no global read.
+// classes array is passed in - no global read.
 export function getGWA(s, classes = []) {
   const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : []);
   const allSubs = enrolledIds.length
@@ -194,7 +194,7 @@ export function getGWA(s, classes = []) {
 }
 
 // ── Attendance rate % ─────────────────────────────────────────────────────
-// students and classes arrays are passed in — no global read.
+// students and classes arrays are passed in - no global read.
 export function getAttRate(s, students = [], classes = []) {
   const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : []);
   const allSubs = enrolledIds.length

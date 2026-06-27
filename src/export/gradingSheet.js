@@ -1,19 +1,19 @@
 // ── Grading sheet export / import (v2) ─────────────────────────────────────
 // One color-coded sheet per subject (no fragile cross-sheet formulas):
-//   • Grey  — locked, prefilled from the app (student, app activities/quizzes,
+//   • Grey  - locked, prefilled from the app (student, app activities/quizzes,
 //             attendance). Teachers don't touch these.
-//   • Green — the only cells you fill in (extra activity/quiz columns, Attitude,
-//             Midterm Exam, Finals Exam). 0–100, with in-cell validation.
-//   • Blue  — auto-computed by live formulas that mirror the app EXACTLY:
+//   • Green - the only cells you fill in (extra activity/quiz columns, Attitude,
+//             Midterm Exam, Finals Exam). 0-100, with in-cell validation.
+//   • Blue  - auto-computed by live formulas that mirror the app EXACTLY:
 //             Class Standing = avg(Activities, Quizzes, Attendance, Attitude)
 //             Midterm Term   = avg(Class Standing, Midterm Exam)
 //             Finals Term    = avg(Class Standing, Finals Exam)
 //             Final Grade %  = avg(Midterm Term, Finals Term)
 //
 // Extra (green "+") activity/quiz columns import as ADDITIONAL columns alongside
-// the app's own activities/quizzes — they never overwrite them.
+// the app's own activities/quizzes - they never overwrite them.
 //
-// ExcelJS gives per-cell locking + 0–100 validation; we fall back to a plain
+// ExcelJS gives per-cell locking + 0-100 validation; we fall back to a plain
 // SheetJS writer (same layout, no locking) on ANY failure. A hidden "Meta" sheet
 // records the column map so the importer reads the file back reliably.
 
@@ -24,10 +24,10 @@ import { getHeldDays, round2, DEFAULT_EQ_SCALE } from '@/utils/grades.js'
 import { sortByLastName } from '@/utils/format.js'
 
 const EXTRA_COLS = 3                  // blank "+ Activity/Quiz" columns
-const DATA_ROW = 5                    // 1-based first student row (rows 1–4 = headers)
+const DATA_ROW = 5                    // 1-based first student row (rows 1-4 = headers)
 const SHEET_PW = 'acadflow'
 
-// Fills (ARGB) — clearly distinguishable tints (readable with black text).
+// Fills (ARGB) - clearly distinguishable tints (readable with black text).
 const FILL_GREY  = 'FFE0DED5'  // locked / prefilled from the app
 const FILL_GREEN = 'FFCDEBB0'  // teacher fills in
 const FILL_BLUE  = 'FFC2DEF7'  // auto-computed formula
@@ -41,7 +41,7 @@ function equivIFScale(ref, eqScale) {
     const t = sorted[i]
     expr = `IF(${ref}>=${t.minScore},"${t.eq}",${expr})`
   }
-  return `IF(${ref}="","—",${expr})`
+  return `IF(${ref}="","-",${expr})`
 }
 
 // ── Build everything both writers need (column map + prefilled rows) ─────────
@@ -49,7 +49,7 @@ function buildGradingCtx({ classId, subject, students, classes, activities, quiz
   const cls = classes.find(c => c.id === classId)
   if (!cls) return null
 
-  // Same membership test the grade table uses (classId OR classIds) — a stricter
+  // Same membership test the grade table uses (classId OR classIds) - a stricter
   // "classIds-only" filter can wrongly drop students and produce an empty sheet.
   const roster   = sortByLastName((students || []).filter(s => s.classId === classId || s.classIds?.includes(classId)))
   const panelActs = (activities || []).filter(a => a.classId === classId && a.subject === subject)
@@ -169,9 +169,9 @@ function buildGradingCtx({ classId, subject, students, classes, activities, quiz
     ['dataRow', DATA_ROW],
   ]
 
-  const title = `GRADING SHEET — ${subject}`
+  const title = `GRADING SHEET - ${subject}`
   const sub   = `Class: ${cls.name || cls.id}   |   Section: ${cls.section || ''}   |   S.Y. ${cls.sy || ''}`
-  const legend = 'Grey = locked (from the app)   ·   Green = type a number 0–100   ·   Blue = auto-computed (do not edit)'
+  const legend = 'Grey = locked (from the app)   ·   Green = type a number 0-100   ·   Blue = auto-computed (do not edit)'
 
   const widths = new Array(LAST).fill(11)
   widths[C_SNUM - 1] = 14
@@ -201,7 +201,7 @@ function buildGradingCtx({ classId, subject, students, classes, activities, quiz
   }
 }
 
-// ── ExcelJS writer — locked formulas/prefills, open green inputs ─────────────
+// ── ExcelJS writer - locked formulas/prefills, open green inputs ─────────────
 async function gradingExcelJS(ExcelJS, ctx) {
   const { headers, rows, formulas, cols, widths, fileName, meta, title, sub, legend,
           greenCols, greyCols, blueCols } = ctx
@@ -280,7 +280,7 @@ async function gradingExcelJS(ExcelJS, ctx) {
     ['Fill in only the GREEN cells (Attitude, Midterm Exam, Finals Exam, and any'],
     ['"+ Activity" / "+ Quiz" columns). Enter a number from 0 to 100.'],
     [''],
-    ['Grey cells are locked — they come straight from the app (student, app'],
+    ['Grey cells are locked - they come straight from the app (student, app'],
     ['activities/quizzes, attendance) so you never retype them.'],
     [''],
     ['Blue cells are computed automatically and match the portal exactly:'],
@@ -290,13 +290,13 @@ async function gradingExcelJS(ExcelJS, ctx) {
     ['   Final Grade %  = average(Midterm Term, Finals Term)'],
     [''],
     ['"+ Activity" / "+ Quiz" columns import as EXTRA columns next to the app\'s'],
-    ['own activities and quizzes — they never overwrite them.'],
+    ['own activities and quizzes - they never overwrite them.'],
     [''],
     ['To unlock the sheet for manual edits, the password is: acadflow'],
   ].forEach(r => wsHow.addRow(r))
   wsHow.getColumn(1).width = 78
 
-  // Hidden Meta sheet (column map) — read by the importer. Do not edit.
+  // Hidden Meta sheet (column map) - read by the importer. Do not edit.
   const wsMeta = wb.addWorksheet('Meta', { state: 'veryHidden' })
   meta.forEach(r => wsMeta.addRow(r))
 
@@ -304,7 +304,7 @@ async function gradingExcelJS(ExcelJS, ctx) {
   downloadBlob(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), fileName)
 }
 
-// ── SheetJS writer (fallback) — same layout, no locking/validation ───────────
+// ── SheetJS writer (fallback) - same layout, no locking/validation ───────────
 function gradingSheetJS(XLSX, ctx) {
   const { headers, rows, formulas, cols, widths, fileName, meta, title, sub, legend } = ctx
   const aoa = [[title], [sub], [legend], headers]
@@ -454,7 +454,7 @@ function parseGradingLegacy(XLSX, workbook) {
   const qzRows   = toAoa('Quizzes').slice(LEGACY_DATA)
   const examRows = toAoa('Exams & Attendance').slice(LEGACY_DATA)
   if (!examRows.length && !actRows.length) {
-    throw new Error('Unrecognized file — please download a fresh template from AcadFlow.')
+    throw new Error('Unrecognized file - please download a fresh template from AcadFlow.')
   }
 
   const actMap = {}, qzMap = {}, examMap = {}

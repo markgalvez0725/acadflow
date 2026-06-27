@@ -1,7 +1,7 @@
 // ── At-risk student radar ──────────────────────────────────────────────────
-// Fuses the signals AcadFlow already computes — failing/borderline grades,
-// consecutive absences, overdue missing work, and low attendance — into one
-// 0–100 risk score per student with a plain-English breakdown. This is a pure,
+// Fuses the signals AcadFlow already computes - failing/borderline grades,
+// consecutive absences, overdue missing work, and low attendance - into one
+// 0-100 risk score per student with a plain-English breakdown. This is a pure,
 // derived view over existing DataContext data: no new Firestore reads/writes.
 //
 // Each signal contributes a capped number of points; reasons explain the score.
@@ -16,7 +16,7 @@ import { pendingItems } from '@/utils/reminders'
 // student rarely maxes every axis, so scores cluster well below 100.
 export const WEIGHTS = { grade: 40, absence: 30, missing: 20, attendance: 10 }
 
-// Bucket thresholds on the final 0–100 score.
+// Bucket thresholds on the final 0-100 score.
 export const RISK_LEVELS = { high: 70, watch: 40 }
 
 export function levelFor(score) {
@@ -65,9 +65,9 @@ export function scoreStudent(s, { classes = [], students = [], activities = [], 
   const gradeComplete = gwa != null && hasCompleteGrade(s, classes)
   let gradePts = 0
   if (gradeComplete) {
-    if (gwa < 71)      { gradePts = WEIGHTS.grade;        reasons.push({ sev: 'danger',  icon: 'chart', text: `Failing — GWA ${gwa.toFixed(1)}` }) }
-    else if (gwa < 75) { gradePts = WEIGHTS.grade * 0.75; reasons.push({ sev: 'danger',  icon: 'chart', text: `Conditional — GWA ${gwa.toFixed(1)}` }) }
-    else if (gwa < 78) { gradePts = WEIGHTS.grade * 0.3;  reasons.push({ sev: 'warning', icon: 'chart', text: `Borderline — GWA ${gwa.toFixed(1)}` }) }
+    if (gwa < 71)      { gradePts = WEIGHTS.grade;        reasons.push({ sev: 'danger',  icon: 'chart', text: `Failing - GWA ${gwa.toFixed(1)}` }) }
+    else if (gwa < 75) { gradePts = WEIGHTS.grade * 0.75; reasons.push({ sev: 'danger',  icon: 'chart', text: `Conditional - GWA ${gwa.toFixed(1)}` }) }
+    else if (gwa < 78) { gradePts = WEIGHTS.grade * 0.3;  reasons.push({ sev: 'warning', icon: 'chart', text: `Borderline - GWA ${gwa.toFixed(1)}` }) }
   }
   score += gradePts
 

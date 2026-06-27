@@ -70,7 +70,7 @@ export default function Modal({ isOpen = true, onClose, size = 'md', children, z
       className="fixed inset-0 flex items-center justify-center p-4"
       style={{ background: 'rgba(10,20,50,.55)', zIndex, backdropFilter: 'blur(4px)' }}
     >
-      {/* Backdrop click intentionally does NOT close — use the X (or Esc). */}
+      {/* Backdrop click intentionally does NOT close - use the X (or Esc). */}
       <div
         ref={panelRef}
         role="dialog"

@@ -1,5 +1,5 @@
 // ── iCalendar (.ics) generation ───────────────────────────────────────────
-// Pure helpers — no dependencies. Produces RFC 5545 VEVENTs that import into
+// Pure helpers - no dependencies. Produces RFC 5545 VEVENTs that import into
 // Google Calendar, Apple Calendar, Outlook, etc.
 
 function pad(n) { return String(n).padStart(2, '0') }

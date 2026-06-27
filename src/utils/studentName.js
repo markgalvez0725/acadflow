@@ -2,7 +2,7 @@
 // split a stored name into parts (for editing + export columns) and rebuild that
 // structure on save/import. The middle is an INITIAL by convention, so only a
 // trailing single-letter token (e.g. the "G" in "STEPHEN ANDREI G") is treated as
-// the middle initial — the rest stays in the first name, keeping multi-word first
+// the middle initial - the rest stays in the first name, keeping multi-word first
 // names like "STEPHEN ANDREI" intact. Pure + deterministic.
 export function splitStudentName(full) {
   const raw = (full || '').trim()
@@ -18,7 +18,7 @@ export function splitStudentName(full) {
     }
     return { last: sur.trim(), first: firstParts.join(' '), middle }
   }
-  return { last: '', first: raw, middle: '' } // no comma — keep it in the first-name slot
+  return { last: '', first: raw, middle: '' } // no comma - keep it in the first-name slot
 }
 
 export function buildStudentName(last, first, middle) {

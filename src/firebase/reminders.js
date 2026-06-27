@@ -2,7 +2,7 @@
 // Writes a single reminder into notifications/{studentId}.items, matching the
 // shape every other notification path uses. Idempotent: a reminder carries a
 // stable `remKey`, and we skip the write when an item with that key already
-// exists. This keeps the engine safe to run repeatedly and across devices —
+// exists. This keeps the engine safe to run repeatedly and across devices -
 // the deadline is reminded once, not once per session or per tab.
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { fbWithTimeout } from './firebaseInit'
@@ -18,7 +18,7 @@ export async function fbPushReminderNotif(db, studentId, rem) {
     const snap = await getDoc(ref)
     if (snap.exists()) existing = snap.data().items || []
   } catch (e) {
-    return false // can't confirm idempotency — don't risk a duplicate
+    return false // can't confirm idempotency - don't risk a duplicate
   }
 
   if (existing.some(i => i.remKey === rem.remKey)) return false

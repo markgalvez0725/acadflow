@@ -1,15 +1,15 @@
 // ── On-device profile-photo AI ────────────────────────────────────────────
 // Custom, in-browser replacement for the Gemini /api/validate-photo call.
-// The student's photo NEVER leaves the device — every model runs client-side:
+// The student's photo NEVER leaves the device - every model runs client-side:
 //
-//   • MediaPipe FaceMesh (TF.js)       — fits a 468-point face mesh; used for
+//   • MediaPipe FaceMesh (TF.js)       - fits a 468-point face mesh; used for
 //     (face-landmarks-detection)         count, framing, and head angle. A mesh
 //                                        model won't fit a face onto a logo or
 //                                        object, so it does NOT false-positive
 //                                        the way a bare face *detector* does.
-//   • MediaPipe Selfie Segmentation    — person/background mask, so we can
+//   • MediaPipe Selfie Segmentation    - person/background mask, so we can
 //     (TF.js runtime)                    measure the TRUE backdrop, not a guess
-//   • Heuristic attire read            — skin-vs-fabric + pattern busyness on
+//   • Heuristic attire read            - skin-vs-fabric + pattern busyness on
 //                                        the segmented torso band
 //
 // Models lazy-load once from jsdelivr (the app already loads SheetJS/jsPDF the
@@ -17,7 +17,7 @@
 // model packages from their own hosts; the app sets no CSP so this is allowed.
 //
 // runOnDeviceAI() returns null ONLY when the models can't load or the canvas is
-// tainted — the caller (photoValidate.js) then falls back to legacy heuristics.
+// tainted - the caller (photoValidate.js) then falls back to legacy heuristics.
 // When models load it returns structured signals (any field may be null if that
 // individual stage failed):
 //   {
@@ -54,7 +54,7 @@ function loadScript(src) {
 }
 
 // The two models load INDEPENDENTLY so a failure in one doesn't disable the
-// other. FaceMesh (face/count) is the priority — segmentation is an enhancement
+// other. FaceMesh (face/count) is the priority - segmentation is an enhancement
 // for background + attire. Each cache clears itself on failure so a later photo
 // can retry.
 let _corePromise, _facePromise, _segPromise
@@ -188,7 +188,7 @@ export async function runOnDeviceAI(imgEl) {
   if (!faceModel && !segmenter) return null
 
   // One downscaled canvas drives every model and every pixel read. 192px keeps
-  // the GPU/CPU work light — FaceMesh resizes internally, so this costs no
+  // the GPU/CPU work light - FaceMesh resizes internally, so this costs no
   // accuracy, and the background/attire pixel loops shrink ~45% vs 256px.
   const MAX = 192
   const iw = imgEl.naturalWidth || imgEl.width
@@ -225,7 +225,7 @@ export async function runOnDeviceAI(imgEl) {
 
   const [det, mask] = await Promise.all([facePromise, maskPromise])
 
-  // ── Stage A — face & pose (FaceMesh) ──────────────────────────────────────
+  // ── Stage A - face & pose (FaceMesh) ──────────────────────────────────────
   // null = the model errored (caller can fall back); a real run gives a count.
   let faces = det == null ? null : 0
   let faceBox = null, faceFrac = null, faceCx = null, frontalScore = null
@@ -252,7 +252,7 @@ export async function runOnDeviceAI(imgEl) {
     }
   }
 
-  // ── Stage B — true background whiteness ───────────────────────────────────
+  // ── Stage B - true background whiteness ───────────────────────────────────
   let bgSupported = false, bgWhiteFrac = null
   if (mask) {
     let total = 0, white = 0
@@ -266,7 +266,7 @@ export async function runOnDeviceAI(imgEl) {
     if (total > w * h * 0.04) { bgSupported = true; bgWhiteFrac = white / total }
   }
 
-  // ── Stage C — attire proxy on the torso band ──────────────────────────────
+  // ── Stage C - attire proxy on the torso band ──────────────────────────────
   let skinFrac = null, busyness = null
   if (mask && faceBox) {
     const bandTop = Math.min(h - 1, Math.round(faceBox.y + faceBox.h * 1.0)) // just below chin

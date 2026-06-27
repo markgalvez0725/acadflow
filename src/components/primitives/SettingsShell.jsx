@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, X, Search } from 'lucide-react'
 
@@ -9,7 +9,7 @@ import { ChevronLeft, ChevronRight, X, Search } from 'lucide-react'
  *  - Mobile (≤639px): a full-height bottom sheet. The home list shows grouped
  *    rows; tapping a drill row PUSHES its panel in from the right with a back
  *    button (iOS-Settings push navigation).
- *  - Tablet / desktop (≥640px): a centered master-detail card — the grouped list
+ *  - Tablet / desktop (≥640px): a centered master-detail card - the grouped list
  *    stays pinned on the left, the selected panel renders on the right.
  *
  * Each side only supplies a `groups` config + an `identity` node; the existing
@@ -22,10 +22,10 @@ import { ChevronLeft, ChevronRight, X, Search } from 'lucide-react'
  *
  * Props:
  *  - open, onClose, title='Settings'
- *  - identity {ReactNode}  — rendered atop the home list / left pane
+ *  - identity {ReactNode}  - rendered atop the home list / left pane
  *  - groups [{ title, rows: [{ id, Icon, label, sub, panel?|control?|onClick?, iconBg?, iconColor? }] }]
- *  - footer {ReactNode}    — optional block under the groups (e.g. Log out)
- *  - searchable {boolean}  — show a filter box on the home list
+ *  - footer {ReactNode}    - optional block under the groups (e.g. Log out)
+ *  - searchable {boolean}  - show a filter box on the home list
  */
 
 function useIsMobile() {
@@ -53,6 +53,10 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
   const [view, setView] = useState('home')   // mobile: 'home' | rowId
   const [sel,  setSel]  = useState(null)      // wide: selected panel rowId
   const [q,    setQ]    = useState('')
+  const [dragY, setDragY] = useState(0)       // mobile: live drag-to-dismiss offset (px)
+  const [dragging, setDragging] = useState(false)
+  const dragRef = useRef({ startY: 0, h: 0, dy: 0, active: false })
+  const sheetRef = useRef(null)
 
   // Fresh navigation each time it opens. `initialView` deep-links straight to a
   // panel (e.g. a pending student auto-opened into "Get verified").
@@ -62,6 +66,7 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
     setView(isMobile ? (target || 'home') : 'home')
     setSel(target || firstPanel?.id || null)
     setQ('')
+    setDragY(0); setDragging(false)
   }, [open, firstPanel?.id, initialView]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Lock body scroll while open.
@@ -89,6 +94,30 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
   // "Done with this panel" → mobile pops to the list, wide closes the shell.
   const onDone = isMobile ? () => setView('home') : () => onClose?.()
 
+  // Mobile sheet drag-to-dismiss (grabber only). Pointer events unify touch +
+  // mouse; the handle owns `touch-action:none` so list scroll never triggers it.
+  const startDrag = e => {
+    const h = sheetRef.current?.offsetHeight || (typeof window !== 'undefined' ? window.innerHeight : 800)
+    dragRef.current = { startY: e.clientY, h, dy: 0, active: true }
+    setDragging(true)
+    try { e.currentTarget.setPointerCapture?.(e.pointerId) } catch { /* ignore */ }
+  }
+  const moveDrag = e => {
+    if (!dragRef.current.active) return
+    const dy = Math.max(0, e.clientY - dragRef.current.startY)
+    dragRef.current.dy = dy
+    setDragY(dy)
+  }
+  const endDrag = () => {
+    if (!dragRef.current.active) return
+    const { h, dy } = dragRef.current
+    dragRef.current.active = false
+    setDragging(false)
+    // Past ~⅓ of the sheet (capped) → fling it the rest of the way out, then close.
+    if (dy > Math.min(h * 0.32, 220)) { setDragY(h); setTimeout(() => onClose?.(), 200) }
+    else setDragY(0)
+  }
+
   function activate(r) {
     const k = rowKind(r)
     if (k === 'panel') { isMobile ? setView(r.id) : setSel(r.id) }
@@ -112,6 +141,7 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
       .sset-search input { border:none; background:none; outline:none; flex:1; font-size:13px; color:var(--ink) }
       .sset-x { position:absolute; top:14px; right:14px; z-index:2; background:none; border:none; cursor:pointer; color:var(--ink3); display:flex; padding:4px; border-radius:8px }
       .sset-x:hover { background:var(--bg2); color:var(--ink) }
+      .sset-sheet-full { height:100vh; height:100dvh; padding-top:env(safe-area-inset-top) }
       @keyframes ssetPush  { from { transform:translateX(26px); opacity:.35 } to { transform:translateX(0); opacity:1 } }
       @keyframes ssetSheet { from { transform:translateY(100%) }            to { transform:translateY(0) } }
       @keyframes ssetFade  { from { opacity:0 }                              to { opacity:1 } }
@@ -190,25 +220,42 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
   // ── Mobile: full-height bottom sheet with push navigation ──────────────────
   if (isMobile) {
     const panelRow = view !== 'home' ? findRow(view) : null
+    const fade = (dragging || dragY) ? Math.max(0, 1 - dragY / (dragRef.current.h || 1)) : 1
     return createPortal(
       <>
         <div
           onClick={() => onClose?.()}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 800, animation: 'ssetFade .18s ease' }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 800, opacity: fade, transition: dragging ? 'none' : 'opacity .26s ease', animation: 'ssetFade .18s ease' }}
         />
         <div
+          ref={sheetRef}
+          className="sset-sheet-full"
           role="dialog"
           aria-modal="true"
           style={{
             position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 801,
             background: 'var(--surface)', borderRadius: '18px 18px 0 0',
-            maxHeight: '92vh', display: 'flex', flexDirection: 'column',
+            display: 'flex', flexDirection: 'column',
             boxShadow: '0 -4px 24px rgba(0,0,0,.18)',
+            transform: `translateY(${dragY}px)`,
+            transition: dragging ? 'none' : 'transform .26s cubic-bezier(.22,.8,.38,1)',
             animation: 'ssetSheet .24s cubic-bezier(.22,.8,.38,1) both',
           }}
         >
-          <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border)', margin: '10px auto 6px', flexShrink: 0 }} />
-          <div style={{ overflowY: 'auto', padding: '6px 16px calc(env(safe-area-inset-bottom) + 18px)' }}>
+          <div
+            onPointerDown={startDrag}
+            onPointerMove={moveDrag}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+            role="button"
+            tabIndex={0}
+            aria-label="Drag down or press Enter to close settings"
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onClose?.() }}
+            style={{ flexShrink: 0, padding: '10px 0 6px', display: 'flex', justifyContent: 'center', cursor: dragging ? 'grabbing' : 'grab', touchAction: 'none' }}
+          >
+            <div style={{ width: 40, height: 5, borderRadius: 3, background: 'var(--border)' }} />
+          </div>
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '6px 16px calc(env(safe-area-inset-bottom) + 18px)' }}>
             {panelRow ? (
               <div key={view} style={{ animation: 'ssetPush .22s ease both' }}>
                 <button type="button" className="sset-back" onClick={() => setView('home')}>

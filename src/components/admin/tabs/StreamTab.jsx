@@ -52,7 +52,7 @@ function Pagination({ page, total, pageSize, onPrev, onNext }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 12, fontSize: 13, color: 'var(--ink2)' }}>
       <button className="btn btn-ghost btn-sm" onClick={onPrev} disabled={page === 0}>← Prev</button>
-      <span>Showing {from}–{to} of {total}</span>
+      <span>Showing {from}-{to} of {total}</span>
       <button className="btn btn-ghost btn-sm" onClick={onNext} disabled={to >= total}>Next →</button>
     </div>
   )
@@ -417,9 +417,9 @@ function AnnouncementFormModal({ ann, onClose }) {
   const autoTitle = useMemo(() => {
     const label = classId === 'all' ? 'All Classes' : selectedClass ? `${selectedClass.name}${selectedClass.section ? ` ${selectedClass.section}` : ''}` : ''
     if (!label) return ''
-    if (type === 'no_class') return `No Class Today — ${label}`
-    if (type === 'online_class') return `Online Class — ${label}`
-    if (type === 'meeting_topics') return `Meeting Topics — ${label}`
+    if (type === 'no_class') return `No Class Today - ${label}`
+    if (type === 'online_class') return `Online Class - ${label}`
+    if (type === 'meeting_topics') return `Meeting Topics - ${label}`
     return ''
   }, [type, selectedClass, classId])
 
@@ -476,9 +476,9 @@ function AnnouncementFormModal({ ann, onClose }) {
         <div>
           <label className="form-label">Class</label>
           <select className="form-input" value={classId} onChange={e => handleClassChange(e.target.value)}>
-            <option value="">— Select class —</option>
+            <option value="">- Select class -</option>
             <option value="all">All Classes</option>
-            {classes.filter(c => !c.archived).map(c => <option key={c.id} value={c.id}>{c.name}{c.section ? ` — ${c.section}` : ''}</option>)}
+            {classes.filter(c => !c.archived).map(c => <option key={c.id} value={c.id}>{c.name}{c.section ? ` - ${c.section}` : ''}</option>)}
           </select>
         </div>
         <div>
@@ -500,7 +500,7 @@ function AnnouncementFormModal({ ann, onClose }) {
         </div>
         <div>
           <label className="form-label">Title</label>
-          <input className="form-input" value={displayTitle} placeholder="e.g. No Class Today — BSIT 2A" onChange={e => { setTitleTouched(true); setTitle(e.target.value) }} />
+          <input className="form-input" value={displayTitle} placeholder="e.g. No Class Today - BSIT 2A" onChange={e => { setTitleTouched(true); setTitle(e.target.value) }} />
         </div>
         <div>
           <label className="form-label">Message <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(optional)</span></label>
@@ -556,7 +556,7 @@ function AnnouncementDetailModal({ ann, classes, onClose, onEdit }) {
   function getClassName(classId) {
     if (classId === 'all') return 'All Classes'
     const c = classes.find(x => x.id === classId)
-    return c ? c.name + (c.section ? ` — ${c.section}` : '') : classId
+    return c ? c.name + (c.section ? ` - ${c.section}` : '') : classId
   }
 
   const typeLabel = ann.type === 'no_class' ? 'No Class Today' : ann.type === 'online_class' ? 'Online Class' : 'Meeting Topics'
@@ -750,7 +750,7 @@ function AttendanceCard({ item, classObj }) {
   return (
     <PostShell
       type="attendance"
-      title={`Attendance — ${date}`}
+      title={`Attendance - ${date}`}
       meta={<span>{subject || 'Attendance'}{cls ? ` · ${cls}` : ''}</span>}
     >
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
@@ -777,7 +777,7 @@ export default function StreamTab() {
 
   const activeClasses = useMemo(() => classes.filter(c => !c.archived), [classes])
 
-  // Subjects available for the subject filter — scoped to the selected class,
+  // Subjects available for the subject filter - scoped to the selected class,
   // or the union of all active classes when "All Classes" is chosen.
   const subjectOptions = useMemo(() => {
     const src = filterClass === 'all' ? activeClasses : activeClasses.filter(c => c.id === filterClass)
@@ -813,7 +813,7 @@ export default function StreamTab() {
       items.push({ id: `quiz-${quiz.id}`, type: 'quiz', ts: quiz.openAt || 0, data: quiz, classId: quiz.classIds?.[0] })
     })
 
-    // Grades — one card per student+subject grade upload
+    // Grades - one card per student+subject grade upload
     students.forEach(stu => {
       const classIds = stu.classIds?.length ? stu.classIds : (stu.classId ? [stu.classId] : [])
       if (filterClass !== 'all' && !classIds.includes(filterClass)) return
@@ -850,7 +850,7 @@ export default function StreamTab() {
       })
     })
 
-    // Attendance — derive unique session dates per class+subject
+    // Attendance - derive unique session dates per class+subject
     if (filterType === 'all' || filterType === 'attendance') {
       const attMap = {}
       students.forEach(stu => {
@@ -922,7 +922,7 @@ export default function StreamTab() {
   function getClassName(classId) {
     if (classId === 'all') return 'All Classes'
     const c = classes.find(x => x.id === classId)
-    return c ? c.name + (c.section ? ` — ${c.section}` : '') : classId
+    return c ? c.name + (c.section ? ` - ${c.section}` : '') : classId
   }
 
   function isExpired(ann) {
@@ -991,7 +991,7 @@ export default function StreamTab() {
 
   return (
     <div className="s-feed" style={{ paddingBottom: 32 }}>
-      {/* Composer — opens the announcement form */}
+      {/* Composer - opens the announcement form */}
       <div className="s-composer">
         <div className="s-composer-av">T</div>
         <button className="s-composer-prompt" onClick={() => { setEditAnn(null); setFormOpen(true) }}>Share an announcement…</button>
@@ -1015,7 +1015,7 @@ export default function StreamTab() {
         >
           <option value="all">All Classes</option>
           {activeClasses.map(c => (
-            <option key={c.id} value={c.id}>{c.name}{c.section ? ` — ${c.section}` : ''}</option>
+            <option key={c.id} value={c.id}>{c.name}{c.section ? ` - ${c.section}` : ''}</option>
           ))}
         </select>
         {subjectOptions.length > 0 && (

@@ -1,12 +1,12 @@
 // ── useReminders ──────────────────────────────────────────────────────────
 // Client-side reminder dispatcher. While a student has AcadFlow open, this scans
 // their pending work and fires a notification when a deadline crosses the 24h /
-// 3h windows — the time-based reminders the app otherwise lacks (every other
+// 3h windows - the time-based reminders the app otherwise lacks (every other
 // notification is event-triggered). It runs on mount and every few minutes.
 //
 // Idempotency lives in the writer (fbPushReminderNotif dedups by remKey against
-// the student's own notifications doc), so running here repeatedly — or from
-// several devices — still reminds each deadline exactly once. A new in-app item
+// the student's own notifications doc), so running here repeatedly - or from
+// several devices - still reminds each deadline exactly once. A new in-app item
 // is always written; a best-effort web push is sent only when the item was
 // newly created, so a backgrounded tab still surfaces the reminder.
 //

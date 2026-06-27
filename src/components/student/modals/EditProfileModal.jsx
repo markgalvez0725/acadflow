@@ -9,6 +9,7 @@ import { dataGapReasons } from '@/utils/accountAudit'
 import { validateSnum } from '@/utils/validate'
 import { validateProfilePhoto } from '@/utils/photoValidate'
 import { prewarmOnDeviceAI } from '@/utils/photoVerifyAI'
+import { matchPhotoToEnrolledFace } from '@/utils/faceMatch'
 import Modal from '@/components/primitives/Modal'
 import FieldCheck, { SaveStatus } from '@/components/primitives/FieldCheck'
 import { checkRequiredName, checkMiddleInitial, checkEmail } from '@/utils/settingsVerify'
@@ -20,7 +21,7 @@ const YEAR_OPTIONS = ['1st Year', '2nd Year', '3rd Year', '4th Year']
 // Names are stored canonically as "Surname, First Middle". Split a stored name
 // back into parts for editing, and rebuild that exact structure on save.
 // The middle is an initial by convention, so only a trailing single-letter token
-// (e.g. the "G" in "Stephen Andrei G") is treated as the middle — the rest stays
+// (e.g. the "G" in "Stephen Andrei G") is treated as the middle - the rest stays
 // in the first name, keeping two-word first names like "Stephen Andrei" intact.
 function parseStudentName(full) {
   const raw = (full || '').trim()
@@ -36,7 +37,7 @@ function parseStudentName(full) {
     }
     return { surname: sur.trim(), first: firstParts.join(' '), middle }
   }
-  // No comma — structure unknown; seed the first-name field so nothing is lost.
+  // No comma - structure unknown; seed the first-name field so nothing is lost.
   return { surname: '', first: raw, middle: '' }
 }
 
@@ -73,7 +74,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
   const [nameStatus, setNameStatus] = useState('idle') // idle | saving | saved
 
   // Auto-save the name parts once both required parts are valid (debounced).
-  // ONLY in normal edit mode — a forced/pending setup keeps its explicit verified
+  // ONLY in normal edit mode - a forced/pending setup keeps its explicit verified
   // save so the AI account verification runs exactly once when setup completes
   // (not on every keystroke). Photo + email keep their own explicit/confirm flows.
   const canAuto = !forced && !isPendingVerification(s)
@@ -82,7 +83,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
     if (surChk.state === 'error' || firstChk.state === 'error') return
     const newName = composedName.trim()
     // Compare case-insensitively so simply opening the modal (which uppercases the
-    // canonical name) never triggers a write — only a real name change does.
+    // canonical name) never triggers a write - only a real name change does.
     if (!newName || newName === (s.name || '').toUpperCase()) return
     setNameStatus('saving')
     const t = setTimeout(async () => {
@@ -183,12 +184,34 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
         setPhotoCheck({ status: 'checking', result: null })
         try {
           const result = await validateProfilePhoto(img, dataUrl)
+
+          // Identity gate: the photo must be the SAME face the student enrolled
+          // for Face ID. The server holds the enrolled signature and decides the
+          // match; we only fold the verdict into the existing photo check. When
+          // the account has no enrollment yet (or matching isn't configured) the
+          // gate is skipped, so it never dead-ends - it only ever adds safety.
+          let mismatch = false
+          try {
+            const id = await matchPhotoToEnrolledFace(img)
+            if (id.noFace && !result.hardFails.length) {
+              result.hardFails = [...result.hardFails, 'No face was detected in this photo. Use a clear, front-facing headshot.']
+              result.ok = false
+            } else if (id.enrolled && id.match === false) {
+              result.hardFails = [...result.hardFails, "This photo doesn't look like the face you enrolled for Face ID. Please use a clear, front-facing photo of yourself."]
+              result.ok = false
+              mismatch = true
+            } else if (id.enrolled && id.match === true) {
+              result.passes = [...result.passes, 'Matches the face you enrolled for Face ID.']
+            }
+          } catch { /* identity check unavailable - keep the on-device verdict */ }
+
           setPhotoCheck({ status: 'done', result })
-          if (!result.ok) toast('This photo needs changes before it can be saved.', 'warn', 5000)
-          else if (result.warnings.length) toast('Photo accepted — see the notes below.', 'info', 4000)
+          if (mismatch) toast("This photo doesn't match your Face ID. Use a photo of yourself.", 'warn', 6000)
+          else if (!result.ok) toast('This photo needs changes before it can be saved.', 'warn', 5000)
+          else if (result.warnings.length) toast('Photo accepted, see the notes below.', 'info', 4000)
           else toast('Photo looks professional!', 'success')
         } catch (err) {
-          // Never hard-block on an unexpected validator error — just advise.
+          // Never hard-block on an unexpected validator error - just advise.
           setPhotoCheck({ status: 'done', result: { ok: true, hardFails: [], warnings: ['Could not fully verify the photo on this device.'], passes: [], aiUsed: false } })
         }
       }
@@ -229,7 +252,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
       const pending = isPendingVerification(s)
 
       // A pending account auto-verifies ONLY once its self-fixable data gaps
-      // (name/photo) are resolved — completion is the trigger. We re-run the AI
+      // (name/photo) are resolved - completion is the trigger. We re-run the AI
       // check BEFORE saving the edited name, so the server scores the student's
       // claim against the teacher's CURRENT roster record (not the edit scoring
       // against itself). The verified flag is set server-side; we then persist the
@@ -262,7 +285,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
               if (verified) verification = { method: 'ai', confidence: d.confidence ?? null, fields: d.fields ?? null, at: Date.now() }
             }
           }
-        } catch (_) { /* leave pending — teacher will verify */ }
+        } catch (_) { /* leave pending - teacher will verify */ }
       }
 
       let updatedStudent = {
@@ -278,7 +301,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
       }
 
       if (!snumLocked && finalSnum !== s.id) {
-        // snum changed — set timestamp if first change
+        // snum changed - set timestamp if first change
         if (!s.snumChangedAt) updatedStudent.snumChangedAt = Date.now()
       }
 
@@ -315,7 +338,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
           ? '✅ Verified! Full access is now unlocked.'
           : remainingGaps.length
             ? `Profile saved. Still needed to unlock full access: ${remainingGaps.join(', ')}.`
-            : 'Profile saved — your teacher will confirm the change shortly.',
+            : 'Profile saved - your teacher will confirm the change shortly.',
           verified ? 'success' : 'info')
         onClose()
         return
@@ -382,11 +405,11 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
                 : photoBlocked
                   ? <><XCircle size={15} style={{ color: 'var(--red)' }} /> Photo can’t be used yet</>
                   : (photoCheck.result?.warnings?.length
-                      ? <><AlertTriangle size={15} style={{ color: 'var(--yellow)' }} /> Photo accepted — please review</>
+                      ? <><AlertTriangle size={15} style={{ color: 'var(--yellow)' }} /> Photo accepted - please review</>
                       : <><ShieldCheck size={15} style={{ color: 'var(--green)' }} /> Looks professional</>)}
             </div>
             {photoCheck.status === 'checking' && (
-              <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>Analyzing face, background, and attire on your device — the first check may take a moment.</div>
+              <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>Analyzing face, background, and attire on your device - the first check may take a moment.</div>
             )}
             {photoCheck.status === 'done' && photoCheck.result && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -400,7 +423,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
                   <div key={'p' + i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, color: 'var(--ink3)' }}><CheckCircle2 size={13} style={{ flexShrink: 0, marginTop: 1, color: 'var(--green)' }} /> {m}</div>
                 ))}
                 <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 4 }}>
-                  {photoCheck.result.aiUsed ? 'Verified privately on your device with AI — your photo never leaves this device.' : 'Verified on-device. Tip: business attire on a plain white wall works best.'}
+                  {photoCheck.result.aiUsed ? 'Verified privately on your device with AI - your photo never leaves this device.' : 'Verified on-device. Tip: business attire on a plain white wall works best.'}
                   {photoBlocked && ' Replace the photo or Remove it to continue.'}
                 </div>
               </div>
@@ -408,7 +431,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
           </div>
         )}
 
-        {/* Name — kept structured as "Surname, First Middle" */}
+        {/* Name - kept structured as "Surname, First Middle" */}
         <div className="form-group">
           <label className="form-label">Surname *</label>
           <input className="input" value={surname} onChange={e => setSurname(e.target.value)} placeholder="e.g. Dela Cruz" />
@@ -455,7 +478,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
           <label className="form-label">Course / Program</label>
           <input
             className="input"
-            value={course || '—'}
+            value={course || '-'}
             readOnly
             disabled
             style={{ background: 'var(--border)', color: 'var(--ink2)', cursor: 'not-allowed' }}
@@ -469,7 +492,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
           <label className="form-label">Year Level</label>
           <input
             className="input"
-            value={year || '—'}
+            value={year || '-'}
             readOnly
             disabled
             style={{ background: 'var(--border)', color: 'var(--ink2)', cursor: 'not-allowed' }}
@@ -496,7 +519,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
           />
           <FieldCheck result={emailChk} />
 
-          {/* Password confirmation — shown when email differs and not yet verified */}
+          {/* Password confirmation - shown when email differs and not yet verified */}
           {emailStep !== 'verified' && email.trim() && email.trim() !== (s.account?.email || '') && (
             <div style={{ marginTop: 8, padding: '10px 12px', background: 'var(--surface2)', borderRadius: 8, border: '1px solid var(--border)' }}>
               <div style={{ fontSize: 12, color: 'var(--ink2)', marginBottom: 8 }}>

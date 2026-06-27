@@ -17,11 +17,11 @@ import BiometricSetupModal from './BiometricSetupModal'
 import FaceEnrollModal from './FaceEnrollModal'
 
 /**
- * Student settings — now driven by the shared SettingsShell so it matches the
+ * Student settings - now driven by the shared SettingsShell so it matches the
  * admin side and behaves natively across viewports: a full-height push-nav sheet
  * on mobile, master-detail on tablet/desktop.
  *
- * EVERY settings row drills in IN PLACE via the modals' `embedded` mode — edit
+ * EVERY settings row drills in IN PLACE via the modals' `embedded` mode - edit
  * profile, change password, app-lock PIN, biometric, Face-ID reset, and notif
  * preferences all render as panels inside the shell (the camera/WebAuthn/reauth
  * logic is unchanged; only their Modal chrome is swapped for the shell's). The
@@ -36,9 +36,9 @@ import FaceEnrollModal from './FaceEnrollModal'
  * Props:
  *  - open {boolean} · onClose {fn}
  *  - onContact · onLogout {fn}
- *  - student {object} — current student (name/photo/standing)
- *  - push {object} — push-notification controller
- *  - initialView {string} — panel id to open straight into ('home' by default)
+ *  - student {object} - current student (name/photo/standing)
+ *  - push {object} - push-notification controller
+ *  - initialView {string} - panel id to open straight into ('home' by default)
  */
 export default function StudentActionSheet({
   open,
@@ -104,7 +104,7 @@ export default function StudentActionSheet({
   )
 
   const groups = [
-    // Pinned "Get verified" banner — only while the account isn't fully Active.
+    // Pinned "Get verified" banner - only while the account isn't fully Active.
     ...(needsVerify ? [{ title: null, rows: [
       { id: 'getverified', tone: 'accent', Icon: ShieldCheck, label: 'Get verified', sub: verifyBannerSub(student),
         panel: () => <VerificationCenter student={student} onDone={() => onClose?.()} onContact={() => { onClose?.(); onContact?.() }} /> },
@@ -124,7 +124,7 @@ export default function StudentActionSheet({
       }] : []),
       { id: 'face', Icon: ScanFace,
         label: faceOn ? 'Face ID password reset' : 'Set up Face ID reset',
-        sub: faceOn ? 'Reset is on — tap to manage' : 'Reset your password by face match',
+        sub: faceOn ? 'Reset is on - tap to manage' : 'Reset your password by face match',
         panel: ({ onDone }) => <FaceEnrollModal embedded student={student} onClose={onDone} /> },
     ] },
     { title: 'Notifications', rows: [

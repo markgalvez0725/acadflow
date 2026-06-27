@@ -15,7 +15,7 @@ export function sanitizeSnum(value) {
 }
 
 // ── Login throttling ──────────────────────────────────────────────────────
-// In-memory only — resets on page refresh (intentional; avoids localStorage abuse).
+// In-memory only - resets on page refresh (intentional; avoids localStorage abuse).
 const _loginAttempts = {};
 const MAX_ATTEMPTS   = 5;
 const LOCKOUT_MS     = 5 * 60 * 1000; // 5 minutes

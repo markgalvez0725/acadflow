@@ -1,6 +1,6 @@
 // ── On-device Face ID engine (face-api.js / @vladmandic fork via CDN) ──────
 // Powers face enrollment + the self-service password reset. Everything here
-// runs in the browser — the camera frames never leave the device; only a
+// runs in the browser - the camera frames never leave the device; only a
 // 128-number descriptor (a math signature, not an image) is ever sent to the
 // server. window.faceapi is loaded from the CDN <script> in index.html; the ML
 // models are fetched lazily the first time a camera flow is opened.
@@ -13,10 +13,10 @@ const MODEL_URLS = [
 ]
 let _modelsLoaded = false
 
-// ── FACE_POLICY — the single source of truth for every verification number ──
+// ── FACE_POLICY - the single source of truth for every verification number ──
 // Enrollment AND reset both read from here (via createFaceScan / faceQuality /
 // buildSignature / matches), so the two flows can never drift. The server keeps
-// its own copy of MATCH.THRESHOLD (it must decide the match independently — see
+// its own copy of MATCH.THRESHOLD (it must decide the match independently - see
 // api/face-reset.js) but it is the SAME number, documented in both places.
 // Invariant that keeps legit students from being falsely rejected ("gated"):
 //   ENROLL.MAX_SPREAD (0.45)  <  MATCH.THRESHOLD (0.6)
@@ -35,9 +35,9 @@ export const FACE_POLICY = {
   TIMING:   { POSITION_HINT_MS: 8000, CHALLENGE_SWITCH_MS: 14000, OVERALL_MS: 38000 },
 }
 
-// Prompts shown during a scan — centralized so both modals read identically.
+// Prompts shown during a scan - centralized so both modals read identically.
 const LIVENESS_PROMPT = 'Slowly turn your head a little, or blink'
-const CAPTURE_PROMPT  = 'Great — look straight ahead and hold still…'
+const CAPTURE_PROMPT  = 'Great - look straight ahead and hold still…'
 
 export function faceApiPresent() {
   return typeof window !== 'undefined' && !!window.faceapi
@@ -65,7 +65,7 @@ export async function loadFaceModels() {
   for (const url of MODEL_URLS) {
     try {
       // face-api caches each net once loaded, so a partial success on a failing
-      // host is reused — the next host only fetches whatever didn't load.
+      // host is reused - the next host only fetches whatever didn't load.
       await Promise.all([
         f.nets.tinyFaceDetector.loadFromUri(url),
         f.nets.faceLandmark68Net.loadFromUri(url),
@@ -85,7 +85,7 @@ export async function startCamera(video) {
     audio: false,
   })
   video.srcObject = stream
-  try { await video.play() } catch { /* autoplay quirks — ignore */ }
+  try { await video.play() } catch { /* autoplay quirks - ignore */ }
   return stream
 }
 
@@ -99,6 +99,18 @@ export async function detectOnce(video) {
   if (!f || !video) return null
   const opts = new f.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 })
   return await f.detectSingleFace(video, opts).withFaceLandmarks().withFaceDescriptor()
+}
+
+// Compute the 128-d descriptor of the single largest face in a STILL image
+// (e.g. a chosen profile photo). Loads the models on demand. Returns the
+// descriptor as a plain number[], or null when no clear face is found. A larger
+// input size than the live loop is used since a still frame can afford accuracy.
+export async function describeFaceInImage(imgEl) {
+  const f = await loadFaceModels()
+  if (!imgEl) return null
+  const opts = new f.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.4 })
+  const det = await f.detectSingleFace(imgEl, opts).withFaceLandmarks().withFaceDescriptor()
+  return det ? Array.from(det.descriptor) : null
 }
 
 // ── Liveness signals from the 68-point landmarks ──────────────────────────
@@ -125,7 +137,7 @@ export function headYaw(landmarks) {
   } catch { return 0 }
 }
 
-// Adaptive, forgiving liveness — fixes the brittle "blink exactly twice" check.
+// Adaptive, forgiving liveness - fixes the brittle "blink exactly twice" check.
 // It calibrates to THIS person/camera instead of using fixed thresholds, and
 // passes on ANY clear sign of life: a small head turn (yaw range) OR a blink
 // measured relative to the person's own open-eye baseline. A static photo can't
@@ -177,7 +189,7 @@ export function descriptorDistance(a, b) {
 
 // Per-frame capture quality gate. A descriptor is only as good as the frame it
 // came from, so we keep ONLY frames that are confident, well-sized, frontal, and
-// eyes-open — never a blink or a too-far face that would smear the signature.
+// eyes-open - never a blink or a too-far face that would smear the signature.
 export function faceQuality(det, video) {
   const score = det?.detection?.score ?? 0
   const box = det?.detection?.box
@@ -196,7 +208,7 @@ export function faceQuality(det, video) {
   else if (sizeRatio > Q.MAX_SIZE) hint = 'Move back a little'
   else if (!frontal) hint = 'Look straight at the camera'
   else if (!eyesOpen) hint = 'Keep your eyes open'
-  else if (score < Q.MIN_SCORE) hint = 'Hold still — getting a clear view'
+  else if (score < Q.MIN_SCORE) hint = 'Hold still - getting a clear view'
   return { ok, hint, score, sizeRatio, yaw, ear }
 }
 
@@ -225,11 +237,11 @@ export function matches(a, b) {
   return descriptorDistance(a, b) <= FACE_POLICY.MATCH.THRESHOLD
 }
 
-// ── createFaceScan — the ONE centralized face-scan state machine ───────────
+// ── createFaceScan - the ONE centralized face-scan state machine ───────────
 // Both the enroll and reset modals drive this instead of hand-rolling their own
 // per-frame loop, so the capture pipeline (liveness → quality gate → outlier-
 // rejected signature) is byte-identical for enrollment and verification. That
-// is what guarantees a face that enrolls cleanly also verifies cleanly — no
+// is what guarantees a face that enrolls cleanly also verifies cleanly - no
 // drift, so a legitimately-enrolled student is never falsely rejected.
 //
 // Usage per camera frame:
@@ -246,7 +258,7 @@ export function createFaceScan() {
     get phase() { return phase },
     reset() { live.reset(); samples.length = 0; phase = 'position' },
     feed(det, video, elapsedMs = 0) {
-      // No face detected this frame — only the positioning step nudges the user.
+      // No face detected this frame - only the positioning step nudges the user.
       if (!det) {
         const msg = phase === 'position'
           ? (elapsedMs > FACE_POLICY.TIMING.POSITION_HINT_MS
@@ -264,7 +276,7 @@ export function createFaceScan() {
         if (r.passed) { samples.length = 0; phase = 'capturing'; return { phase, msg: CAPTURE_PROMPT, signature: null } }
         return { phase, msg: LIVENESS_PROMPT, signature: null }
       }
-      // capturing — keep only clean frames, then build a consistent signature.
+      // capturing - keep only clean frames, then build a consistent signature.
       const q = faceQuality(det, video)
       if (q.ok) { const arr = descriptorArray(det); if (arr) samples.push(arr) }
       let signature = null
@@ -281,7 +293,7 @@ export function createFaceScan() {
         }
       }
       const msg = q.ok
-        ? `Hold still — captured ${Math.min(samples.length, T)} of ${T}`
+        ? `Hold still - captured ${Math.min(samples.length, T)} of ${T}`
         : (q.hint || CAPTURE_PROMPT)
       return { phase, msg, signature }
     },
@@ -289,12 +301,12 @@ export function createFaceScan() {
 }
 
 // True once the <video> is actually producing frames (guards detect() against a
-// not-yet-playing stream — e.g. iOS Safari when autoplay was deferred).
+// not-yet-playing stream - e.g. iOS Safari when autoplay was deferred).
 export function videoReady(v) {
   return !!v && v.readyState >= 2 && v.videoWidth > 0
 }
 
-// ── Back-compat aliases — the numbers now live in FACE_POLICY (one source of
+// ── Back-compat aliases - the numbers now live in FACE_POLICY (one source of
 // truth); these stay exported so any older importer keeps working. ───────────
 export const SAMPLES = FACE_POLICY.ENROLL.TARGET
 export const ENROLL = FACE_POLICY.ENROLL

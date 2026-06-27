@@ -34,7 +34,7 @@ export default function RegradeRequestModal({ student: s, subjects = [], onClose
     const text = reason.trim()
     if (!subject) { toast('Please choose a subject.', 'warn'); return }
     if (!text)    { toast('Please explain why you are requesting a regrade.', 'warn'); return }
-    if (text.length > MAX_REASON) { toast(`Reason too long — maximum ${MAX_REASON} characters.`, 'warn'); return }
+    if (text.length > MAX_REASON) { toast(`Reason too long - maximum ${MAX_REASON} characters.`, 'warn'); return }
     if (!fbReady || !db.current) { toast('Regrade requests require Firebase to be connected.', 'warn'); return }
 
     setSending(true)

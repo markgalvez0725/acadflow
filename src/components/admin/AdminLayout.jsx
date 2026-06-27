@@ -59,7 +59,7 @@ const StudentProfileModal    = lazy(() => import('./modals/StudentProfileModal')
 const StudentGradeEditModal  = lazy(() => import('./modals/StudentGradeEditModal'))
 
 const TAB_TITLES = {
-  stream:        ['Stream',         'Class activity feed — announcements, grades, activities, quizzes, and attendance'],
+  stream:        ['Stream',         'Class activity feed - announcements, grades, activities, quizzes, and attendance'],
   dashboard:     ['Dashboard',     'Academic overview'],
   classes:       ['Classes',       'Manage classes and subjects'],
   students:      ['Students',      'Student roster'],
@@ -85,7 +85,7 @@ export default function AdminLayout() {
   const adminName = admin?.name || admin?.displayName || 'Teacher'
   const adminInitial = adminName.charAt(0).toUpperCase()
 
-  // Web push (FCM) for the teacher — opt-in per device, no-op when unconfigured.
+  // Web push (FCM) for the teacher - opt-in per device, no-op when unconfigured.
   const push = usePushNotifications({ db, fbReady, ownerId: 'admin', role: 'admin', toast })
   const unreadMsgCount = messages.filter(m => m.from !== 'admin' && !m.adminRead).length
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -119,7 +119,7 @@ export default function AdminLayout() {
       const fresh = list.filter(n => (n.ts || 0) > lastNotifTs.current).sort((a, b) => b.ts - a.ts)
       lastNotifTs.current = latest
       const n = fresh[0]
-      if (n) toast(n.body ? `${n.title} — ${n.body}` : n.title, 'info')
+      if (n) toast(n.body ? `${n.title} - ${n.body}` : n.title, 'info')
     }
   }, [adminNotifs])
 
@@ -136,7 +136,7 @@ export default function AdminLayout() {
         />
       )}
 
-      {/* Sidebar — collapsed icon rail on desktop, expands on hover (overlay) */}
+      {/* Sidebar - collapsed icon rail on desktop, expands on hover (overlay) */}
       <div className={`sidebar-wrap${sidebarOpen ? ' open' : ''}`}>
         <AdminSidebar onSettingsOpen={() => setSettingsOpen(true)} />
       </div>
@@ -203,17 +203,17 @@ export default function AdminLayout() {
         </Suspense>
       )}
 
-      {/* Student profile — globally openable from any teacher-side view (synced) */}
+      {/* Student profile - globally openable from any teacher-side view (synced) */}
       <Suspense fallback={null}>
         <StudentProfileModal />
       </Suspense>
 
-      {/* Per-student grade edit — opened by "Open Grades" in StudentProfileModal */}
+      {/* Per-student grade edit - opened by "Open Grades" in StudentProfileModal */}
       <Suspense fallback={null}>
         <StudentGradeEditModal />
       </Suspense>
 
-      {/* Mobile bottom nav — 5 primary destinations + More (opens drawer) */}
+      {/* Mobile bottom nav - 5 primary destinations + More (opens drawer) */}
       <nav className="admin-bottom-nav" aria-label="Sections">
         {MOBILE_NAV.map(t => (
           <button
@@ -239,7 +239,7 @@ export default function AdminLayout() {
         </button>
       </nav>
 
-      {/* Mobile "More" sheet — tidy grid of the remaining destinations */}
+      {/* Mobile "More" sheet - tidy grid of the remaining destinations */}
       {moreOpen && (
         <div className="ds-sheet-backdrop" onClick={() => setMoreOpen(false)}>
           <div className="ds-sheet" onClick={e => e.stopPropagation()}>

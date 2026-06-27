@@ -1,5 +1,5 @@
 // ── Assessment completion analytics ──────────────────────────────────────────
-// Aggregates activity submission/grading status across the whole roster — data
+// Aggregates activity submission/grading status across the whole roster - data
 // that lives in activity.submissions but is otherwise only visible one activity
 // at a time. Pure functions; no Firebase, no React.
 

@@ -93,7 +93,7 @@ function AddClassModal({ onClose, prefill = null }) {
         <div className="field">
           <label>Course Name <span className="text-red-500">*</span></label>
           <select value={name} onChange={e => { setName(e.target.value); if (!courseReq) setCourseReq(e.target.value) }}>
-            <option value="">— Select course —</option>
+            <option value="">- Select course -</option>
             {courseOptions(name).map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
@@ -109,7 +109,7 @@ function AddClassModal({ onClose, prefill = null }) {
         </div>
         <div className="field">
           <label>Schedule</label>
-          <input value={schedule} onChange={e => setSchedule(e.target.value)} placeholder="MWF 8:00–9:30 AM" />
+          <input value={schedule} onChange={e => setSchedule(e.target.value)} placeholder="MWF 8:00-9:30 AM" />
         </div>
       </div>
       <div className="field">
@@ -126,7 +126,7 @@ function AddClassModal({ onClose, prefill = null }) {
             <span className="font-normal text-xs text-ink2">(students must match this course to enroll)</span>
           </label>
           <select value={courseReq} onChange={e => setCourseReq(e.target.value)}>
-            <option value="">— Same as course name —</option>
+            <option value="">- Same as course name -</option>
             {courseOptions(courseReq).map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
@@ -276,7 +276,7 @@ function EditClassModal({ cls, onClose }) {
         <div className="field">
           <label>Course Name <span className="text-red-500">*</span></label>
           <select value={name} onChange={e => setName(e.target.value)}>
-            <option value="">— Select course —</option>
+            <option value="">- Select course -</option>
             {courseOptions(name).map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
@@ -292,7 +292,7 @@ function EditClassModal({ cls, onClose }) {
         </div>
         <div className="field">
           <label>Schedule</label>
-          <input value={schedule} onChange={e => setSchedule(e.target.value)} placeholder="MWF 8:00–9:30 AM" />
+          <input value={schedule} onChange={e => setSchedule(e.target.value)} placeholder="MWF 8:00-9:30 AM" />
         </div>
       </div>
       <div className="field">
@@ -309,7 +309,7 @@ function EditClassModal({ cls, onClose }) {
             <span className="font-normal text-xs text-ink2">(students must match this course to enroll)</span>
           </label>
           <select value={courseReq} onChange={e => setCourseReq(e.target.value)}>
-            <option value="">— Same as course name —</option>
+            <option value="">- Same as course name -</option>
             {courseOptions(courseReq).map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
@@ -369,7 +369,7 @@ export default function ClassesTab() {
   const [search, setSearch] = useState('')
   const [reportingId, setReportingId] = useState(null)
 
-  // Unique subjects across the visible (active/archived) classes — for the filter.
+  // Unique subjects across the visible (active/archived) classes - for the filter.
   const allSubjects = useMemo(() => {
     const set = new Set()
     classes.forEach(c => {
@@ -485,7 +485,7 @@ export default function ClassesTab() {
     if (reportingId) return
     const cnt = students.filter(s => s.classId === cls.id || s.classIds?.includes(cls.id)).length
     if (!cnt) {
-      toast(`No students enrolled in ${cls.name} ${cls.section} — nothing to export.`, 'blue')
+      toast(`No students enrolled in ${cls.name} ${cls.section} - nothing to export.`, 'blue')
       return
     }
     setReportingId(cls.id)
@@ -530,7 +530,7 @@ export default function ClassesTab() {
             <CalendarDays className="w-3.5 h-3.5 shrink-0" />
             <span>
               <strong>{semLabel}</strong>
-              {' — '}
+              {' - '}
               {semester.status === 'active' ? 'Active Semester' : semester.status === 'ended' ? 'Semester Ended' : 'Upcoming Semester'}
             </span>
           </div>

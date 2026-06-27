@@ -60,7 +60,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
     [activities, classId]
   )
 
-  // Per-activity derived standing — computed once, reused by the ring, the
+  // Per-activity derived standing - computed once, reused by the ring, the
   // Activity Watch validator, the filter counts, and each card. Because every
   // surface reads the SAME object, the validator can never disagree with a card.
   const derived = useMemo(() => items.map(act => {
@@ -92,7 +92,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
     return { handled, rate, color }
   }, [counts])
 
-  // Deterministic "Activity Watch" findings — recomputed from `derived`, no AI/network.
+  // Deterministic "Activity Watch" findings - recomputed from `derived`, no AI/network.
   const watch = useMemo(() => {
     const missed   = derived.filter(d => d.status === 'missed')
     const dueSoon  = derived.filter(d => d.status === 'open' && d.dueSoon).sort((a, b) => a.act.deadline - b.act.deadline)
@@ -100,9 +100,9 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
     const graded   = derived.filter(d => d.status === 'graded')
     const f = []
     if (missed.length)
-      f.push({ tone: 'bad', Icon: AlertTriangle, lead: `${missed.length} missed`, text: ` — ${missed[0].act.title}${missed.length > 1 ? ` and ${missed.length - 1} more` : ''}, deadline passed with no submission.` })
+      f.push({ tone: 'bad', Icon: AlertTriangle, lead: `${missed.length} missed`, text: ` - ${missed[0].act.title}${missed.length > 1 ? ` and ${missed.length - 1} more` : ''}, deadline passed with no submission.` })
     if (dueSoon.length)
-      f.push({ tone: 'warn', Icon: Clock, lead: 'Due soon', text: ` — ${dueSoon[0].act.title}${dueSoon.length > 1 ? ` and ${dueSoon.length - 1} more` : ''}, not yet submitted.` })
+      f.push({ tone: 'warn', Icon: Clock, lead: 'Due soon', text: ` - ${dueSoon[0].act.title}${dueSoon.length > 1 ? ` and ${dueSoon.length - 1} more` : ''}, not yet submitted.` })
     if (awaiting.length)
       f.push({ tone: 'info', Icon: Hourglass, lead: `${awaiting.length} awaiting grade`, text: '.' })
     if (graded.length) {
@@ -110,11 +110,11 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
       f.push({ tone: avg >= 75 ? 'good' : avg >= 60 ? 'warn' : 'bad', Icon: Trophy, lead: `Avg ${avg}%`, text: ` across ${graded.length} graded.` })
     }
     if (!f.length)
-      f.push({ tone: 'good', Icon: CheckCircle2, lead: "You're all caught up", text: ' — nothing needs attention.' })
+      f.push({ tone: 'good', Icon: CheckCircle2, lead: "You're all caught up", text: ' - nothing needs attention.' })
     const attention = missed.length + dueSoon.length
     const lead = attention
       ? `${attention} thing${attention > 1 ? 's' : ''} need${attention > 1 ? '' : 's'} your attention.`
-      : awaiting.length ? `Nothing urgent — ${awaiting.length} awaiting grade.`
+      : awaiting.length ? `Nothing urgent - ${awaiting.length} awaiting grade.`
       : "You're on track."
     return { findings: f.slice(0, 4), lead, hasData: derived.length > 0 }
   }, [derived])
@@ -362,7 +362,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                 <div className="sa-act-group" style={{ marginTop: 8 }}>
                   {!myGroup ? (
                     <div style={{ fontSize: 12, color: 'var(--ink3)' }}>
-                      <Users size={13} className="inline-block mr-1" />You're not assigned to a group yet — message your teacher.
+                      <Users size={13} className="inline-block mr-1" />You're not assigned to a group yet - message your teacher.
                     </div>
                   ) : (
                     <>
@@ -446,7 +446,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                     </div>
                   ) : (
                     <>
-                      <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 4 }}>Submitted — awaiting grade</div>
+                      <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 4 }}>Submitted - awaiting grade</div>
                       <a href={sub.link} target="_blank" rel="noreferrer" className="sa-act-link">View your submission ↗</a>
                       <div className="mt-2">
                         {!isPast ? (
@@ -461,7 +461,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                           </button>
                         ) : (
                           <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 4 }}>
-                            The deadline has passed — you can no longer edit your link. If you need to make a change,{' '}
+                            The deadline has passed - you can no longer edit your link. If you need to make a change,{' '}
                             <span style={{ color: 'var(--accent)', fontWeight: 600 }}>message your teacher.</span>
                           </div>
                         )}

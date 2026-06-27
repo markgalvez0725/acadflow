@@ -6,7 +6,7 @@
 // Setup (one-time): Firebase Console → Project settings → Service accounts →
 // Generate new private key. In Vercel → Settings → Environment Variables add
 //   FB_ADMIN_SERVICE_ACCOUNT = <the full JSON string>
-// (Falls back to FCM_SERVICE_ACCOUNT — the same project service account works
+// (Falls back to FCM_SERVICE_ACCOUNT - the same project service account works
 //  for both, so you can reuse the one already set up for push.)
 
 import crypto from 'crypto'
@@ -71,7 +71,7 @@ export async function getAccessToken(sa) {
 
 // Mint a Firebase custom token (RS256, signed by the service account) for a uid.
 // signInWithCustomToken() on the client establishes a session WITHOUT touching
-// the account password — so a reset never destroys the student's current
+// the account password - so a reset never destroys the student's current
 // password; it only changes when they deliberately set a new one afterwards.
 export function mintCustomToken(sa, uid) {
   const now = Math.floor(Date.now() / 1000)
@@ -371,7 +371,7 @@ export async function patchFaceThrottle(projectId, accessToken, docId, rl) {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify({ fields: { rl: { arrayValue: { values } } } }),
-  }).catch(() => {}) // best-effort — never block a legitimate reset on a throttle write
+  }).catch(() => {}) // best-effort - never block a legitimate reset on a throttle write
   return true
 }
 
@@ -391,7 +391,7 @@ export async function setFaceResetFlag(projectId, accessToken, docId, on) {
 }
 
 // Append a notification to notifications/admin (newest-first, capped). Best-effort
-// read-modify-write — existing items are preserved as raw Firestore values.
+// read-modify-write - existing items are preserved as raw Firestore values.
 export async function appendAdminNotification(projectId, accessToken, notif) {
   const url = `${fsBase(projectId)}/notifications/admin`
   let items = []
@@ -441,7 +441,7 @@ export async function appendAuditLog(projectId, accessToken, entry) {
 }
 
 // Euclidean distance between two equal-length descriptors (lower = more similar;
-// face-api's 128-d descriptors match below ~0.5–0.6).
+// face-api's 128-d descriptors match below ~0.5-0.6).
 export function faceDistance(a, b) {
   let sum = 0
   for (let i = 0; i < a.length; i++) { const d = a[i] - b[i]; sum += d * d }

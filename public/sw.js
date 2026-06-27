@@ -1,10 +1,10 @@
-/* AcadFlow service worker — offline shell + FCM background push.
+/* AcadFlow service worker - offline shell + FCM background push.
  * Hand-rolled (no build dependency). Strictly additive:
  *  - Only intercepts same-origin GET requests.
  *  - Never touches Firestore / Google / cross-origin traffic, so real-time
  *    sync and all existing network calls behave exactly as before.
  */
-const CACHE_VERSION = 'acadflow-v26';
+const CACHE_VERSION = 'acadflow-v27';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -78,7 +78,7 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-/* ── Firebase Cloud Messaging — background push (optional) ─────────────────
+/* ── Firebase Cloud Messaging - background push (optional) ─────────────────
  * Wrapped in try/catch: if the FCM compat libraries can't load (e.g. offline
  * at install, or push simply isn't configured) the worker keeps working as a
  * pure offline-shell cache with zero side effects.                          */
@@ -111,7 +111,7 @@ try {
     });
   });
 } catch (e) {
-  /* FCM unavailable — offline shell still active */
+  /* FCM unavailable - offline shell still active */
 }
 
 self.addEventListener('notificationclick', (event) => {

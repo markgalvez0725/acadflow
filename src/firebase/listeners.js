@@ -7,7 +7,7 @@ import {
 import { deserializeStudents } from '@/utils/attendance'
 import { decryptEJS, encryptEJS } from '@/utils/crypto'
 
-// Module-level write-in-flight depth counter — intentionally NOT React state so
+// Module-level write-in-flight depth counter - intentionally NOT React state so
 // it doesn't trigger re-renders and is not reset by the rendering cycle. Using a
 // counter (not a boolean) means two overlapping writes can't clear each other's
 // suppression window early: each write increments on start and decrements after
@@ -109,7 +109,7 @@ export function fbStartListening(db, callbacks) {
     collection(db, 'students'),
     snap => {
       if (_fbWriting) {
-        console.log('[Firebase] ⏸ onSnapshot skipped — local write in progress.');
+        console.log('[Firebase] ⏸ onSnapshot skipped - local write in progress.');
         return;
       }
       const incoming = [];
@@ -313,7 +313,7 @@ export function fbStartListening(db, callbacks) {
 
   console.log('[Firebase] ✅ All listeners active.');
 
-  // Eager fetch — populate all collections immediately without waiting for
+  // Eager fetch - populate all collections immediately without waiting for
   // onSnapshot warm-up. Each fetch is fire-and-forget; listeners stay live.
   _eagerFetchAll(db, { onStudentsUpdate, onClassesUpdate, onMessagesUpdate, onActivitiesUpdate, onAdminNotifUpdate, onSettingsUpdate, onQuizzesUpdate, onAnnouncementsUpdate, onMeetingsUpdate });
 }

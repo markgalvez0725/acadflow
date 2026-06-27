@@ -1,15 +1,15 @@
 // ── Excuse triage (#26) ───────────────────────────────────────────────────────
-// Decision *support* for pending attendance excuse requests — never a verdict.
+// Decision *support* for pending attendance excuse requests - never a verdict.
 // Ranks and tags requests so a teacher can scan the ones needing attention first,
 // using the shared on-device embedding model (no generation, nothing uploaded).
 // Signals:
-//   • category    — nearest archetype (Medical / Family / Bereavement / Transport /
+//   • category    - nearest archetype (Medical / Family / Bereavement / Transport /
 //                   School activity), else "Other"
-//   • substance   — Detailed / Brief / Vague (word count + similarity to a bank of
+//   • substance   - Detailed / Brief / Vague (word count + similarity to a bank of
 //                   low-effort phrases like "sick" / "personal reasons")
-//   • frequent    — how many requests this student has filed for this class
-//   • stale       — how long the request has been pending
-//   • copy        — two students' reasons near-identical (possible copy-paste)
+//   • frequent    - how many requests this student has filed for this class
+//   • stale       - how long the request has been pending
+//   • copy        - two students' reasons near-identical (possible copy-paste)
 // Reorders so attention-worthy requests (vague, frequent, possible-copy, stale)
 // surface; Approve/Deny are untouched. Degrades gracefully: if the model can't
 // load, word-count substance + frequency + staleness + exact-duplicate still run.
@@ -44,7 +44,7 @@ function meanUnit(vecs) {
 /**
  * Triage pending excuse requests.
  * @param {Array} pending - pending requests for the selected class ({ id, studentId, reason, createdAt, date })
- * @param {Array} allRequests - every excuse request (any status) — for frequency
+ * @param {Array} allRequests - every excuse request (any status) - for frequency
  * @param {{ classId?: string, now?: number }} opts
  * @returns {Promise<{ byId: Record<string,object>, order: string[], modelUsed: boolean }>}
  */
@@ -97,7 +97,7 @@ export async function triageExcuses(pending, allRequests, opts = {}) {
       if (best >= 0.30) category = bestKey
     }
 
-    // Substance — word count, refined by low-effort similarity.
+    // Substance - word count, refined by low-effort similarity.
     let substance
     const lowSim = (reasonVecs && lowEffortVec) ? cos(reasonVecs[i], lowEffortVec) : 0
     if (words >= 8) substance = 'Detailed'
@@ -109,7 +109,7 @@ export async function triageExcuses(pending, allRequests, opts = {}) {
     out.byId[r.id] = { id: r.id, category, substance, freqCount, frequent, stale, ageDays, copy: false, copyWith: null, score: 0 }
   })
 
-  // Possible copy-paste — pairwise near-identical reasons (embedding or exact).
+  // Possible copy-paste - pairwise near-identical reasons (embedding or exact).
   for (let i = 0; i < reqs.length; i++) {
     for (let j = i + 1; j < reqs.length; j++) {
       if (reqs[i].studentId === reqs[j].studentId) continue

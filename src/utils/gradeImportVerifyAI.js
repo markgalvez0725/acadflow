@@ -1,5 +1,5 @@
 // ── On-device grade-import verification ("AI check") ───────────────────────
-// Custom, in-browser sanity pass over a filled-in grading sheet — the same
+// Custom, in-browser sanity pass over a filled-in grading sheet - the same
 // on-device approach used elsewhere (photoVerifyAI, identityVerify, the student
 // import check): nothing leaves the device, runs instantly, $0. It recomputes
 // each student's grade the way the app does and flags rows the teacher should
@@ -38,8 +38,8 @@ export function verifyGradeRows(entries, { students = [], classId, subject, eqSc
     if (!stud) {
       return {
         studentId: e.studentId, name: e.studentId, matched: false,
-        actAvg: null, qzAvg: null, final: null, equiv: '—',
-        level: 'error', warnings: ['Not enrolled in this class — this row will be skipped.'],
+        actAvg: null, qzAvg: null, final: null, equiv: '-',
+        level: 'error', warnings: ['Not enrolled in this class - this row will be skipped.'],
       }
     }
 
@@ -48,11 +48,11 @@ export function verifyGradeRows(entries, { students = [], classId, subject, eqSc
     // Range checks on every score in the row.
     const badAct = (e.actScores || []).some(v => !inRange(v))
     const badQz  = (e.qzScores || []).some(v => !inRange(v))
-    if (badAct) warnings.push('An activity score is outside 0–100.')
-    if (badQz)  warnings.push('A quiz score is outside 0–100.')
-    if (!inRange(e.attitude)) warnings.push('Attitude is outside 0–100.')
-    if (!inRange(e.mtExam))   warnings.push('Midterm exam is outside 0–100.')
-    if (!inRange(e.ftExam))   warnings.push('Finals exam is outside 0–100.')
+    if (badAct) warnings.push('An activity score is outside 0-100.')
+    if (badQz)  warnings.push('A quiz score is outside 0-100.')
+    if (!inRange(e.attitude)) warnings.push('Attitude is outside 0-100.')
+    if (!inRange(e.mtExam))   warnings.push('Midterm exam is outside 0-100.')
+    if (!inRange(e.ftExam))   warnings.push('Finals exam is outside 0-100.')
 
     // Recompute the grade exactly like the app (attitude + attendance included).
     const actAvg = e.actAvg != null ? e.actAvg : avgNonNull(e.actScores)
@@ -69,17 +69,17 @@ export function verifyGradeRows(entries, { students = [], classId, subject, eqSc
       attitude, midtermExam: mtExam, finalsExam: ftExam,
     })
 
-    let equiv = '—'
+    let equiv = '-'
     if (midterm != null || finals != null) {
       const midEq = midterm != null ? gradeInfo(midterm, eqScale).eq : null
       const finEq = finals  != null ? gradeInfo(finals,  eqScale).eq : null
       if (midEq && finEq) equiv = combineEquiv(midEq, finEq).eq
-      else equiv = midEq || finEq || '—'
+      else equiv = midEq || finEq || '-'
     }
 
     const hasAnyData = actAvg != null || qzAvg != null || attitude != null || mtExam != null || ftExam != null
     if (!hasAnyData) warnings.push('No grades found for this student.')
-    else if (mtExam == null && ftExam == null) warnings.push('No exam scores — final grade will be incomplete.')
+    else if (mtExam == null && ftExam == null) warnings.push('No exam scores - final grade will be incomplete.')
 
     if (final != null && gradeFloor > 0 && final < gradeFloor) {
       warnings.push(`Final ${final} is below the grade floor (${gradeFloor}).`)

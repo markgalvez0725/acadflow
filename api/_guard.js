@@ -1,7 +1,7 @@
 // ── Lightweight endpoint guard: CORS allowlist + per-IP rate limiting ──────
 // Files prefixed with "_" are not treated as routes by Vercel, so this is a
 // shared helper. No external dependencies. The rate-limit store is in-memory
-// (per serverless instance) — best-effort throttling that meaningfully caps
+// (per serverless instance) - best-effort throttling that meaningfully caps
 // abuse without needing Redis. Same-origin client requests are unaffected.
 
 const WINDOW_MS = 60_000

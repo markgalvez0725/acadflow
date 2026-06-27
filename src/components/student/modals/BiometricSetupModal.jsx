@@ -96,7 +96,7 @@ export default function BiometricSetupModal({ student, onClose, embedded = false
             />
           </div>
           {err && <p className="text-xs" style={{ color: 'var(--red)' }}>{err}</p>}
-          <p className="text-xs text-ink3 mt-1">After enabling, you’ll be asked for Face ID / fingerprint. Anyone who can unlock this device with their biometric could then sign in — only enable it on a device that’s yours.</p>
+          <p className="text-xs text-ink3 mt-1">After enabling, you’ll be asked for Face ID / fingerprint. Anyone who can unlock this device with their biometric could then sign in - only enable it on a device that’s yours.</p>
           <div className="modal-footer">
             <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
             <button className="btn btn-primary" onClick={handleEnable} disabled={busy || !pass}>

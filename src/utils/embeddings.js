@@ -1,7 +1,7 @@
 // ── Shared on-device embedding model ──────────────────────────────────────
 // One singleton sentence-embedding model (paraphrase-multilingual-MiniLM-L12-v2,
 // ~120 MB quantized) loaded via Transformers.js and shared by EVERY AI feature
-// in the app — quiz generation, Auto-key synonyms, activity rubric matching, and
+// in the app - quiz generation, Auto-key synonyms, activity rubric matching, and
 // grading-coverage estimates. Multilingual on purpose (the content here is
 // Filipino/Tagalog). Nothing is uploaded; inference runs entirely in-browser.
 // Weights are fetched from the Hugging Face hub (the app sets no CSP, so the

@@ -28,7 +28,7 @@ function yearSection(yr, sec) {
   return s || y                                     // "3A", or just "A"/"3"
 }
 
-// "BSEMC 2A" — course short + year digit + section, for a class.
+// "BSEMC 2A" - course short + year digit + section, for a class.
 export function classTag(cls) {
   if (!cls) return ''
   const cs = courseShort(cls.course || cls.name)
@@ -36,7 +36,7 @@ export function classTag(cls) {
   return `${cs} ${yearSection(yr, cls.section)}`.trim()
 }
 
-// "BSEMC 2A" for a student — course + year + their (primary) class section.
+// "BSEMC 2A" for a student - course + year + their (primary) class section.
 export function studentTag(student, classes = []) {
   if (!student) return ''
   const cs = courseShort(student.course)
@@ -47,7 +47,7 @@ export function studentTag(student, classes = []) {
   return tag || student.id || ''
 }
 
-// "3rd" from "3rd Year" / "3" / "Year 3" — the year level as a clean ordinal.
+// "3rd" from "3rd Year" / "3" / "Year 3" - the year level as a clean ordinal.
 export function ordinalYear(year) {
   const m = String(year || '').match(/\d+/)
   if (!m) return ''
@@ -59,7 +59,7 @@ export function ordinalYear(year) {
   return `${n}${suf}`
 }
 
-// "BSEMC 3rd" — course short + ordinal year level, for a student's own profile
+// "BSEMC 3rd" - course short + ordinal year level, for a student's own profile
 // line. (Unlike studentTag, this omits the section and spells the year out, e.g.
 // "3rd" instead of "3", so the student sees their current year clearly.)
 export function studentYearTag(student) {

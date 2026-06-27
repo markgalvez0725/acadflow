@@ -48,7 +48,7 @@ export default function NotifyPrompt({ push, onClose }) {
             <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 800 }}>Turn on notifications</h3>
             <p style={{ margin: '0 0 18px', fontSize: 13, color: 'var(--ink2)', lineHeight: 1.5 }}>
               Get notified the moment your teacher posts <strong>grades</strong>, <strong>announcements</strong>,
-              <strong> activities</strong>, <strong>quizzes</strong>, or sends you a <strong>message</strong> — even when AcadFlow isn’t open.
+              <strong> activities</strong>, <strong>quizzes</strong>, or sends you a <strong>message</strong> - even when AcadFlow isn’t open.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <button className="btn btn-primary" onClick={handleEnable} disabled={push?.busy}

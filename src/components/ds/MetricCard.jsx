@@ -3,7 +3,7 @@ import { TrendingUp, TrendingDown } from 'lucide-react'
 
 // Metric / stat card. `Icon` is a lucide component; `color` maps to the
 // .sc-icon-wrap colour variants (blue|green|purple|yellow|teal). `trend` is
-// optional and only rendered when real delta data is supplied — never faked.
+// optional and only rendered when real delta data is supplied - never faked.
 export default function MetricCard({ Icon, color = 'blue', label, value, sub, trend }) {
   return (
     <div className="stat-card">

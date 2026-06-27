@@ -172,7 +172,7 @@ export function generateDraftQuestions(text, { count = 10, types = ['multiple_ch
           const swap = present ? pickDistractors(present, terms, 1, difficulty)[0] : null
           if (present && swap) {
             const re = new RegExp('\\b' + present.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i')
-            out.push({ id: qid(), type: 'true_false', question: s.replace(re, swap), answer: 'False', explanation: `False — the lesson refers to "${present}", not "${swap}".` })
+            out.push({ id: qid(), type: 'true_false', question: s.replace(re, swap), answer: 'False', explanation: `False - the lesson refers to "${present}", not "${swap}".` })
             continue
           }
         }

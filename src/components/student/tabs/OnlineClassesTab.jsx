@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { activeClassIds } from '@/utils/active'
 
-const IMMINENT_MS = 15 * 60 * 1000 // a class "starting soon" — show one-tap join
+const IMMINENT_MS = 15 * 60 * 1000 // a class "starting soon" - show one-tap join
 
 // Re-render on an interval so countdowns stay live while the tab is open.
 function useNow(intervalMs = 30000) {
@@ -70,21 +70,21 @@ export default function OnlineClassesTab({ student }) {
     return map
   }, [classes])
 
-  // Deterministic "Session Watch" — live now, next up, missing link. Recomputed
+  // Deterministic "Session Watch" - live now, next up, missing link. Recomputed
   // from the same meetings the list renders. No AI/network.
   const watch = useMemo(() => {
     const f = []
     const noLink = upcoming.filter(m => !m.meetLink)
     if (liveMeetings.length)
-      f.push({ tone: 'bad', Icon: Radio, lead: `${liveMeetings.length} live now`, text: ` — ${liveMeetings[0].title}, join in one tap.` })
+      f.push({ tone: 'bad', Icon: Radio, lead: `${liveMeetings.length} live now`, text: ` - ${liveMeetings[0].title}, join in one tap.` })
     if (upcoming.length) {
       const n = upcoming[0]
-      f.push({ tone: 'info', Icon: ArrowRight, lead: 'Next', text: ` — ${n.title}, ${untilLabel(n.scheduledAt - now)}.` })
+      f.push({ tone: 'info', Icon: ArrowRight, lead: 'Next', text: ` - ${n.title}, ${untilLabel(n.scheduledAt - now)}.` })
     }
     if (noLink.length)
-      f.push({ tone: 'warn', Icon: Unlink, lead: 'No link yet', text: ` — ${noLink[0].title}${noLink.length > 1 ? ` +${noLink.length - 1}` : ''}.` })
+      f.push({ tone: 'warn', Icon: Unlink, lead: 'No link yet', text: ` - ${noLink[0].title}${noLink.length > 1 ? ` +${noLink.length - 1}` : ''}.` })
     if (!f.length)
-      f.push({ tone: 'good', Icon: CheckCircle2, lead: 'All quiet', text: ' — no live or upcoming classes right now.' })
+      f.push({ tone: 'good', Icon: CheckCircle2, lead: 'All quiet', text: ' - no live or upcoming classes right now.' })
     const lead = liveMeetings.length
       ? `${liveMeetings.length} class${liveMeetings.length > 1 ? 'es are' : ' is'} live${upcoming.length ? ` · ${upcoming.length} upcoming` : ''}.`
       : upcoming.length ? `Next class ${untilLabel(upcoming[0].scheduledAt - now)}.`

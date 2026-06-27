@@ -12,7 +12,7 @@ import { useUI } from '@/context/UIContext'
  *
  * Props:
  *  - onClose  {function}
- *  - onReset  {function}  — called after successful password reset
+ *  - onReset  {function}  - called after successful password reset
  */
 export default function ResetPinModal({ onClose, onReset }) {
   const { hashPassword, verifyPassword } = useAuth()

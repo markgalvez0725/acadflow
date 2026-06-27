@@ -8,7 +8,7 @@
 //      A successful biometric assertion (userVerification: 'required') unlocks
 //      the stored password, which drives the normal Firebase login.
 // Password sign-in always remains as the fallback. Requires a secure context
-// (HTTPS) — feature-detect and hide the UI where unsupported.
+// (HTTPS) - feature-detect and hide the UI where unsupported.
 
 import { encryptLocal, decryptLocal } from '@/utils/crypto'
 
@@ -21,7 +21,7 @@ function b64ToBuf(b64) {
   return Uint8Array.from(atob(String(b64).replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0))
 }
 
-// Basic feature detection — WebAuthn + a secure context.
+// Basic feature detection - WebAuthn + a secure context.
 export function isBiometricSupported() {
   return typeof window !== 'undefined'
     && !!window.PublicKeyCredential
@@ -29,7 +29,7 @@ export function isBiometricSupported() {
     && (window.isSecureContext !== false)
 }
 
-// Is a built-in (platform) authenticator — Face ID / fingerprint — available?
+// Is a built-in (platform) authenticator - Face ID / fingerprint - available?
 export async function isPlatformAuthAvailable() {
   if (!isBiometricSupported()) return false
   try {

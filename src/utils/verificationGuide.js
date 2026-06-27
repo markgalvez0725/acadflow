@@ -4,7 +4,7 @@
 // stepper status, and a friendly, context-aware guidance message. It reads the
 // real signals already in the codebase (temp password, profile data gaps,
 // identity-verification flag, Face-ID enrollment) so the narration always
-// reflects the student's actual situation — never canned filler.
+// reflects the student's actual situation - never canned filler.
 
 import { isPendingVerification } from './accountStatus'
 import { dataGapReasons } from './accountAudit'
@@ -41,7 +41,9 @@ export function applicableSteps(student) {
   const s = verificationState(student)
   const keys = []
   if (s.tempPass) keys.push('password')
-  keys.push('profile', 'face')
+  // Face ID is enrolled BEFORE the photo: the enrolled signature is the trusted
+  // anchor the profile photo is then matched against (api/match-face-photo).
+  keys.push('face', 'profile')
   return keys
 }
 
@@ -51,9 +53,9 @@ export function applicableSteps(student) {
 export function activeStep(student, { triedVerify = false } = {}) {
   const s = verificationState(student)
   if (s.tempPass) return 'password'
+  if (!s.faceOn) return 'face'                 // enroll Face ID first (the anchor)
   if (s.needsProfileData) return 'profile'
   if (s.pendingVerify) return triedVerify ? 'awaiting' : 'profile'
-  if (!s.faceOn) return 'face'
   return 'done'
 }
 
@@ -74,7 +76,7 @@ export function stepViews(student, frozenKeys, active) {
   }))
 }
 
-// The guidance bubble for the active step — what the on-device assistant "says".
+// The guidance bubble for the active step - what the on-device assistant "says".
 export function verificationGuidance(student, active) {
   const fn = firstNameOf(student?.name)
   const hi = fn ? `Hi ${fn}` : 'Hi'
@@ -82,24 +84,24 @@ export function verificationGuidance(student, active) {
     case 'password':
       return {
         tone: 'accent', title: 'Set your password',
-        text: `${hi} 👋 First, set a password only you know. Enter the temporary password your teacher gave you, then choose a new one — at least 8 characters with an uppercase letter and a number.`,
+        text: `${hi} 👋 First, set a password only you know. Enter the temporary password your teacher gave you, then choose a new one - at least 8 characters with an uppercase letter and a number.`,
       }
     case 'profile':
       return {
         tone: 'accent', title: 'Complete your profile',
         text: isPendingVerification(student)
-          ? `Add a clear headshot — plain white background, business attire, face the camera. I'll check it right here on your device and match you to your class roster automatically.`
-          : `Add a clear profile photo and confirm your name so your teacher can recognize you. I'll check the photo for you as you go.`,
+          ? `Add a clear headshot: plain white background, business attire, facing the camera. I'll check it on your device, confirm it matches the face you just enrolled, and match you to your class roster automatically.`
+          : `Add a clear profile photo and confirm your name so your teacher can recognize you. I'll check the photo and confirm it matches your Face ID as you go.`,
       }
     case 'awaiting':
       return {
         tone: 'warn', title: 'Almost there',
-        text: `Thanks — your details are in. I couldn't auto-confirm your identity just yet, so your teacher will review it shortly. You'll get the verified badge the moment they confirm. You can keep using the rest of the app meanwhile.`,
+        text: `Thanks - your details are in. I couldn't auto-confirm your identity just yet, so your teacher will review it shortly. You'll get the verified badge the moment they confirm. You can keep using the rest of the app meanwhile.`,
       }
     case 'face':
       return {
-        tone: 'accent', title: 'Set up Face ID reset',
-        text: `Last step${fn ? `, ${fn}` : ''} — enroll your face so you can reset your own password anytime. I only store a math signature of your face, never the photo. Center your face in the circle and hold still.`,
+        tone: 'accent', title: 'Set up Face ID',
+        text: `Next${fn ? `, ${fn}` : ''}, let's set up Face ID. Enroll your face so you can reset your own password anytime, and so I can confirm your profile photo is really you. I only store a math signature of your face, never the photo. Center your face in the circle and hold still.`,
       }
     case 'done':
       return {

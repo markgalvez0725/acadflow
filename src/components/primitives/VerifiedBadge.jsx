@@ -4,7 +4,7 @@ import { accountStatusKey } from '@/utils/accountStatus'
 
 // Verified blue (Facebook/Instagram-style seal) and pending amber. Hard-coded so
 // the verification mark reads the same in light/dark and never tracks the theme
-// accent — a verified check is always the recognizable blue.
+// accent - a verified check is always the recognizable blue.
 const VERIFIED_BLUE = '#1d9bf0'
 const PENDING_AMBER  = '#f59e0b'
 
@@ -16,18 +16,18 @@ const PENDING_AMBER  = '#f59e0b'
  *  • pending → small amber "Pending" mark. With `onPendingClick` it becomes a
  *    button that routes the student to finish account setup so they turn Active.
  *  • none / unresolved → renders NOTHING (no account, unknown id, or a non-student
- *    author such as the teacher) — so it never shows a stray mark.
+ *    author such as the teacher) - so it never shows a stray mark.
  *
  * Status is derived from the single source of truth (accountStatusKey), so this
  * never drifts from the gating/lock logic elsewhere.
  *
  * Props (pass ONE of student / studentId+students):
- *  - student {object}        — the student record, when already in scope
- *  - studentId {string}       — resolve from `students` when no object is handy
- *  - students {array}         — roster used to resolve `studentId`
- *  - size {number}           — icon px (default 15)
- *  - onPendingClick {fn}      — optional; makes the pending mark an action button
- *  - showPendingLabel {bool}  — show the "Pending" text chip (default false → icon only)
+ *  - student {object}        - the student record, when already in scope
+ *  - studentId {string}       - resolve from `students` when no object is handy
+ *  - students {array}         - roster used to resolve `studentId`
+ *  - size {number}           - icon px (default 15)
+ *  - onPendingClick {fn}      - optional; makes the pending mark an action button
+ *  - showPendingLabel {bool}  - show the "Pending" text chip (default false → icon only)
  *  - className {string}
  */
 export default function VerifiedBadge({ student, studentId, students, size = 15, onPendingClick, showPendingLabel = false, className = '' }) {
@@ -74,7 +74,7 @@ export default function VerifiedBadge({ student, studentId, students, size = 15,
         type="button"
         className={className}
         onClick={e => { e.stopPropagation(); onPendingClick() }}
-        aria-label="Account pending — finish setting up your account"
+        aria-label="Account pending - finish setting up your account"
         title="Finish setting up your account to get verified"
         style={{ ...baseStyle, border: 'none', cursor: 'pointer' }}
       >

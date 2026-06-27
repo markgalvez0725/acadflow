@@ -1,5 +1,5 @@
 // @mention helpers for announcement comments. Mentions are stored as plain
-// text (`@Display Name`) inside the comment — no markup — and resolved back to
+// text (`@Display Name`) inside the comment - no markup - and resolved back to
 // recipient ids at send time so we can notify them. Names may contain spaces,
 // so resolution matches the full `@Name` substring rather than tokenizing.
 
@@ -39,7 +39,7 @@ export function resolveMentions(text, candidates) {
 
 // Filter candidates for the dropdown by the current query (case-insensitive).
 // The list is already scoped to the post's audience (everyone for an "all" post,
-// otherwise just the class's enrolled students), so the cap is generous — the
+// otherwise just the class's enrolled students), so the cap is generous - the
 // whole class shows on a bare "@", and the scrollable dropdown + type-to-filter
 // reach anyone in a large "all" post.
 export function matchCandidates(query, candidates, limit = 50) {

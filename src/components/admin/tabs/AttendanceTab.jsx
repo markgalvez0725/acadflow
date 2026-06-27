@@ -82,7 +82,7 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
     }
     const s = String(val).trim()
     if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
-    // M/D/YYYY or D/M/YYYY — treat as M/D/YYYY (common in PH Excel exports)
+    // M/D/YYYY or D/M/YYYY - treat as M/D/YYYY (common in PH Excel exports)
     const parts = s.split('/')
     if (parts.length === 3) {
       const [m, d, y] = parts
@@ -191,7 +191,7 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
 
       const updated = students.map(s => studentsMap[s.id] || s)
       await saveStudents(updated, [...changedIds])
-      toast(`Imported attendance for ${changedIds.size} student(s) — ${preview.dates.length} date(s).`, 'green')
+      toast(`Imported attendance for ${changedIds.size} student(s) - ${preview.dates.length} date(s).`, 'green')
       onClose()
     } catch (err) {
       toast('Import failed: ' + err.message, 'red')
@@ -258,7 +258,7 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
         <strong>Expected format:</strong> Column A = Student No., remaining columns = dates (header: YYYY-MM-DD or M/D/YYYY).
         Cell values: <strong>P</strong> / Present, <strong>E</strong> / Excuse, <strong>A</strong> / Absent (or blank).
         Sheet name should match the subject name for auto-detection.
-        <br /><strong>Tip:</strong> Download the template above — it's pre-filled with your students and today's dates.
+        <br /><strong>Tip:</strong> Download the template above - it's pre-filled with your students and today's dates.
       </div>
 
       {/* File picker */}
@@ -448,7 +448,7 @@ function AttendanceCalendarModal({ classId, subject, readOnly, onClose }) {
       toast('Attendance saved!', 'green')
       setView('calendar')
     } catch (e) {
-      toast('Saved locally — sync failed: ' + e.message, 'red')
+      toast('Saved locally - sync failed: ' + e.message, 'red')
     } finally {
       setSaving(false)
     }
@@ -517,7 +517,7 @@ function AttendanceCalendarModal({ classId, subject, readOnly, onClose }) {
                   return (
                     <div key={dateStr} className={cls2} style={{ position: 'relative', cursor: readOnly ? 'default' : 'pointer' }}
                       onClick={() => !readOnly && openDay(dateStr)}
-                      title={readOnly ? dateStr : `${dateStr} — Click to mark attendance`}>
+                      title={readOnly ? dateStr : `${dateStr} - Click to mark attendance`}>
                       {d}
                       {pCnt > 0 && (
                         <span style={{ position: 'absolute', top: 2, right: 2, fontSize: 8, fontWeight: 700,
@@ -550,7 +550,7 @@ function AttendanceCalendarModal({ classId, subject, readOnly, onClose }) {
                 {label}
               </div>
             ))}
-            <span className="text-xs font-semibold" style={{ color: 'var(--accent)' }}>{readOnly ? '(archived — read-only)' : <><CalendarDays size={12} className="inline-block mr-1 align-text-bottom" />Click any day to mark attendance</>}</span>
+            <span className="text-xs font-semibold" style={{ color: 'var(--accent)' }}>{readOnly ? '(archived - read-only)' : <><CalendarDays size={12} className="inline-block mr-1 align-text-bottom" />Click any day to mark attendance</>}</span>
           </div>
 
           <div className="modal-footer">
@@ -641,7 +641,7 @@ function AttendanceCalendarModal({ classId, subject, readOnly, onClose }) {
             })}
           </div>
 
-          <p className="text-xs text-ink2 mt-2.5">{readOnly ? 'This class is archived — attendance records are read-only.' : <>Toggle each student's status then click Save. <ClipboardList size={12} className="inline-block mx-0.5 align-text-bottom" />Excused counts separately from absent.</>}</p>
+          <p className="text-xs text-ink2 mt-2.5">{readOnly ? 'This class is archived - attendance records are read-only.' : <>Toggle each student's status then click Save. <ClipboardList size={12} className="inline-block mx-0.5 align-text-bottom" />Excused counts separately from absent.</>}</p>
 
           <div className="modal-footer">
             <button className="btn btn-ghost" onClick={() => setView('calendar')}>← Back</button>
@@ -792,7 +792,7 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
 
   const avgRate = allStats.length
     ? (allStats.reduce((a, b) => a + b.rate, 0) / allStats.length).toFixed(1)
-    : '—'
+    : '-'
 
   const total     = allStats.length
   const excellent = held > 0 ? allStats.filter(s => s.rate >= 90).length : 0
@@ -811,7 +811,7 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
         flags[s.id] = { tone: 'danger', Icon: AlertTriangle, text: `${streak} sessions missed in a row`, short: `${streak} absent in a row`, sortKey: 100 + streak }
         onStreak++
       } else if (held > 0 && rate < 80) {
-        flags[s.id] = { tone: 'warning', Icon: TrendingDown, text: 'Below 80% — watch', short: `${rate}%, falling`, sortKey: 50 - rate }
+        flags[s.id] = { tone: 'warning', Icon: TrendingDown, text: 'Below 80% - watch', short: `${rate}%, falling`, sortKey: 50 - rate }
       } else if (held > 0 && rate >= 100) {
         flags[s.id] = { tone: 'success', Icon: Star, text: s.id === repId ? 'Perfect attendance · rep' : 'Perfect attendance', short: 'perfect', sortKey: -1 }
       }
@@ -821,7 +821,7 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
       .map(([id, f]) => ({ id, name: studs.find(x => x.id === id)?.name || id, ...f }))
       .sort((a, b) => b.sortKey - a.sortKey)
     const onTrack = total - flagged.length
-    const health = avgRate === '—' ? '' : avgRate >= 90 ? 'excellent' : avgRate >= 80 ? 'healthy' : avgRate >= 70 ? 'needs a push' : 'concerning'
+    const health = avgRate === '-' ? '' : avgRate >= 90 ? 'excellent' : avgRate >= 80 ? 'healthy' : avgRate >= 70 ? 'needs a push' : 'concerning'
     return { flags, flagged, onStreak, onTrack, health }
   }, [allStats, studs, classId, sub, held, repId, avgRate, total])
 
@@ -845,7 +845,7 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
 
   return (
     <div className="card card-pad mb-3">
-      {/* Header — Check-in stays out front; the rest live in the ⋮ menu */}
+      {/* Header - Check-in stays out front; the rest live in the ⋮ menu */}
       <div className="sec-hdr mb-3 flex-wrap gap-2">
         <div className="flex items-center gap-2 flex-wrap" style={{ minWidth: 0 }}>
           <strong style={{ fontSize: 15 }}>{sub}</strong>
@@ -874,7 +874,7 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
         </div>
       </div>
 
-      {/* Attendance monitor — on-device, recomputed live from the cards below */}
+      {/* Attendance monitor - on-device, recomputed live from the cards below */}
       <div className="rounded-xl mb-3" style={{ background: 'var(--accent-l)', border: '1px solid var(--accent)', padding: 14 }}>
         <div className="flex items-center gap-2 mb-2 flex-wrap">
           <Radar size={16} style={{ color: 'var(--accent)' }} />
@@ -884,10 +884,10 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
         <p className="text-sm mb-0" style={{ color: 'var(--ink)', lineHeight: 1.55 }}>
           {held === 0
             ? <>No sessions recorded yet. Open a check-in or mark a day on the calendar to start tracking.</>
-            : <>{held} session{held !== 1 ? 's' : ''} held. Class average is <strong>{avgRate}%</strong>{monitor.health ? <> — {monitor.health}</> : null}.{' '}
+            : <>{held} session{held !== 1 ? 's' : ''} held. Class average is <strong>{avgRate}%</strong>{monitor.health ? <> - {monitor.health}</> : null}.{' '}
                 {monitor.flagged.length === 0
                   ? <>Everyone is on track.</>
-                  : <><strong>{monitor.flagged.length} student{monitor.flagged.length !== 1 ? 's' : ''}</strong> need{monitor.flagged.length === 1 ? 's' : ''} attention{monitor.onStreak > 0 ? <> — {monitor.onStreak} on an absence streak</> : null}.</>}
+                  : <><strong>{monitor.flagged.length} student{monitor.flagged.length !== 1 ? 's' : ''}</strong> need{monitor.flagged.length === 1 ? 's' : ''} attention{monitor.onStreak > 0 ? <> - {monitor.onStreak} on an absence streak</> : null}.</>}
               </>}
         </p>
         {(monitor.flagged.length > 0 || (held > 0 && monitor.onTrack > 0)) && (
@@ -942,11 +942,11 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
               <X size={13} className="inline-block mr-1" />Close session
             </button>
           </div>
-          {/* Scan-to-check-in QR — opens AcadFlow with the code pre-filled */}
+          {/* Scan-to-check-in QR - opens AcadFlow with the code pre-filled */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
             <QRCode value={`${window.location.origin}/?checkin=${liveSession.code}`} size={132} />
             <div style={{ fontSize: 12, color: 'var(--ink2)', flex: 1, minWidth: 180 }}>
-              Students can <strong>scan this QR with their phone camera</strong> to check in instantly — or enter the code
+              Students can <strong>scan this QR with their phone camera</strong> to check in instantly - or enter the code
               <strong> {liveSession.code}</strong> on their Attendance tab. Closing the session marks everyone who did not check in as absent.
             </div>
           </div>
@@ -974,11 +974,11 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
         />
       )}
 
-      {/* Summary metric cards — trimmed to the three that matter */}
+      {/* Summary metric cards - trimmed to the three that matter */}
       <div className="grid gap-2 mb-3" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
         <div className="rounded-lg p-3" style={{ background: 'var(--bg)' }}>
           <div className="text-xs text-ink2">Avg attendance</div>
-          <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>{held > 0 ? `${avgRate}%` : '—'}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>{held > 0 ? `${avgRate}%` : '-'}</div>
         </div>
         <div className="rounded-lg p-3" style={{ background: 'var(--bg)' }}>
           <div className="text-xs text-ink2">Sessions held</div>
@@ -1012,13 +1012,13 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
         })}
       </div>
 
-      {/* Roster — one responsive card grid for every screen size */}
+      {/* Roster - one responsive card grid for every screen size */}
       <div className="att-card-grid">
         {slice.length === 0 && <div className="empty" style={{ gridColumn: '1 / -1' }}>No students.</div>}
         {slice.map(st => {
           const flag = monitor.flags[st.id]
           const tier = tierColor(st.rate)
-          const rateDisplay = held === 0 ? '—' : `${st.rate}%`
+          const rateDisplay = held === 0 ? '-' : `${st.rate}%`
           const initial = (st.name || '?').charAt(0).toUpperCase()
           return (
             <div key={st.id} className="rounded-xl p-3"
@@ -1074,7 +1074,7 @@ export default function AttendanceTab() {
   const [exportModal,  setExportModal]  = useState(null) // subject string
   const [importModal,  setImportModal]  = useState(null) // subject string
 
-  // One option per class+subject pair — mirrors the Grades subject dropdown.
+  // One option per class+subject pair - mirrors the Grades subject dropdown.
   const subjectOptions = useMemo(() =>
     visibleClasses.flatMap(c => (c.subjects || []).map(sub => ({
       key: `${c.id}|||${sub}`, classId: c.id, sub,
@@ -1111,7 +1111,7 @@ export default function AttendanceTab() {
       const res = await triageExcuses(pendingExcuses, excuseRequests || [], { classId: effectiveId })
       setTriage(res)
       const need = Object.values(res.byId).filter(m => m.copy || m.frequent || m.substance === 'Vague' || m.stale).length
-      toast(need ? `Sorted ${pendingExcuses.length} request${pendingExcuses.length === 1 ? '' : 's'} — ${need} need${need === 1 ? 's' : ''} a closer look.` : `Sorted ${pendingExcuses.length} request${pendingExcuses.length === 1 ? '' : 's'} — nothing stands out.`, need ? 'dark' : 'green')
+      toast(need ? `Sorted ${pendingExcuses.length} request${pendingExcuses.length === 1 ? '' : 's'} - ${need} need${need === 1 ? 's' : ''} a closer look.` : `Sorted ${pendingExcuses.length} request${pendingExcuses.length === 1 ? '' : 's'} - nothing stands out.`, need ? 'dark' : 'green')
     } catch {
       toast('Could not run triage on this device.', 'red')
     } finally {
@@ -1162,7 +1162,7 @@ export default function AttendanceTab() {
         <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg text-sm"
           style={{ background: 'var(--yellow-l, #fef9c3)', color: 'var(--yellow-d, #854d0e)', border: '1px solid var(--yellow, #ca8a04)' }}>
           <Archive size={14} className="shrink-0" />
-          Viewing archived class data — read-only.
+          Viewing archived class data - read-only.
         </div>
       )}
 
@@ -1170,7 +1170,7 @@ export default function AttendanceTab() {
         <select className="input" style={{ flex: '1 1 280px', maxWidth: 420 }}
           value={selected?.key || ''}
           onChange={e => { setSelKey(e.target.value); setSearch('') }}>
-          <option value="">— Select a subject —</option>
+          <option value="">- Select a subject -</option>
           {subjectOptions.map(o => (
             <option key={o.key} value={o.key}>{o.label}</option>
           ))}
@@ -1192,13 +1192,13 @@ export default function AttendanceTab() {
             </div>
             {pendingExcuses.length > 1 && (
               <button type="button" className="btn btn-ghost btn-sm" onClick={runTriage} disabled={triaging}
-                title="Rank & tag these requests on-device (advisory — Approve/Deny unchanged)">
+                title="Rank & tag these requests on-device (advisory - Approve/Deny unchanged)">
                 <ListFilter size={13} className="inline-block mr-1" />{triaging ? 'Triaging…' : triage ? 'Re-triage' : 'Triage'}
               </button>
             )}
           </div>
           {triage && (
-            <p className="text-xs text-ink3 mb-2">Sorted with the ones needing a closer look first. Tags are hints only — your decision stands.</p>
+            <p className="text-xs text-ink3 mb-2">Sorted with the ones needing a closer look first. Tags are hints only - your decision stands.</p>
           )}
           <div className="flex flex-col gap-2">
             {orderedExcuses.map(r => {

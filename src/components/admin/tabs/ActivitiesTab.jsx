@@ -61,7 +61,7 @@ function buildUpdatedStudent(s, subject, classId, allActivities, allStudents) {
   const attSet = s.attendance?.[subject] || new Set()
   const attV   = held > 0 ? Math.min(100, (attSet.size / held) * 100) : null
 
-  // One canonical computation — Class Standing now includes Attitude, matching
+  // One canonical computation - Class Standing now includes Attitude, matching
   // the Grades tab and importer. Intermediates full precision; final rounded.
   const { cs, midterm, finals, final } = computeTerms({
     activities: actPct,
@@ -147,7 +147,7 @@ function ActivityFormModal({ act, onClose }) {
         const has = (x.memberIds || []).includes(sid)
         return { ...x, memberIds: has ? x.memberIds.filter(i => i !== sid) : [...(x.memberIds || []), sid] }
       }
-      // A student can be in only one group — strip them from every other group.
+      // A student can be in only one group - strip them from every other group.
       return { ...x, memberIds: (x.memberIds || []).filter(i => i !== sid) }
     }))
   }
@@ -172,7 +172,7 @@ function ActivityFormModal({ act, onClose }) {
     setDeadline(fmtLocalInput(d))
   }
 
-  // Instructions — on-device smart template (instant, no Gemini).
+  // Instructions - on-device smart template (instant, no Gemini).
   async function suggestInstructions() {
     if (!title.trim()) { toast('Add a title first.', 'warn'); return }
     setAiBusyInstr(true)
@@ -182,7 +182,7 @@ function ActivityFormModal({ act, onClose }) {
     } finally { setAiBusyInstr(false) }
   }
 
-  // Rubric — on-device semantic match to the best-fit archetype.
+  // Rubric - on-device semantic match to the best-fit archetype.
   async function suggestRubric() {
     if (!title.trim()) { toast('Add a title first.', 'warn'); return }
     setAiBusyRubric(true)
@@ -334,14 +334,14 @@ function ActivityFormModal({ act, onClose }) {
         <div className="field flex-1">
           <label className="text-xs font-semibold text-ink2 mb-1 block">Class <span className="text-red-500">*</span></label>
           <select className="input w-full" value={classId} onChange={e => handleClassChange(e.target.value)} disabled={isEdit}>
-            <option value="">— Select Class —</option>
+            <option value="">- Select Class -</option>
             {classes.filter(c => !c.archived).map(c => <option key={c.id} value={c.id}>{c.name} {c.section}</option>)}
           </select>
         </div>
         <div className="field flex-1">
           <label className="text-xs font-semibold text-ink2 mb-1 block">Subject <span className="text-red-500">*</span></label>
           <select className="input w-full" value={subject} onChange={e => setSubject(e.target.value)} disabled={isEdit}>
-            <option value="">— Select Subject —</option>
+            <option value="">- Select Subject -</option>
             {(selectedClass?.subjects || []).map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
@@ -437,7 +437,7 @@ function ActivityFormModal({ act, onClose }) {
         )}
 
         {rubric.length === 0 ? (
-          <p className="text-xs text-ink3">No rubric set — max score defaults to 100.</p>
+          <p className="text-xs text-ink3">No rubric set - max score defaults to 100.</p>
         ) : (
           <>
             <div className="flex flex-col gap-2">
@@ -504,7 +504,7 @@ function ActivityFormModal({ act, onClose }) {
           )}
 
           {groups.length === 0 ? (
-            <p className="text-xs text-ink3">No groups yet — click “Auto-form” or “+ Add group”, then click student names to assign them.</p>
+            <p className="text-xs text-ink3">No groups yet - click “Auto-form” or “+ Add group”, then click student names to assign them.</p>
           ) : (
             <div className="flex flex-col gap-2" style={{ maxHeight: '48vh', overflowY: 'auto', paddingRight: 4 }}>
               {groups.map(g => (
@@ -520,7 +520,7 @@ function ActivityFormModal({ act, onClose }) {
                       const elsewhere = !inGroup && assignedIds.has(s.id)
                       return (
                         <button key={s.id} type="button" onClick={() => toggleMember(g.id, s.id)}
-                          title={elsewhere ? 'In another group — click to move here' : ''}
+                          title={elsewhere ? 'In another group - click to move here' : ''}
                           style={{
                             fontSize: 11, padding: '2px 8px', borderRadius: 4, cursor: 'pointer',
                             background: inGroup ? 'var(--accent-l)' : 'var(--surface2)',
@@ -559,9 +559,9 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
   const { students, activities, saveStudents, db, fbReady, logAudit, latePolicy } = useData()
   const { toast, openDialog } = useUI()
   const [scores,        setScores]       = useState({})
-  const [feedbacks,     setFeedbacks]    = useState({}) // { [studentId]: string } — teacher feedback
+  const [feedbacks,     setFeedbacks]    = useState({}) // { [studentId]: string } - teacher feedback
   const [rubricChecks,  setRubricChecks] = useState({}) // { [studentId]: { [criterionId]: bool } }
-  const [waived,        setWaived]       = useState({}) // { [studentId]: bool } — late penalty waived
+  const [waived,        setWaived]       = useState({}) // { [studentId]: bool } - late penalty waived
   const [aiFor,    setAiFor]    = useState(null)  // studentId for grading assist
   const [aiText,   setAiText]   = useState('')
   const [aiBusy,   setAiBusy]   = useState(false)
@@ -618,7 +618,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
     if (raw === undefined || raw === '') return
     const score = parseFloat(raw)
     if (isNaN(score) || score < 0 || score > act.maxScore) {
-      toast('Score must be 0–' + act.maxScore, 'red')
+      toast('Score must be 0-' + act.maxScore, 'red')
       return
     }
     if (!fbReady || !db.current) { toast('Firebase not connected.', 'red'); return }
@@ -653,7 +653,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       if (updated) await saveStudents(students.map(x => x.id === s.id ? updated : x), [s.id])
       toast(penalized ? `Saved with late penalty (−${li.percent}%): ${eff}/${act.maxScore}` : 'Score saved!', 'green')
       if (fbReady && db.current) {
-        pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} — Score: ${eff}/${act.maxScore}${penalized ? ` (late −${li.percent}%)` : ''}`, 'act_grade', 'activities')
+        pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} - Score: ${eff}/${act.maxScore}${penalized ? ` (late −${li.percent}%)` : ''}`, 'act_grade', 'activities')
       }
     } catch (e) {
       toast('Save failed: ' + e.message, 'red')
@@ -699,7 +699,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       toast(`Applied score of ${defScore} to ${missed.length} student${missed.length !== 1 ? 's' : ''}.`, 'green')
       if (fbReady && db.current) {
         for (const s of missed) {
-          pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} — Score: ${defScore}/${act.maxScore}`, 'act_grade', 'activities')
+          pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} - Score: ${defScore}/${act.maxScore}`, 'act_grade', 'activities')
         }
       }
     } catch (e) {
@@ -766,7 +766,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       toast(`Saved grades for ${toSave.length} student${toSave.length !== 1 ? 's' : ''}.${penalizedCount ? ` ${penalizedCount} late-penalized.` : ''}`, 'green')
       if (fbReady && db.current) {
         for (const s of toSave) {
-          pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} — Score: ${effById[s.id]}/${act.maxScore}`, 'act_grade', 'activities')
+          pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} - Score: ${effById[s.id]}/${act.maxScore}`, 'act_grade', 'activities')
         }
       }
     } catch (e) {
@@ -845,7 +845,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       setScores(prev => ({ ...prev, ...nextScores }))
       setFeedbacks(prev => ({ ...prev, ...nextFb }))
       if (hasRubric) setRubricChecks(prev => ({ ...prev, ...nextChecks }))
-      toast('Draft group scores filled below — review, adjust members, then Save All.', 'green', 6000)
+      toast('Draft group scores filled below - review, adjust members, then Save All.', 'green', 6000)
     } finally { setGradingGroups(false) }
   }
 
@@ -878,7 +878,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       const copy = {
         ...act, id,
         title: `${act.title} (Copy)`,
-        submissions: {},   // a fresh activity — no carried-over submissions
+        submissions: {},   // a fresh activity - no carried-over submissions
         createdAt: Date.now(),
         deadline: Date.now() + 7 * 24 * 60 * 60 * 1000,
       }
@@ -889,7 +889,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
         summary: `Duplicated activity "${act.title}"`,
         meta: { from: act.id, to: id, subject: act.subject || null },
       })
-      toast('Activity duplicated — due in 7 days. Edit to adjust.', 'green')
+      toast('Activity duplicated - due in 7 days. Edit to adjust.', 'green')
       onClose()
     } catch (e) {
       toast('Duplicate failed: ' + e.message, 'red')
@@ -910,8 +910,8 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
     const ids = missing.map(s => s.id)
     const title = `Reminder: ${act.title}`
     const body = isPast
-      ? `${act.subject} — this activity is past due. Please submit as soon as you can.`
-      : `${act.subject} — due ${dlLabel}. Don't forget to submit.`
+      ? `${act.subject} - this activity is past due. Please submit as soon as you can.`
+      : `${act.subject} - due ${dlLabel}. Don't forget to submit.`
     // In-app notifications (reliable) + best-effort web push.
     if (fbReady && db.current) {
       for (const id of ids) pushStudentNotif(db.current, id, title, body, 'act_grade', 'activities')
@@ -939,7 +939,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
         </div>
       ) : (
         <div style={{ background: 'var(--green-l)', color: 'var(--green)', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12 }}>
-          <CircleDot size={14} /> <strong>Open — {timeLeft} remaining.</strong> Students can still submit.
+          <CircleDot size={14} /> <strong>Open - {timeLeft} remaining.</strong> Students can still submit.
         </div>
       )}
 
@@ -1004,7 +1004,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
               )
             })}
           </div>
-          <p className="text-xs text-ink3 mt-2">Draft scores fill each member's row below — review, adjust individuals if needed, then <strong>Save All</strong>.</p>
+          <p className="text-xs text-ink3 mt-2">Draft scores fill each member's row below - review, adjust individuals if needed, then <strong>Save All</strong>.</p>
         </div>
       )}
 
@@ -1032,7 +1032,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                 const curScore = sub.score != null ? sub.score : ''
                 const subDate = sub.submittedAt
                   ? new Date(sub.submittedAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-                  : '—'
+                  : '-'
                 const inputVal = scores[s.id] !== undefined ? scores[s.id] : String(curScore)
                 const checks = rubricChecks[s.id] || {}
                 const li = lateInfo(sub, act, latePolicy)
@@ -1092,7 +1092,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                         value={inputVal}
                         onChange={e => setScores(prev => ({ ...prev, [s.id]: e.target.value }))}
                         style={{ width: 70, padding: '5px 7px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, textAlign: 'center', background: 'var(--surface)', color: 'var(--ink)' }}
-                        placeholder="—"
+                        placeholder="-"
                       />
                       {li.late && (
                         <div style={{ marginTop: 4, fontSize: 10, lineHeight: 1.4, color: waived[s.id] ? 'var(--ink3)' : 'var(--red)', whiteSpace: 'nowrap' }}>
@@ -1173,7 +1173,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
             <h3 className="text-lg font-bold mb-1"><Sparkles size={16} className="inline-block mr-1 align-text-bottom" />Grading Assist <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--green)', background: 'var(--green-l)', padding: '2px 8px', borderRadius: 999, marginLeft: 6, verticalAlign: 'middle' }}>on-device</span></h3>
             <p className="modal-sub">{stud?.name} · {act.title}</p>
             <div style={{ fontSize: 12, color: 'var(--ink2)', background: 'var(--accent-l)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', margin: '8px 0 12px' }}>
-              Paste the student's work below (open their link, copy the text). On-device AI estimates how well it covers each rubric criterion and drafts a score — a starting point you review and adjust before saving. Nothing is uploaded.
+              Paste the student's work below (open their link, copy the text). On-device AI estimates how well it covers each rubric criterion and drafts a score - a starting point you review and adjust before saving. Nothing is uploaded.
             </div>
             {sub.link && (
               <a href={sub.link} target="_blank" rel="noopener noreferrer" className="link-btn" style={{ fontSize: 12, marginBottom: 8, display: 'inline-block' }}>Open submission ↗</a>
@@ -1280,7 +1280,7 @@ export default function ActivitiesTab() {
               {readOnly && <Badge variant="yellow">Archived</Badge>}
             </div>
             <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
-              {cls ? cls.name + ' ' + cls.section : '—'} · Max: {act.maxScore} pts
+              {cls ? cls.name + ' ' + cls.section : '-'} · Max: {act.maxScore} pts
             </div>
             <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 3 }}>
               Deadline: {dlLabel} · {act.isGroup ? `${groupsSubmitted}/${groupCount} group${groupCount === 1 ? '' : 's'} submitted` : `${submitted}/${subs.length} submitted`} · {graded} graded
@@ -1306,7 +1306,7 @@ export default function ActivitiesTab() {
       {/* Active Activities */}
       {activeActs.length === 0 ? (
         <div className="empty">
-          <div className="empty-icon" style={{ fontSize: '2rem' }}>—</div>
+          <div className="empty-icon" style={{ fontSize: '2rem' }}>-</div>
           No activities posted yet. Click "New Activity" to get started.
         </div>
       ) : (

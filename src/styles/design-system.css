@@ -1,5 +1,5 @@
 /* ════════════════════════════════════════════════════════════════════════
-   AcadFlow — Design System layer
+   AcadFlow - Design System layer
    Loaded AFTER globals.css. Additive: it re-tints the palette to the
    academic navy/blue direction from the approved preview and adds the
    shared structural patterns (page header, metric trend, card "view all"
@@ -211,7 +211,7 @@
 /* The glass fallbacks in globals.css (glass off, reduced transparency, and no
    backdrop-filter support) flip every glass panel back to an opaque --surface.
    That is correct for the topbars/cards, but the academic sidebar is ALREADY
-   opaque navy with light nav text — flipping only its background to white left
+   opaque navy with light nav text - flipping only its background to white left
    the labels invisible. The sidebar has no transparency to reduce, so keep it
    navy in every one of those cases (matches the globals !important strength). */
 html[data-glass="off"] .sidebar { background: var(--navy) !important; }
@@ -290,7 +290,7 @@ html[data-glass="off"] .sidebar { background: var(--navy) !important; }
 .ds-bar i { display: block; height: 100%; border-radius: 20px; }
 
 /* ── Responsive shell: tablet rail only, mobile 5-item nav ─────────────── */
-/* Tablet (768–1023): show the navy icon rail, hide the mobile bottom nav. */
+/* Tablet (768-1023): show the navy icon rail, hide the mobile bottom nav. */
 @media (min-width: 768px) and (max-width: 1023px) {
   .admin-bottom-nav { display: none !important; }
   .student-bottom-nav { display: none !important; }
@@ -383,7 +383,7 @@ html[data-glass="off"] .sidebar { background: var(--navy) !important; }
     color: rgba(255,255,255,.48);
   }
   .abn-label { display: none; }
-  /* No filled box — the active icon just brightens, with a small dot below */
+  /* No filled box - the active icon just brightens, with a small dot below */
   .admin-bottom-nav .abn-item:hover { background: transparent; color: rgba(255,255,255,.8); }
   .admin-bottom-nav .abn-item.active { background: transparent; color: #fff; }
   .admin-bottom-nav .abn-item.active::after {

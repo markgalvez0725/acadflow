@@ -36,7 +36,7 @@ export async function fbDeleteStudent(db, id) {
 
 // ── Batch student sync ────────────────────────────────────────────────────
 // `opts.strict` rethrows on failure so the caller can surface the error and
-// roll back optimistic UI. WITHOUT it (default), a failed write is swallowed —
+// roll back optimistic UI. WITHOUT it (default), a failed write is swallowed -
 // fine for fire-and-forget saves, but for enrollment that silently dropped the
 // write, leaving the student "enrolled" locally yet absent in Firestore until a
 // reload reverted them. Critical writes (enroll/unenroll) must pass strict:true.
@@ -91,7 +91,7 @@ function _throwAdminKeyMissing() {
 
 async function _getAdminCryptoKey(mode) {
   if (!ADMIN_KEY || ADMIN_KEY.length < 16) {
-    throw new Error('SECURITY: Invalid VITE_ADMIN_CRYPTO_KEY — must be at least 16 characters.')
+    throw new Error('SECURITY: Invalid VITE_ADMIN_CRYPTO_KEY - must be at least 16 characters.')
   }
   const keyData = new TextEncoder().encode(ADMIN_KEY.padEnd(32, '_').slice(0, 32))
   return crypto.subtle.importKey('raw', keyData, { name: 'AES-GCM' }, false, [mode])
@@ -167,7 +167,7 @@ export async function fbDeleteResource(db, id) {
   return fbWithTimeout(deleteDoc(fbDoc(db, 'resources', id)))
 }
 
-// ── Rubric library (reusable grading rubrics — singleton portal doc) ─────────
+// ── Rubric library (reusable grading rubrics - singleton portal doc) ─────────
 export async function fbSaveRubricLibrary(db, rubrics) {
   const { doc: fbDoc, setDoc } = await import('firebase/firestore')
   return fbWithTimeout(setDoc(fbDoc(db, 'portal', 'rubricLibrary'), { rubrics }, { merge: true }))
@@ -175,7 +175,7 @@ export async function fbSaveRubricLibrary(db, rubrics) {
 
 // ── Message delete (teacher-side hard delete of a message document) ───────────
 // Removes the whole message doc (and its nested replies). Used by the admin
-// Messages tab. Student-side "delete" hides locally instead — students must not
+// Messages tab. Student-side "delete" hides locally instead - students must not
 // destroy shared/announcement docs for everyone.
 export async function fbDeleteMessage(db, id) {
   const { doc: fbDoc, deleteDoc } = await import('firebase/firestore')
@@ -312,14 +312,14 @@ export async function persistAdmin(db, admin) {
   const payload = { user: admin.user, pass: admin.pass, email: admin.email };
   if (admin.resetPin) payload.resetPin = admin.resetPin;
 
-  // 1. Write localStorage immediately — this is what the UI depends on
+  // 1. Write localStorage immediately - this is what the UI depends on
   try {
     const enc = await encryptAdmin(payload);
     if (enc) localStorage.setItem('cp_admin_enc', enc);
     localStorage.removeItem('cp_admin');
   } catch (e) {}
 
-  // 2. Sync to Firebase in the background — non-blocking
+  // 2. Sync to Firebase in the background - non-blocking
   if (db) {
     fbWithTimeout(setDoc(doc(db, 'portal', 'admin'), payload), 20000)
       .then(() => console.log('[FB] persistAdmin synced to Firebase'))
@@ -504,7 +504,7 @@ export async function fbPushMeetingNotifs(db, meeting, students, type) {
 
 // ── Full backup restore ────────────────────────────────────────────────────
 // Writes a backup object (produced by DataContext.buildBackup) back to
-// Firestore. Restores durable academic data only — students, classes,
+// Firestore. Restores durable academic data only - students, classes,
 // messages, activities, quizzes, announcements, online meetings, attendance
 // sessions, excuse requests and settings. Transient/derived collections
 // (notifications, auditLog) are intentionally NOT written back. Existing docs

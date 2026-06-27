@@ -7,7 +7,7 @@ import {
   friendlyCameraError, createFaceScan, FACE_POLICY,
 } from '@/utils/faceId'
 
-// Self-service password reset by face — self-contained and NON-DESTRUCTIVE.
+// Self-service password reset by face - self-contained and NON-DESTRUCTIVE.
 // Flow: number → face scan (verify only) → choose a new password → one server
 // call re-verifies the face AND sets the chosen password. No temp password, no
 // token handoff. onSuccess(studentNumber, newPassword) fires once it's set.
@@ -42,7 +42,7 @@ export default function FaceResetModal({ initialNumber = '', onClose, onSuccess 
   }, [])
   useEffect(() => () => cleanup(), [cleanup])
 
-  // Step 1 — verify the face (no password change). On success → password step.
+  // Step 1 - verify the face (no password change). On success → password step.
   async function verifyFace(descriptor) {
     if (loopRef.current) { clearInterval(loopRef.current); loopRef.current = null }
     go('verifying'); setMsg('Matching your face…')
@@ -68,7 +68,7 @@ export default function FaceResetModal({ initialNumber = '', onClose, onSuccess 
     }
   }
 
-  // Step 2 — re-verify the face AND set the chosen password in one call.
+  // Step 2 - re-verify the face AND set the chosen password in one call.
   async function submitNewPassword(e) {
     e?.preventDefault?.()
     if (newPass.length < 8) return setPassErr('Password must be at least 8 characters.')
@@ -170,7 +170,7 @@ export default function FaceResetModal({ initialNumber = '', onClose, onSuccess 
       {phase === 'number' ? (
         <form onSubmit={confirmNumber}>
           <p className="text-xs text-ink2" style={{ marginBottom: 14, lineHeight: 1.55 }}>
-            Enter your student number, then scan your face and choose a new password — no teacher needed.
+            Enter your student number, then scan your face and choose a new password - no teacher needed.
             (Only works if you set up Face ID reset beforehand.)
           </p>
           <div className="field-float">
@@ -188,7 +188,7 @@ export default function FaceResetModal({ initialNumber = '', onClose, onSuccess 
       ) : phase === 'password' ? (
         <form onSubmit={submitNewPassword}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, color: 'var(--green)' }}>
-            <Check size={16} /> <span className="text-sm" style={{ fontWeight: 600 }}>Face verified — set your new password</span>
+            <Check size={16} /> <span className="text-sm" style={{ fontWeight: 600 }}>Face verified - set your new password</span>
           </div>
           <div className="field-float">
             <input type="password" placeholder=" " value={newPass}
@@ -238,7 +238,7 @@ export default function FaceResetModal({ initialNumber = '', onClose, onSuccess 
 
           <div className="faceid-note" style={{ marginBottom: 12 }}>
             <Lock size={14} />
-            <span>Keep your face in view until it finishes — this step can’t be interrupted. Your password isn’t changed until you set a new one.</span>
+            <span>Keep your face in view until it finishes - this step can’t be interrupted. Your password isn’t changed until you set a new one.</span>
           </div>
         </>
       )}

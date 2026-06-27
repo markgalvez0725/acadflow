@@ -69,12 +69,12 @@ export default function FaceEnrollModal({ student, onClose, embedded = false, hi
       const det = await detectOnce(v)
 
       // The centralized scanner owns liveness + quality-gated capture + the
-      // outlier-rejected signature — identical to the reset flow, so no drift.
+      // outlier-rejected signature - identical to the reset flow, so no drift.
       const out = scanRef.current.feed(det, v, elapsed)
       if ((out.phase === 'challenge' || out.phase === 'capturing') && out.phase !== stateRef.current) go(out.phase)
       if (out.msg) setMsg(out.msg)
       if (out.signature) await save(out.signature)
-    } catch { /* transient frame error — keep looping */ }
+    } catch { /* transient frame error - keep looping */ }
     finally { busyRef.current = false }
   }
 
@@ -110,7 +110,7 @@ export default function FaceEnrollModal({ student, onClose, embedded = false, hi
         </div>
       )}
       <p className="text-xs text-ink2" style={{ marginBottom: 14 }}>
-        Enroll your face once so you can reset your own password later — no teacher needed.
+        Enroll your face once so you can reset your own password later - no teacher needed.
       </p>
 
       {phase === 'done' ? (
@@ -149,7 +149,7 @@ export default function FaceEnrollModal({ student, onClose, embedded = false, hi
 
           <div className="faceid-note" style={{ marginBottom: 12 }}>
             <Lock size={14} />
-            <span>Only a math signature of your face is saved — never the photo. The camera runs entirely on your device.</span>
+            <span>Only a math signature of your face is saved - never the photo. The camera runs entirely on your device.</span>
           </div>
 
           {!hideCancel && <button className="btn btn-ghost btn-sm w-full" onClick={onClose} disabled={phase === 'saving'}>Cancel</button>}

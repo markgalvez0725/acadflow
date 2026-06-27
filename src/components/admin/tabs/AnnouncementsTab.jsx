@@ -141,7 +141,7 @@ function CommentsSection({ ann, authorId, authorName, role }) {
   const { addAnnouncementComment, addCommentReply, students, db } = useData()
   const comments = ann.comments || []
 
-  // Students the teacher can @mention — scoped to the announcement's class.
+  // Students the teacher can @mention - scoped to the announcement's class.
   const mentionCandidates = useMemo(() => {
     const all = ann.classId === 'all' || !ann.classId
     return (students || [])
@@ -387,9 +387,9 @@ function AnnouncementFormModal({ ann, onClose }) {
   const autoTitle = useMemo(() => {
     const label = classId === 'all' ? 'All Classes' : selectedClass ? `${selectedClass.name}${selectedClass.section ? ` ${selectedClass.section}` : ''}` : ''
     if (!label) return ''
-    if (type === 'no_class') return `No Class Today — ${label}`
-    if (type === 'online_class') return `Online Class — ${label}`
-    if (type === 'meeting_topics') return `Meeting Topics — ${label}`
+    if (type === 'no_class') return `No Class Today - ${label}`
+    if (type === 'online_class') return `Online Class - ${label}`
+    if (type === 'meeting_topics') return `Meeting Topics - ${label}`
     return ''
   }, [type, selectedClass, classId])
 
@@ -465,11 +465,11 @@ function AnnouncementFormModal({ ann, onClose }) {
             value={classId}
             onChange={e => handleClassChange(e.target.value)}
           >
-            <option value="">— Select class —</option>
+            <option value="">- Select class -</option>
             <option value="all">All Classes</option>
             {classes.filter(c => !c.archived).map(c => (
               <option key={c.id} value={c.id}>
-                {c.name}{c.section ? ` — ${c.section}` : ''}
+                {c.name}{c.section ? ` - ${c.section}` : ''}
               </option>
             ))}
           </select>
@@ -521,7 +521,7 @@ function AnnouncementFormModal({ ann, onClose }) {
           <input
             className="form-input"
             value={displayTitle}
-            placeholder="e.g. No Class Today — BSIT 2A"
+            placeholder="e.g. No Class Today - BSIT 2A"
             onChange={e => { setTitleTouched(true); setTitle(e.target.value) }}
           />
         </div>
@@ -537,7 +537,7 @@ function AnnouncementFormModal({ ann, onClose }) {
           />
         </div>
 
-        {/* Meeting link — only for online_class */}
+        {/* Meeting link - only for online_class */}
         {type === 'online_class' && (
           <div>
             <label className="form-label">Meeting link <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(optional)</span></label>
@@ -550,7 +550,7 @@ function AnnouncementFormModal({ ann, onClose }) {
           </div>
         )}
 
-        {/* Topics list — only for meeting_topics */}
+        {/* Topics list - only for meeting_topics */}
         {type === 'meeting_topics' && (
           <div>
             <label className="form-label">Topics covered</label>
@@ -606,7 +606,7 @@ function AnnouncementFormModal({ ann, onClose }) {
 
         {/* Schedule */}
         <div>
-          <label className="form-label">Publish at <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(optional — schedule it to post automatically later)</span></label>
+          <label className="form-label">Publish at <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(optional - schedule it to post automatically later)</span></label>
           <input
             type="datetime-local"
             className="form-input"
@@ -622,7 +622,7 @@ function AnnouncementFormModal({ ann, onClose }) {
 
         {/* Expiry */}
         <div>
-          <label className="form-label">Expires at <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(optional — leave blank to stay active)</span></label>
+          <label className="form-label">Expires at <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(optional - leave blank to stay active)</span></label>
           <input
             type="datetime-local"
             className="form-input"
@@ -652,7 +652,7 @@ function AnnouncementDetailModal({ ann, classes, onClose, onEdit }) {
     if (classId === 'all') return 'All Classes'
     const c = classes.find(x => x.id === classId)
     if (!c) return classId
-    return c.name + (c.section ? ` — ${c.section}` : '')
+    return c.name + (c.section ? ` - ${c.section}` : '')
   }
 
   const typeLabel = ann.type === 'no_class' ? 'No Class Today' : ann.type === 'online_class' ? 'Online Class' : 'Meeting Topics'
@@ -763,7 +763,7 @@ export default function AnnouncementsTab() {
     if (classId === 'all') return 'All Classes'
     const c = classes.find(x => x.id === classId)
     if (!c) return classId
-    return c.name + (c.section ? ` — ${c.section}` : '')
+    return c.name + (c.section ? ` - ${c.section}` : '')
   }
 
   async function handleToggleActive(ann) {

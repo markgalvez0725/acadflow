@@ -1,15 +1,15 @@
 // ── AI identity verification (on-device, deterministic) ────────────────────
 //
 // Scores how well a self-registering student's details match the roster row for
-// their student number — a fuzzy, multi-signal confidence (0–100) that replaces
+// their student number - a fuzzy, multi-signal confidence (0-100) that replaces
 // the old brittle exact-match. The student NUMBER is the anchor (it locates the
 // roster row upstream and must match exactly); this module scores the remaining
 // identity signals (name, course, year, section) tolerantly:
 //
-//   • name    — normalized edit-distance similarity ("José"≈"Jose", spacing)
-//   • course  — exact, else edit-distance
-//   • year    — leading digit match
-//   • section — separator-insensitive, else edit-distance ("2A"≈"2-A")
+//   • name    - normalized edit-distance similarity ("José"≈"Jose", spacing)
+//   • course  - exact, else edit-distance
+//   • year    - leading digit match
+//   • section - separator-insensitive, else edit-distance ("2A"≈"2-A")
 //
 // Weights are renormalized over the fields the roster actually has, so a sparse
 // roster (e.g. no course on file) is never penalized. The same algorithm runs on
@@ -77,7 +77,7 @@ export function scoreIdentity(entered = {}, roster = {}) {
 
   // No comparable roster details → cannot auto-verify; hand to the teacher.
   if (totalWeight === 0) {
-    return { confidence: null, verdict: 'review', fields, reasons: [{ field: 'roster', score: null, ok: false, note: 'No roster details on file to match — needs teacher review.' }] }
+    return { confidence: null, verdict: 'review', fields, reasons: [{ field: 'roster', score: null, ok: false, note: 'No roster details on file to match - needs teacher review.' }] }
   }
 
   const confidence = Math.round((weighted / totalWeight) * 100)

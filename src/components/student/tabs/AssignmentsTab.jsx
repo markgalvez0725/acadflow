@@ -13,7 +13,7 @@ import {
 
 // Cross-subject assignment tracker: one place to see every activity's status
 // (To do / Submitted / Graded / Missed) across all current classes. Submission
-// still happens in the Activities tab — tapping a row jumps there. The ring and
+// still happens in the Activities tab - tapping a row jumps there. The ring and
 // "Workload Watch" planner are deterministic, recomputed from the same rows the
 // list renders, so they can never disagree with what's on screen.
 
@@ -105,7 +105,7 @@ export default function AssignmentsTab({ student: s, classes }) {
     return { total, done, rate, overdue, color }
   }, [rows, counts])
 
-  // Deterministic "Workload Watch" planner — what to do, in what order.
+  // Deterministic "Workload Watch" planner - what to do, in what order.
   const watch = useMemo(() => {
     const now = Date.now()
     const todo    = rows.filter(r => r.status.group === 'todo')
@@ -120,19 +120,19 @@ export default function AssignmentsTab({ student: s, classes }) {
     const f = []
     if (overdue.length) {
       const subs = [...new Set(overdue.map(r => r.act.subject || 'General'))]
-      f.push({ tone: 'bad', Icon: AlertTriangle, lead: `${overdue.length} overdue`, text: ` — ${subs.slice(0, 2).join(', ')}${subs.length > 2 ? '…' : ''}.` })
+      f.push({ tone: 'bad', Icon: AlertTriangle, lead: `${overdue.length} overdue`, text: ` - ${subs.slice(0, 2).join(', ')}${subs.length > 2 ? '…' : ''}.` })
     }
     if (next)
-      f.push({ tone: 'info', Icon: ArrowRightCircle, lead: 'Do next', text: ` — ${next.act.title} (${next.act.subject || 'General'}), ${deadlineLabel(next.act.deadline, now)}.` })
+      f.push({ tone: 'info', Icon: ArrowRightCircle, lead: 'Do next', text: ` - ${next.act.title} (${next.act.subject || 'General'}), ${deadlineLabel(next.act.deadline, now)}.` })
     if (heavy && heavy.n >= 2)
-      f.push({ tone: 'warn', Icon: Layers, lead: 'Heaviest load', text: ` — ${heavy.sub} has ${heavy.n} still to do.` })
+      f.push({ tone: 'warn', Icon: Layers, lead: 'Heaviest load', text: ` - ${heavy.sub} has ${heavy.n} still to do.` })
     if (!f.length)
-      f.push({ tone: 'good', Icon: CheckCircle2, lead: "You're all caught up", text: ' — no pending work across your subjects.' })
+      f.push({ tone: 'good', Icon: CheckCircle2, lead: "You're all caught up", text: ' - no pending work across your subjects.' })
 
     const action = overdue.length + open.length
     const lead = action
-      ? `${action} item${action > 1 ? 's' : ''} need${action > 1 ? '' : 's'} action — here's the order to tackle them.`
-      : "Nothing pending — you're all caught up."
+      ? `${action} item${action > 1 ? 's' : ''} need${action > 1 ? '' : 's'} action - here's the order to tackle them.`
+      : "Nothing pending - you're all caught up."
     return { findings: f.slice(0, 4), lead }
   }, [rows])
 
@@ -214,7 +214,7 @@ export default function AssignmentsTab({ student: s, classes }) {
       {!visible.length ? (
         <div className="empty">
           <div className="empty-icon"><ClipboardList size={40} /></div>
-          {filter === 'todo' ? 'Nothing to do — you’re all caught up.' : 'No assignments here yet.'}
+          {filter === 'todo' ? 'Nothing to do - you’re all caught up.' : 'No assignments here yet.'}
         </div>
       ) : (
         grouped.map((b, bi) => (
@@ -232,7 +232,7 @@ export default function AssignmentsTab({ student: s, classes }) {
                     type="button"
                     className="sact-row"
                     onClick={() => setStudentTab('activities')}
-                    aria-label={`${act.title}${act.subject ? ' — ' + act.subject : ''}, ${status.label}. Open Activities.`}
+                    aria-label={`${act.title}${act.subject ? ' - ' + act.subject : ''}, ${status.label}. Open Activities.`}
                   >
                     <span className="sact-dot" style={{ background: subjectColor(act.subject).color }} />
                     <div className="sact-row-main">

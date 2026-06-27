@@ -5,7 +5,7 @@ import {
   FileQuestion, Award, Trophy, X, ChevronLeft,
 } from 'lucide-react'
 
-// "AcadFlow Wrapped" — an Instagram-story-style recap of the student's
+// "AcadFlow Wrapped" - an Instagram-story-style recap of the student's
 // semester, built entirely from the derived stat pack in
 // @/utils/semesterWrapped. Tap the card to advance; Back/Esc to go back/close.
 
@@ -27,8 +27,8 @@ const PERSONA_ICONS = {
 function standingFor(gwa) {
   if (gwa >= 90) return 'Outstanding standing'
   if (gwa >= 85) return 'Good standing'
-  if (gwa >= 75) return 'Passing — keep pushing'
-  return 'A tough one — next term is yours'
+  if (gwa >= 75) return 'Passing - keep pushing'
+  return 'A tough one - next term is yours'
 }
 
 export default function SemesterWrapped({ data, onClose }) {

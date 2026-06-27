@@ -21,7 +21,7 @@ function fmtDate(iso) {
 // { code, name }. Falls back to the whole string as the name when no code is present.
 function splitSubject(s) {
   const str = String(s || '').trim()
-  const m = str.match(/^(.*?)\s*[-–—]\s*(.+)$/)
+  const m = str.match(/^(.*?)\s*[---]\s*(.+)$/)
   if (m && m[1] && m[2]) return { code: m[1].trim(), name: m[2].trim() }
   return { code: '', name: str }
 }
@@ -149,7 +149,7 @@ function ArchivedClassCard({ entry }) {
                     {grade != null ? (
                       <span className="text-xs font-semibold text-[var(--accent)]">{grade}</span>
                     ) : (
-                      <span className="text-xs text-[var(--ink3)]">—</span>
+                      <span className="text-xs text-[var(--ink3)]">-</span>
                     )}
                     {attDays > 0 && (
                       <span className="text-[10px] text-[var(--ink3)]">{attDays}d</span>
@@ -203,7 +203,7 @@ function ClassCard({ cls, student, onEnroll, busy, isCurrentSem, semesterStatus,
       className={`rounded-xl bg-[var(--surface)] p-4 flex flex-col gap-3 transition-shadow hover:shadow-md ${borderWidth} ${borderTone}`}
       style={{ opacity: (!cls.enrollmentOpen && !enrolled) ? 0.75 : 1 }}
     >
-      {/* Header — leads with the subject */}
+      {/* Header - leads with the subject */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           {featured?.code && (
@@ -244,7 +244,7 @@ function ClassCard({ cls, student, onEnroll, busy, isCurrentSem, semesterStatus,
         </div>
       )}
 
-      {/* Meta row — schedule · room · semester */}
+      {/* Meta row - schedule · room · semester */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-[var(--ink2)] border-t border-[var(--border)] pt-2.5">
         {cls.schedule && (
           <span className="inline-flex items-center gap-1.5"><Clock size={12} className="shrink-0" />{cls.schedule}</span>
@@ -305,7 +305,7 @@ function ClassCard({ cls, student, onEnroll, busy, isCurrentSem, semesterStatus,
         {enrolled && (
           <div className="flex items-center gap-1.5 text-xs text-[var(--ink3)]">
             <Lock size={12} className="shrink-0" />
-            <span>Enrollment locked — message your teacher to make changes.</span>
+            <span>Enrollment locked - message your teacher to make changes.</span>
           </div>
         )}
         {!canEnroll && !enrolled && (
@@ -426,7 +426,7 @@ export default function EnrollmentTab({ student }) {
 
   return (
     <div className="space-y-4">
-      {/* Header — title + progress + compact semester pill */}
+      {/* Header - title + progress + compact semester pill */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0">
           <div className="sec-title">Class Enrollment</div>
@@ -437,7 +437,7 @@ export default function EnrollmentTab({ student }) {
                   .{availableClasses.length > 0 && ` ${availableClasses.length} more available.`}
                 </>
               : semester?.status === 'active'
-              ? <span className="text-green-600 dark:text-green-400 font-medium">Enrollment is open — select your classes below.</span>
+              ? <span className="text-green-600 dark:text-green-400 font-medium">Enrollment is open - select your classes below.</span>
               : 'You are not enrolled in any classes yet.'
             }
           </div>
@@ -456,11 +456,11 @@ export default function EnrollmentTab({ student }) {
       {/* Compact context strip */}
       <ContextStrip semester={semester} student={student} openCount={availableClasses.length} />
 
-      {/* Finality note — subtle */}
+      {/* Finality note - subtle */}
       <div className="flex items-start gap-2 text-xs text-[var(--ink3)] px-0.5">
         <Info size={14} className="shrink-0 mt-0.5" />
         <span>
-          <strong className="text-[var(--ink2)]">Enrollment is final</strong> — once you enroll, message your teacher to make any changes.
+          <strong className="text-[var(--ink2)]">Enrollment is final</strong> - once you enroll, message your teacher to make any changes.
         </span>
       </div>
 

@@ -1,4 +1,4 @@
-// Shared deadline helpers — used by the student Overview "Today" strip and the
+// Shared deadline helpers - used by the student Overview "Today" strip and the
 // Assignment Tracker so the urgency wording/colour stays consistent.
 
 // Human "time remaining" label for a deadline timestamp.

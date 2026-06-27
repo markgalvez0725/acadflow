@@ -30,7 +30,7 @@ export default function SubjectPassedModal({ subject, eq, studentName, remaining
         <div className="passed-eyebrow">Congratulations{first ? `, ${first}` : ''}! 🎉</div>
         <h3 className="passed-title">You passed</h3>
         <div className="passed-subject" style={{ color: col }}>{subject}</div>
-        {eq && eq !== '—' && <div className="passed-eq">Final grade: <strong>{eq}</strong></div>}
+        {eq && eq !== '-' && <div className="passed-eq">Final grade: <strong>{eq}</strong></div>}
         <p className="passed-msg">Hard work pays off. Keep up the great momentum!</p>
         <button className="btn btn-primary" onClick={onClose} style={{ marginTop: 4 }}>
           {remaining > 0 ? `Next (${remaining} more)` : 'Awesome!'}

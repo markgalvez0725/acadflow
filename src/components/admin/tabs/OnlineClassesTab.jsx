@@ -41,12 +41,12 @@ export default function OnlineClassesTab() {
         classId: cls.id,
         className: classLabel(cls),
         subject: subject || null,
-        title: subject || `${cls.name} — live class`,
+        title: subject || `${cls.name} - live class`,
         description: '',
         meetLink: url,
       })
       window.open(url, '_blank', 'noopener,noreferrer')
-      toast('You are live — students can now join.', 'success')
+      toast('You are live - students can now join.', 'success')
       setPanel('meetings') // hand the teacher off to manage/end the live class
     } catch (e) {
       toast('Failed to go live.', 'error')
@@ -172,7 +172,7 @@ export default function OnlineClassesTab() {
         </div>
       </section>
 
-      {/* Section 1 — Class Meet Links */}
+      {/* Section 1 - Class Meet Links */}
       {panel === 'links' && <section>
         <div className="sec-hdr mb-3">
           <div className="sec-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -235,9 +235,9 @@ export default function OnlineClassesTab() {
                             className="btn btn-sm"
                             style={{ marginTop: 6, width: '100%', background: '#ef4444', color: '#fff' }}
                             onClick={() => setPanel('meetings')}
-                            title="This class is live — manage or end it in the Meetings tab"
+                            title="This class is live - manage or end it in the Meetings tab"
                           >
-                            <Radio size={13} className="animate-pulse" style={{ marginRight: 5 }} /> Live now — manage in Meetings
+                            <Radio size={13} className="animate-pulse" style={{ marginRight: 5 }} /> Live now - manage in Meetings
                           </button>
                         ) : val.trim() ? (
                           <button
@@ -245,7 +245,7 @@ export default function OnlineClassesTab() {
                             style={{ marginTop: 6, width: '100%' }}
                             disabled={goingLive === linkKey(cls.id, sub)}
                             onClick={() => handleGoLive(cls, sub, val)}
-                            title="Start the class now — students get a Join button"
+                            title="Start the class now - students get a Join button"
                           >
                             <Radio size={13} style={{ marginRight: 5 }} />
                             {goingLive === linkKey(cls.id, sub) ? 'Going live…' : 'Go Live now'}
@@ -261,7 +261,7 @@ export default function OnlineClassesTab() {
         </div>
       </section>}
 
-      {/* Section 2 — Schedule Meeting Form */}
+      {/* Section 2 - Schedule Meeting Form */}
       {panel === 'schedule' && <section>
         <div className="sec-hdr mb-3">
           <div className="sec-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -340,7 +340,7 @@ export default function OnlineClassesTab() {
         </form>
       </section>}
 
-      {/* Section 3 — Meetings List */}
+      {/* Section 3 - Meetings List */}
       {panel === 'meetings' && <section>
         <div className="sec-hdr mb-3">
           <div className="sec-title">Meetings</div>

@@ -1,7 +1,7 @@
 import React from 'react'
 import { Sparkles, Cpu } from 'lucide-react'
 
-// On-device "AI analyzer" card — a $0, deterministic synthesizer that turns the
+// On-device "AI analyzer" card - a $0, deterministic synthesizer that turns the
 // numbers already on the page into plain-English findings with one-tap actions.
 // It recomputes from the same data the dashboard renders, so it can never
 // disagree with the cards below it. Shared by the teacher dashboard and the

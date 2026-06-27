@@ -26,7 +26,7 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
 
   const cls = classes?.find(c => c.id === viewClassId) || null
 
-  // Current, non-archived classes only — archived/ended/removed subjects drop off.
+  // Current, non-archived classes only - archived/ended/removed subjects drop off.
   const enrolledIds = useMemo(() => activeClassIds(s, classes, semester), [s, classes, semester])
   const subs = useMemo(() => activeSubjects(s, classes, semester), [s, classes, semester])
 
@@ -34,7 +34,7 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
   const [takeAttModal, setTakeAttModal] = useState(null) // subject string
 
   // Keep the selected subject valid when the active subject list changes
-  // (semester switch, dropped/added class) — a stale subject renders empty.
+  // (semester switch, dropped/added class) - a stale subject renders empty.
   useEffect(() => {
     if (activeSub && !subs.includes(activeSub)) setActiveSub(subs[0] || null)
     else if (!activeSub && subs.length) setActiveSub(subs[0])
@@ -60,7 +60,7 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
     return xEnrolledIds.some(id => enrolledIds.includes(id))
   }) : []
 
-  // Per-subject standing — present/excused/absent counts, rate, and the trailing
+  // Per-subject standing - present/excused/absent counts, rate, and the trailing
   // present/absent streaks. Drives both Attendance Watch and the subject pills,
   // so the validator can never disagree with what the cards show.
   const subStats = useMemo(() => {
@@ -113,7 +113,7 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
   const globalRate = totalExpected > 0 ? totalPresent / totalExpected * 100 : 0
   const rateColor = globalRate >= 90 ? 'var(--green)' : globalRate >= 80 ? 'var(--yellow)' : 'var(--red)'
 
-  // Attendance Watch — deterministic, on-device findings from the same numbers
+  // Attendance Watch - deterministic, on-device findings from the same numbers
   // the standing card renders. Severity order: danger → warning → success.
   const watch = useMemo(() => {
     const findings = []
@@ -123,7 +123,7 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
 
     below.forEach(x => findings.push({
       sev: 'bad', Icon: AlertTriangle,
-      text: <><b>{x.sub} is at {x.rate.toFixed(0)}%</b> — below the {THRESHOLD}% line. File excuses for any valid absences and talk to your teacher.</>,
+      text: <><b>{x.sub} is at {x.rate.toFixed(0)}%</b> - below the {THRESHOLD}% line. File excuses for any valid absences and talk to your teacher.</>,
     }))
 
     border.forEach(x => {
@@ -307,7 +307,7 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
                   className="btn btn-sm flex items-center gap-1"
                   style={{ fontSize: 11, padding: '3px 8px', background: 'var(--accent)', color: '#fff', borderRadius: 'var(--radius)' }}
                   onClick={() => setTakeAttModal({ subject: sub, classId: repSubjects[sub] })}
-                  title={`You are the rep for ${sub} — take attendance`}
+                  title={`You are the rep for ${sub} - take attendance`}
                 >
                   <UserCheck size={11} />Take Attendance
                 </button>
@@ -506,12 +506,12 @@ function CalendarView({ presentSet, excuseSet, adminDates, year, month, onNav })
 
           let cls = 'sa-day'
           let tip = dateStr
-          if (isFuture)       { cls += ' sa-future';  tip += ' — upcoming' }
-          else if (isPresent) { cls += ' sa-present'; tip += ' — Present' }
-          else if (isExcuse)  { cls += ' sa-excuse';  tip += ' — Excused' }
-          else if (isAbsent)  { cls += ' sa-absent';  tip += ' — Absent' }
-          else if (isWeekend) { cls += ' sa-weekend'; tip += ' — weekend' }
-          else                { cls += ' sa-future';  tip += ' — no record' }
+          if (isFuture)       { cls += ' sa-future';  tip += ' - upcoming' }
+          else if (isPresent) { cls += ' sa-present'; tip += ' - Present' }
+          else if (isExcuse)  { cls += ' sa-excuse';  tip += ' - Excused' }
+          else if (isAbsent)  { cls += ' sa-absent';  tip += ' - Absent' }
+          else if (isWeekend) { cls += ' sa-weekend'; tip += ' - weekend' }
+          else                { cls += ' sa-future';  tip += ' - no record' }
           if (isToday) cls += ' sa-today'
 
           return <div key={dateStr} className={cls} title={tip}>{d}</div>
@@ -540,7 +540,7 @@ function DateList({ dates, type }) {
   const empties = {
     present: { icon: EMPTY_ICONS.present, msg: 'No present days recorded yet.' },
     excuse:  { icon: EMPTY_ICONS.excuse,  msg: 'No excused absences recorded.' },
-    absent:  { icon: EMPTY_ICONS.absent,  msg: 'No recorded absences — great job!' },
+    absent:  { icon: EMPTY_ICONS.absent,  msg: 'No recorded absences - great job!' },
   }
   if (!dates.length) {
     const e = empties[type]

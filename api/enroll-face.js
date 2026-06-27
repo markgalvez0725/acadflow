@@ -3,7 +3,7 @@
 // (face-api.js) and posts it here. This endpoint verifies the caller IS that
 // student (their Firebase ID token), then writes the signature to the student
 // doc via the Admin API. The descriptor field is server-only by Firestore rule,
-// so it can't be forged from the browser. Only the math vector is stored — never
+// so it can't be forged from the browser. Only the math vector is stored - never
 // the face image, which never leaves the device.
 //
 // Request body: { idToken: string, descriptor: number[128] }

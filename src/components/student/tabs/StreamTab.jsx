@@ -43,7 +43,7 @@ function Pagination({ page, total, pageSize, onPrev, onNext }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 12, fontSize: 13, color: 'var(--ink2)' }}>
       <button className="btn btn-ghost btn-sm" onClick={onPrev} disabled={page === 0}>← Prev</button>
-      <span>Showing {from}–{to} of {total}</span>
+      <span>Showing {from}-{to} of {total}</span>
       <button className="btn btn-ghost btn-sm" onClick={onNext} disabled={to >= total}>Next →</button>
     </div>
   )
@@ -208,7 +208,7 @@ function AttendanceCard({ item, classObj }) {
   return (
     <PostShell
       type="attendance"
-      title={`Attendance — ${date}`}
+      title={`Attendance - ${date}`}
       meta={<span>{subject || 'Attendance'}{cls ? ` · ${cls}` : ''}</span>}
     >
       {present ? (

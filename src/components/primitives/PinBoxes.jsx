@@ -1,7 +1,7 @@
 import React, { useRef, useCallback } from 'react'
 
 /**
- * 4-digit PIN input widget — one box per digit, auto-advancing on input.
+ * 4-digit PIN input widget - one box per digit, auto-advancing on input.
  */
 export default function PinBoxes({ value = '', onChange, disabled }) {
   const inputsRef = useRef([])

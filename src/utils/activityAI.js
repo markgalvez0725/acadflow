@@ -1,4 +1,4 @@
-// ── Activity AI helpers (fully on-device — no Gemini, no server) ───────────
+// ── Activity AI helpers (fully on-device - no Gemini, no server) ───────────
 // Used by the New Activity form (instructions, rubric) and the grading assist.
 // Everything runs in-browser:
 //   • instructions  → the shared embedding model classifies the activity TYPE by
@@ -52,12 +52,12 @@ export function deviceRubric(title = '', subject = '') {
 
 // ── On-device instruction templates by activity type ──────────────────────
 // Each entry: keys (for the keyword fallback) + a `build(title, subjectPhrase)`
-// that renders a complete, type-specific instruction set — deliverable, format,
+// that renders a complete, type-specific instruction set - deliverable, format,
 // submission method, integrity note, and deadline reminder. Deterministic, so it
 // never garbles or hallucinates. The last entry is the generic fallback.
 const INSTRUCTION_TEMPLATES = [
   { keys: ['essay', 'paper', 'reaction', 'reflection', 'composition', 'writing', 'journal', 'narrative', 'argument'],
-    build: (t, s) => `Write "${t}"${s} as a well-structured essay. Open with a clear thesis, develop your ideas in focused paragraphs backed by specific evidence, and close with a strong conclusion. Aim for roughly 500–800 words, proofread for grammar and clarity, and cite any sources you use. Submit your work as a shareable link (Google Docs or Drive) with view access enabled before the deadline.` },
+    build: (t, s) => `Write "${t}"${s} as a well-structured essay. Open with a clear thesis, develop your ideas in focused paragraphs backed by specific evidence, and close with a strong conclusion. Aim for roughly 500-800 words, proofread for grammar and clarity, and cite any sources you use. Submit your work as a shareable link (Google Docs or Drive) with view access enabled before the deadline.` },
   { keys: ['lab', 'experiment', 'investigation', 'observation', 'dissection', 'titration'],
     build: (t, s) => `Carry out "${t}"${s} and write it up as a formal lab report. Include your objective, the materials and procedure, the data or results you observed (use tables or charts where helpful), and an analysis explaining what the results mean. State your conclusion and note any sources of error. Submit as a shareable link (Google Docs or Drive) with view access before the deadline.` },
   { keys: ['code', 'program', 'programming', 'coding', 'app', 'game', 'software', 'script', 'algorithm', 'website', 'database', 'function'],
@@ -67,16 +67,16 @@ const INSTRUCTION_TEMPLATES = [
   { keys: ['design', 'poster', 'artwork', 'illustration', 'layout', 'infographic', 'logo', 'art', 'drawing', 'model', 'prototype'],
     build: (t, s) => `Create "${t}"${s} following the brief. Focus on a clear concept, strong visual execution, and effective use of color, layout, and typography so the design communicates its message at a glance. Meet any required dimensions or file format. Submit a shareable link to your file (with view access) before the deadline, and credit any assets you did not make yourself.` },
   { keys: ['problem', 'worksheet', 'exercise', 'drill', 'computation', 'solve', 'seatwork', 'equations', 'calculation'],
-    build: (t, s) => `Complete every item in "${t}"${s}. Show your full solution and reasoning for each problem — not just the final answer — so your work can be followed step by step, and double-check your computations before submitting. Submit a shareable link (Google Docs or Drive) or a clear photo or scan with view access before the deadline. The work must be your own.` },
+    build: (t, s) => `Complete every item in "${t}"${s}. Show your full solution and reasoning for each problem - not just the final answer - so your work can be followed step by step, and double-check your computations before submitting. Submit a shareable link (Google Docs or Drive) or a clear photo or scan with view access before the deadline. The work must be your own.` },
   { keys: ['research', 'case study', 'case-study', 'thesis', 'survey', 'analysis', 'study', 'fieldwork', 'interview'],
     build: (t, s) => `Research and write up "${t}"${s}. Investigate the topic using credible sources, present your findings clearly, and support your analysis with evidence and proper citations. Organize your work into clear sections and end with a conclusion or recommendation. Submit as a shareable link (Google Docs or Drive) with view access before the deadline.` },
   { keys: ['reading', 'summary', 'summarize', 'review', 'annotate', 'response', 'abstract', 'critique'],
-    build: (t, s) => `Read the assigned material and complete "${t}"${s}. Summarize the main ideas in your own words, then share your reflection — what stood out, what you learned, and any questions it raised. Keep it focused and well organized. Submit as a shareable link (Google Docs or Drive) with view access before the deadline.` },
+    build: (t, s) => `Read the assigned material and complete "${t}"${s}. Summarize the main ideas in your own words, then share your reflection - what stood out, what you learned, and any questions it raised. Keep it focused and well organized. Submit as a shareable link (Google Docs or Drive) with view access before the deadline.` },
   { keys: ['project', 'capstone', 'output', 'activity', 'task', 'portfolio', 'group', 'requirement', 'assignment'],
     build: (t, s) => `Complete "${t}"${s} and submit your output before the deadline. Make sure your work fully meets the requirements, is well organized, and reflects your own effort. Follow the grading rubric, review your work before turning it in, and cite any sources or references you used. Submit a shareable link (Google Drive or Docs) with view access enabled.` },
 ]
 
-// " for <Subject>" or "" — kept separate so both paths render it identically.
+// " for <Subject>" or "" - kept separate so both paths render it identically.
 function subjectPhrase(subject = '') {
   const s = String(subject || '').trim()
   return s ? ` for ${s}` : ''
@@ -96,7 +96,7 @@ export function deviceInstructions(title = '', subject = '') {
 // Mirrors aiRubric: embed the activity context, pick the closest type by MEANING
 // (handles synonyms, multilingual, and titles with no exact keyword), then render
 // that type's guaranteed-clean instruction set. Falls back to the keyword match
-// if the embedding model can't load — so a draft is ALWAYS produced.
+// if the embedding model can't load - so a draft is ALWAYS produced.
 export async function aiInstructions(title, subject) {
   const t = String(title || '').trim()
   if (!t) return deviceInstructions(title, subject)
@@ -176,7 +176,7 @@ export async function aiGrade({ title, subject, instructions, rubric, maxScore, 
   let fb = ''
   if (strong.length) fb += `Appears to address ${strong.join(', ')} well. `
   if (weak.length) fb += `Seems to under-cover ${weak.join(', ')}. `
-  fb += 'This is an on-device coverage estimate — read the work and adjust before saving.'
+  fb += 'This is an on-device coverage estimate - read the work and adjust before saving.'
 
   return {
     score,
@@ -256,7 +256,7 @@ export async function aiGradeGroups({ title, subject, casePrompt, rubric, maxSco
     if (strong.length) fb += `Addresses ${strong.join(', ')} well. `
     if (weak.length) fb += `Under-covers ${weak.join(', ')}. `
     if (relevance != null && relevance < 0.4) fb += 'May drift from the case prompt. '
-    fb += 'On-device coverage estimate — review before saving.'
+    fb += 'On-device coverage estimate - review before saving.'
 
     out.push({ groupId: g.id, name: g.name, score, feedback: fb.trim(), relevance, copies: [], criteria: results.map(r => ({ name: r.name, met: r.met, points: r.points })), _centroid: meanVec(subVecs) })
   }

@@ -1,6 +1,6 @@
 // ── Crypto utilities ───────────────────────────────────────────────────────
 // PASS_SALT is hardcoded so it never changes across deployments or env var mismatches.
-// Changing this value would invalidate ALL stored password hashes — do not modify.
+// Changing this value would invalidate ALL stored password hashes - do not modify.
 const PASS_SALT  = '1MXiaxEkgBLYRSXJRY28Dg=='
 const _EJS_SECRET = import.meta.env.VITE_EJS_SECRET || _throwMissing('VITE_EJS_SECRET')
 const _EJS_SALT   = import.meta.env.VITE_EJS_SALT   || _throwMissing('VITE_EJS_SALT')
@@ -22,7 +22,7 @@ export async function hashPassword(password) {
 
 export async function verifyPassword(inputPassword, storedHash) {
   if (!storedHash) return false;
-  // Path 1: SHA-256 hash — exactly 64 lowercase hex chars
+  // Path 1: SHA-256 hash - exactly 64 lowercase hex chars
   if (storedHash.length === 64 && /^[0-9a-f]{64}$/.test(storedHash)) {
     const inputHash = await hashPassword(inputPassword);
     return inputHash === storedHash;
@@ -83,7 +83,7 @@ async function _aesDecrypt(blob, secret, salt) {
 // ── Generic local-secret encryption (reuses the Firebase key material) ─────
 // Used for on-device convenience features (e.g. biometric quick sign-in) that
 // must stash a small secret in localStorage. Not a substitute for server-side
-// security — it raises the bar for casual extraction on the user's own device.
+// security - it raises the bar for casual extraction on the user's own device.
 export async function encryptLocal(obj) {
   return _aesEncrypt(obj, _FB_SECRET, _FB_SALT);
 }

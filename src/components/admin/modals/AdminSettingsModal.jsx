@@ -22,7 +22,7 @@ function NotificationsTab({ push }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.6 }}>
-        Get a browser push alert on this device when a student sends you a message —
+        Get a browser push alert on this device when a student sends you a message -
         even when AcadFlow isn't the active tab. You'll always see the in-app
         Notifications badge regardless of this setting.
       </div>
@@ -42,7 +42,7 @@ function NotificationsTab({ push }) {
               : enabled
                 ? 'Enabled on this device.'
                 : permission === 'denied'
-                  ? 'Blocked — enable notifications for this site in your browser settings.'
+                  ? 'Blocked - enable notifications for this site in your browser settings.'
                   : 'Not enabled on this device yet.'}
           </div>
         </div>
@@ -190,7 +190,7 @@ function SemesterTab() {
         <strong><Lightbulb size={15} /> Semester Workflow:</strong><br />
         1. Set the semester here before the term begins.<br />
         2. <strong>Setting status to Active / Open</strong> automatically opens enrollment for all classes assigned to this semester. Setting it to Upcoming or Ended automatically closes their enrollment.<br />
-        3. When a class is <em>archived</em>, enrolled students' subject records are automatically snapshotted and cleared — they appear in each student's Academic History.<br />
+        3. When a class is <em>archived</em>, enrolled students' subject records are automatically snapshotted and cleared - they appear in each student's Academic History.<br />
         4. <em>Unarchive</em> a class to make it active again, then re-enroll students manually via the Students tab.
       </div>
     </div>
@@ -266,7 +266,7 @@ function CredentialsTab() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
       <SmartCheckTag />
 
-      {/* Email — auto-saves when valid */}
+      {/* Email - auto-saves when valid */}
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <div className="form-label" style={{ fontWeight: 600, margin: 0 }}>Admin Email</div>
@@ -539,7 +539,7 @@ function FirebaseTab() {
       const enc = await encryptFbConfig(cfg)
       localStorage.setItem('cp_firebase_enc', enc)
       const ok = await reinitFirebase(cfg)
-      toast(ok ? 'Firebase connected.' : 'Config saved but connection failed — check credentials.', ok ? 'success' : 'error')
+      toast(ok ? 'Firebase connected.' : 'Config saved but connection failed - check credentials.', ok ? 'success' : 'error')
       setCleared(false)
     } catch (err) {
       toast('Failed to save Firebase config.', 'error')
@@ -578,7 +578,7 @@ function FirebaseTab() {
               <div key={key} className="flex gap-2" style={{ alignItems: 'center' }}>
                 <span style={{ fontSize: 12, color: 'var(--ink3)', width: 140, flexShrink: 0 }}>{label}</span>
                 <span style={{ fontSize: 12, color: 'var(--ink)', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                  {key === 'apiKey' ? '••••••••••••••••' : (envConfig[key] || '—')}
+                  {key === 'apiKey' ? '••••••••••••••••' : (envConfig[key] || '-')}
                 </span>
               </div>
             ))}
@@ -644,7 +644,7 @@ function LatePolicyTab() {
       await saveGradeFloor(floorOn ? (parseInt(floorVal, 10) || 0) : 0)
       toast('Grading rules saved.', 'green')
     } catch (e) {
-      toast('Saved locally — sync failed: ' + e.message, 'red')
+      toast('Saved locally - sync failed: ' + e.message, 'red')
     } finally {
       setSaving(false)
     }
@@ -695,7 +695,7 @@ function LatePolicyTab() {
         <p className="modal-sub" style={{ marginBottom: 12 }}>
           No activity or quiz score can fall below this floor. Each item is lifted to the
           floor (and a missing submission counts as the floor) before averaging. Applies to
-          activities &amp; quizzes only — attendance, attitude, and exams are unchanged.
+          activities &amp; quizzes only - attendance, attitude, and exams are unchanged.
         </p>
         <div className="field" style={{ opacity: floorOn ? 1 : 0.5 }}>
           <label>Minimum component grade</label>
@@ -819,7 +819,7 @@ function DataTab() {
 // ── Main Modal ────────────────────────────────────────────────────────────────
 // Grouped settings on the shared responsive SettingsShell: a full-height push-nav
 // sheet on mobile, master-detail on tablet/desktop. Each row drills into one of
-// the existing panel components above — unchanged; only the navigation differs.
+// the existing panel components above - unchanged; only the navigation differs.
 export default function AdminSettingsModal({ onClose, push }) {
   const { admin } = useData()
 

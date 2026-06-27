@@ -1,12 +1,12 @@
 // ── Late-submission penalty ───────────────────────────────────────────────
-// Pure helpers — no Firebase, no React. The policy is global (stored in
+// Pure helpers - no Firebase, no React. The policy is global (stored in
 // portal/settings as `latePolicy`) and applied when grading an activity:
 // a submission whose submittedAt is past the deadline (plus an optional grace
 // window) loses `percentPerDay` of its earned score per day late, capped at
 // `maxPercent`. The teacher can waive the penalty per submission.
 
 export const DEFAULT_LATE_POLICY = {
-  enabled: false,      // off by default — opt-in
+  enabled: false,      // off by default - opt-in
   percentPerDay: 10,   // % of earned score deducted per day late
   maxPercent: 100,     // cap on total deduction
   graceMins: 0,        // minutes after the deadline before "late" applies

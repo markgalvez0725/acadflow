@@ -37,7 +37,7 @@ function BigField({ label, value, onChange, accent }) {
     <label style={{ display: 'block' }}>
       <span style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--ink2)', marginBottom: 4 }}>{label}</span>
       <input
-        type="number" min="0" max="100" value={value} placeholder="—"
+        type="number" min="0" max="100" value={value} placeholder="-"
         onChange={e => onChange(e.target.value)}
         style={{
           width: '100%', fontSize: 26, fontWeight: 700, textAlign: 'center', padding: '12px 8px',
@@ -137,7 +137,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
     return studs.map(s => {
       const comp = s.gradeComponents?.[subject] || {}
 
-      // Per-activity scores — one per unified column (app submission / stored key).
+      // Per-activity scores - one per unified column (app submission / stored key).
       const actInputs = actCols.map(c => {
         if (c.act) {
           const sc = (c.act.submissions || {})[s.id]?.score
@@ -150,7 +150,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
       // Compute activity avg from inputs (normalized by each activity's maxScore)
       const actAvg = round2(actAvgFromInputs(actInputs))
 
-      // Per-quiz scores — one per unified column (app submission % / stored key).
+      // Per-quiz scores - one per unified column (app submission % / stored key).
       const qzScoresMap = comp.quizScores || {}
       const qzInputs = qzCols.map(c => {
         if (c.quiz) {
@@ -239,7 +239,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
     if (actKey !== prevActKeyRef.current || qzKey !== prevQzKeyRef.current) {
       prevActKeyRef.current = actKey
       prevQzKeyRef.current  = qzKey
-      resyncRef.current = true // programmatic reload — not a user edit
+      resyncRef.current = true // programmatic reload - not a user edit
       setRows(initRows)
     }
   }, [panelActs, panelQuizzes]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -250,7 +250,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
   , [studs, subject])
 
   // Recompute actAvg and qzAvg from individual inputs, then recompute final grade
-  // Uses combineEquiv (school lookup table) for correct equivalency — not just gradeInfo on raw %
+  // Uses combineEquiv (school lookup table) for correct equivalency - not just gradeInfo on raw %
   function recomputeRow(r) {
     // Full-precision component percentages (activities normalized by maxScore).
     const actAvg = actAvgFromInputs(r.actInputs)
@@ -268,7 +268,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
     })
 
     let fg = r.finalGrade
-    let equivPreview = '—'
+    let equivPreview = '-'
 
     if (midterm !== null || finals !== null) {
       if (final !== null) fg = String(final)
@@ -330,19 +330,19 @@ function GradeEntryModal({ classId, subject, onClose }) {
     }))
   }, [eqScale])
 
-  // Add an extra activity column (manual mode only — when no panel activities)
+  // Add an extra activity column (manual mode only - when no panel activities)
   function addActColumn() {
     setManualActExtra(n => n + 1)
     setRows(prev => prev.map(r => recomputeRow({ ...r, actInputs: [...r.actInputs, ''] })))
   }
 
-  // Add an extra quiz column (manual mode only — when no panel quizzes)
+  // Add an extra quiz column (manual mode only - when no panel quizzes)
   function addQzColumn() {
     setManualQzExtra(n => n + 1)
     setRows(prev => prev.map(r => recomputeRow({ ...r, qzInputs: [...r.qzInputs, ''] })))
   }
 
-  // Build the updated students array from the current rows (pure — reused by
+  // Build the updated students array from the current rows (pure - reused by
   // both the manual Save and the debounced auto-save).
   function buildUpdatedStudents(recordHistory = false) {
     const now = Date.now()
@@ -371,7 +371,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
       if (midExamV  != null) comp.midtermExam = midExamV
       if (finExamV  != null) comp.finalsExam  = finExamV
 
-      // Canonical computation — CS includes Attitude; intermediates full precision.
+      // Canonical computation - CS includes Attitude; intermediates full precision.
       const { cs, midterm, finals, final } = computeTerms({
         activities: actPct, quizzes: qzPct, attendance: attV,
         attitude: attitudeV, midtermExam: midExamV, finalsExam: finExamV,
@@ -397,7 +397,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
       if (Object.keys(qzMap).length) comp.quizScores = qzMap
       else delete comp.quizScores
 
-      // Final Grade % = avg(Midterm Term, Finals Term) — full precision, rounded once.
+      // Final Grade % = avg(Midterm Term, Finals Term) - full precision, rounded once.
       const finalGrade = (comp.midterm != null || comp.finals != null) ? final : null
 
       // Manual override
@@ -429,7 +429,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
     })
   }
 
-  // Manual save — persists, audits, notifies students, then closes the modal.
+  // Manual save - persists, audits, notifies students, then closes the modal.
   async function handleSave() {
     setSaving(true)
     if (autoTimerRef.current) { clearTimeout(autoTimerRef.current); autoTimerRef.current = null }
@@ -456,7 +456,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
             pushStudentNotif(
               db.current, s.id,
               `Grade posted for ${subject}`,
-              `${clsName} — Final Grade: ${grade.toFixed(1)}`,
+              `${clsName} - Final Grade: ${grade.toFixed(1)}`,
               'act_grade', 'grades'
             )
           }
@@ -464,13 +464,13 @@ function GradeEntryModal({ classId, subject, onClose }) {
       }
       onClose()
     } catch (e) {
-      toast('Saved locally — Firebase sync failed: ' + e.message, 'red')
+      toast('Saved locally - Firebase sync failed: ' + e.message, 'red')
     } finally {
       setSaving(false)
     }
   }
 
-  // Debounced auto-save — quietly persists edits (no audit/notification spam);
+  // Debounced auto-save - quietly persists edits (no audit/notification spam);
   // kept in a ref so the debounce timer always calls the latest closure.
   autoSaveRef.current = async () => {
     if (!dirtyRef.current || saving) return
@@ -560,7 +560,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
     if (!t || t.tagName !== 'INPUT' || !t.dataset.cell) return
     if (e.key !== 'Enter' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
     const [r, c] = t.dataset.cell.split('-').map(Number)
-    // ArrowDown/Up on a number input would otherwise nudge its value — block that.
+    // ArrowDown/Up on a number input would otherwise nudge its value - block that.
     e.preventDefault()
     const nr = e.key === 'ArrowUp' ? Math.max(0, r - 1) : Math.min(studs.length - 1, r + 1)
     focusCell(nr, c)
@@ -575,7 +575,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
   }, [jumpQ, studs])
   const doJump = useCallback(() => { if (jumpIdx >= 0) focusCell(jumpIdx, 0) }, [jumpIdx, focusCell])
 
-  // ── Missing / invalid grade detector — pure validation over current rows ────
+  // ── Missing / invalid grade detector - pure validation over current rows ────
   const validation = useMemo(() => {
     const badNum = v => {
       if (v === '' || v === null || v === undefined) return false
@@ -718,7 +718,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
             {panelQuizzes.length === 0 && (
               <button className="btn btn-ghost btn-sm" onClick={addQzColumn}><Plus size={13} className="inline-block mr-1" />Add Quiz Column</button>
             )}
-            <span style={{ fontSize: 11, color: 'var(--ink3)' }}>Manual columns — only needed if you are not using the Activities / Quiz tabs.</span>
+            <span style={{ fontSize: 11, color: 'var(--ink3)' }}>Manual columns - only needed if you are not using the Activities / Quiz tabs.</span>
           </div>
         )}
       </div>
@@ -742,14 +742,14 @@ function GradeEntryModal({ classId, subject, onClose }) {
         </div>
         <div className="flex items-center gap-2 text-xs">
           <button className="btn btn-ghost btn-sm" onClick={() => setPasteOpen(true)} title="Paste a column of scores or import a grading-sheet Excel file" style={{ padding: '4px 10px' }}><FileSpreadsheet size={13} className="inline-block mr-1 align-text-bottom" />Import</button>
-          <button className={`btn btn-sm ${speedMode ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setSpeedMode(v => !v)} title="Speed-grading mode — one student at a time" style={{ padding: '4px 10px' }}><Maximize2 size={13} className="inline-block mr-1 align-text-bottom" />Speed</button>
+          <button className={`btn btn-sm ${speedMode ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setSpeedMode(v => !v)} title="Speed-grading mode - one student at a time" style={{ padding: '4px 10px' }}><Maximize2 size={13} className="inline-block mr-1 align-text-bottom" />Speed</button>
           <button className="btn btn-ghost btn-sm" onClick={undo} disabled={!canUndo} title="Undo (Ctrl/Cmd+Z)" style={{ padding: '4px 8px' }}><Undo2 size={14} /></button>
           <button className="btn btn-ghost btn-sm" onClick={redo} disabled={!canRedo} title="Redo (Ctrl/Cmd+Shift+Z)" style={{ padding: '4px 8px' }}><Redo2 size={14} /></button>
           <span style={{ minWidth: 64, color: 'var(--ink3)' }}>
             {autoStatus === 'saving' ? 'Saving…' : autoStatus === 'saved' ? <><Check size={12} className="inline-block align-text-bottom" style={{ color: 'var(--green)' }} /> Saved</> : ''}
           </span>
           {validation.invalid > 0 && (
-            <span className="badge badge-red" title="Values outside 0–100">{validation.invalid} invalid</span>
+            <span className="badge badge-red" title="Values outside 0-100">{validation.invalid} invalid</span>
           )}
           {validation.missing > 0 && (
             <span className="badge badge-yellow" title="No exam scores and no final grade yet">{validation.missing} no grade</span>
@@ -760,7 +760,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
         </div>
       </div>
 
-      {/* Speed-grading view — one student at a time, big inputs */}
+      {/* Speed-grading view - one student at a time, big inputs */}
       {speedMode && (() => {
         const i = Math.min(speedIdx, studs.length - 1)
         const s = studs[i]; const r = rows[i]
@@ -783,9 +783,9 @@ function GradeEntryModal({ classId, subject, onClose }) {
             </div>
 
             <div className="flex items-center justify-center gap-2 flex-wrap mb-4 text-xs">
-              <span className="badge badge-green" title="Activity average (auto)">Act {r.actAvg ?? '—'}</span>
-              <span className="badge badge-gray" title="Quiz average (auto)">Quiz {r.qzAvg ?? '—'}</span>
-              <span className="badge badge-blue" title="Attendance (auto)">Att {r.attRate != null ? `${r.attRate.toFixed(0)}%` : '—'}</span>
+              <span className="badge badge-green" title="Activity average (auto)">Act {r.actAvg ?? '-'}</span>
+              <span className="badge badge-gray" title="Quiz average (auto)">Quiz {r.qzAvg ?? '-'}</span>
+              <span className="badge badge-blue" title="Attendance (auto)">Att {r.attRate != null ? `${r.attRate.toFixed(0)}%` : '-'}</span>
               <span className="badge badge-gray" title="Equivalent">Equiv {r.equivPreview}</span>
             </div>
 
@@ -803,13 +803,13 @@ function GradeEntryModal({ classId, subject, onClose }) {
                   {r.actInputs.map((val, ai) => (
                     <label key={`a${ai}`} className="text-xs" style={{ width: 84 }}>
                       <span className="text-ink3" title={actCols[ai]?.label || `Activity ${ai + 1}`}>{(actCols[ai]?.label || `Act ${ai + 1}`).slice(0, 8)}</span>
-                      <input className="grade-input" type="number" min="0" max="100" value={val} placeholder="—" onChange={e => updateActInput(i, ai, e.target.value)} />
+                      <input className="grade-input" type="number" min="0" max="100" value={val} placeholder="-" onChange={e => updateActInput(i, ai, e.target.value)} />
                     </label>
                   ))}
                   {r.qzInputs.map((val, qi) => (
                     <label key={`q${qi}`} className="text-xs" style={{ width: 84 }}>
                       <span className="text-ink3" title={qzCols[qi]?.label || `Quiz ${qi + 1}`}>{(qzCols[qi]?.label || `Quiz ${qi + 1}`).slice(0, 8)}</span>
-                      <input className="grade-input" type="number" min="0" max="100" value={val} placeholder="—" onChange={e => updateQzInput(i, qi, e.target.value)} />
+                      <input className="grade-input" type="number" min="0" max="100" value={val} placeholder="-" onChange={e => updateQzInput(i, qi, e.target.value)} />
                     </label>
                   ))}
                 </div>
@@ -832,25 +832,25 @@ function GradeEntryModal({ classId, subject, onClose }) {
               <th colSpan={actInputCount} className="text-center" style={{ borderBottom: '1px solid var(--border)' }}>
                 Activities<br /><small className="font-normal text-ink3">{panelActs.length > 0 ? 'auto · Activities tab' : 'manual'}</small>
               </th>
-              <th rowSpan={2} title="Activities average — computed from individual scores">
+              <th rowSpan={2} title="Activities average - computed from individual scores">
                 Act Avg<br /><small className="font-normal text-ink3">auto</small>
               </th>
               <th colSpan={quizInputCount} className="text-center" style={{ borderBottom: '1px solid var(--border)' }}>
                 Quizzes<br /><small className="font-normal text-ink3">{panelQuizzes.length > 0 ? 'auto · Quiz tab' : 'manual'}</small>
               </th>
-              <th rowSpan={2} title="Quizzes average — computed from individual scores">
+              <th rowSpan={2} title="Quizzes average - computed from individual scores">
                 Quiz Avg<br /><small className="font-normal text-ink3">auto</small>
               </th>
-              <th rowSpan={2} title="Attitude/Character grade — entered manually by teacher" style={{ background: 'var(--yellow-l)' }}>
+              <th rowSpan={2} title="Attitude/Character grade - entered manually by teacher" style={{ background: 'var(--yellow-l)' }}>
                 Attitude<br /><small className="font-normal" style={{ color: 'var(--gold-var)' }}>you enter</small>
               </th>
-              <th rowSpan={2} title="Attendance % — auto from records">
+              <th rowSpan={2} title="Attendance % - auto from records">
                 Attendance<br /><small className="font-normal text-ink3">auto · Attendance tab</small>
               </th>
-              <th rowSpan={2} title="Midterm Exam score — combined with CS Midterm to get Midterm Term grade" style={{ background: 'var(--yellow-l)' }}>
+              <th rowSpan={2} title="Midterm Exam score - combined with CS Midterm to get Midterm Term grade" style={{ background: 'var(--yellow-l)' }}>
                 Midterm Exam<br /><small className="font-normal" style={{ color: 'var(--gold-var)' }}>you enter</small>
               </th>
-              <th rowSpan={2} title="Finals Exam score — combined with CS Finals to get Finals Term grade" style={{ background: 'var(--yellow-l)' }}>
+              <th rowSpan={2} title="Finals Exam score - combined with CS Finals to get Finals Term grade" style={{ background: 'var(--yellow-l)' }}>
                 Finals Exam<br /><small className="font-normal" style={{ color: 'var(--gold-var)' }}>you enter</small>
               </th>
               <th rowSpan={2} style={{ background: 'var(--accent-l)' }}>
@@ -886,8 +886,8 @@ function GradeEntryModal({ classId, subject, onClose }) {
                 <tr key={s.id}>
                   <td style={{ minWidth: 160, position: 'sticky', left: 0, zIndex: 1, background: 'var(--surface)', boxShadow: '2px 0 4px -1px var(--border)', borderLeft: `3px solid ${flagBorder}` }}>
                     <strong>{s.name}</strong>
-                    {vf.invalid && <span className="badge badge-red ml-1" style={{ fontSize: 9, padding: '0 4px' }} title="Has a value outside 0–100">!</span>}
-                    {!vf.invalid && vf.missing && <span className="badge badge-yellow ml-1" style={{ fontSize: 9, padding: '0 4px' }} title="No grade entered yet">—</span>}
+                    {vf.invalid && <span className="badge badge-red ml-1" style={{ fontSize: 9, padding: '0 4px' }} title="Has a value outside 0-100">!</span>}
+                    {!vf.invalid && vf.missing && <span className="badge badge-yellow ml-1" style={{ fontSize: 9, padding: '0 4px' }} title="No grade entered yet">-</span>}
                     <br />
                     <small className="text-ink2">{s.id}</small>
                   </td>
@@ -896,7 +896,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
                     <td key={ai}>
                       <input className="grade-input" type="number" min="0" max="100"
                         data-cell={`${i}-${ai}`}
-                        value={val} placeholder="—"
+                        value={val} placeholder="-"
                         title={actCols[ai]?.label || `Activity ${ai + 1}`}
                         onChange={e => updateActInput(i, ai, e.target.value)} />
                     </td>
@@ -905,7 +905,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
                   <td>
                     <div className="px-2 py-1.5 rounded-md text-sm font-bold text-center"
                       style={{ background: 'var(--green-l)', color: 'var(--green)' }}>
-                      {r.actAvg ?? '—'}
+                      {r.actAvg ?? '-'}
                     </div>
                   </td>
                   {/* Per-quiz inputs */}
@@ -913,7 +913,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
                     <td key={qi}>
                       <input className="grade-input" type="number" min="0" max="100"
                         data-cell={`${i}-${actInputCount + qi}`}
-                        value={val} placeholder="—"
+                        value={val} placeholder="-"
                         title={qzCols[qi]?.label || `Quiz ${qi + 1}`}
                         onChange={e => updateQzInput(i, qi, e.target.value)} />
                     </td>
@@ -922,14 +922,14 @@ function GradeEntryModal({ classId, subject, onClose }) {
                   <td>
                     <div className="px-2 py-1.5 rounded-md text-sm font-bold text-center"
                       style={{ background: 'var(--bg)', color: 'var(--ink)' }}>
-                      {r.qzAvg ?? '—'}
+                      {r.qzAvg ?? '-'}
                     </div>
                   </td>
                   {/* Attitude / Character input */}
                   <td>
                     <input className="grade-input" type="number" min="0" max="100"
                       data-cell={`${i}-${colAttitude}`}
-                      value={r.attitude} placeholder="0–100"
+                      value={r.attitude} placeholder="0-100"
                       title="Attitude/Character grade (included in Class Standing)"
                       style={{ background: 'var(--purple-l, #ede9fe)' }}
                       onChange={e => updateRow(i, 'attitude', e.target.value)} />
@@ -938,14 +938,14 @@ function GradeEntryModal({ classId, subject, onClose }) {
                     <div className="px-2 py-1.5 rounded-md text-sm font-semibold"
                       style={{ background: 'var(--bg)', color: attColor }}
                       title={`Auto-computed from attendance records (${r.attSize}/${r.held} days)`}>
-                      {r.attRate !== null ? `${r.attRate.toFixed(1)}%` : '—'}
+                      {r.attRate !== null ? `${r.attRate.toFixed(1)}%` : '-'}
                       <br /><small className="text-xs font-normal text-ink3">{r.attSize}/{r.held} days</small>
                     </div>
                   </td>
                   <td>
                     <input className="grade-input" type="number" min="0" max="100"
                       data-cell={`${i}-${colAttitude + 1}`}
-                      value={r.midtermExam} placeholder="0–100"
+                      value={r.midtermExam} placeholder="0-100"
                       title="Midterm Exam score"
                       style={{ background: 'var(--yellow-l)' }}
                       onChange={e => updateRow(i, 'midtermExam', e.target.value)} />
@@ -953,7 +953,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
                   <td>
                     <input className="grade-input" type="number" min="0" max="100"
                       data-cell={`${i}-${colAttitude + 2}`}
-                      value={r.finalsExam} placeholder="0–100"
+                      value={r.finalsExam} placeholder="0-100"
                       title="Finals Exam score"
                       style={{ background: 'var(--yellow-l)' }}
                       onChange={e => updateRow(i, 'finalsExam', e.target.value)} />
@@ -991,7 +991,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
             <strong>CS Finals</strong> = Average(Activities, Quizzes, Attendance, Attitude)<br />
             <strong>Midterm Term</strong> = Average(CS Midterm, Midterm Exam)<br />
             <strong>Finals Term</strong> = Average(CS Finals, Finals Exam)<br />
-            <strong>Final Grade %</strong> = Average(Midterm Term, Finals Term) → converted to 1.00–5.00 via school lookup table<br />
+            <strong>Final Grade %</strong> = Average(Midterm Term, Finals Term) → converted to 1.00-5.00 via school lookup table<br />
             <span className="text-ink3">{getGradeScaleLabel(eqScale)}</span>
           </div>
         )}
@@ -1008,7 +1008,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
     {pasteOpen && (
       <Modal onClose={() => setPasteOpen(false)} size="md">
         <h3 className="mb-1"><FileSpreadsheet size={16} className="inline-block mr-1 align-text-bottom" />Import / Paste scores</h3>
-        <p className="modal-sub mb-3">Fill the open grade sheet — review, then Save Grades to keep changes.</p>
+        <p className="modal-sub mb-3">Fill the open grade sheet - review, then Save Grades to keep changes.</p>
 
         {/* Excel file import */}
         <div className="mb-4 px-3 py-2.5 rounded-lg" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
@@ -1123,18 +1123,18 @@ function SubjectCard({ cls, sub, studs, allStuds = [], eqScale, readOnly, onEdit
   const finGrades  = studs.map(s => s.grades?.[sub]).filter(g => g != null)
   const midAvg     = midGrades.length ? (midGrades.reduce((a, b) => a + b, 0) / midGrades.length).toFixed(1) : null
   const finAvg     = finGrades.length ? (finGrades.reduce((a, b) => a + b, 0) / finGrades.length).toFixed(1) : null
-  const midAvgEquiv = midAvg ? gradeInfo(parseFloat(midAvg), eqScale).eq : '—'
-  const finAvgEquiv = finAvg ? gradeInfo(parseFloat(finAvg), eqScale).eq : '—'
+  const midAvgEquiv = midAvg ? gradeInfo(parseFloat(midAvg), eqScale).eq : '-'
+  const finAvgEquiv = finAvg ? gradeInfo(parseFloat(finAvg), eqScale).eq : '-'
 
   const latestTs = studs.map(s => s.gradeUploadedAt?.[sub]).filter(Boolean).sort().pop()
 
   // Class average (of final grades) + attendance held-days from the full roster.
   const classAvg = finGrades.length ? (finGrades.reduce((a, b) => a + b, 0) / finGrades.length) : null
-  const classAvgEquiv = classAvg != null ? gradeInfo(classAvg, eqScale).eq : '—'
+  const classAvgEquiv = classAvg != null ? gradeInfo(classAvg, eqScale).eq : '-'
   const passRate = total ? Math.round(passing / total * 100) : 0
   const heldDays = useMemo(() => getHeldDays(cls?.id, sub, allStuds), [cls, sub, allStuds])
 
-  // Attention breakdown — who still needs a final grade.
+  // Attention breakdown - who still needs a final grade.
   const notStarted    = studs.filter(s => { const c = s.gradeComponents?.[sub] || {}; return c.midterm == null && c.finals == null }).length
   const missingFinals = studs.filter(s => { const c = s.gradeComponents?.[sub] || {}; return c.midterm != null && c.finals == null }).length
   const needsAttention = noGrade
@@ -1175,7 +1175,7 @@ function SubjectCard({ cls, sub, studs, allStuds = [], eqScale, readOnly, onEdit
   const slice = filtered.slice((page - 1) * GRADE_PER_PAGE, page * GRADE_PER_PAGE)
   const setFilterReset = (f) => { setFilter(f); setPage(1) }
 
-  // Derive each visible student's row once — shared by the desktop table and
+  // Derive each visible student's row once - shared by the desktop table and
   // the phone card list so the computation isn't duplicated.
   const rowsData = slice.map(s => {
     const comp = s.gradeComponents?.[sub] || {}
@@ -1183,26 +1183,26 @@ function SubjectCard({ cls, sub, studs, allStuds = [], eqScale, readOnly, onEdit
     const finG = comp.finals  ?? null
     const fg   = s.grades?.[sub] ?? null
     const ts   = s.gradeUploadedAt?.[sub]
-    const tsLabel = ts ? new Date(ts).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
+    const tsLabel = ts ? new Date(ts).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '-'
 
     const complete = midG != null && finG != null
     const anyData  = midG != null || finG != null || comp.activities != null || comp.attitude != null
     const stMap = { complete: { l: 'Complete', c: 'green' }, partial: { l: 'Partial', c: 'yellow' }, none: { l: 'Not started', c: 'gray' } }
     const st = complete ? stMap.complete : anyData ? stMap.partial : stMap.none
 
-    const actsV = typeof comp.activities === 'number' ? comp.activities.toFixed(0) : '—'
-    const quizV = typeof comp.quizzes === 'number' ? comp.quizzes.toFixed(0) : '—'
+    const actsV = typeof comp.activities === 'number' ? comp.activities.toFixed(0) : '-'
+    const quizV = typeof comp.quizzes === 'number' ? comp.quizzes.toFixed(0) : '-'
     const attSize = s.attendance?.[sub]?.size ?? 0
     const attRate = heldDays > 0 ? Math.round((attSize / heldDays) * 100) : null
     const attColor = attRate == null ? 'var(--ink3)' : attRate >= 90 ? 'var(--green)' : attRate >= 75 ? 'var(--yellow)' : 'var(--red)'
 
-    const midPct = midG != null ? `${midG.toFixed(1)}%` : '—'
-    const midEquiv = midG != null ? gradeInfo(midG, eqScale).eq : '—'
+    const midPct = midG != null ? `${midG.toFixed(1)}%` : '-'
+    const midEquiv = midG != null ? gradeInfo(midG, eqScale).eq : '-'
     const midBadgeCls = midG != null ? (midG >= 75 ? 'green' : midG >= 72 ? 'yellow' : 'red') : 'gray'
-    const finPct  = finG != null ? `${finG.toFixed(1)}%` : '—'
-    const finEquiv = finG != null ? gradeInfo(finG, eqScale).eq : '—'
+    const finPct  = finG != null ? `${finG.toFixed(1)}%` : '-'
+    const finEquiv = finG != null ? gradeInfo(finG, eqScale).eq : '-'
     const finBadgeCls = finG != null ? (finG >= 75 ? 'green' : finG >= 72 ? 'yellow' : 'red') : 'gray'
-    const fgPct = fg != null ? `${fg.toFixed(1)}%` : '—'
+    const fgPct = fg != null ? `${fg.toFixed(1)}%` : '-'
     const fgPctCls = fg != null ? (fg >= 75 ? 'green' : fg >= 72 ? 'yellow' : 'red') : 'gray'
 
     const gradeFullyUploaded = midG != null && finG != null && ts
@@ -1210,7 +1210,7 @@ function SubjectCard({ cls, sub, studs, allStuds = [], eqScale, readOnly, onEdit
     if (gradeFullyUploaded) {
       const c = combineEquiv(gradeInfo(midG, eqScale).eq, gradeInfo(finG, eqScale).eq)
       combinedEq = c.eq; rem = c.rem
-    } else { combinedEq = '—'; rem = 'Pending' }
+    } else { combinedEq = '-'; rem = 'Pending' }
     const fgBadgeCls = rem === 'Passed' ? 'green' : rem === 'Conditional' ? 'yellow' : rem === 'Failed' ? 'red' : 'gray'
 
     return { s, midG, finG, tsLabel, st, actsV, quizV, attRate, attColor, midPct, midEquiv, midBadgeCls, finPct, finEquiv, finBadgeCls, fgPct, fgPctCls, gradeFullyUploaded, combinedEq, rem, fgBadgeCls }
@@ -1252,7 +1252,7 @@ function SubjectCard({ cls, sub, studs, allStuds = [], eqScale, readOnly, onEdit
       <div className="grid gap-2 mb-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
         <div className="rounded-lg p-3" style={{ background: 'var(--bg)' }}>
           <div className="text-xs text-ink2">Class average</div>
-          <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>{classAvg != null ? classAvgEquiv : '—'}
+          <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>{classAvg != null ? classAvgEquiv : '-'}
             <span className="text-xs text-ink3" style={{ fontWeight: 400, marginLeft: 4 }}>{classAvg != null ? `· ${classAvg.toFixed(1)}%` : ''}</span>
           </div>
         </div>
@@ -1278,7 +1278,7 @@ function SubjectCard({ cls, sub, studs, allStuds = [], eqScale, readOnly, onEdit
           <AlertTriangle size={16} className="shrink-0" style={{ color: 'var(--yellow-d, #854d0e)' }} />
           <span className="text-sm" style={{ color: 'var(--yellow-d, #854d0e)', flex: '1 1 200px' }}>
             {needsAttention} student{needsAttention !== 1 ? 's' : ''} still need a final grade
-            {(missingFinals > 0 || notStarted > 0) && <> — {[missingFinals > 0 && `${missingFinals} missing finals`, notStarted > 0 && `${notStarted} not started`].filter(Boolean).join(', ')}</>}.
+            {(missingFinals > 0 || notStarted > 0) && <> - {[missingFinals > 0 && `${missingFinals} missing finals`, notStarted > 0 && `${notStarted} not started`].filter(Boolean).join(', ')}</>}.
           </span>
           {filter !== 'nograde'
             ? <button className="btn btn-ghost btn-sm" onClick={() => setFilterReset('nograde')}>Review these</button>
@@ -1348,7 +1348,7 @@ function SubjectCard({ cls, sub, studs, allStuds = [], eqScale, readOnly, onEdit
         })}
       </div>
 
-      {/* Table — tablet/desktop (≥640px); horizontally scrollable */}
+      {/* Table - tablet/desktop (≥640px); horizontally scrollable */}
       <div className="tbl-wrap hidden sm:block" style={{ overflowX: 'auto' }}>
         <table className="tbl" style={{ minWidth: 1040 }}>
           <thead>
@@ -1377,11 +1377,11 @@ function SubjectCard({ cls, sub, studs, allStuds = [], eqScale, readOnly, onEdit
                     <small className="text-ink2">{r.s.id}</small>
                   </td>
                   <td><span className={`badge ${BADGE_CLS_MAP[r.st.c] || 'badge-gray'}`}>{r.st.l}</span></td>
-                  <td style={{ color: r.actsV === '—' ? 'var(--ink3)' : 'var(--ink)' }}>{r.actsV}</td>
-                  <td style={{ color: r.quizV === '—' ? 'var(--ink3)' : 'var(--ink)' }}>{r.quizV}</td>
-                  <td style={{ color: r.attColor, fontWeight: 600, fontSize: 12 }}>{r.attRate != null ? `${r.attRate}%` : '—'}</td>
+                  <td style={{ color: r.actsV === '-' ? 'var(--ink3)' : 'var(--ink)' }}>{r.actsV}</td>
+                  <td style={{ color: r.quizV === '-' ? 'var(--ink3)' : 'var(--ink)' }}>{r.quizV}</td>
+                  <td style={{ color: r.attColor, fontWeight: 600, fontSize: 12 }}>{r.attRate != null ? `${r.attRate}%` : '-'}</td>
                   <td><ToggleBadge pct={r.midPct} equiv={r.midEquiv} badgeCls={r.midBadgeCls} /></td>
-                  <td>{r.finG != null ? <ToggleBadge pct={r.finPct} equiv={r.finEquiv} badgeCls={r.finBadgeCls} /> : <span className="badge badge-gray">—</span>}</td>
+                  <td>{r.finG != null ? <ToggleBadge pct={r.finPct} equiv={r.finEquiv} badgeCls={r.finBadgeCls} /> : <span className="badge badge-gray">-</span>}</td>
                   <td><span className={`badge ${BADGE_CLS_MAP[r.fgPctCls] || 'badge-gray'}`}>{r.fgPct}</span></td>
                   <td>
                     {r.gradeFullyUploaded
@@ -1401,7 +1401,7 @@ function SubjectCard({ cls, sub, studs, allStuds = [], eqScale, readOnly, onEdit
         </table>
       </div>
 
-      {/* Phone (<640px) — one card per student instead of a sideways-scrolling table */}
+      {/* Phone (<640px) - one card per student instead of a sideways-scrolling table */}
       <div className="sm:hidden flex flex-col gap-2">
         {rowsData.length === 0 && <div className="empty">No students.</div>}
         {rowsData.map(r => (
@@ -1425,7 +1425,7 @@ function SubjectCard({ cls, sub, studs, allStuds = [], eqScale, readOnly, onEdit
               <div className="flex justify-between"><span className="text-ink3">Finals</span><strong>{r.finPct}</strong></div>
               <div className="flex justify-between"><span className="text-ink3">Activities</span><strong>{r.actsV}</strong></div>
               <div className="flex justify-between"><span className="text-ink3">Quiz</span><strong>{r.quizV}</strong></div>
-              <div className="flex justify-between"><span className="text-ink3">Attendance</span><strong style={{ color: r.attColor }}>{r.attRate != null ? `${r.attRate}%` : '—'}</strong></div>
+              <div className="flex justify-between"><span className="text-ink3">Attendance</span><strong style={{ color: r.attColor }}>{r.attRate != null ? `${r.attRate}%` : '-'}</strong></div>
               <div className="flex justify-between"><span className="text-ink3">Uploaded</span><strong>{r.tsLabel}</strong></div>
             </div>
           </div>
@@ -1462,7 +1462,7 @@ function GradeImportPreviewModal({ preview, cls, onCancel, onConfirm }) {
   }, [rows, filter, query])
 
   const pageRows = filtered.slice((page - 1) * GRADE_IMPORT_PER_PAGE, page * GRADE_IMPORT_PER_PAGE)
-  const fmt = v => (v === null || v === undefined ? '—' : v)
+  const fmt = v => (v === null || v === undefined ? '-' : v)
 
   const Tab = ({ id, label, count, color }) => (
     <button
@@ -1484,14 +1484,14 @@ function GradeImportPreviewModal({ preview, cls, onCancel, onConfirm }) {
     <Modal onClose={onCancel} wide>
       <div className="flex items-start justify-between flex-wrap gap-2 mb-1">
         <div>
-          <h3 className="mb-0"><Sparkles size={16} className="inline-block mr-1 align-text-bottom" style={{ color: 'var(--accent)' }} />Review import — {sub}</h3>
+          <h3 className="mb-0"><Sparkles size={16} className="inline-block mr-1 align-text-bottom" style={{ color: 'var(--accent)' }} />Review import - {sub}</h3>
           <p className="modal-sub mb-0">{cls?.name} {cls?.section} · <span className="text-ink3">{fileName}</span></p>
         </div>
       </div>
 
       <p className="text-xs text-ink3 mb-3" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <Sparkles size={12} style={{ color: 'var(--accent)' }} />
-        On-device check — grades recomputed the same way the app does. Warnings are advisory; only valid rows import.
+        On-device check - grades recomputed the same way the app does. Warnings are advisory; only valid rows import.
       </p>
 
       {/* Summary */}
@@ -1549,7 +1549,7 @@ function GradeImportPreviewModal({ preview, cls, onCancel, onConfirm }) {
                 <td className="text-center">{fmt(r.mtExam)}</td>
                 <td className="text-center">{fmt(r.ftExam)}</td>
                 <td className="text-center" style={{ fontWeight: 600 }}>
-                  {fmt(r.final)}{r.final != null && r.equiv && r.equiv !== '—' ? <span className="text-ink3" style={{ fontWeight: 400 }}> · {r.equiv}</span> : null}
+                  {fmt(r.final)}{r.final != null && r.equiv && r.equiv !== '-' ? <span className="text-ink3" style={{ fontWeight: 400 }}> · {r.equiv}</span> : null}
                 </td>
                 <td>
                   {!r.matched ? (
@@ -1650,7 +1650,7 @@ export default function GradesTab() {
       await saveStudents(updated, changedIds)
       toast(`Grade data cleared for ${sub}.`, 'green')
     } catch (e) {
-      toast('Cleared locally — Firebase sync failed: ' + e.message, 'red')
+      toast('Cleared locally - Firebase sync failed: ' + e.message, 'red')
     }
   }
 
@@ -1660,7 +1660,7 @@ export default function GradesTab() {
 
     const ok = await openDialog({
       title: 'Recompute all grades?',
-      msg: `This re-derives grades for all ${studsInClass.length} student${studsInClass.length !== 1 ? 's' : ''} in ${cls.name} ${cls.section} from their underlying components — activity scores (normalized by each activity's max score), quizzes, attendance, attitude and exams — using the current formula. Use this to apply accuracy fixes to existing grades. Manual final-grade overrides will be replaced.`,
+      msg: `This re-derives grades for all ${studsInClass.length} student${studsInClass.length !== 1 ? 's' : ''} in ${cls.name} ${cls.section} from their underlying components - activity scores (normalized by each activity's max score), quizzes, attendance, attitude and exams - using the current formula. Use this to apply accuracy fixes to existing grades. Manual final-grade overrides will be replaced.`,
       type: 'warning',
       confirmLabel: 'Recompute Grades',
       showCancel: true,
@@ -1680,7 +1680,7 @@ export default function GradesTab() {
       }
 
       // Only touch subjects that already have grade data AND belong to the class
-      // being recomputed — otherwise an unrelated subject's attendance would be
+      // being recomputed - otherwise an unrelated subject's attendance would be
       // recomputed against the wrong class id (getHeldDays(effectiveId, …)).
       const classSubs = cls?.subjects || []
       const subjects = Object.keys(ns.gradeComponents).filter(sub => classSubs.includes(sub))
@@ -1739,18 +1739,18 @@ export default function GradesTab() {
       await saveStudents(updated, changedIds)
       toast(`Recomputed grades for ${updatedCount} student${updatedCount !== 1 ? 's' : ''}.`, 'green')
     } catch (e) {
-      toast('Recomputed locally — Firebase sync failed: ' + e.message, 'red')
+      toast('Recomputed locally - Firebase sync failed: ' + e.message, 'red')
     }
   }
 
   async function handleExport(sub) {
     const res = await exportGradingSheet({ classId: effectiveId, subject: sub, students, classes, activities, quizzes, eqScale })
-    if (res?.reason === 'empty') toast(`No students are enrolled in ${cls?.name || 'this class'} yet — add students before exporting grades.`, 'red')
+    if (res?.reason === 'empty') toast(`No students are enrolled in ${cls?.name || 'this class'} yet - add students before exporting grades.`, 'red')
   }
 
   async function handleExportGrades(sub) {
     const res = await exportCurrentGrades({ classId: effectiveId, subject: sub, students, classes, activities, quizzes, eqScale })
-    if (res?.reason === 'empty') toast(`No students are enrolled in ${cls?.name || 'this class'} yet — add students before exporting grades.`, 'red')
+    if (res?.reason === 'empty') toast(`No students are enrolled in ${cls?.name || 'this class'} yet - add students before exporting grades.`, 'red')
   }
 
   async function handleImportFile(e) {
@@ -1777,7 +1777,7 @@ export default function GradesTab() {
     }
 
     // Recompute every row the way the app does and surface anything off before
-    // anything is written — the teacher reviews + confirms in the preview panel.
+    // anything is written - the teacher reviews + confirms in the preview panel.
     const verify = verifyGradeRows(entries, { students, classId: effectiveId, subject: importSub, eqScale, gradeFloor })
     setImportPreview({ sub: importSub, entries, verify, fileName: file.name })
   }
@@ -1796,13 +1796,13 @@ export default function GradesTab() {
       const ns   = { ...s, grades: { ...s.grades }, gradeComponents: { ...(s.gradeComponents || {}) }, gradeUploadedAt: { ...(s.gradeUploadedAt || {}) } }
       const comp = { ...(ns.gradeComponents[sub] || {}) }
 
-      // Attendance — auto from records (matches the system formula).
+      // Attendance - auto from records (matches the system formula).
       const attSet = s.attendance?.[sub] || new Set()
       const held   = getHeldDays(effectiveId, sub, students)
       const attV   = held > 0 ? Math.min(100, round2((attSet.size / held) * 100)) : null
 
       // The "+ Activity" / "+ Quiz" extra columns import as their own columns
-      // (keys x1.. / xq1..) — additive, never overwriting the app's own activities
+      // (keys x1.. / xq1..) - additive, never overwriting the app's own activities
       // and quizzes (which stay locked + submission-driven in the sheet).
       const extraAct = (entry.actScores || []).slice(entry.nApp || 0)
       if (extraAct.some(v => v != null)) {
@@ -1819,7 +1819,7 @@ export default function GradesTab() {
         comp.quizScores = map
       }
 
-      // Component percentages — the activity/quiz averages from the sheet already
+      // Component percentages - the activity/quiz averages from the sheet already
       // fold in the extra columns; fall back to stored values when a cell is blank.
       const actV     = entry.actAvg   != null ? clampV(entry.actAvg)   : (comp.activities ?? null)
       const qzV      = entry.qzAvg    != null ? clampV(entry.qzAvg)    : (typeof comp.quizzes === 'number' ? comp.quizzes : null)
@@ -1833,7 +1833,7 @@ export default function GradesTab() {
       if (midExamV != null) comp.midtermExam = midExamV
       if (finExamV != null) comp.finalsExam  = finExamV
 
-      // Canonical computation — Class Standing includes Attitude; intermediates
+      // Canonical computation - Class Standing includes Attitude; intermediates
       // full precision, final rounded once.
       const { cs, midterm, finals, final } = computeTerms({
         activities: actV, quizzes: qzV, attendance: attV,
@@ -1865,7 +1865,7 @@ export default function GradesTab() {
       await saveStudents(updatedStudents, changedIds)
       toast(`Grades imported for ${matched} student${matched === 1 ? '' : 's'} in "${sub}".`, 'green')
     } catch (err) {
-      toast('Saved locally — Firebase sync failed: ' + err.message, 'red')
+      toast('Saved locally - Firebase sync failed: ' + err.message, 'red')
     }
     setImportPreview(null)
     setImportSub(null)
@@ -1902,7 +1902,7 @@ export default function GradesTab() {
         <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg text-sm"
           style={{ background: 'var(--yellow-l, #fef9c3)', color: 'var(--yellow-d, #854d0e)', border: '1px solid var(--yellow, #ca8a04)' }}>
           <Archive size={14} className="shrink-0" />
-          Viewing archived class data — read-only.
+          Viewing archived class data - read-only.
         </div>
       )}
 
@@ -1911,7 +1911,7 @@ export default function GradesTab() {
         <select className="input" style={{ flex: '1 1 240px', minWidth: 0, maxWidth: 420 }}
           value={selected?.key || ''}
           onChange={e => { setSelKey(e.target.value); setSearch('') }}>
-          <option value="">— Select a subject —</option>
+          <option value="">- Select a subject -</option>
           {subjectOptions.map(o => (
             <option key={o.key} value={o.key}>{o.label}</option>
           ))}
@@ -1932,7 +1932,7 @@ export default function GradesTab() {
       {!subjectOptions.length ? (
         <div className="empty">
           <div className="empty-icon"><BarChart size={32} /></div>
-          {showArchived ? 'No archived classes with subjects.' : 'No subjects yet — add subjects to a class first.'}
+          {showArchived ? 'No archived classes with subjects.' : 'No subjects yet - add subjects to a class first.'}
         </div>
       ) : !selected ? (
         <div className="empty">Select a subject above to view its grades.</div>

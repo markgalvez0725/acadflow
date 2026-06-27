@@ -47,7 +47,7 @@ export default function ResourcesTab({ student: s, viewClassId, classes }) {
     [resources, enrolledIds, subs, viewClassId]
   )
 
-  // Library standing — total, subjects covered, new-this-week, by subject. All
+  // Library standing - total, subjects covered, new-this-week, by subject. All
   // recomputed from `mine` so the ring and Resource Watch can't disagree.
   const stats = useMemo(() => {
     const covered = [...new Set(mine.map(r => r.subject))]
@@ -70,23 +70,23 @@ export default function ResourcesTab({ student: s, viewClassId, classes }) {
     const f = []
     if (stats.fresh.length) {
       const subj = [...new Set(stats.fresh.map(r => r.subject))]
-      f.push({ tone: 'info', Icon: Sparkles, lead: `${stats.fresh.length} new this week`, text: ` — ${subj.slice(0, 2).join(', ')}${subj.length > 2 ? '…' : ''}.` })
+      f.push({ tone: 'info', Icon: Sparkles, lead: `${stats.fresh.length} new this week`, text: ` - ${subj.slice(0, 2).join(', ')}${subj.length > 2 ? '…' : ''}.` })
     }
     if (stats.best && stats.best.n >= 1)
-      f.push({ tone: 'good', Icon: Folder, lead: 'Best stocked', text: ` — ${stats.best.sub} has ${stats.best.n} material${stats.best.n > 1 ? 's' : ''}.` })
+      f.push({ tone: 'good', Icon: Folder, lead: 'Best stocked', text: ` - ${stats.best.sub} has ${stats.best.n} material${stats.best.n > 1 ? 's' : ''}.` })
     if (stats.missing.length)
-      f.push({ tone: 'warn', Icon: FolderX, lead: 'Nothing yet', text: ` — ${stats.missing.slice(0, 2).join(', ')}${stats.missing.length > 2 ? ` +${stats.missing.length - 2}` : ''} ${stats.missing.length > 1 ? 'have' : 'has'} no materials posted.` })
+      f.push({ tone: 'warn', Icon: FolderX, lead: 'Nothing yet', text: ` - ${stats.missing.slice(0, 2).join(', ')}${stats.missing.length > 2 ? ` +${stats.missing.length - 2}` : ''} ${stats.missing.length > 1 ? 'have' : 'has'} no materials posted.` })
     if (!f.length)
-      f.push({ tone: 'good', Icon: ShieldCheck, lead: 'All set', text: ' — materials are posted for every subject.' })
+      f.push({ tone: 'good', Icon: ShieldCheck, lead: 'All set', text: ' - materials are posted for every subject.' })
     const lead = stats.fresh.length
-      ? `${stats.fresh.length} new material${stats.fresh.length > 1 ? 's' : ''} this week${stats.missing.length ? ' — and one subject still has none.' : '.'}`
+      ? `${stats.fresh.length} new material${stats.fresh.length > 1 ? 's' : ''} this week${stats.missing.length ? ' - and one subject still has none.' : '.'}`
       : stats.total
         ? `${stats.total} material${stats.total > 1 ? 's' : ''} across ${stats.covered.length} subject${stats.covered.length > 1 ? 's' : ''}.`
         : 'No materials posted yet.'
     return { findings: f.slice(0, 4), lead }
   }, [stats])
 
-  // Type filter pills — only the types actually present, with counts.
+  // Type filter pills - only the types actually present, with counts.
   const typePills = useMemo(() => {
     const present = {}
     mine.forEach(r => { present[r.type] = (present[r.type] || 0) + 1 })

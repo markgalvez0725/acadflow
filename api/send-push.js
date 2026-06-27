@@ -83,7 +83,7 @@ export default async function handler(req, res) {
 
   // Data-ONLY message: a top-level `notification` payload is auto-displayed by
   // the browser/FCM AND also triggers the SW's onBackgroundMessage (which
-  // displays it again) — that double-shows every push. Carrying title/body in
+  // displays it again) - that double-shows every push. Carrying title/body in
   // `data` lets the service worker render exactly one notification.
   const payloadData = {
     ...stringData,

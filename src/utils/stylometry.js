@@ -1,14 +1,14 @@
 // ── Authorship-style analysis (#39 impersonation check) ───────────────────────
-// Pure, deterministic, on-device — NO embedding model. Embeddings capture *topic*
+// Pure, deterministic, on-device - NO embedding model. Embeddings capture *topic*
 // (what someone wrote about), which would falsely flag a student for answering a
 // quiz on a new subject. Authorship is about *how* someone writes: their habitual
-// mix of function words, sentence rhythm, punctuation, and lexical variety — all
+// mix of function words, sentence rhythm, punctuation, and lexical variety - all
 // largely independent of topic. This is classic stylometry. We use it to flag
 // when a quiz attempt's writing style diverges sharply from the same student's
-// own past quizzes. It is a hint for the teacher to look closer — never a verdict.
+// own past quizzes. It is a hint for the teacher to look closer - never a verdict.
 
 // Common function words (English + Tagalog). Their relative frequencies form the
-// core authorship fingerprint — content-neutral, so two quizzes on different
+// core authorship fingerprint - content-neutral, so two quizzes on different
 // topics by the same writer still match closely.
 const FUNCTION_WORDS = [
   'the', 'a', 'an', 'and', 'or', 'but', 'if', 'of', 'to', 'in', 'on', 'at', 'for',
@@ -46,7 +46,7 @@ export function styleFingerprint(text) {
     avgSentLen: sents.length ? words / sents.length : words,
     avgWordLen: words ? charCount / words : 0,
     ttr:        words ? new Set(toks).size / words : 0, // lexical diversity
-    punctRate:  words ? ((String(text || '').match(/[,;:?!—-]/g) || []).length) / words : 0,
+    punctRate:  words ? ((String(text || '').match(/[,;:?!--]/g) || []).length) / words : 0,
   }
 }
 
@@ -69,7 +69,7 @@ export function compareStyle(currentText, baselineText, opts = {}) {
   const cur  = styleFingerprint(currentText)
   const base = styleFingerprint(baselineText)
 
-  // Not enough writing — or too few function words — to judge style honestly.
+  // Not enough writing - or too few function words - to judge style honestly.
   if (cur.words < minCur || base.words < minBase || cur.fwMass < minFW || base.fwMass < minFW) {
     return { enoughData: false, level: 'insufficient', flag: false, sim: null, divergence: null, cur, base }
   }

@@ -384,13 +384,13 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
   const [chartsOpen, setChartsOpen] = useState(false)
   const [wrappedOpen, setWrappedOpen] = useState(false)
 
-  // "Semester in Review" — a derived, story-style recap of this student's term.
+  // "Semester in Review" - a derived, story-style recap of this student's term.
   const wrapped = useMemo(
     () => computeSemesterWrapped(s, { classes, students, activities, quizzes, semester }),
     [s, classes, students, activities, quizzes, semester]
   )
 
-  // Only current, non-archived classes count — archived/ended/past subjects drop off.
+  // Only current, non-archived classes count - archived/ended/past subjects drop off.
   const enrolledIds = useMemo(() => activeClassIds(s, classes, semester), [s, classes, semester])
 
   const activeAnnouncements = useMemo(() => {
@@ -436,7 +436,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
     else { statusText = 'At Risk'; statusColor = 'var(--red)'; statusSub = 'Below passing threshold' }
   }
 
-  // Subjects to display — current active classes only (no archived/ended/removed).
+  // Subjects to display - current active classes only (no archived/ended/removed).
   const viewCls = classes.find(c => c.id === viewClassId)
   const subs = viewCls ? (viewCls.subjects || []) : allEnrolledSubs
 
@@ -485,7 +485,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
   // Live / imminent online classes for the "Live now" banner.
   const liveNow = (liveMeetings || []).filter(m => enrolledIds.includes(m.classId))
 
-  // ── "Today at a glance" — a tappable summary band, the daily landing strip ──
+  // ── "Today at a glance" - a tappable summary band, the daily landing strip ──
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
   const t0 = todayStart.getTime(), t1 = t0 + DAY
   const myMeetings = (meetings || []).filter(m => enrolledIds.includes(m.classId))
@@ -508,7 +508,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
     { key: 'announce', Icon: MessageSquare, color: activeAnnouncements.length ? 'var(--accent)' : 'var(--ink3)', value: activeAnnouncements.length, label: 'announcements', tab: 'stream' },
   ]
 
-  // ── On-device study analyzer (replaces Study Coach) — every finding is derived
+  // ── On-device study analyzer (replaces Study Coach) - every finding is derived
   // from the real numbers above, so it can't contradict the cards below it. ──
   const subjectGrades = subs.map(sub => {
     const comp = s.gradeComponents?.[sub] || {}
@@ -529,16 +529,16 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
   const sFindings = []
   if (gradedSubs.length && passingSubs.length === gradedSubs.length)
     sFindings.push({ sev: 'success', Icon: CheckCircle2, source: 'Grades',
-      text: <>You're passing all <b>{gradedSubs.length}</b> subject{gradedSubs.length > 1 ? 's' : ''}{gwa != null ? <> — GWA <b>{gwa.toFixed(1)}</b></> : ''}</> })
+      text: <>You're passing all <b>{gradedSubs.length}</b> subject{gradedSubs.length > 1 ? 's' : ''}{gwa != null ? <> - GWA <b>{gwa.toFixed(1)}</b></> : ''}</> })
   failingSubs.slice(0, 2).forEach(x =>
     sFindings.push({ sev: 'danger', Icon: AlertTriangle, source: 'Grades', actionLabel: 'Grades', onAction: () => setStudentTab('grades'),
       text: <><b>{x.sub}</b> is below passing ({Math.round(x.val)})</> }))
   if (!failingSubs.length) condSubs.slice(0, 1).forEach(x =>
     sFindings.push({ sev: 'warning', Icon: AlertTriangle, source: 'Grades', actionLabel: 'Grades', onAction: () => setStudentTab('grades'),
-      text: <><b>{x.sub}</b> is borderline ({Math.round(x.val)}) — push for passing</> }))
+      text: <><b>{x.sub}</b> is borderline ({Math.round(x.val)}) - push for passing</> }))
   if (overdueCount > 0)
     sFindings.push({ sev: 'warning', Icon: Clock, source: 'Activities', actionLabel: 'Open', onAction: () => setStudentTab('activities'),
-      text: <><b>{overdueCount}</b> overdue task{overdueCount > 1 ? 's' : ''} — clear {overdueCount > 1 ? 'them' : 'it'} first</> })
+      text: <><b>{overdueCount}</b> overdue task{overdueCount > 1 ? 's' : ''} - clear {overdueCount > 1 ? 'them' : 'it'} first</> })
   else if (dueSoonCount > 0)
     sFindings.push({ sev: 'warning', Icon: Clock, source: 'Activities', actionLabel: 'Open', onAction: () => setStudentTab('activities'),
       text: <><b>{dueSoonCount}</b> task{dueSoonCount > 1 ? 's' : ''} due within 48 hours</> })
@@ -552,9 +552,9 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
     sFindings.push({ sev: 'success', Icon: CheckCircle2, source: 'Attendance', text: <>Attendance strong at <b>{rate.toFixed(0)}%</b></> })
 
   const sHeadline = overdueCount > 0
-    ? `You have ${overdueCount} overdue task${overdueCount > 1 ? 's' : ''} — clear ${overdueCount > 1 ? 'them' : 'it'} first, then you're in good shape.`
+    ? `You have ${overdueCount} overdue task${overdueCount > 1 ? 's' : ''} - clear ${overdueCount > 1 ? 'them' : 'it'} first, then you're in good shape.`
     : dueSoonCount > 0
-      ? `You're on track — ${dueSoonCount} deadline${dueSoonCount > 1 ? 's' : ''} need${dueSoonCount > 1 ? '' : 's'} attention in the next two days.`
+      ? `You're on track - ${dueSoonCount} deadline${dueSoonCount > 1 ? 's' : ''} need${dueSoonCount > 1 ? '' : 's'} attention in the next two days.`
       : gwa != null
         ? `You're ${statusText.toLowerCase()} with a GWA of ${gwa.toFixed(1)}. Nothing urgent right now.`
         : 'Your study analyzer updates as grades, tasks, and quizzes come in.'
@@ -650,7 +650,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
         </>}
       />
 
-      {/* Today at a glance — tappable summary chips (the daily landing strip) */}
+      {/* Today at a glance - tappable summary chips (the daily landing strip) */}
       <div className="today-strip" role="group" aria-label="Today at a glance">
         {todayChips.map(chip => (
           <button
@@ -667,7 +667,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
         ))}
       </div>
 
-      {/* Semester in Review — story-style recap entry */}
+      {/* Semester in Review - story-style recap entry */}
       {wrapped.hasData && (
         <button type="button" className="wrapped-entry" onClick={() => setWrappedOpen(true)}>
           <span className="we-ic"><Sparkles size={20} /></span>
@@ -683,9 +683,9 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
 
       {/* Metric cards */}
       <div className="stat-grid mb-4">
-        <MetricCard Icon={BarChart3} color="blue" value={gwa !== null ? gwa.toFixed(1) : '—'} label="Current GWA"
+        <MetricCard Icon={BarChart3} color="blue" value={gwa !== null ? gwa.toFixed(1) : '-'} label="Current GWA"
           trend={gwa === null ? null : { dir: gwa >= 85 ? 'up' : gwa >= 75 ? 'flat' : 'down', text: gwa >= 85 ? 'Good' : gwa >= 75 ? 'Passing' : 'At risk' }} />
-        <MetricCard Icon={CalendarCheck} color="green" value={rate !== null ? rate.toFixed(0) + '%' : '—'} label="Attendance"
+        <MetricCard Icon={CalendarCheck} color="green" value={rate !== null ? rate.toFixed(0) + '%' : '-'} label="Attendance"
           trend={rate === null ? null : { dir: rate >= 90 ? 'up' : rate >= 80 ? 'flat' : 'down', text: rate >= 90 ? 'On track' : rate >= 80 ? 'Okay' : 'Low' }} />
         <MetricCard Icon={ClipboardList} color="yellow" value={pendingCount} label="Pending tasks"
           trend={pendingCount ? { dir: 'down', text: 'Due soon' } : { dir: 'up', text: 'All done' }} />
@@ -693,10 +693,10 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
           trend={{ dir: 'flat', text: statusSub }} />
       </div>
 
-      {/* Study analyzer — on-device, no external AI */}
+      {/* Study analyzer - on-device, no external AI */}
       <AiAnalyzer title="Study analyzer" headline={sHeadline} findings={sFindings} />
 
-      {/* At a glance — subject standing donut */}
+      {/* At a glance - subject standing donut */}
       {gradedSubs.length > 0 && (
         <div className="card card-pad mb-4">
           <div className="sec-hdr">
@@ -709,7 +709,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
         </div>
       )}
 
-      {/* Live now — online classes currently in session */}
+      {/* Live now - online classes currently in session */}
       {liveNow.length > 0 && (
         <>
           <div className="sec-hdr" style={{ marginTop: 22, marginBottom: 12 }}>
@@ -740,7 +740,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
         </>
       )}
 
-      {/* Coming up — unsubmitted activities AND quizzes, soonest first */}
+      {/* Coming up - unsubmitted activities AND quizzes, soonest first */}
       {upcomingDeadlines.length > 0 && (
         <>
           <div className="sec-hdr" style={{ marginTop: 22, marginBottom: 12 }}>
@@ -759,7 +759,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
                   type="button"
                   onClick={() => setStudentTab(it.tab)}
                   className="card"
-                  aria-label={`${it.title}${it.subject ? ' — ' + it.subject : ''}, ${label}. Open ${it.tab}.`}
+                  aria-label={`${it.title}${it.subject ? ' - ' + it.subject : ''}, ${label}. Open ${it.tab}.`}
                   style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', textAlign: 'left', cursor: 'pointer', width: '100%', border: '1px solid var(--border)' }}
                 >
                   <span aria-hidden="true" style={{ color, flexShrink: 0, display: 'flex' }}><Icon size={17} /></span>
@@ -777,7 +777,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
         </>
       )}
 
-      {/* Subjects — one expandable card each (tap to reveal the breakdown) */}
+      {/* Subjects - one expandable card each (tap to reveal the breakdown) */}
       <div className="sec-hdr" style={{ marginTop: 22, marginBottom: 12 }}>
         <div className="sec-title sec-title-ic"><BookOpen /> Subjects</div>
       </div>
@@ -802,7 +802,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
         </div>
       )}
 
-      {/* Performance charts — collapsed by default */}
+      {/* Performance charts - collapsed by default */}
       {(gradeBars.length > 0 || attBars.length > 0) && (
         <div className="rounded-xl border border-border bg-surface" style={{ marginTop: 18, overflow: 'hidden' }}>
           <button
@@ -855,7 +855,7 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
   const comp = s.gradeComponents?.[sub] || {}
   const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
 
-  // One source of truth — the same GradeEngine the Grades page uses, so this
+  // One source of truth - the same GradeEngine the Grades page uses, so this
   // overview summary always matches it and the teacher's gradebook.
   const gr = computeSubjectGrade(s, sub, { activities, quizzes, students, classes, eqScale, enrolledIds, floor: gradeFloor })
   const midG = gr.midterm
@@ -865,7 +865,7 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
 
   const cellCol = v => (v == null ? 'var(--ink3)' : v >= 75 ? 'var(--green)' : v >= 60 ? 'var(--yellow)' : 'var(--red)')
 
-  // Activity cells — from the engine's reconciled per-activity detail.
+  // Activity cells - from the engine's reconciled per-activity detail.
   const actContent = gr.detail.activityItems.length
     ? gr.detail.activityItems.map((a, i) => (
         <div key={i} style={{ fontSize: 11, display: 'flex', gap: 3, alignItems: 'center', opacity: a.missing ? 0.7 : 1 }}>
@@ -873,9 +873,9 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
           <span style={{ color: cellCol(a.pct), fontWeight: 700 }}>{a.missing ? `${a.pct}%` : `${a.score}${a.max !== 100 ? `/${a.max}` : '%'}`}</span>
         </div>
       ))
-    : (gr.components.activities != null ? <span style={{ fontSize: 12 }}>{gr.components.activities}%</span> : '—')
+    : (gr.components.activities != null ? <span style={{ fontSize: 12 }}>{gr.components.activities}%</span> : '-')
 
-  // Quiz cells — from the engine's reconciled per-quiz detail.
+  // Quiz cells - from the engine's reconciled per-quiz detail.
   const qzContent = gr.detail.quizItems.length
     ? gr.detail.quizItems.map((q, i) => (
         <div key={i} style={{ fontSize: 11, display: 'flex', gap: 3, alignItems: 'center', opacity: q.missing ? 0.7 : 1 }}>
@@ -883,7 +883,7 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
           <span style={{ color: cellCol(q.pct), fontWeight: 700 }}>{q.pct}%</span>
         </div>
       ))
-    : (gr.components.quizzes != null ? <span style={{ fontSize: 12 }}>{gr.components.quizzes}%</span> : '—')
+    : (gr.components.quizzes != null ? <span style={{ fontSize: 12 }}>{gr.components.quizzes}%</span> : '-')
 
   const midEq = gr.equiv.midEq
   const finEq = gr.equiv.finEq
@@ -912,7 +912,7 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
       >
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
         <span style={{ flex: 1, fontSize: 16, fontWeight: 600, minWidth: 0 }}>{sub}</span>
-        <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-.01em' }}>{g != null ? Math.round(g) : '—'}</span>
+        <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-.01em' }}>{g != null ? Math.round(g) : '-'}</span>
         {remarkBadge}
         {open ? <ChevronDown size={18} style={{ color: 'var(--ink3)', flexShrink: 0 }} /> : <ChevronRight size={18} style={{ color: 'var(--ink3)', flexShrink: 0 }} />}
       </button>
@@ -929,7 +929,7 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
             </div>
             <div>
               <div style={lbl}>Midterm</div>
-              <div style={val}>{midG != null ? `${midG.toFixed(1)}%` : '—'}{midG != null && <span style={eqTag}> · {midEq}</span>}</div>
+              <div style={val}>{midG != null ? `${midG.toFixed(1)}%` : '-'}{midG != null && <span style={eqTag}> · {midEq}</span>}</div>
             </div>
             <div>
               <div style={lbl}>Finals</div>
@@ -943,7 +943,7 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
           <div style={{ display: 'flex', gap: 22, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
             <div>
               <div style={lbl}>Final grade</div>
-              <div style={val}>{g != null ? parseFloat(g.toFixed(2)) + '%' : '—'}</div>
+              <div style={val}>{g != null ? parseFloat(g.toFixed(2)) + '%' : '-'}</div>
             </div>
             <div>
               <div style={lbl}>Equivalent</div>

@@ -19,7 +19,7 @@ export async function fbSavePushToken(db, token, ownerId, role) {
 
     // Prune this owner's older tokens for the SAME device (same user-agent).
     // FCM rotates tokens; without this a device accumulates several live tokens
-    // and the server fans out to all of them — so the same push shows several
+    // and the server fans out to all of them - so the same push shows several
     // times. Keeping one token per owner+device delivers exactly one push.
     if (ownerId) {
       const snap = await getDocs(collection(db, 'pushTokens'))
@@ -38,7 +38,7 @@ export async function fbSavePushToken(db, token, ownerId, role) {
 /**
  * Fire-and-forget web push to a set of owners via the /api/send-push endpoint.
  * Reads registered tokens, filters to the target owners, and posts them.
- * Silently no-ops if there are no tokens or the endpoint is not configured —
+ * Silently no-ops if there are no tokens or the endpoint is not configured -
  * the in-app Firestore notification (the existing behavior) is unaffected.
  *
  * @param {*} db Firestore instance
@@ -62,7 +62,7 @@ export async function sendPushToOwners(db, ownerIds, notification, data = {}) {
     if (!tokens.length) return
 
     const idToken = await getIdToken()
-    if (!idToken) return // not signed in — skip (in-app notification still fires)
+    if (!idToken) return // not signed in - skip (in-app notification still fires)
     await fetch('/api/send-push', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

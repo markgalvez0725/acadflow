@@ -1,6 +1,6 @@
 // ── PWA service-worker registration ───────────────────────────────────────
 // Registered only in production builds so the dev server / HMR is never
-// affected. Failure is swallowed — the app works identically without it.
+// affected. Failure is swallowed - the app works identically without it.
 let _swRegistration = null
 
 export function getSWRegistration() {
@@ -30,6 +30,6 @@ export function registerServiceWorker() {
           })
         })
       })
-      .catch(() => { /* SW registration failed — app still works fully */ })
+      .catch(() => { /* SW registration failed - app still works fully */ })
   })
 }

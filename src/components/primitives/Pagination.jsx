@@ -17,7 +17,7 @@ export default function Pagination({ page, total, perPage = 20, onPageChange, on
   return (
     <div className="flex items-center justify-between mt-3 flex-wrap gap-2">
       <span className="text-xs text-ink3">
-        {start}–{end} of {total}
+        {start}-{end} of {total}
       </span>
       <div className="flex items-center gap-1">
         <button

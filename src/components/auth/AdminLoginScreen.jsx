@@ -114,7 +114,7 @@ export default function AdminLoginScreen() {
             )}
           </h1>
           <p className="auth2-tagline">
-            Full control over grades, attendance, quizzes, announcements and student records — all from one dashboard.
+            Full control over grades, attendance, quizzes, announcements and student records - all from one dashboard.
           </p>
           <div className="auth2-feats">
             {ADMIN_FEATURES.map(({ Icon, label }) => (

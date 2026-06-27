@@ -16,7 +16,7 @@ function semesterLabel(semester) {
 // hyphen vs en-dash, casing) don't cause a false "different semester" match.
 function normLabel(v) {
   return String(v || '')
-    .replace(/[‐-―]/g, '-')   // any dash variant → hyphen
+    .replace(/[‐--]/g, '-')   // any dash variant → hyphen
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase()
@@ -36,7 +36,7 @@ export function isClassCurrent(cls, semester) {
   return true
 }
 
-// Raw enrolled class IDs (may include archived/past — used as a fallback only).
+// Raw enrolled class IDs (may include archived/past - used as a fallback only).
 export function enrolledClassIds(student) {
   if (!student) return []
   return student.classIds?.length ? student.classIds : (student.classId ? [student.classId] : [])

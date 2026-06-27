@@ -76,7 +76,7 @@ export default function ResourcesTab() {
       <PageHeader
         crumb={<><Library size={13} /> Academic <span>›</span> Resources</>}
         title="Resource Hub"
-        subtitle="Share modules, slides, videos, and links — organized per class and subject"
+        subtitle="Share modules, slides, videos, and links - organized per class and subject"
       />
 
       {/* Class + subject pickers */}

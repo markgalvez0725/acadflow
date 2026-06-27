@@ -1,7 +1,7 @@
-// ── AcadFlow Verified Grading — single source of truth ─────────────────────
+// ── AcadFlow Verified Grading - single source of truth ─────────────────────
 //
 // One deterministic engine that EVERY screen and export calls, so the same
-// inputs always produce the same number — to the last decimal — on the student
+// inputs always produce the same number - to the last decimal - on the student
 // page, the teacher gradebook, and the Excel/report-card exports. There must be
 // exactly one implementation of each formula; do not re-derive grades inline
 // anywhere else.
@@ -16,7 +16,7 @@
 //     stored aggregate only when there is nothing live to reconcile against.
 //   • One rounding policy: components & terms display at 2 dp; intermediate
 //     means stay full-precision (see grades.js). Never round twice.
-//   • Two modes — 'published' (what the student sees: final from the teacher's
+//   • Two modes - 'published' (what the student sees: final from the teacher's
 //     saved term grades) and 'live' (recompute everything from raw inputs, used
 //     by the gradebook).
 
@@ -25,10 +25,10 @@ import {
   gradeInfo, combineEquiv, round2, DEFAULT_EQ_SCALE,
 } from './grades'
 
-// Rounding policy — the ONE place display precision is decided (2 dp).
+// Rounding policy - the ONE place display precision is decided (2 dp).
 const r2 = round2
 // 1-dp helper for human-readable verification labels (never feeds computation).
-const r1g = n => (n == null ? '—' : Math.round(n * 10) / 10)
+const r1g = n => (n == null ? '-' : Math.round(n * 10) / 10)
 
 function enrolledIdsOf(s) {
   return s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
@@ -41,7 +41,7 @@ function enrolledIdsOf(s) {
 //
 // `floor` (e.g. 50) enables the "minimum component grade" policy: every live
 // activity counts, a missing submission scores the floor, and a scored item is
-// lifted to the floor if it falls below — all per-item, then averaged.
+// lifted to the floor if it falls below - all per-item, then averaged.
 export function deriveActivities(s, sub, activities = [], enrolledIds = enrolledIdsOf(s), floor = 0) {
   const comp = s.gradeComponents?.[sub] || {}
   const liveActs = (activities || []).filter(a => enrolledIds.includes(a.classId) && a.subject === sub)
@@ -87,7 +87,7 @@ export function deriveActivities(s, sub, activities = [], enrolledIds = enrolled
   }
 
   // Imported "extra" activity columns (keys x1, x2…) always count on top of the
-  // app's own activities — they came from an Excel import, not a live doc.
+  // app's own activities - they came from an Excel import, not a live doc.
   if (hadScores) {
     const extra = Object.entries(comp.activityScores)
       .filter(([k]) => /^x\d+$/.test(k))
@@ -145,7 +145,7 @@ export function deriveQuizzes(s, sub, quizzes = [], enrolledIds = enrolledIdsOf(
   }
 
   // Imported "extra" quiz columns (keys xq1, xq2…) always count on top of the
-  // app's own quizzes — they came from an Excel import, not a live quiz.
+  // app's own quizzes - they came from an Excel import, not a live quiz.
   if (hadScores) {
     const extra = Object.entries(comp.quizScores)
       .filter(([k]) => /^xq\d+$/.test(k))
@@ -179,7 +179,7 @@ export function deriveAttendance(s, sub, students = [], classes = [], enrolledId
 
 // ── Full subject computation + trace ───────────────────────────────────────
 // ctx: { activities, quizzes, students, classes, eqScale, enrolledIds }
-// opts.mode: 'published' (default — final from the teacher's saved terms) or
+// opts.mode: 'published' (default - final from the teacher's saved terms) or
 //            'live' (recompute terms from the live components).
 export function computeSubjectGrade(s, sub, ctx = {}, opts = {}) {
   const {
@@ -211,7 +211,7 @@ export function computeSubjectGrade(s, sub, ctx = {}, opts = {}) {
   const ts = s.gradeUploadedAt?.[sub]
 
   // Final %: in published mode the authoritative grade is the teacher's SAVED
-  // final (computed at full precision on save, or a manual override) — show that
+  // final (computed at full precision on save, or a manual override) - show that
   // verbatim so the student matches the gradebook exactly; fall back to deriving
   // from the term grades. In live mode, always the fresh recompute.
   const derived = computeFinalGradeFromTerms(midterm, finals)
@@ -224,8 +224,8 @@ export function computeSubjectGrade(s, sub, ctx = {}, opts = {}) {
   const overridden = mode === 'published' && saved != null && derived != null
     && Math.abs(saved - derived) > 0.5
 
-  const midEq = midterm != null ? gradeInfo(midterm, eqScale).eq : '—'
-  const finEq = finals  != null ? gradeInfo(finals,  eqScale).eq : '—'
+  const midEq = midterm != null ? gradeInfo(midterm, eqScale).eq : '-'
+  const finEq = finals  != null ? gradeInfo(finals,  eqScale).eq : '-'
   const equiv = combineEquiv(midEq, finEq)
 
   const published = !!(comp.midterm != null && comp.finals != null && ts)
@@ -244,7 +244,7 @@ export function computeSubjectGrade(s, sub, ctx = {}, opts = {}) {
   }
 }
 
-// Human-readable, step-by-step trace — the data the student "How is this
+// Human-readable, step-by-step trace - the data the student "How is this
 // computed?" panel and the AI explainer render. Numbers come straight from the
 // engine; nothing is re-derived downstream.
 function buildTrace({ act, qz, att, attitude, midtermExam, finalsExam, live, midterm, finals, final, equiv, overridden, floor }) {
@@ -275,7 +275,7 @@ function buildTrace({ act, qz, att, attitude, midtermExam, finalsExam, live, mid
 // ── Integrity auditor ──────────────────────────────────────────────────────
 // Compare the teacher's PUBLISHED grade against a fresh LIVE recompute. Drift
 // means the saved grade no longer matches the current inputs (e.g. a quiz was
-// deleted, an activity graded, attendance recorded) — the teacher should
+// deleted, an activity graded, attendance recorded) - the teacher should
 // recompute & re-publish. Only meaningful for already-published subjects.
 export function auditSubjectGrade(s, sub, ctx = {}) {
   const published = computeSubjectGrade(s, sub, ctx, { mode: 'published' })
@@ -323,7 +323,7 @@ export function makeHistoryEntry(components, terms, action, at) {
 }
 
 // Append an entry to a subject's history (immutable, capped). A consecutive
-// no-op — identical hash to the last entry — is skipped, so re-saving unchanged
+// no-op - identical hash to the last entry - is skipped, so re-saving unchanged
 // data never spams the timeline.
 export function appendGradeHistory(historyMap, subject, entry, cap = 20) {
   const map  = historyMap || {}
@@ -334,20 +334,20 @@ export function appendGradeHistory(historyMap, subject, entry, cap = 20) {
 
 // ── Published-grade verification (on-device, deterministic) ─────────────────
 // Re-audits one published grade three ways and returns a status + pass/warn/
-// fail checks the Grade Integrity page renders. No model, no network — every
+// fail checks the Grade Integrity page renders. No model, no network - every
 // verdict is recomputed from the engine, so it can never disagree with the
 // numbers shown.
-//   verified — stored == live AND the math follows from its own components
-//   drift    — stored ≠ live recompute (inputs changed after publish)
-//   override — the teacher's saved final intentionally differs from the formula
-//   anomaly  — stored final doesn't even follow from its own components
+//   verified - stored == live AND the math follows from its own components
+//   drift    - stored ≠ live recompute (inputs changed after publish)
+//   override - the teacher's saved final intentionally differs from the formula
+//   anomaly  - stored final doesn't even follow from its own components
 export function verifyPublishedGrade(s, sub, ctx = {}) {
   const pub   = computeSubjectGrade(s, sub, ctx, { mode: 'published' })
   const live  = computeSubjectGrade(s, sub, ctx, { mode: 'live' })
   const comp  = s.gradeComponents?.[sub] || {}
   const floor = ctx.floor || 0
 
-  // (1) Internal consistency — recompute terms/final from the published
+  // (1) Internal consistency - recompute terms/final from the published
   // components and confirm the stored final follows from them.
   const c = pub.components
   const t = computeTerms({
@@ -362,7 +362,7 @@ export function verifyPublishedGrade(s, sub, ctx = {}) {
   const consistent = pub.final == null || expectedFinal == null
     || Math.abs(pub.final - expectedFinal) <= 0.5 || overridden
 
-  // (2) Item-level — every scored activity item's % equals score ÷ max × 100
+  // (2) Item-level - every scored activity item's % equals score ÷ max × 100
   // (honouring the floor policy). Quizzes store only a %, so they're trusted.
   let itemsOk = true
   for (const it of (pub.detail?.activityItems || [])) {
@@ -372,7 +372,7 @@ export function verifyPublishedGrade(s, sub, ctx = {}) {
     if (it.pct != null && Math.abs(expect - it.pct) > 0.5) { itemsOk = false; break }
   }
 
-  // (3) Live drift — stored published final vs a fresh recompute from current
+  // (3) Live drift - stored published final vs a fresh recompute from current
   // activities / quizzes / attendance. A manual override is EXPECTED to differ
   // from the formula, so it is treated as an override, never as actionable drift
   // (recomputing it would silently wipe the teacher's intended grade).
@@ -403,7 +403,7 @@ export function verifyPublishedGrade(s, sub, ctx = {}) {
     { key: 'items', state: itemsOk ? 'ok' : 'fail',
       label: itemsOk ? 'Each item % matches score ÷ max' : 'An item % does not match its score' },
     overridden
-      ? { key: 'drift', state: 'info', label: `Teacher override (${r1g(pub.final)}) differs from the formula (${r1g(live.final)}) — intentional` }
+      ? { key: 'drift', state: 'info', label: `Teacher override (${r1g(pub.final)}) differs from the formula (${r1g(live.final)}) - intentional` }
       : { key: 'drift', state: drift ? 'warn' : 'ok',
           label: drift ? `Stored ${r1g(pub.final)} ≠ live ${r1g(live.final)} (drift)` : 'Stored grade matches the live data' },
   ]
@@ -419,7 +419,7 @@ export function verifyPublishedGrade(s, sub, ctx = {}) {
   }
 }
 
-// Stable hash of the inputs that produced a grade — lets a published snapshot
+// Stable hash of the inputs that produced a grade - lets a published snapshot
 // detect when its inputs later changed (drift), and proves reproducibility.
 export function gradeInputHash(result) {
   const c = result?.components || {}
@@ -431,7 +431,7 @@ export function gradeInputHash(result) {
   return 'g_' + (h >>> 0).toString(36)
 }
 
-// Deterministic, plain-language summary of a computed grade — grounded strictly
+// Deterministic, plain-language summary of a computed grade - grounded strictly
 // in the engine's numbers (no model, no invented values), so it can never
 // disagree with the figures shown. Powers the student "explain my grade" view.
 export function explainGradeText(result) {
@@ -444,7 +444,7 @@ export function explainGradeText(result) {
   if (c.attitude != null)   parts.push(`attitude ${c.attitude}%`)
   let txt = ''
   if (parts.length && result.cs != null) {
-    txt += `Your Class Standing is the average of ${parts.join(', ')} — that comes to ${result.cs}%. `
+    txt += `Your Class Standing is the average of ${parts.join(', ')} - that comes to ${result.cs}%. `
   }
   if (result.midterm != null && result.finals != null) {
     txt += `Your Midterm Term (${result.midterm}%) and Finals Term (${result.finals}%) each average that Class Standing with the matching exam, and your Final Grade (${result.final}%) is the average of those two terms`
@@ -453,9 +453,9 @@ export function explainGradeText(result) {
   } else if (result.final != null) {
     txt += `Your current standing is ${result.final}%`
   } else {
-    return 'Your grade has not been computed yet — no components have been recorded.'
+    return 'Your grade has not been computed yet - no components have been recorded.'
   }
-  if (result.equiv?.eq && result.equiv.eq !== '—') {
+  if (result.equiv?.eq && result.equiv.eq !== '-') {
     txt += `, equivalent to ${result.equiv.eq}${result.equiv.rem && result.equiv.rem !== 'No Grade' ? ` (${result.equiv.rem})` : ''}.`
   } else {
     txt += '.'

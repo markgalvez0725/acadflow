@@ -1,5 +1,5 @@
 // Canonical list of offered courses/programs. Used as the single source of
-// truth for every course dropdown so the values always match exactly — which
+// truth for every course dropdown so the values always match exactly - which
 // is what enrollment and registration verification (course + year + section)
 // rely on. Add or edit programs here and every dropdown updates.
 export const COURSES = [

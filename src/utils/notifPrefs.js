@@ -1,8 +1,8 @@
 // ── Student notification preferences ──────────────────────────────────────
 // Students can mute whole categories of notifications. Preferences live on the
 // student record as `notifPrefs` (a map of category → boolean). A category is
-// considered muted ONLY when explicitly set to false, so the default — and any
-// older record without the field — shows everything.
+// considered muted ONLY when explicitly set to false, so the default - and any
+// older record without the field - shows everything.
 //
 // Filtering is applied at display/badge time (the single place every
 // notification path converges), which keeps the many notification writers
@@ -38,7 +38,7 @@ export function notifCategory(type) {
   return TYPE_TO_CATEGORY[type] || null
 }
 
-/** All categories enabled — the default preference set. */
+/** All categories enabled - the default preference set. */
 export function defaultNotifPrefs() {
   return NOTIF_CATEGORIES.reduce((acc, c) => { acc[c.key] = true; return acc }, {})
 }

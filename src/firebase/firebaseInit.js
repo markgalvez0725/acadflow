@@ -1,9 +1,9 @@
-// ── Firebase initialization — modular SDK v10 ─────────────────────────────
+// ── Firebase initialization - modular SDK v10 ─────────────────────────────
 import { initializeApp, getApps, deleteApp } from 'firebase/app'
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
 import { getAuth } from 'firebase/auth'
 
-/** Hardcoded Firebase config — always available on any device. */
+/** Hardcoded Firebase config - always available on any device. */
 const HARDCODED_FB_CONFIG = {
   apiKey:            'AIzaSyDXHkKZlDPs1oSWWtELXqXF2YVT9T73CJA',
   authDomain:        'collegeportal-d2b98.firebaseapp.com',
@@ -35,7 +35,7 @@ export function getFbAuth() { return _auth; }
 /**
  * Current user's Firebase ID token, or '' when signed-out / unavailable.
  * Sent to the protected /api/* endpoints so they can verify the caller is a
- * signed-in app user. Never throws — callers can include it unconditionally.
+ * signed-in app user. Never throws - callers can include it unconditionally.
  */
 export async function getIdToken() {
   try {
@@ -48,12 +48,12 @@ export async function getIdToken() {
 
 /**
  * Initialize (or reuse) the Firebase app and return the Firestore db.
- * @param {object} fbConfig — { apiKey, projectId, ... }
+ * @param {object} fbConfig - { apiKey, projectId, ... }
  * @returns {Promise<import('firebase/firestore').Firestore|null>}
  */
 export async function fbInit(fbConfig) {
   if (!fbConfig?.apiKey || !fbConfig?.projectId) {
-    console.warn('[Firebase] ❌ Cannot init — no config provided.');
+    console.warn('[Firebase] ❌ Cannot init - no config provided.');
     return null;
   }
 
@@ -80,7 +80,7 @@ export async function fbInit(fbConfig) {
       if (existing.options?.projectId === fbConfig.projectId) {
         _app = existing;
       } else {
-        console.log('[Firebase] 🔄 Project changed — recreating app...');
+        console.log('[Firebase] 🔄 Project changed - recreating app...');
         await deleteApp(existing);
         await new Promise(r => setTimeout(r, 800));
         _app = null;

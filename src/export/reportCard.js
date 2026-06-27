@@ -18,12 +18,12 @@ function enrolledIdsOf(s) {
 }
 
 // Draw one complete report card onto the current page of `doc`. Creating the
-// document and saving it are the caller's responsibility — this lets a single
+// document and saving it are the caller's responsibility - this lets a single
 // student card and a whole-class batch share the exact same layout.
 function renderReportCard(doc, student, { classes = [], students = [], eqScale = DEFAULT_EQ_SCALE, semester } = {}) {
   const pageW = doc.internal.pageSize.getWidth()
 
-  const semLabel = semester ? (semester.label || `${semester.term || ''} AY ${semester.year || ''}`.trim()) : '—'
+  const semLabel = semester ? (semester.label || `${semester.term || ''} AY ${semester.year || ''}`.trim()) : '-'
   const ids = enrolledIdsOf(student)
   const primaryClass = classes.find(c => c.id === (student.classId || ids[0]))
   const subs = ids.length
@@ -38,8 +38,8 @@ function renderReportCard(doc, student, { classes = [], students = [], eqScale =
   y += 6
   doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(90, 90, 100)
   const info = [
-    `Student No: ${student.snum || student.id || '—'}`,
-    `Course: ${student.course || '—'}`,
+    `Student No: ${student.snum || student.id || '-'}`,
+    `Course: ${student.course || '-'}`,
     primaryClass ? `Class: ${primaryClass.name}${primaryClass.section ? ' - ' + primaryClass.section : ''}` : null,
   ].filter(Boolean)
   doc.text(info.join('     '), 12, y)
@@ -51,16 +51,16 @@ function renderReportCard(doc, student, { classes = [], students = [], eqScale =
     const mid = comp.midterm ?? null
     const fin = comp.finals ?? null
     const finalPct = computeFinalGradeFromTerms(mid, fin) ?? student.grades?.[sub] ?? null
-    let equiv = '—', remark = 'Pending'
+    let equiv = '-', remark = 'Pending'
     if (mid != null && fin != null) {
       const c = combineEquiv(gradeInfo(mid, eqScale).eq, gradeInfo(fin, eqScale).eq)
       equiv = c.eq; remark = c.rem
     }
     return [
       sub,
-      mid != null ? mid.toFixed(1) : '—',
-      fin != null ? fin.toFixed(1) : '—',
-      finalPct != null ? finalPct.toFixed(1) + '%' : '—',
+      mid != null ? mid.toFixed(1) : '-',
+      fin != null ? fin.toFixed(1) : '-',
+      finalPct != null ? finalPct.toFixed(1) + '%' : '-',
       equiv,
       remark,
     ]
@@ -106,8 +106,8 @@ function renderReportCard(doc, student, { classes = [], students = [], eqScale =
   doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(90, 90, 100)
   const colW = (pageW - 24) / 3
   const cells = [
-    ['GWA', gwa != null ? gwa.toFixed(2) : '—'],
-    ['Attendance', att != null ? att.toFixed(1) + '%' : '—'],
+    ['GWA', gwa != null ? gwa.toFixed(2) : '-'],
+    ['Attendance', att != null ? att.toFixed(1) + '%' : '-'],
     ['Standing', standing],
   ]
   cells.forEach(([label, val], i) => {
@@ -139,7 +139,7 @@ export function buildStudentReportCard(student, ctx = {}) {
 
 /**
  * Build and save a single PDF containing one report card page per student in a
- * class — for printing or distributing a whole class's term reports at once.
+ * class - for printing or distributing a whole class's term reports at once.
  * @param {object} cls   the class document
  * @param {{classes:object[], students:object[], eqScale?:object[], semester?:object}} ctx
  */

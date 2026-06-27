@@ -65,7 +65,7 @@ Use ${typeLabel}. Do NOT generate any other question type.
 ${extraContext}
 Rules:
 ${rules}
-- Every question MUST include an "explanation" field: 1–2 sentences stating why the answer is correct (shown to students when they review their results).
+- Every question MUST include an "explanation" field: 1-2 sentences stating why the answer is correct (shown to students when they review their results).
 
 IMPORTANT: Respond ONLY with a valid JSON array. No markdown, no commentary.
 Use this exact format:
@@ -86,8 +86,8 @@ ${examples}
 
 const AI_PROMPT_TEXT = `I have a quiz template JSON file. Please read the _instructions field inside it carefully and generate the quiz questions exactly as described.
 
-Each question object must include an "explanation" field (1–2 sentences on why the answer is correct).
-Respond ONLY with a valid JSON array — no markdown, no commentary, no code block. Just the raw JSON array starting with [ and ending with ].`
+Each question object must include an "explanation" field (1-2 sentences on why the answer is correct).
+Respond ONLY with a valid JSON array - no markdown, no commentary, no code block. Just the raw JSON array starting with [ and ending with ].`
 
 // ── Export Template Modal ─────────────────────────────────────────────────────
 function ExportTemplateModal({ onClose, onSwitchToImport }) {
@@ -146,7 +146,7 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
         Upload a lesson file (or type a topic), export the template JSON, send it to any AI chat (Perplexity, ChatGPT, Claude…), then import the AI's response back here.
       </p>
 
-      {/* Lesson file — questions are drawn from its content (read on your device) */}
+      {/* Lesson file - questions are drawn from its content (read on your device) */}
       <div className="field mb-3">
         <label className="text-xs font-semibold text-ink2 mb-1 block">Lesson file <span className="font-normal text-ink3">(questions are drawn from it)</span></label>
         <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer' }}>
@@ -163,14 +163,14 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
       </div>
 
       <div className="field mb-3">
-        <label className="text-xs font-semibold text-ink2 mb-1 block">Topic / focus <span className="font-normal text-ink3">{lessonText.trim() ? '(optional — narrows the lesson)' : '(required if no file)'}</span></label>
+        <label className="text-xs font-semibold text-ink2 mb-1 block">Topic / focus <span className="font-normal text-ink3">{lessonText.trim() ? '(optional - narrows the lesson)' : '(required if no file)'}</span></label>
         <textarea
           className="input w-full"
           rows={3}
           value={topic}
           onChange={e => setTopic(e.target.value)}
           placeholder={lessonText.trim()
-            ? 'Optional — e.g. focus on Chapter 3, or skip to cover the whole file'
+            ? 'Optional - e.g. focus on Chapter 3, or skip to cover the whole file'
             : 'e.g. The human digestive system breaks down food through mechanical and chemical digestion…'}
         />
       </div>
@@ -263,7 +263,7 @@ function ImportResponseModal({ onClose, onImported }) {
       return
     }
     if (!Array.isArray(parsed)) { setJsonErr('Expected a JSON array of questions, e.g. [{ "type": "multiple_choice", ... }]'); return }
-    if (!parsed.length) { setJsonErr('The array is empty — paste at least one question.'); return }
+    if (!parsed.length) { setJsonErr('The array is empty - paste at least one question.'); return }
     const qs = parsed.map((q, i) => ({ ...q, id: 'q' + i + '_' + Date.now() }))
     onImported(qs)
   }
@@ -396,7 +396,7 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
         setQuestions(result.questions)
         toast(
           result.touched
-            ? `Suggested accepted answers for ${result.touched} question${result.touched === 1 ? '' : 's'} — please review them.`
+            ? `Suggested accepted answers for ${result.touched} question${result.touched === 1 ? '' : 's'} - please review them.`
             : 'No new accepted answers to add.',
           result.touched ? 'green' : 'dark',
         )
@@ -419,7 +419,7 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
     }
   }
 
-  // Audit distractors (#24) — on-device, advisory only. Flags weak MC options.
+  // Audit distractors (#24) - on-device, advisory only. Flags weak MC options.
   async function runAudit() {
     setAuditing(true)
     try {
@@ -429,9 +429,9 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
       if (result.audited === 0) {
         toast('No multiple-choice questions to audit.', 'dark')
       } else if (flagged === 0 && !result.quizNotes.length) {
-        toast(`Checked ${result.audited} multiple-choice question${result.audited === 1 ? '' : 's'} — distractors look good.`, 'green')
+        toast(`Checked ${result.audited} multiple-choice question${result.audited === 1 ? '' : 's'} - distractors look good.`, 'green')
       } else {
-        toast(`Found issues in ${flagged} question${flagged === 1 ? '' : 's'}${result.quizNotes.length ? ' + a quiz-level note' : ''} — see the flags below.`, 'dark')
+        toast(`Found issues in ${flagged} question${flagged === 1 ? '' : 's'}${result.quizNotes.length ? ' + a quiz-level note' : ''} - see the flags below.`, 'dark')
       }
     } catch {
       toast('Could not run the audit on this device.', 'red')
@@ -525,7 +525,7 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
               const subs = (c.subjects || []).join(' · ')
               return (
                 <button key={c.id} type="button" onClick={() => toggleClass(c.id)}
-                  title={`${c.name} ${c.section}${subs ? ' — ' + subs : ''}`}
+                  title={`${c.name} ${c.section}${subs ? ' - ' + subs : ''}`}
                   className={`btn btn-sm ${classIds.includes(c.id) ? 'btn-primary' : 'btn-ghost'}`}
                   style={{ fontSize: 12, height: 'auto', padding: '6px 11px', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.3, gap: 1 }}>
                   <span style={{ fontWeight: 700 }}>{classTag(c) || `${c.name} ${c.section}`}</span>
@@ -534,7 +534,7 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
               )
             })}
           </div>
-          <p className="text-xs text-ink3 mt-2">Each chip is a class section and the subject(s) it offers — pick the one that matches the subject below.</p>
+          <p className="text-xs text-ink3 mt-2">Each chip is a class section and the subject(s) it offers - pick the one that matches the subject below.</p>
           </>
         )}
       </div>
@@ -542,7 +542,7 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
       <div className="field mb-3">
         <label className="text-xs font-semibold text-ink2 mb-1 block">Subject <span className="text-red-500">*</span></label>
         <select className="input w-full" value={subject} onChange={e => setSubject(e.target.value)}>
-          <option value="">— Select Subject —</option>
+          <option value="">- Select Subject -</option>
           {availableSubjects.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
       </div>
@@ -736,7 +736,7 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
                           onChange={e => updateQuestion(q.id, 'answer', e.target.value)} />
                       </div>
                       <div className="field mb-2">
-                        <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 4 }}>Accepted alternate answers <span className="text-ink3">(comma-separated — any one counts as correct)</span></label>
+                        <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 4 }}>Accepted alternate answers <span className="text-ink3">(comma-separated - any one counts as correct)</span></label>
                         <input className="input w-full" style={{ fontSize: 12 }} placeholder="e.g. H2O, water, dihydrogen monoxide"
                           value={(q.acceptedAnswers || []).join(', ')}
                           onChange={e => updateQuestion(q.id, 'acceptedAnswers', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} />
@@ -774,7 +774,7 @@ function QuizItemAnalysis({ quiz }) {
   const { responseCount, items } = useMemo(() => quizItemAnalysis(quiz), [quiz])
 
   if (!responseCount) {
-    return <div style={{ fontSize: 12, color: 'var(--ink2)', padding: '8px 0' }}>No submissions yet — analysis appears once students have taken the quiz.</div>
+    return <div style={{ fontSize: 12, color: 'var(--ink2)', padding: '8px 0' }}>No submissions yet - analysis appears once students have taken the quiz.</div>
   }
 
   const avgPct = Math.round(items.reduce((t, it) => t + it.correctPct, 0) / (items.length || 1))
@@ -807,7 +807,7 @@ function QuizItemAnalysis({ quiz }) {
                     color: o.isCorrect ? 'var(--green)' : 'var(--ink2)',
                     fontWeight: o.isCorrect ? 700 : 500,
                   }}>
-                    {o.text || '—'} · {o.count}
+                    {o.text || '-'} · {o.count}
                   </span>
                 ))}
               </div>
@@ -884,8 +884,8 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
       })
       setStyleResults(res)
       if (compared === 0) toast('Not enough past writing yet to compare styles.', 'dark')
-      else if (flagged === 0) toast(`Checked ${compared} attempt${compared === 1 ? '' : 's'} — styles look consistent.`, 'green')
-      else toast(`${flagged} attempt${flagged === 1 ? '' : 's'} differ from the student's past writing — worth a look.`, 'dark')
+      else if (flagged === 0) toast(`Checked ${compared} attempt${compared === 1 ? '' : 's'} - styles look consistent.`, 'green')
+      else toast(`${flagged} attempt${flagged === 1 ? '' : 's'} differ from the student's past writing - worth a look.`, 'dark')
     } catch {
       toast('Could not run the style check.', 'red')
     } finally {
@@ -901,9 +901,9 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
       setPicked({})
       const total = res.perQuestion.reduce((n, p) => n + p.candidates.length, 0)
       if (!res.modelUsed && !res.perQuestion.length) {
-        toast('No likely-correct answers were missed — or the on-device model is unavailable.', 'dark')
+        toast('No likely-correct answers were missed - or the on-device model is unavailable.', 'dark')
       } else if (total === 0) {
-        toast('No missed-correct answers found — the key looks complete.', 'green')
+        toast('No missed-correct answers found - the key looks complete.', 'green')
       } else {
         setMineOpen(true)
       }
@@ -953,7 +953,7 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
         }
       })
 
-      // 3. Persist the quiz doc (key + re-graded scores) — admin write, rule-safe.
+      // 3. Persist the quiz doc (key + re-graded scores) - admin write, rule-safe.
       await updateDoc(doc(db.current, 'quizzes', quiz.id), update)
 
       // 4. Update the denormalized quizResults cache on affected students.
@@ -970,7 +970,7 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
       }
 
       const added = qIndexes.reduce((n, i) => n + addsByQ[i].length, 0)
-      toast(`Added ${added} answer${added === 1 ? '' : 's'} to the key${changedIds.length ? ` — re-graded ${changedIds.length} attempt${changedIds.length === 1 ? '' : 's'}` : ''}.`, 'green')
+      toast(`Added ${added} answer${added === 1 ? '' : 's'} to the key${changedIds.length ? ` - re-graded ${changedIds.length} attempt${changedIds.length === 1 ? '' : 's'}` : ''}.`, 'green')
       setMineOpen(false); setMineResult(null); setPicked({})
     } catch (e) {
       toast('Could not apply changes: ' + e.message, 'red')
@@ -1003,13 +1003,13 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
       const copy = {
         ...quiz, id,
         title: `${quiz.title} (Copy)`,
-        submissions: {},          // a fresh quiz — no carried-over attempts
+        submissions: {},          // a fresh quiz - no carried-over attempts
         createdAt: Date.now(),
         openAt: Date.now(),
         closeAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
       }
       await setDoc(doc(db.current, 'quizzes', id), copy)
-      toast('Quiz duplicated — opens now, closes in 7 days. Edit to adjust dates/classes.', 'green')
+      toast('Quiz duplicated - opens now, closes in 7 days. Edit to adjust dates/classes.', 'green')
       onClose()
     } catch (e) {
       toast('Duplicate failed: ' + e.message, 'red')
@@ -1030,17 +1030,17 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
 
       {isUpcoming && (
         <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12, color: 'var(--ink2)' }}>
-          <Clock size={13} className="inline-block mr-1 align-text-bottom" />Upcoming — opens {openLabel}
+          <Clock size={13} className="inline-block mr-1 align-text-bottom" />Upcoming - opens {openLabel}
         </div>
       )}
       {isOpen && (
         <div style={{ background: 'var(--green-l)', color: 'var(--green)', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12 }}>
-          <Circle size={13} className="inline-block mr-1 align-text-bottom" style={{ fill: 'var(--green)', color: 'var(--green)' }} />Open — closes {closeLabel}
+          <Circle size={13} className="inline-block mr-1 align-text-bottom" style={{ fill: 'var(--green)', color: 'var(--green)' }} />Open - closes {closeLabel}
         </div>
       )}
       {isClosed && (
         <div style={{ background: 'var(--red-l)', color: 'var(--red)', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12 }}>
-          <Lock size={13} className="inline-block mr-1 align-text-bottom" />Closed — {attempted}/{enrolledStudents.length} attempted · {graded} auto-graded
+          <Lock size={13} className="inline-block mr-1 align-text-bottom" />Closed - {attempted}/{enrolledStudents.length} attempted · {graded} auto-graded
         </div>
       )}
 
@@ -1072,7 +1072,7 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
               const score = sub?.score
               const total = (sub?.total ?? quiz.totalPoints ?? quiz.questions?.length) || 1
               const pct = score != null ? ((score / total) * 100).toFixed(1) : null
-              const timeTaken = sub?.timeTaken ? Math.round(sub.timeTaken / 60) + ' min' : '—'
+              const timeTaken = sub?.timeTaken ? Math.round(sub.timeTaken / 60) + ' min' : '-'
               const limitSecs = (quiz.timeLimit || 0) * 60
               const tooFast = hasAttempt && sub?.timeTaken != null && limitSecs > 0 && sub.timeTaken < Math.max(20, limitSecs * 0.15)
               const leftN = sub?.leftCount || 0
@@ -1087,24 +1087,24 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
                       ? <Badge variant="green"><CheckCircle size={11} className="inline-block mr-1 align-text-bottom" />Submitted</Badge>
                       : <Badge variant="gray" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>{isClosed ? <><AlertCircle size={11} />Missed</> : <><Clock size={11} />Not yet</>}</Badge>}
                   </td>
-                  <td>{score != null ? `${score}/${total}` : '—'}</td>
+                  <td>{score != null ? `${score}/${total}` : '-'}</td>
                   <td>
                     {pct != null ? (
                       <span style={{ fontWeight: 700, color: pct >= 75 ? 'var(--green)' : pct >= 50 ? '#f59e0b' : 'var(--red)' }}>
                         {pct}%
                       </span>
-                    ) : '—'}
+                    ) : '-'}
                   </td>
                   <td style={{ fontSize: 12, color: 'var(--ink2)' }}>{timeTaken}</td>
                   <td>
                     {hasAttempt ? (
                       <div className="flex gap-1 flex-wrap">
-                        {tooFast && <span className="badge badge-yellow" title={`Finished in ${sub.timeTaken}s — under 15% of the ${quiz.timeLimit}-min limit`}>Fast</span>}
-                        {leftN >= 2 && <span className="badge badge-red" title={`Left the quiz ${leftN} times — answers were reset & reshuffled`}>Left {leftN}×</span>}
+                        {tooFast && <span className="badge badge-yellow" title={`Finished in ${sub.timeTaken}s - under 15% of the ${quiz.timeLimit}-min limit`}>Fast</span>}
+                        {leftN >= 2 && <span className="badge badge-red" title={`Left the quiz ${leftN} times - answers were reset & reshuffled`}>Left {leftN}×</span>}
                         {leftN === 1 && <span className="badge badge-gray" title="Left once (first slip is only a warning)">1 slip</span>}
                         {styleResults?.[s.id]?.flag && (
                           <span className="badge badge-red" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}
-                            title={`Writing style differs from this student's past quizzes (similarity ${(styleResults[s.id].sim * 100).toFixed(0)}%) — a hint to look closer, not a verdict.`}>
+                            title={`Writing style differs from this student's past quizzes (similarity ${(styleResults[s.id].sim * 100).toFixed(0)}%) - a hint to look closer, not a verdict.`}>
                             <Fingerprint size={11} />Style
                           </span>
                         )}
@@ -1114,9 +1114,9 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
                             <Fingerprint size={11} />OK
                           </span>
                         )}
-                        {!tooFast && leftN === 0 && !(styleResults?.[s.id]?.enoughData) && <span style={{ color: 'var(--ink3)', fontSize: 12 }}>—</span>}
+                        {!tooFast && leftN === 0 && !(styleResults?.[s.id]?.enoughData) && <span style={{ color: 'var(--ink3)', fontSize: 12 }}>-</span>}
                       </div>
-                    ) : <span style={{ color: 'var(--ink3)', fontSize: 12 }}>—</span>}
+                    ) : <span style={{ color: 'var(--ink3)', fontSize: 12 }}>-</span>}
                   </td>
                 </tr>
               )
@@ -1125,7 +1125,7 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
         </table>
       </div>
 
-      {/* Item analysis — per-question performance */}
+      {/* Item analysis - per-question performance */}
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginBottom: 12 }}>
         <div className="flex gap-1 flex-wrap" style={{ marginBottom: showAnalysis ? 10 : 0 }}>
           <button
@@ -1149,7 +1149,7 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
       {mineOpen && mineResult && (
         <Modal onClose={() => setMineOpen(false)} size="lg">
           <h3 className="text-lg font-bold text-ink mb-1"><Wand2 size={16} className="inline-block mr-1 align-text-bottom" />Improve answer key</h3>
-          <p className="modal-sub">These student answers were marked wrong but mean roughly the same as your key. Tick the ones that should count — they'll be added to the key and matching attempts re-graded.</p>
+          <p className="modal-sub">These student answers were marked wrong but mean roughly the same as your key. Tick the ones that should count - they'll be added to the key and matching attempts re-graded.</p>
           <div className="flex flex-col gap-3" style={{ maxHeight: '55vh', overflowY: 'auto', paddingRight: 4, marginTop: 8 }}>
             {mineResult.perQuestion.map(p => (
               <div key={p.qIndex} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '10px 12px', border: '1px solid var(--border)' }}>
@@ -1240,13 +1240,13 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
     try {
       if (method === 'smart') {
         // Custom on-device AI (sentence embeddings). Grounded in the lesson,
-        // private, $0 — no Gemini. Falls back to quick drafts if it can't run.
+        // private, $0 - no Gemini. Falls back to quick drafts if it can't run.
         try {
           const qs = await generateQuizAI(text, { count, types: qTypes, difficulty })
           if (qs && qs.length) { onGenerated(qs, difficulty); return }
-          toast('Smart generator unavailable on this device — using quick drafts.', 'info', 5000)
+          toast('Smart generator unavailable on this device - using quick drafts.', 'info', 5000)
         } catch {
-          toast('Smart generator hit a snag — using quick drafts.', 'warn', 5000)
+          toast('Smart generator hit a snag - using quick drafts.', 'warn', 5000)
         }
       }
       // Quick rule-based drafts (default, or smart fallback)
@@ -1336,9 +1336,9 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
         </div>
         <p className="text-xs text-ink3 mt-1">
           {difficulty === 'easy'
-            ? 'Wrong choices look obviously different — easier to eliminate.'
+            ? 'Wrong choices look obviously different - easier to eliminate.'
             : difficulty === 'hard'
-              ? 'Wrong choices are close in meaning — students must read carefully.'
+              ? 'Wrong choices are close in meaning - students must read carefully.'
               : 'A balanced mix of plausible wrong choices.'}
         </p>
       </div>
@@ -1348,7 +1348,7 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
         <label className="text-xs font-semibold text-ink2 mb-2 block">Generation method</label>
         <div className="flex flex-col gap-2">
           {[
-            { id: 'smart', title: 'Smart AI (on-device)', desc: 'Best quality. A multilingual AI model reads your lesson on this device — private, free, no key, works in Filipino. First run downloads ~120MB, then it’s cached.' },
+            { id: 'smart', title: 'Smart AI (on-device)', desc: 'Best quality. A multilingual AI model reads your lesson on this device - private, free, no key, works in Filipino. First run downloads ~120MB, then it’s cached.' },
             { id: 'quick', title: 'Quick draft', desc: 'Instant, no download. Rule-based drafts from your lesson text.' },
           ].map(opt => {
             const active = method === opt.id
@@ -1412,7 +1412,7 @@ export default function QuizTab() {
   )
 
   const activeQuizzes = useMemo(
-    // A quiz is active if it has any non-archived class — OR no class assignment
+    // A quiz is active if it has any non-archived class - OR no class assignment
     // at all (orphaned quizzes must stay visible/deletable, not vanish).
     () => sorted.filter(q => !(q.classIds || []).length || (q.classIds || []).some(id => !classes.find(c => c.id === id)?.archived)),
     [sorted, classes]

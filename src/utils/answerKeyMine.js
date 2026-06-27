@@ -1,10 +1,10 @@
 // ── Answer-key auto-improvement (#41) ─────────────────────────────────────────
 // Mines real student responses to short-answer / identification / fill-in
-// questions and suggests alternates the answer key is missing — synonyms,
+// questions and suggests alternates the answer key is missing - synonyms,
 // paraphrases, translations, spelling variants too far for the fuzzy matcher.
 // Uses the shared on-device embedding model to judge *meaning* (nothing uploaded);
 // reuses quizScore's textMatches so we only look at answers that are currently
-// marked WRONG. Everything is a SUGGESTION — the teacher approves before any key
+// marked WRONG. Everything is a SUGGESTION - the teacher approves before any key
 // changes (and, optionally, attempts are re-graded).
 
 import { ensureExtractor, embedAll, cos } from '@/utils/embeddings'
@@ -33,7 +33,7 @@ export async function mineAnswerKey(quiz, opts = {}) {
     Object.values(submissions).forEach(sub => {
       const a = Array.isArray(sub.answers) ? sub.answers[qi] : null
       if (typeof a !== 'string' || !a.trim()) return
-      if (textMatches(a, keys)) return            // already credited — skip
+      if (textMatches(a, keys)) return            // already credited - skip
       const k = norm(a)
       if (!counts[k]) counts[k] = { text: a.trim(), count: 0 }
       counts[k].count++

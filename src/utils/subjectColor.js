@@ -1,4 +1,4 @@
-// Deterministic, stable color per subject — so a subject looks the same
+// Deterministic, stable color per subject - so a subject looks the same
 // everywhere it appears (chips, dots, headers) with no storage required.
 // Colors are mid-tone hues that read well on both light and dark themes; the
 // soft variant uses color-mix so it adapts to the current surface.
@@ -30,8 +30,8 @@ function hashIndex(str) {
 }
 
 // Returns { color, soft } for a subject name.
-//   color — solid hue for text / dots / borders
-//   soft  — translucent tint for chip backgrounds
+//   color - solid hue for text / dots / borders
+//   soft  - translucent tint for chip backgrounds
 export function subjectColor(subject) {
   const color = PALETTE[hashIndex(subject)]
   return { color, soft: `color-mix(in srgb, ${color} 14%, transparent)` }

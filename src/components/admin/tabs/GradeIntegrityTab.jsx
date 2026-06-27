@@ -23,10 +23,10 @@ const RANK = { anomaly: 0, drift: 1, override: 2, verified: 3 }
 const ACTION_LABEL = { published: 'Published', recomputed: 'Recomputed', imported: 'Imported', live: 'Live · current data' }
 
 const enrolledIdsOf = s => (s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : []))
-const r1 = n => (n == null ? '—' : Math.round(n * 10) / 10)
+const r1 = n => (n == null ? '-' : Math.round(n * 10) / 10)
 const fmtDate = ts => {
-  if (!ts) return '—'
-  try { return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) } catch { return '—' }
+  if (!ts) return '-'
+  try { return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) } catch { return '-' }
 }
 const initials = name => (name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?'
 
@@ -52,7 +52,7 @@ export default function GradeIntegrityTab() {
         const v = verifyPublishedGrade(s, sub, ctx)
         const cls = classes.find(c => enrolledIds.includes(c.id) && c.subjects?.includes(sub))
           || classes.find(c => c.subjects?.includes(sub))
-        const courseLabel = cls ? `${cls.name}${cls.section ? ' ' + cls.section : ''}` : '—'
+        const courseLabel = cls ? `${cls.name}${cls.section ? ' ' + cls.section : ''}` : '-'
         out.push({
           key: s.id + '|' + sub,
           studentId: s.id, name: s.name || s.id, sub,
@@ -111,7 +111,7 @@ export default function GradeIntegrityTab() {
     setBusy(true)
     try {
       const n = await syncDriftedGrades(driftRecords.map(r => ({ studentId: r.studentId, subject: r.sub })))
-      toast(`Synced ${n} grade${n > 1 ? 's' : ''} — all now match the live data.`, 'green')
+      toast(`Synced ${n} grade${n > 1 ? 's' : ''} - all now match the live data.`, 'green')
     } catch (e) { toast('Sync failed: ' + e.message, 'red') }
     finally { setBusy(false) }
   }
@@ -119,8 +119,8 @@ export default function GradeIntegrityTab() {
   function reVerifyAll() {
     const { total, verified, drift, anomaly } = counts
     if (!total) { toast('No published grades to verify yet.', 'blue'); return }
-    if (drift || anomaly) toast(`Re-verified ${total} grade${total > 1 ? 's' : ''} — ${drift + anomaly} need attention.`, 'yellow')
-    else toast(`Re-verified ${total} grade${total > 1 ? 's' : ''} — all consistent.`, 'green')
+    if (drift || anomaly) toast(`Re-verified ${total} grade${total > 1 ? 's' : ''} - ${drift + anomaly} need attention.`, 'yellow')
+    else toast(`Re-verified ${total} grade${total > 1 ? 's' : ''} - all consistent.`, 'green')
   }
 
   return (
@@ -136,7 +136,7 @@ export default function GradeIntegrityTab() {
         )}
       </div>
 
-      {/* Summary metric cards — click to filter */}
+      {/* Summary metric cards - click to filter */}
       <div className="gi-metrics" style={{ marginBottom: 16 }}>
         <MetricCard label="Published" value={counts.total} active={statusFilter === 'all'} onClick={() => setStatusFilter('all')} />
         <MetricCard label="Verified" value={counts.verified} c="var(--green)" bg="var(--green-l)" active={statusFilter === 'verified'} onClick={() => setStatusFilter(s => s === 'verified' ? 'all' : 'verified')} />
@@ -250,7 +250,7 @@ function RecordRow({ rec, expanded, onToggle, onSync, busy }) {
             <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)' }}>{r1(v.final)}</div>
           )}
           <div style={{ fontSize: 11, color: v.drift ? 'var(--yellow)' : 'var(--ink2)' }}>
-            {v.drift ? `Δ ${r1(v.delta)}` : (v.equiv?.eq && v.equiv.eq !== '—' ? v.equiv.eq : '')}
+            {v.drift ? `Δ ${r1(v.delta)}` : (v.equiv?.eq && v.equiv.eq !== '-' ? v.equiv.eq : '')}
           </div>
         </div>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 600, padding: '4px 9px', borderRadius: 7, background: st.bg, color: st.c, whiteSpace: 'nowrap', flexShrink: 0 }}>
@@ -276,7 +276,7 @@ function RecordRow({ rec, expanded, onToggle, onSync, busy }) {
             <Pill>Midterm {r1(v.breakdown.midterm)}</Pill>
             <Pill>Finals {r1(v.breakdown.finals)}</Pill>
             <ArrowRight size={13} style={{ color: 'var(--ink3)' }} />
-            <Pill accent>Final {r1(v.final)}{v.equiv?.eq && v.equiv.eq !== '—' ? ` · ${v.equiv.eq}` : ''}</Pill>
+            <Pill accent>Final {r1(v.final)}{v.equiv?.eq && v.equiv.eq !== '-' ? ` · ${v.equiv.eq}` : ''}</Pill>
           </div>
 
           <div className="gi-detail-grid">

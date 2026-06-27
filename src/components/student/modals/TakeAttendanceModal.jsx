@@ -6,7 +6,7 @@ import Modal from '@/components/primitives/Modal'
 import { CalendarDays, Check, ClipboardList, X, UserCheck } from 'lucide-react'
 
 /**
- * TakeAttendanceModal — shown only to a student who is the designated rep for a subject.
+ * TakeAttendanceModal - shown only to a student who is the designated rep for a subject.
  * Lets the rep mark attendance for their classmates for today only.
  */
 export default function TakeAttendanceModal({ classId, subject, onClose }) {
@@ -71,7 +71,7 @@ export default function TakeAttendanceModal({ classId, subject, onClose }) {
       toast('Attendance saved!', 'green')
       onClose()
     } catch (e) {
-      toast('Saved locally — sync failed: ' + e.message, 'red')
+      toast('Saved locally - sync failed: ' + e.message, 'red')
     } finally {
       setSaving(false)
     }

@@ -1,13 +1,13 @@
 // ── Student: self-service password reset by face match (no teacher needed) ─
 // The student enters their student number and scans their face on the Forgot
 // Password screen. Their device runs a liveness challenge and computes a live
-// 128-number descriptor, then posts it here. THE SERVER decides the match — it
+// 128-number descriptor, then posts it here. THE SERVER decides the match - it
 // loads the enrolled descriptor (from the server-only faceSignatures collection,
-// which clients can neither read nor write) and compares distance — so the
+// which clients can neither read nor write) and compares distance - so the
 // browser can never just claim "it matched", and the stored descriptor can never
 // be read back and replayed by another student.
 //
-// Fully self-service: it does NOT notify the teacher and writes NO record — a
+// Fully self-service: it does NOT notify the teacher and writes NO record - a
 // student resetting their own password leaves no teacher-facing footprint.
 // Rate-limited per student number via a Firestore-backed window (holds across
 // serverless instances) and requires a passed liveness flag.
@@ -34,7 +34,7 @@ import {
 // Match threshold for face-api's 128-d descriptors. SINGLE SOURCE OF TRUTH lives
 // in the client policy (src/utils/faceId.js → FACE_POLICY.MATCH.THRESHOLD = 0.6);
 // the server keeps its own copy because it must decide the match independently
-// (never trust a client "matched" claim) — but it is the SAME number. Keep the
+// (never trust a client "matched" claim) - but it is the SAME number. Keep the
 // two in sync. The client enroll spread (0.45) is < this, so a clean enrolled
 // signature always lands inside the match window and a real student isn't gated.
 const THRESHOLD = 0.6
@@ -90,7 +90,7 @@ export default async function handler(req, res) {
   }
 
   if (!stored) {
-    return res.status(400).json({ error: 'Face ID reset isn’t set up on this account yet. Sign in, then set it up under Settings → “Set up Face ID reset” — or ask your teacher to reset your password.' })
+    return res.status(400).json({ error: 'Face ID reset isn’t set up on this account yet. Sign in, then set it up under Settings → “Set up Face ID reset” - or ask your teacher to reset your password.' })
   }
 
   // Throttle (cross-instance): count attempts in the window, then record this one.
@@ -114,7 +114,7 @@ export default async function handler(req, res) {
   }
 
   // ── Step 2 (set): the student picked a new password (and we re-verified the
-  // face above). Validate, then set it directly — no temp password ever. ──
+  // face above). Validate, then set it directly - no temp password ever. ──
   if (typeof newPassword !== 'string' || newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
     return res.status(400).json({ error: 'Password must be at least 8 characters and include an uppercase letter and a number.' })
   }
@@ -133,7 +133,7 @@ export default async function handler(req, res) {
   // Close any open teacher reset window too (harmless if none).
   try { await deleteResetSession(projectId, accessToken, docId) } catch {}
 
-  // Fully self-service: the teacher is NOT notified and NO record is written —
+  // Fully self-service: the teacher is NOT notified and NO record is written -
   // a student resetting their own password leaves no teacher-facing footprint.
 
   return res.status(200).json({ ok: true })

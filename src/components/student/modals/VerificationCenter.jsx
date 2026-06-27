@@ -8,12 +8,12 @@ import {
   applicableSteps, activeStep, stepViews, verificationGuidance, firstNameOf,
 } from '@/utils/verificationGuide'
 
-// Guided, step-by-step account verification — the single home for everything a
+// Guided, step-by-step account verification - the single home for everything a
 // student must do to become Active (own password → complete profile → identity
 // check → Face-ID enrollment → verified badge). Lives as a panel inside the
 // shared SettingsShell. Each step REUSES its existing modal in `embedded` mode;
 // this component only narrates (on-device AI guidance) and advances. Advancement
-// is driven by LIVE student state from the roster listener — when a step's write
+// is driven by LIVE student state from the roster listener - when a step's write
 // lands (e.g. faceResetEnabled flips), the active step recomputes automatically.
 
 const ICONS = { KeyRound, Camera, ScanFace }

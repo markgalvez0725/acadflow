@@ -1,6 +1,6 @@
 // Shared, side-effect-free helpers for the message threads on BOTH sides.
 // Extracted verbatim from the admin + student MessagesTab, which computed these
-// identically — behavior-preserving, so neither view changes. Role-specific
+// identically - behavior-preserving, so neither view changes. Role-specific
 // logic (read-state, notify routing, thread building, list grouping) is
 // deliberately NOT here: those differ per role and must stay in each tab.
 

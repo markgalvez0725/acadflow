@@ -1,7 +1,7 @@
 // ── Student: AI identity verification at self-registration ────────────────
 // Called by the student's own device right after it creates the account. The
 // server re-looks-up the roster row, scores the entered identity DETERMINISTICALLY
-// (so the browser can't forge it), and — only on a strong match — flips
+// (so the browser can't forge it), and - only on a strong match - flips
 // account.verified=true (auto-activate). Otherwise the account stays Pending for
 // the teacher to approve. Always records account.verification for the teacher.
 //
@@ -9,7 +9,7 @@
 // Response: { verified: boolean, confidence: number|null, verdict, fields } | { error }
 //
 // Degrades gracefully: with no service account configured it returns 501 and the
-// client simply leaves the account Pending (teacher approves) — never blocked.
+// client simply leaves the account Pending (teacher approves) - never blocked.
 
 import { guard } from './_guard.js'
 import {

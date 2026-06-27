@@ -43,7 +43,7 @@ export default function SetQuickPinModal({ onClose, embedded = false }) {
           <Lock size={24} />
         </div>
         <p className="text-xs text-ink2" style={{ marginBottom: 8 }}>
-          A 4-digit PIN lets you return to AcadFlow after it sits idle — without re-typing your password. Stored only on this device.
+          A 4-digit PIN lets you return to AcadFlow after it sits idle - without re-typing your password. Stored only on this device.
         </p>
 
         <div className="text-xs font-semibold text-ink2" style={{ marginTop: 8 }}>New PIN</div>

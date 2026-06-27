@@ -2,8 +2,8 @@
 // Layered check that a student profile photo is a professional headshot in
 // business attire on a plain white background.
 //
-//   1. On-device AI (primary): a custom in-browser pipeline — BlazeFace +
-//      MediaPipe Selfie Segmentation — judges face/count/pose, the TRUE
+//   1. On-device AI (primary): a custom in-browser pipeline - BlazeFace +
+//      MediaPipe Selfie Segmentation - judges face/count/pose, the TRUE
 //      background, and an attire proxy. The photo never leaves the device.
 //      (src/utils/photoVerifyAI.js). Replaces the former Gemini vision call.
 //   2. Legacy heuristics (fallback only): when the models can't load on this
@@ -36,7 +36,7 @@ function toCanvas(imgEl, max = 256) {
 
 /**
  * Fraction of backdrop pixels that are near-white and uniform (LEGACY fallback).
- * Only samples where a backdrop is actually visible behind a headshot — the
+ * Only samples where a backdrop is actually visible behind a headshot - the
  * full-width TOP strip and the UPPER portion of the left/right sides. The
  * bottom is intentionally skipped: it's filled by the subject's shoulders and
  * clothing, so sampling it falsely tanks the score for a correct photo. Used
@@ -49,7 +49,7 @@ function whiteBackgroundScore(imgEl) {
     cw = c.cw; ch = c.ch
     data = c.ctx.getImageData(0, 0, cw, ch).data
   } catch {
-    return { score: null, supported: false } // tainted/cross-origin — skip
+    return { score: null, supported: false } // tainted/cross-origin - skip
   }
   const bandX  = Math.max(2, Math.round(cw * 0.12))
   const topY   = Math.max(2, Math.round(ch * 0.16)) // full-width top strip
@@ -87,13 +87,13 @@ async function detectFaces(imgEl) {
   }
 }
 
-/** Legacy on-device checks (no ML models) — used only when AI is unavailable. */
+/** Legacy on-device checks (no ML models) - used only when AI is unavailable. */
 async function legacyChecks(imgEl, w, h, hardFails, warnings, passes) {
   const bg = whiteBackgroundScore(imgEl)
   if (bg.supported && bg.score != null) {
     if (bg.score >= 0.82) passes.push('Background looks plain white.')
-    else if (bg.score >= 0.5) warnings.push('Background may not be fully white — a clean white wall is best.')
-    else warnings.push('Background doesn’t look plain white on-device — make sure you’re against a white wall.')
+    else if (bg.score >= 0.5) warnings.push('Background may not be fully white - a clean white wall is best.')
+    else warnings.push('Background doesn’t look plain white on-device - make sure you’re against a white wall.')
   }
   const fdRes = await detectFaces(imgEl)
   if (fdRes.supported) {
@@ -105,11 +105,11 @@ async function legacyChecks(imgEl, w, h, hardFails, warnings, passes) {
       const box = fdRes.faces[0].boundingBox
       const faceFrac = box && h ? box.height / h : 0
       const cx = box ? (box.x + box.width / 2) / w : 0.5
-      if (faceFrac && faceFrac < 0.18) warnings.push('Face is small — move closer for a head-and-shoulders shot.')
-      if (cx < 0.25 || cx > 0.75) warnings.push('Face is off-center — center yourself in the frame.')
+      if (faceFrac && faceFrac < 0.18) warnings.push('Face is small - move closer for a head-and-shoulders shot.')
+      if (cx < 0.25 || cx > 0.75) warnings.push('Face is off-center - center yourself in the frame.')
     }
   } else {
-    warnings.push("This browser can't verify a face on-device — make sure your face is clear and front-facing.")
+    warnings.push("This browser can't verify a face on-device - make sure your face is clear and front-facing.")
   }
 }
 
@@ -131,8 +131,8 @@ export async function validateProfilePhoto(imgEl, dataUrl, opts = {}) {
   const w = imgEl.naturalWidth || imgEl.width
   const h = imgEl.naturalHeight || imgEl.height
   const minDim = Math.min(w, h)
-  if (minDim < 160) hardFails.push('Image is too small — use at least 240×240px.')
-  else if (minDim < 240) warnings.push('Low resolution — a sharper photo is recommended.')
+  if (minDim < 160) hardFails.push('Image is too small - use at least 240×240px.')
+  else if (minDim < 240) warnings.push('Low resolution - a sharper photo is recommended.')
   else passes.push('Resolution is sufficient.')
 
   // ── On-device AI (primary) ──────────────────────────────────────────────
@@ -146,9 +146,9 @@ export async function validateProfilePhoto(imgEl, dataUrl, opts = {}) {
   if (ai) {
     aiUsed = true
 
-    // Stage A — face & pose
+    // Stage A - face & pose
     if (ai.faces == null) {
-      // Model couldn't read faces — fall back to the native detector for count.
+      // Model couldn't read faces - fall back to the native detector for count.
       const fdRes = await detectFaces(imgEl)
       if (fdRes.supported) {
         const n = fdRes.faces.length
@@ -156,7 +156,7 @@ export async function validateProfilePhoto(imgEl, dataUrl, opts = {}) {
         else if (n > 1) hardFails.push('More than one person detected. Photo must show only you.')
         else passes.push('One face detected.')
       } else {
-        warnings.push("Couldn't verify your face automatically — make sure it's clear and front-facing.")
+        warnings.push("Couldn't verify your face automatically - make sure it's clear and front-facing.")
       }
     } else if (ai.faces === 0) {
       hardFails.push('No face detected. Use a clear, front-facing headshot.')
@@ -164,33 +164,33 @@ export async function validateProfilePhoto(imgEl, dataUrl, opts = {}) {
       hardFails.push('More than one person detected. Photo must show only you.')
     } else {
       passes.push('One face detected.')
-      if (ai.faceFrac != null && ai.faceFrac < 0.18) warnings.push('Face is small — move closer for a head-and-shoulders shot.')
-      if (ai.faceCx != null && (ai.faceCx < 0.25 || ai.faceCx > 0.75)) warnings.push('Face is off-center — center yourself in the frame.')
-      if (ai.frontalScore != null && ai.frontalScore < 0.5) warnings.push('Face looks turned — look straight at the camera.')
+      if (ai.faceFrac != null && ai.faceFrac < 0.18) warnings.push('Face is small - move closer for a head-and-shoulders shot.')
+      if (ai.faceCx != null && (ai.faceCx < 0.25 || ai.faceCx > 0.75)) warnings.push('Face is off-center - center yourself in the frame.')
+      if (ai.frontalScore != null && ai.frontalScore < 0.5) warnings.push('Face looks turned - look straight at the camera.')
     }
 
-    // Stage B — true background (can hard-fail; the mask makes this reliable)
+    // Stage B - true background (can hard-fail; the mask makes this reliable)
     if (ai.bgSupported && ai.bgWhiteFrac != null) {
       if (ai.bgWhiteFrac >= 0.85) passes.push('Background is plain white.')
       else if (ai.bgWhiteFrac < 0.5) hardFails.push('Background is not plain white. Use a clean white wall behind you.')
-      else warnings.push('Background may not be fully white — a clean white wall is best.')
+      else warnings.push('Background may not be fully white - a clean white wall is best.')
     } else {
-      // Segmentation unavailable — fall back to the pixel heuristic (warn-only).
+      // Segmentation unavailable - fall back to the pixel heuristic (warn-only).
       const bg = whiteBackgroundScore(imgEl)
       if (bg.supported && bg.score != null) {
         if (bg.score >= 0.82) passes.push('Background looks plain white.')
-        else if (bg.score >= 0.5) warnings.push('Background may not be fully white — a clean white wall is best.')
-        else warnings.push('Background doesn’t look plain white on-device — make sure you’re against a white wall.')
+        else if (bg.score >= 0.5) warnings.push('Background may not be fully white - a clean white wall is best.')
+        else warnings.push('Background doesn’t look plain white on-device - make sure you’re against a white wall.')
       }
     }
 
-    // Stage C — attire proxy (warnings only)
+    // Stage C - attire proxy (warnings only)
     if (ai.skinFrac != null) {
-      if (ai.skinFrac > 0.45) warnings.push('Attire looks casual or too revealing for an ID photo — wear professional attire.')
+      if (ai.skinFrac > 0.45) warnings.push('Attire looks casual or too revealing for an ID photo - wear professional attire.')
       else passes.push('Professional attire detected.')
     }
     if (ai.busyness != null && ai.busyness > 0.6) {
-      warnings.push('Outfit has busy patterns — plain professional attire is best.')
+      warnings.push('Outfit has busy patterns - plain professional attire is best.')
     }
   } else {
     // ── Legacy fallback (no ML models available on this device) ─────────────

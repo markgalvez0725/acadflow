@@ -25,7 +25,7 @@ const PER_PAGE = 10
 const RISK_PER_PAGE = 6
 const ABSENCE_THRESHOLD = 3
 
-// Avatar tint per status/level — uses the soft "-l" fills so the initial chip
+// Avatar tint per status/level - uses the soft "-l" fills so the initial chip
 // reads as a quiet status dot, not a loud block.
 const TINT = {
   green:  { bg: 'var(--green-l)',  fg: 'var(--green)' },
@@ -85,7 +85,7 @@ export default function DashboardTab() {
       remKey: `nudge_${r.student.id}_${Date.now()}`,
       type: 'att_alert',
       title: 'A message from your teacher',
-      body: `Checking in — let's talk about ${top.toLowerCase()}. Reach out if you need help.`,
+      body: `Checking in - let's talk about ${top.toLowerCase()}. Reach out if you need help.`,
       link: 'overview',
     }
     fbPushReminderNotif(db.current, r.student.id, rem).then(created => {
@@ -107,8 +107,8 @@ export default function DashboardTab() {
       total:    students.length,
       classes:  classes.length,
       regCount: students.filter(s => s.account?.registered).length,
-      avgGwa:   gwas.length ? (gwas.reduce((a, b) => a + b, 0) / gwas.length).toFixed(1) : '—',
-      avgAtt:   atts.length ? (atts.reduce((a, b) => a + b, 0) / atts.length).toFixed(1) + '%' : '—',
+      avgGwa:   gwas.length ? (gwas.reduce((a, b) => a + b, 0) / gwas.length).toFixed(1) : '-',
+      avgAtt:   atts.length ? (atts.reduce((a, b) => a + b, 0) / atts.length).toFixed(1) + '%' : '-',
     }
   }, [students, classes])
 
@@ -168,13 +168,13 @@ export default function DashboardTab() {
   const gwaNum = parseFloat(stats.avgGwa)
   const attNum = parseFloat(stats.avgAtt)
 
-  // ── Build the AI analyzer's findings — all derived from the real numbers above,
+  // ── Build the AI analyzer's findings - all derived from the real numbers above,
   // so the analyzer can never contradict the cards on the page. ───────────────
   const scrollToNeeds = () => document.getElementById('needs-attention')?.scrollIntoView({ behavior: 'smooth' })
   const findings = []
   if (risk.counts.high)
     findings.push({ sev: 'danger', Icon: AlertTriangle, source: 'Grades + Attendance', actionLabel: 'Review', onAction: scrollToNeeds,
-      text: <><b>{risk.counts.high}</b> student{risk.counts.high > 1 ? 's' : ''} at high risk — low grades, absences and missing work</> })
+      text: <><b>{risk.counts.high}</b> student{risk.counts.high > 1 ? 's' : ''} at high risk - low grades, absences and missing work</> })
   if (grade.failed)
     findings.push({ sev: 'danger', Icon: BarChart2, source: 'Grades', actionLabel: 'Grades', onAction: () => setAdminTab('grades'),
       text: <><b>{grade.failed}</b> below passing (GWA under 71)</> })
@@ -191,7 +191,7 @@ export default function DashboardTab() {
     findings.push({ sev: 'warning', Icon: AlertTriangle, source: 'Attendance', actionLabel: 'Open', onAction: () => setAdminTab('attendance'),
       text: <><b>{absenceAlerts.length}</b> on a {ABSENCE_THRESHOLD}+ session absence streak</> })
   if (!isNaN(gwaNum) && gwaNum >= 75)
-    findings.push({ sev: 'success', Icon: TrendingUp, source: 'Grades', text: <>Class average <b>{stats.avgGwa}</b> — above passing</> })
+    findings.push({ sev: 'success', Icon: TrendingUp, source: 'Grades', text: <>Class average <b>{stats.avgGwa}</b> - above passing</> })
   if (gradedTotal && !assess.awaitingGrading && !assess.overdueMissing)
     findings.push({ sev: 'success', Icon: CheckCircle2, source: 'Activities', text: 'All caught up on grading' })
   if (!isNaN(attNum) && attNum >= 80)
@@ -201,12 +201,12 @@ export default function DashboardTab() {
   const headline = stats.total === 0
     ? 'Add students to your roster to start seeing analysis here.'
     : flagged === 0
-      ? 'Everything looks healthy — no students are flagged for grades, attendance, or missing work right now.'
+      ? 'Everything looks healthy - no students are flagged for grades, attendance, or missing work right now.'
       : `${flagged} student${flagged > 1 ? 's' : ''} need${flagged > 1 ? '' : 's'} a closer look. The analyzer scanned grades, attendance, activities, and quizzes across your classes.`
 
   // Status helper for a student card.
   const statusOf = (gwa) => {
-    if (gwa === null) return { label: '—', variant: 'gray' }
+    if (gwa === null) return { label: '-', variant: 'gray' }
     if (gwa >= 75)    return { label: 'Passing',     variant: 'green' }
     if (gwa >= 71)    return { label: 'Conditional', variant: 'orange' }
     return { label: 'At risk', variant: 'red' }
@@ -217,7 +217,7 @@ export default function DashboardTab() {
 
   return (
     <div>
-      {/* Page header — Export only (New Activity removed) */}
+      {/* Page header - Export only (New Activity removed) */}
       <PageHeader
         crumb={<><Home size={13} /> Home <span>›</span> Dashboard</>}
         title={`${greeting}, ${adminName}`}
@@ -240,7 +240,7 @@ export default function DashboardTab() {
           trend={atRisk.length ? { dir: 'down', text: 'Needs review' } : { dir: 'up', text: 'All clear' }} />
       </div>
 
-      {/* At a glance — large grade-distribution donut */}
+      {/* At a glance - large grade-distribution donut */}
       <div className="card card-pad mb-4">
         <div className="sec-hdr">
           <div className="sec-title sec-title-ic"><PieChart /> At a glance</div>
@@ -255,7 +255,7 @@ export default function DashboardTab() {
         )}
       </div>
 
-      {/* Needs attention — at-risk students as clickable cards (Nudge + View) */}
+      {/* Needs attention - at-risk students as clickable cards (Nudge + View) */}
       {risk.list.length > 0 && (
         <div className="card card-pad mb-4" id="needs-attention">
           <div className="sec-hdr">
@@ -311,7 +311,7 @@ export default function DashboardTab() {
         </div>
       )}
 
-      {/* All students — clickable cards, 10 shown, load 10 more inline */}
+      {/* All students - clickable cards, 10 shown, load 10 more inline */}
       <div className="card card-pad">
         <div className="sec-hdr">
           <div className="sec-title sec-title-ic"><Users /> All students</div>
@@ -347,7 +347,7 @@ export default function DashboardTab() {
                       <div className="ds-stud-id">{s.id}{cls ? ` · ${cls.name} ${cls.section}` : ''}</div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flex: 'none' }}>
-                      <Badge variant={st.variant}>{gwa !== null ? gwa.toFixed(1) : '—'}</Badge>
+                      <Badge variant={st.variant}>{gwa !== null ? gwa.toFixed(1) : '-'}</Badge>
                       <span style={{ fontSize: 11, color: 'var(--ink2)' }}>{att !== null ? att.toFixed(0) + '% att' : 'no att'}</span>
                     </div>
                   </div>

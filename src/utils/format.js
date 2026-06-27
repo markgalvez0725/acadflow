@@ -48,10 +48,10 @@ export function buildPageRange(cur, total) {
   return result;
 }
 
-// Full date + time stamp: "Jun 18, 2026, 3:04 PM" ("—" when empty). Shared by
+// Full date + time stamp: "Jun 18, 2026, 3:04 PM" ("-" when empty). Shared by
 // the Stream and Announcements feeds.
 export function fmtDateTime(ms) {
-  if (!ms) return '—';
+  if (!ms) return '-';
   return new Date(ms).toLocaleString('en-PH', {
     month: 'short', day: 'numeric', year: 'numeric',
     hour: 'numeric', minute: '2-digit',

@@ -8,7 +8,7 @@ import { ChevronLeft } from 'lucide-react'
 
 /**
  * Lets a student choose which categories of notifications they receive. Each
- * toggle AUTO-SAVES (debounced) onto their own student record — muting takes
+ * toggle AUTO-SAVES (debounced) onto their own student record - muting takes
  * effect immediately because notifications are filtered by these prefs at
  * display time. A Back button returns to the settings sheet.
  */

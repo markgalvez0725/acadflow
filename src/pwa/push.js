@@ -22,9 +22,9 @@ export const VAPID_KEY = cleanVapid(
   ''
 )
 
-// A valid VAPID public key is base64url and decodes to 65 bytes (~87–88 chars).
-// This catches obvious mistakes — pasting the Server key / Sender ID, or a
-// truncated key — before we attempt (and fail) a subscription.
+// A valid VAPID public key is base64url and decodes to 65 bytes (~87-88 chars).
+// This catches obvious mistakes - pasting the Server key / Sender ID, or a
+// truncated key - before we attempt (and fail) a subscription.
 export function vapidLooksValid(k = VAPID_KEY) {
   return /^[A-Za-z0-9_-]{80,100}$/.test(k)
 }
@@ -38,7 +38,7 @@ export function lastPushError() { return _lastError }
 
 // Some environments simply can't register for web push (Brave / de-Googled
 // Chromium, OS-level notifications turned off, or a network that blocks the
-// push service). That's expected, not a bug — log it calmly once, and keep
+// push service). That's expected, not a bug - log it calmly once, and keep
 // real console.warn noise for genuinely unexpected failures.
 function isBenignPushFailure(err) {
   const msg = (err && err.message) || ''
@@ -48,7 +48,7 @@ function logPushFailure(err) {
   if (isBenignPushFailure(err)) {
     if (!_loggedUnavailable) {
       _loggedUnavailable = true
-      console.info('[push] Web push isn’t available in this browser/context — in-app notifications still work.')
+      console.info('[push] Web push isn’t available in this browser/context - in-app notifications still work.')
     }
     return
   }
@@ -59,7 +59,7 @@ function logPushFailure(err) {
 function friendlyPushError(e) {
   const m = (e && e.message) || ''
   if (/push service error|Registration failed|AbortError/i.test(m)) {
-    return 'Your browser couldn’t register for push notifications. Close and reopen AcadFlow and try again — some browsers and in-app/private windows don’t support web push.'
+    return 'Your browser couldn’t register for push notifications. Close and reopen AcadFlow and try again - some browsers and in-app/private windows don’t support web push.'
   }
   if (/permission/i.test(m)) return 'Notifications are blocked. Enable them in your browser settings.'
   return m || 'Push registration failed.'
@@ -94,7 +94,7 @@ function getMessagingInstance() {
 export async function enablePush() {
   if (!(await pushSupported())) return null
   if (!VAPID_KEY) {
-    console.warn('[push] No VAPID key configured — set VITE_FB_VAPID_KEY to enable web push.')
+    console.warn('[push] No VAPID key configured - set VITE_FB_VAPID_KEY to enable web push.')
     return null
   }
   if (!vapidLooksValid()) {
@@ -110,7 +110,7 @@ export async function enablePush() {
 
   // Reuse the already-registered offline service worker (root scope) so we
   // don't register a second worker. Prefer the *ready* (activated) registration
-  // — getToken fails if the worker isn't active yet.
+  // - getToken fails if the worker isn't active yet.
   let swReg
   if ('serviceWorker' in navigator) {
     try { swReg = await navigator.serviceWorker.ready } catch { swReg = undefined }
@@ -129,14 +129,14 @@ export async function enablePush() {
   } catch (e) {
     // The first failure is often just a stale registration (old applicationServerKey
     // after a VAPID/browser change) with FCM's token cached. Clear BOTH and retry
-    // once — quietly, since this attempt frequently succeeds.
-    try { await deleteToken(messaging) } catch (e2) { /* no cached token — fine */ }
+    // once - quietly, since this attempt frequently succeeds.
+    try { await deleteToken(messaging) } catch (e2) { /* no cached token - fine */ }
     try {
       if (swReg?.pushManager) {
         const sub = await swReg.pushManager.getSubscription()
         if (sub) await sub.unsubscribe()
       }
-    } catch (e3) { /* nothing to clear — fine */ }
+    } catch (e3) { /* nothing to clear - fine */ }
     try {
       const token = await getToken(messaging, opts)
       return token || null

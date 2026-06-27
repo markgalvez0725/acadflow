@@ -76,17 +76,17 @@ export function DataProvider({ children }) {
   }, [])
 
   async function _bootstrap() {
-    // 0. Load EJS from localStorage cache — independent of Firebase state
+    // 0. Load EJS from localStorage cache - independent of Firebase state
     try {
       const raw = localStorage.getItem('cp_ejs')
       const ejsObj = await readStoredEJS(raw)
       if (ejsObj) setEjs({ ...ejsObj, configured: true })
     } catch (e) {}
 
-    // 1. Load Firebase config — env vars take priority, localStorage as fallback
+    // 1. Load Firebase config - env vars take priority, localStorage as fallback
     const cfg = getFbConfigFromEnv() || await loadFbConfigFromStorage()
     if (!cfg) {
-      console.log('[DataContext] No Firebase config found — waiting for admin setup.')
+      console.log('[DataContext] No Firebase config found - waiting for admin setup.')
       return
     }
     setFbConfig(cfg)
@@ -100,7 +100,7 @@ export function DataProvider({ children }) {
     // Load admin info, settings, and start real-time listeners. All Firestore
     // reads happen here so they can be gated behind authentication below.
     const loadData = async () => {
-      // Admin record (display only — login itself is via Firebase Auth).
+      // Admin record (display only - login itself is via Firebase Auth).
       try {
         const fbAdmin = await syncAdminFromFirebase(db)
         if (fbAdmin) { setAdmin(fbAdmin); await persistAdmin(null, fbAdmin) }
@@ -215,7 +215,7 @@ export function DataProvider({ children }) {
   // Promote a student's account to "Active": they've taken ownership by setting
   // their own password. Self-registration writes this inline; this covers the
   // admin-provisioned temp-password path (first forced/voluntary change).
-  // Idempotent — no write if already active.
+  // Idempotent - no write if already active.
   const markAccountActive = useCallback(async (studentId) => {
     let changed = false
     const updated = students.map(s => {
@@ -256,7 +256,7 @@ export function DataProvider({ children }) {
   }, [students, saveStudents])
 
   // Bulk Verify + Activate: stamp registered accounts as verified AND active in
-  // one write — they keep their current (temp/default) password until they
+  // one write - they keep their current (temp/default) password until they
   // change it. Only touches registered accounts. Admin-only. Returns the count.
   const bulkVerifyActivate = useCallback(async (ids) => {
     const idSet = new Set(ids || [])
@@ -295,7 +295,7 @@ export function DataProvider({ children }) {
     }
     const sentIds = []
     for (const id of idList) {
-      try { if (await fbPushReminderNotif(db, id, rem)) sentIds.push(id) } catch (_) { /* best-effort — leave unstamped to retry */ }
+      try { if (await fbPushReminderNotif(db, id, rem)) sentIds.push(id) } catch (_) { /* best-effort - leave unstamped to retry */ }
     }
     if (sentIds.length) {
       const sent = new Set(sentIds)
@@ -309,7 +309,7 @@ export function DataProvider({ children }) {
 
   // Re-verify incomplete active accounts: demote each selected REGISTERED account
   // back to PENDING (account.verified = false) AND nudge it to finish the profile.
-  // The demotion is the primary action and always runs — the student sees the
+  // The demotion is the primary action and always runs - the student sees the
   // in-app pending gate explaining the paused access, so it is never truly silent.
   // The notification is best-effort: it is NOT gated on delivery (the per-day
   // dedup in fbPushReminderNotif would otherwise wrongly block the demotion when a
@@ -326,7 +326,7 @@ export function DataProvider({ children }) {
       remKey: `profile-verify-${dayKey}`,
       type: 'profile',
       title: 'Action needed: finish setting up your account',
-      body: 'Some details are incomplete, so full access is paused. Tap to update your profile — it can be restored automatically.',
+      body: 'Some details are incomplete, so full access is paused. Tap to update your profile - it can be restored automatically.',
       link: 'profile',
     }
     const targetIds = students.filter(s => idSet.has(s.id) && s.account?.registered).map(s => s.id)
@@ -337,12 +337,12 @@ export function DataProvider({ children }) {
           verification: { ...(s.account.verification || {}), method: 'teacher-recheck', reason: 'incomplete-profile', at: now } } }
       : s)
     await saveStudents(updated, targetIds)
-    // Best-effort notify — does not affect the demotion result.
+    // Best-effort notify - does not affect the demotion result.
     if (db) for (const id of targetIds) { try { await fbPushReminderNotif(db, id, rem) } catch (_) { /* in-app pending gate still informs them */ } }
     return targetIds.length
   }, [students, saveStudents])
 
-  // Append an entry to the admin audit log. Fire-and-forget — callers should
+  // Append an entry to the admin audit log. Fire-and-forget - callers should
   // not await this in a way that blocks the primary action.
   const logAudit = useCallback((entry) => {
     if (!dbRef.current) return
@@ -417,7 +417,7 @@ export function DataProvider({ children }) {
   // ── Full data backup / restore ─────────────────────────────────────────
   // Serializes the current in-memory data (students with Sets converted to
   // arrays) into a portable JSON object. Credentials and Firebase/EmailJS
-  // config are intentionally excluded — this is academic data, not secrets.
+  // config are intentionally excluded - this is academic data, not secrets.
   const buildBackup = useCallback(() => ({
     app: 'acadflow',
     version: 1,
@@ -681,7 +681,7 @@ export function DataProvider({ children }) {
     }
 
     // Delete related Firestore documents (activities, announcements, meetings, quizzes)
-    // Wrapped in try/catch — if Firestore security rules block the batch delete,
+    // Wrapped in try/catch - if Firestore security rules block the batch delete,
     // the class is still fully removed from the app; orphaned docs are harmless.
     try {
       await fbDeleteClassRelatedData(dbRef.current, cls.id)
@@ -730,7 +730,7 @@ export function DataProvider({ children }) {
     await fbDeleteResource(dbRef.current, id)
   }, [])
 
-  // ── Rubric library (reusable grading rubrics — singleton portal doc) ────
+  // ── Rubric library (reusable grading rubrics - singleton portal doc) ────
   // Read-modify-write the whole list; optimistic local update + Firebase sync.
   const saveRubricToLibrary = useCallback(async (entry) => {
     let next
@@ -752,7 +752,7 @@ export function DataProvider({ children }) {
   // A quiz score is denormalized onto each student (quizResults[subject][] for
   // display + gradeComponents[subject].quizScores[quizId] for the gradebook).
   // Deleting the quiz doc leaves those stale, so the student still sees the
-  // grade — clear them here. Recomputed term grades refresh next time the
+  // grade - clear them here. Recomputed term grades refresh next time the
   // teacher opens/saves the grade sheet.
   const purgeQuizFromStudents = useCallback(async (quiz) => {
     const quizId = quiz?.id
@@ -760,7 +760,7 @@ export function DataProvider({ children }) {
     const changed = []
     const updated = students.map(s => {
       let touched = false
-      // 1. quizResults — remove the entry for this quiz (search every subject).
+      // 1. quizResults - remove the entry for this quiz (search every subject).
       const qr = s.quizResults || {}
       const nextQr = {}
       for (const sub of Object.keys(qr)) {
@@ -772,7 +772,7 @@ export function DataProvider({ children }) {
           nextQr[sub] = list
         }
       }
-      // 2. gradeComponents[subject].quizScores[quizId] — drop the keyed score.
+      // 2. gradeComponents[subject].quizScores[quizId] - drop the keyed score.
       let nextGc = s.gradeComponents
       const sub = quiz.subject
       if (sub && s.gradeComponents?.[sub]?.quizScores && quizId in s.gradeComponents[sub].quizScores) {
@@ -871,7 +871,7 @@ export function DataProvider({ children }) {
   // Returns the live meeting (with its Meet link) for the caller to open.
   const startInstantMeeting = useCallback(async (meetingData) => {
     // Never spin up a second live session for a class+subject that is already
-    // live — reuse the existing one. This stops the duplicate-session bug at the
+    // live - reuse the existing one. This stops the duplicate-session bug at the
     // source (the UI already hides "Go Live" when one is live, but a stale render
     // could slip a second click through).
     const already = meetings.find(m => m.status === 'live'
@@ -994,7 +994,7 @@ export function DataProvider({ children }) {
     // gradeComponents are deliberately LEFT UNTOUCHED: the Firestore rule
     // (gradeFieldsUntouched) rejects any student-side write whose diff touches
     // `grades`/`gradeComponents`, so a self-enroll that seeded null grade slots
-    // was rejected — and used to fail silently (the student looked enrolled
+    // was rejected - and used to fail silently (the student looked enrolled
     // locally but wasn't saved). Grade slots are created lazily on read and by
     // the teacher's gradebook, so they aren't needed here.
     const attendance = { ...student.attendance }
@@ -1014,7 +1014,7 @@ export function DataProvider({ children }) {
     }
     const updatedStudents = students.map(s => s.id === studentId ? updatedStudent : s)
     // Optimistic update, then a STRICT write. If the write fails we must roll
-    // back — otherwise the student looks enrolled locally but isn't in Firestore,
+    // back - otherwise the student looks enrolled locally but isn't in Firestore,
     // and the next reload silently "un-enrolls" them.
     setStudents(updatedStudents)
     try {
@@ -1062,7 +1062,7 @@ export function DataProvider({ children }) {
       console.warn('[DataContext] Failed to cache EJS locally:', e.message)
     }
 
-    // 2. Sync to Firebase in background — non-blocking
+    // 2. Sync to Firebase in background - non-blocking
     saveEjsToFirebase(dbRef.current, ejsConfig)
       .catch(e => console.warn('[DataContext] saveEjs Firebase sync failed:', e.message))
   }, [])
@@ -1137,7 +1137,7 @@ export function DataProvider({ children }) {
     fbNotifyAdmin(dbRef.current, {
       type: 'screenshot',
       title: 'Possible screenshot in Messages',
-      body: `${student?.name || student?.id || 'A student'} may have captured a conversation${threadLabel ? ` — ${threadLabel}` : ''}.`,
+      body: `${student?.name || student?.id || 'A student'} may have captured a conversation${threadLabel ? ` - ${threadLabel}` : ''}.`,
       link: 'messages',
     })
   }, [])
@@ -1150,7 +1150,7 @@ export function DataProvider({ children }) {
     // Notify the teacher (in-app admin notification).
     fbNotifyAdmin(dbRef.current, {
       title: 'New excuse request',
-      body: `${student.name || student.id} — ${subject} (${date})`,
+      body: `${student.name || student.id} - ${subject} (${date})`,
     })
     return res
   }, [])

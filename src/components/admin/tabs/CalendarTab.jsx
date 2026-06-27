@@ -242,7 +242,7 @@ export default function CalendarTab() {
             >
               <option value="all">All Classes</option>
               {activeClasses.map(c => (
-                <option key={c.id} value={c.id}>{c.name}{c.section ? ` — ${c.section}` : ''}</option>
+                <option key={c.id} value={c.id}>{c.name}{c.section ? ` - ${c.section}` : ''}</option>
               ))}
             </select>
           </div>

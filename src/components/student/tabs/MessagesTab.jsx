@@ -23,12 +23,12 @@ import { MessageSquare, GraduationCap, CheckCheck, Trash2, Check, Lock, Send, Ch
 
 const PER_PAGE = 10
 
-// A class/section or subject group chat — teacher-owned, students may not delete it.
+// A class/section or subject group chat - teacher-owned, students may not delete it.
 function isGroupChat(m) {
   return m?.type === 'announcement' && (!!m.classId || (Array.isArray(m.classIds) && m.classIds.length > 0))
 }
 
-// Student-side "delete" hides items from this device's inbox only — it must NOT
+// Student-side "delete" hides items from this device's inbox only - it must NOT
 // delete the shared Firestore docs (announcements/direct threads belong to the
 // teacher too). Stored per student: { announce: [msgId…], directUpTo: ts }.
 // The direct conversation is hidden only up to a timestamp, so any newer message
@@ -97,7 +97,7 @@ export default function MessagesTab({ student: s, messages }) {
   // Screenshot log (Instagram / Messenger style): when a capture is detected
   // while a thread is open, drop a "… took a screenshot" notice into the
   // conversation so BOTH the student and the teacher see it, and alert the
-  // teacher's feed. Detection is best-effort — see useScreenshotGuard for why
+  // teacher's feed. Detection is best-effort - see useScreenshotGuard for why
   // browsers (especially iOS Safari) can't catch every screenshot.
   useScreenshotGuard({
     enabled: view === 'thread',
@@ -221,7 +221,7 @@ export default function MessagesTab({ student: s, messages }) {
     setEndedNotice('')
     const directMsgs = allMsgs.filter(m => m.type !== 'announcement').sort((a, b) => a.ts - b.ts)
     if (!directMsgs.length) {
-      // New conversation — open thread with empty, allow compose
+      // New conversation - open thread with empty, allow compose
       setThreadTitle('Teacher')
       setThreadEntries([])
       setReplyMsgId(null)
@@ -230,7 +230,7 @@ export default function MessagesTab({ student: s, messages }) {
       setView('thread')
       return
     }
-    // Mark the whole conversation read — including the student's own messages
+    // Mark the whole conversation read - including the student's own messages
     // that received a teacher reply, otherwise their readAt never updates and
     // the unread badge stays lit after reading.
     const teacherMsgIds = directMsgs.map(m => m.id)
@@ -263,7 +263,7 @@ export default function MessagesTab({ student: s, messages }) {
     setThreadEntries(allEntries)
     const active = groupChatActive(m)
     setCanReply(active)
-    setEndedNotice(active ? '' : 'This class has ended — you can no longer send messages to this group chat.')
+    setEndedNotice(active ? '' : 'This class has ended - you can no longer send messages to this group chat.')
     setActiveKey(msgId)
     setView('thread')
   }
@@ -283,10 +283,10 @@ export default function MessagesTab({ student: s, messages }) {
     if (replyMsgId) {
       const target = messages.find(x => x.id === replyMsgId)
       if (target && !groupChatActive(target)) {
-        toast('This class has ended — you can no longer message this group chat.', 'warn'); return
+        toast('This class has ended - you can no longer message this group chat.', 'warn'); return
       }
     }
-    if (text.length > 2000) { toast('Reply too long — maximum 2000 characters.', 'warn'); return }
+    if (text.length > 2000) { toast('Reply too long - maximum 2000 characters.', 'warn'); return }
     if (!fbReady || !db.current) { toast('Messages require Firebase to be connected.', 'warn'); return }
     const secure = secureOn
     const quote = replyingTo
@@ -299,7 +299,7 @@ export default function MessagesTab({ student: s, messages }) {
       if (targetMsgId) {
         const newReply = { from: s.id, body: text, ts: Date.now(), ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}) }
         setThreadEntries(prev => [...prev, { ...newReply, isMain: false }])
-        // Atomic append — won't clobber a teacher reply sent at the same time.
+        // Atomic append - won't clobber a teacher reply sent at the same time.
         await fbAddMessageReply(db.current, targetMsgId, newReply, { readerId: s.id, adminRead: false })
         // Notify teacher: in-app badge + best-effort web push.
         notifyAdminMessage(db.current, s.name || s.id, text, 'reply', { secure })
@@ -337,14 +337,14 @@ export default function MessagesTab({ student: s, messages }) {
     const now = Date.now()
     if (now - lastShotRef.current < 2500) return // collapse bursts
     lastShotRef.current = now
-    toast('Screenshot detected — your teacher has been notified.', 'warn')
+    toast('Screenshot detected - your teacher has been notified.', 'warn')
     reportScreenshot?.(s, threadTitle)
     if (!fbReady || !db.current || !replyMsgId) return
     const sysEntry = { from: s.id, kind: 'screenshot', body: '', ts: now }
     setThreadEntries(prev => [...prev, { ...sysEntry, isMain: false }])
     try {
       await fbAddMessageReply(db.current, replyMsgId, sysEntry, { readerId: s.id, adminRead: false })
-    } catch (e) { /* best-effort — the teacher was still notified above */ }
+    } catch (e) { /* best-effort - the teacher was still notified above */ }
   }
 
   // Live typing presence for the open thread (group_ for a group chat, else direct_).
@@ -599,7 +599,7 @@ export default function MessagesTab({ student: s, messages }) {
                   )}
                   {secureOn && (
                     <div className="msg-lock-hint">
-                      <Lock size={12} /> {draftFlag.sensitive ? `Private — ${sensitivityLabel(draftFlag.reasons)}. Sent blurred.` : 'Private — sent blurred until tapped.'}
+                      <Lock size={12} /> {draftFlag.sensitive ? `Private - ${sensitivityLabel(draftFlag.reasons)}. Sent blurred.` : 'Private - sent blurred until tapped.'}
                     </div>
                   )}
                   <div className="msg-reply-bar">
@@ -607,7 +607,7 @@ export default function MessagesTab({ student: s, messages }) {
                       type="button"
                       className={`msg-lock-btn${secureOn ? ' on' : ''}`}
                       onClick={() => { setSecureTouched(true); setSecureOn(v => !v) }}
-                      title={secureOn ? 'Private message — tap to turn off' : 'Send as private (blurred until tapped)'}
+                      title={secureOn ? 'Private message - tap to turn off' : 'Send as private (blurred until tapped)'}
                       aria-pressed={secureOn}
                       aria-label="Send as private message"
                     >

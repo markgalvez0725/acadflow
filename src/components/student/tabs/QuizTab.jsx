@@ -39,7 +39,7 @@ function exitFullscreen() {
 }
 
 
-// Fisher–Yates shuffle of [0..n-1] — the display order of questions.
+// Fisher-Yates shuffle of [0..n-1] - the display order of questions.
 function shuffleIndices(n) {
   const a = Array.from({ length: n }, (_, i) => i)
   for (let i = a.length - 1; i > 0; i--) {
@@ -53,7 +53,7 @@ function shuffleIndices(n) {
 // Wall-clock based: time remaining is derived from a fixed deadline timestamp,
 // not a per-second decrement. This keeps the timer accurate even when the tab
 // is backgrounded or the phone is asleep (where setTimeout/Interval is paused)
-// — on return it recomputes from the real clock and resyncs immediately.
+// - on return it recomputes from the real clock and resyncs immediately.
 function useCountdown(deadlineMs) {
   const calc = () => Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000))
   const [remaining, setRemaining] = useState(calc)
@@ -127,7 +127,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
   }, [])
 
   // Anti-cheat: questions are shown in a shuffled order, and leaving the quiz
-  // (switching tabs / apps) clears answers and reshuffles — see the effect below.
+  // (switching tabs / apps) clears answers and reshuffles - see the effect below.
   const [order, setOrder] = useState(() => shuffleIndices(quiz.questions.length))
   const [leftCount, setLeftCount] = useState(0)
   const leftCountRef = useRef(0)     // synchronous mirror of leftCount
@@ -168,7 +168,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
   useEffect(() => {
     if (!ruleNotedRef.current) {
       ruleNotedRef.current = true
-      toast('Stay on this screen — your first slip is a warning, then leaving resets your answers and reshuffles the questions.', 'warn')
+      toast('Stay on this screen - your first slip is a warning, then leaving resets your answers and reshuffles the questions.', 'warn')
     }
   }, [toast])
 
@@ -190,8 +190,8 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
       leftCountRef.current = n
       setLeftCount(n)
       if (n === 1) {
-        // First slip — warn only, no penalty.
-        toast('Heads up — if you leave the quiz again, your answers reset and the questions reshuffle.', 'warn', 5000)
+        // First slip - warn only, no penalty.
+        toast('Heads up - if you leave the quiz again, your answers reset and the questions reshuffle.', 'warn', 5000)
         return
       }
       setAnswers(Array(quiz.questions.length).fill(''))
@@ -199,7 +199,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
       setCurrentQ(0)
       setMaxReached(0)
       try { localStorage.removeItem(draftKey) } catch (e) { /* ignore */ }
-      toast('You left the quiz — answers cleared and questions reshuffled.', 'error', 5000)
+      toast('You left the quiz - answers cleared and questions reshuffled.', 'error', 5000)
     }
     const back = () => { away = false }
     // visibilitychange: the reliable signal for tab switch, minimize, and mobile
@@ -235,7 +235,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
     try {
       if (!fbReady || !db.current) throw new Error('Firebase not ready')
 
-      // 1. Write submission to quiz doc — includes anti-cheat signals (timeTaken
+      // 1. Write submission to quiz doc - includes anti-cheat signals (timeTaken
       //    and leftCount) so the teacher can flag suspicious attempts.
       const subPath = `submissions.${student.id}`
       await updateDoc(doc(db.current, 'quizzes', quiz.id), {
@@ -345,7 +345,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
         </div>
       </div>
 
-      {/* Anti-cheat notice — neutral → amber warning (1st) → red (reset) */}
+      {/* Anti-cheat notice - neutral → amber warning (1st) → red (reset) */}
       <div style={{
         display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 14,
         padding: '8px 12px', borderRadius: 8, fontSize: 12, lineHeight: 1.45,
@@ -356,10 +356,10 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
         <ShieldAlert size={15} style={{ flexShrink: 0, marginTop: 1 }} />
         <span>
           {leftCount >= 2
-            ? <>You’ve left {leftCount} times — your answers were cleared and the questions reshuffled. Stay on this screen until you submit.</>
+            ? <>You’ve left {leftCount} times - your answers were cleared and the questions reshuffled. Stay on this screen until you submit.</>
             : leftCount === 1
               ? <><strong>Warning:</strong> you left the quiz. If you leave again, your answers reset and the questions reshuffle.</>
-              : <>Stay on this screen until you submit. Your first slip is just a warning — after that, leaving clears your answers and reshuffles the questions.</>}
+              : <>Stay on this screen until you submit. Your first slip is just a warning - after that, leaving clears your answers and reshuffles the questions.</>}
         </span>
       </div>
 
@@ -531,7 +531,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
 // ── Review Modal (post-submission) ────────────────────────────────────────────
 function ReviewRow({ q, index, isCorrect, partial, studentAns }) {
   // Explanations are authored once when the quiz is generated (see the quiz
-  // generator / Gemini endpoint) and stored on the question — so reviewing
+  // generator / Gemini endpoint) and stored on the question - so reviewing
   // never triggers a per-student AI request.
   const exp = q.explanation ? String(q.explanation) : ''
 
@@ -549,7 +549,7 @@ function ReviewRow({ q, index, isCorrect, partial, studentAns }) {
       <p style={{ fontSize: 13, color: 'var(--ink)', marginBottom: 6 }}>{q.question}</p>
       <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
         Your answer: <span style={{ fontWeight: 600, color: isCorrect ? 'var(--green)' : 'var(--red)' }}>
-          {studentAns || '—'}
+          {studentAns || '-'}
         </span>
       </div>
       {!isCorrect && (
@@ -575,7 +575,7 @@ function QuizReviewModal({ quiz, submission, onClose }) {
   const score = submission.score ?? graded.score
   return (
     <Modal onClose={onClose} size="lg">
-      <h3 className="text-base font-bold text-ink mb-1"><ClipboardList size={18} /> {quiz.title} — Review</h3>
+      <h3 className="text-base font-bold text-ink mb-1"><ClipboardList size={18} /> {quiz.title} - Review</h3>
       <p className="text-xs text-ink2 mb-4">
         Score: <strong>{score}/{total}</strong> · {total > 0 ? ((score / total) * 100).toFixed(1) : '0'}%
       </p>
@@ -628,7 +628,7 @@ export default function StudentQuizTab({ student, viewClassId }) {
 
   const [filter, setFilter] = useState('all')
 
-  // Per-quiz standing — computed once, reused by the ring, Quiz Watch, the pill
+  // Per-quiz standing - computed once, reused by the ring, Quiz Watch, the pill
   // counts, and each card, so nothing on screen can disagree.
   const decorated = useMemo(() => myQuizzes.map(q => {
     const sub = q.submissions?.[student.id]
@@ -658,7 +658,7 @@ export default function StudentQuizTab({ student, viewClassId }) {
     return { rate, color, taken: done.length }
   }, [decorated])
 
-  // Deterministic "Quiz Watch" findings — closing-soon, missed, review-worthy,
+  // Deterministic "Quiz Watch" findings - closing-soon, missed, review-worthy,
   // strongest subject. No AI, no network; recomputed from `decorated`.
   const watch = useMemo(() => {
     const f = []
@@ -667,21 +667,21 @@ export default function StudentQuizTab({ student, viewClassId }) {
     const missed    = decorated.filter(d => d.group === 'missed')
     const completed = decorated.filter(d => d.group === 'completed')
     const upcoming  = decorated.filter(d => d.group === 'upcoming').sort((a, b) => a.q.openAt - b.q.openAt)
-    if (soon.length) { const d = soon[0]; f.push({ tone: 'bad', Icon: Clock, lead: `Closes ${closeIn(d.q.closeAt - now)}`, text: ` — ${d.q.title} (${d.q.subject}), not taken yet.` }) }
-    else if (open.length) f.push({ tone: 'info', Icon: Pencil, lead: `${open.length} open now`, text: ' — ready when you are.' })
-    if (missed.length) f.push({ tone: 'bad', Icon: XCircle, lead: `${missed.length} missed`, text: ' — closed without an attempt.' })
+    if (soon.length) { const d = soon[0]; f.push({ tone: 'bad', Icon: Clock, lead: `Closes ${closeIn(d.q.closeAt - now)}`, text: ` - ${d.q.title} (${d.q.subject}), not taken yet.` }) }
+    else if (open.length) f.push({ tone: 'info', Icon: Pencil, lead: `${open.length} open now`, text: ' - ready when you are.' })
+    if (missed.length) f.push({ tone: 'bad', Icon: XCircle, lead: `${missed.length} missed`, text: ' - closed without an attempt.' })
     const lows = completed.filter(d => d.scorePct != null && d.scorePct < 75).sort((a, b) => a.scorePct - b.scorePct)
-    if (lows.length) { const d = lows[0]; f.push({ tone: 'warn', Icon: RefreshCw, lead: 'Worth a review', text: ` — ${d.q.title} (${d.q.subject}) at ${d.scorePct}%.` }) }
+    if (lows.length) { const d = lows[0]; f.push({ tone: 'warn', Icon: RefreshCw, lead: 'Worth a review', text: ` - ${d.q.title} (${d.q.subject}) at ${d.scorePct}%.` }) }
     if (completed.length) {
       const bySub = {}
       completed.forEach(d => { const sj = d.q.subject || 'General'; (bySub[sj] ||= []).push(d.scorePct) })
       let best = null
       Object.entries(bySub).forEach(([sj, arr]) => { const avg = Math.round(arr.reduce((x, y) => x + y, 0) / arr.length); if (!best || avg > best.avg) best = { sj, avg } })
-      if (best && !lows.length) f.push({ tone: best.avg >= 75 ? 'good' : 'warn', Icon: Trophy, lead: best.avg >= 75 ? 'Strongest' : `Avg ${ring.rate}%`, text: best.avg >= 75 ? ` — ${best.sj}, averaging ${best.avg}%.` : ` across ${completed.length} quiz${completed.length > 1 ? 'zes' : ''}.` })
+      if (best && !lows.length) f.push({ tone: best.avg >= 75 ? 'good' : 'warn', Icon: Trophy, lead: best.avg >= 75 ? 'Strongest' : `Avg ${ring.rate}%`, text: best.avg >= 75 ? ` - ${best.sj}, averaging ${best.avg}%.` : ` across ${completed.length} quiz${completed.length > 1 ? 'zes' : ''}.` })
     }
-    if (upcoming.length && upcoming[0].q.openAt - now <= 48 * HOUR) f.push({ tone: 'info', Icon: CalendarClock, lead: 'Opens soon', text: ` — ${upcoming[0].q.title}.` })
-    if (!f.length) f.push({ tone: 'good', Icon: CheckCircle2, lead: 'All clear', text: ' — nothing pending right now.' })
-    const lead = soon.length ? `${soon.length} quiz${soon.length > 1 ? 'zes' : ''} closing soon — don't miss them.`
+    if (upcoming.length && upcoming[0].q.openAt - now <= 48 * HOUR) f.push({ tone: 'info', Icon: CalendarClock, lead: 'Opens soon', text: ` - ${upcoming[0].q.title}.` })
+    if (!f.length) f.push({ tone: 'good', Icon: CheckCircle2, lead: 'All clear', text: ' - nothing pending right now.' })
+    const lead = soon.length ? `${soon.length} quiz${soon.length > 1 ? 'zes' : ''} closing soon - don't miss them.`
       : open.length ? `${open.length} quiz${open.length > 1 ? 'zes' : ''} open now.`
       : completed.length ? `You're averaging ${ring.rate}% across ${completed.length}.`
       : 'No quizzes pending right now.'
@@ -696,7 +696,7 @@ export default function StudentQuizTab({ student, viewClassId }) {
   function startQuiz(q) { enterFullscreen(); setTakingQuiz(q) }
   function handleSubmitted() { /* list refreshes via Firestore listener */ }
 
-  // Wait for the first Firestore snapshot before deciding the list is empty —
+  // Wait for the first Firestore snapshot before deciding the list is empty -
   // otherwise students briefly see "No quizzes assigned yet" during load.
   if (!fbReady) return <SkeletonRows />
 

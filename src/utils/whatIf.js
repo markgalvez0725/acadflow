@@ -3,7 +3,7 @@
 // final grade is the mean of the two terms (computeFinalGradeFromTerms), and
 // the remark (Passed / Conditional / Failed) comes from combineEquiv on the two
 // term equivalents. Rather than re-derive the school's pass rule, we scan finals
-// values and ask combineEquiv — so this always matches the live grade display.
+// values and ask combineEquiv - so this always matches the live grade display.
 import { gradeInfo, combineEquiv } from '@/utils/grades'
 
 // Smallest finals TERM grade that pushes the combined remark to each target.

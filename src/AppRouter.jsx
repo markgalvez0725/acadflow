@@ -3,7 +3,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 
-// Screens — imported lazily to keep initial bundle small
+// Screens - imported lazily to keep initial bundle small
 const LoginScreen      = React.lazy(() => import('@/components/auth/LoginScreen'))
 const AdminLoginScreen = React.lazy(() => import('@/components/auth/AdminLoginScreen'))
 const AdminLayout      = React.lazy(() => import('@/components/admin/AdminLayout'))
@@ -36,9 +36,9 @@ export default function AppRouter() {
       {sessionRole === 'admin'   && <AdminLayout />}
       {sessionRole === 'student' && <StudentLayout />}
       {!sessionRole && (isAdminPath ? <AdminLoginScreen /> : <LoginScreen onRevealFaculty={() => setFacultyReveal(true)} />)}
-      {/* Global Ctrl/⌘-K command palette — only when authenticated */}
+      {/* Global Ctrl/⌘-K command palette - only when authenticated */}
       {sessionRole && <CommandPalette />}
-      {/* Quick-unlock lock screen — covers the app when the session is idle-locked */}
+      {/* Quick-unlock lock screen - covers the app when the session is idle-locked */}
       {sessionRole && pinLocked && <QuickUnlock />}
     </React.Suspense>
   )

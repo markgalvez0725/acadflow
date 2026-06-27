@@ -30,7 +30,7 @@ export function humanLeft(ms) {
 
 // Unsubmitted, enrolled work that carries a due timestamp. Returns a normalized
 // shape ({ kind, id, key, title, subject, when, tab }) the digest and the
-// reminder engine share. Includes overdue items — callers filter as needed.
+// reminder engine share. Includes overdue items - callers filter as needed.
 export function pendingItems({ student, classes, activities = [], quizzes = [], semester, now = Date.now() }) {
   if (!student) return []
   const ids = activeClassIds(student, classes, semester)

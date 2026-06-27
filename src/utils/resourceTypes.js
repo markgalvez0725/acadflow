@@ -1,4 +1,4 @@
-// Resource Hub type config — shared by the admin and student Resource tabs so
+// Resource Hub type config - shared by the admin and student Resource tabs so
 // the icon/label for each material type stays consistent across both sides.
 import { BookOpen, Presentation, Video, FileText, Link2 } from 'lucide-react'
 

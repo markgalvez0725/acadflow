@@ -38,7 +38,7 @@ export function genSessionCode(len = 6) {
 }
 
 export function todayKey() {
-  // Local calendar date (YYYY-MM-DD), not UTC — a school in UTC+8 must stamp the
+  // Local calendar date (YYYY-MM-DD), not UTC - a school in UTC+8 must stamp the
   // session under the day the teacher/student actually sees, or early-morning
   // sessions land on the previous date. en-CA yields ISO-style YYYY-MM-DD.
   return new Date().toLocaleDateString('en-CA')

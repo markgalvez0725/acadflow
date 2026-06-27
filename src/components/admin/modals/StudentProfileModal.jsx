@@ -23,7 +23,7 @@ function SubjectBlock({ sub, student, classes, eqScale, activities, quizzes, enr
   const fin = comp.finals ?? null
   const finalPct = computeFinalGradeFromTerms(mid, fin) ?? student.grades?.[sub] ?? null
 
-  let equiv = '—', remark = null, remarkCls = 'badge-gray'
+  let equiv = '-', remark = null, remarkCls = 'badge-gray'
   if (mid != null && fin != null) {
     const combined = combineEquiv(gradeInfo(mid, eqScale).eq, gradeInfo(fin, eqScale).eq)
     equiv = combined.eq
@@ -40,15 +40,15 @@ function SubjectBlock({ sub, student, classes, eqScale, activities, quizzes, enr
       <button onClick={() => setOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink)', textAlign: 'left' }}>
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: col, flexShrink: 0 }} />
         <span style={{ flex: 1, fontWeight: 600, fontSize: 14, minWidth: 0 }}>{sub}</span>
-        <span style={{ fontWeight: 800, fontSize: 18, color: pctColor(finalPct) }}>{finalPct != null ? Math.round(finalPct) : '—'}</span>
+        <span style={{ fontWeight: 800, fontSize: 18, color: pctColor(finalPct) }}>{finalPct != null ? Math.round(finalPct) : '-'}</span>
         {remark ? <span className={`badge ${remarkCls}`}>{remark}</span> : <span className="badge badge-gray" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={11} />Pending</span>}
         {open ? <ChevronDown size={16} style={{ color: 'var(--ink3)' }} /> : <ChevronRight size={16} style={{ color: 'var(--ink3)' }} />}
       </button>
       {open && (
         <div style={{ borderTop: '1px solid var(--border)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-            <div><div style={{ fontSize: 11, color: 'var(--ink2)' }}>Midterm</div><div style={{ fontWeight: 700 }}>{mid != null ? `${mid.toFixed(1)}%` : '—'}</div></div>
-            <div><div style={{ fontSize: 11, color: 'var(--ink2)' }}>Finals</div><div style={{ fontWeight: 700 }}>{fin != null ? `${fin.toFixed(1)}%` : '—'}</div></div>
+            <div><div style={{ fontSize: 11, color: 'var(--ink2)' }}>Midterm</div><div style={{ fontWeight: 700 }}>{mid != null ? `${mid.toFixed(1)}%` : '-'}</div></div>
+            <div><div style={{ fontSize: 11, color: 'var(--ink2)' }}>Finals</div><div style={{ fontWeight: 700 }}>{fin != null ? `${fin.toFixed(1)}%` : '-'}</div></div>
             <div><div style={{ fontSize: 11, color: 'var(--ink2)' }}>Equivalent</div><div style={{ fontWeight: 700 }}>{equiv}</div></div>
           </div>
 
@@ -127,7 +127,7 @@ export default function StudentProfileModal() {
             <VerifiedBadge student={student} size={17} />
           </h3>
           <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
-            #{student.id} · {student.course || '—'} · {student.year || '—'}
+            #{student.id} · {student.course || '-'} · {student.year || '-'}
           </div>
           <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 2 }}>
             {enrolledClasses.map(c => `${c.name} ${c.section}`).join(' · ') || 'Unassigned'} · Account: {acct}
@@ -138,8 +138,8 @@ export default function StudentProfileModal() {
       {/* Stat row */}
       <div className="stat-grid mb-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
         {[
-          { Icon: BarChart3, label: 'GWA', value: gwa != null ? gwa.toFixed(1) : '—', color: pctColor(gwa) },
-          { Icon: CalendarCheck, label: 'Attendance', value: attRate != null ? `${attRate.toFixed(0)}%` : '—', color: attRate == null ? 'var(--ink3)' : attRate >= 90 ? 'var(--green)' : attRate >= 80 ? 'var(--yellow)' : 'var(--red)' },
+          { Icon: BarChart3, label: 'GWA', value: gwa != null ? gwa.toFixed(1) : '-', color: pctColor(gwa) },
+          { Icon: CalendarCheck, label: 'Attendance', value: attRate != null ? `${attRate.toFixed(0)}%` : '-', color: attRate == null ? 'var(--ink3)' : attRate >= 90 ? 'var(--green)' : attRate >= 80 ? 'var(--yellow)' : 'var(--red)' },
           { Icon: BookOpen, label: 'Subjects', value: subjects.length, color: 'var(--ink)' },
           { Icon: ClipboardList, label: 'Pending', value: pendingCount, color: pendingCount ? 'var(--yellow)' : 'var(--green)' },
         ].map(s => (

@@ -11,11 +11,11 @@ export default function GradesTab({ student: s, viewClassId, classes }) {
   const { activities, quizzes, students, eqScale, semester, gradeFloor } = useData()
   const [regradeOpen, setRegradeOpen] = useState(false)
 
-  // Current, non-archived classes only — archived/ended/removed subjects drop off.
+  // Current, non-archived classes only - archived/ended/removed subjects drop off.
   const enrolledIds = activeClassIds(s, classes, semester)
   const subs = activeSubjects(s, classes, semester)
 
-  // GWA equivalency banner: average of uploaded subject equivalencies (true 1.00–5.00 scale)
+  // GWA equivalency banner: average of uploaded subject equivalencies (true 1.00-5.00 scale)
   const gwaData = useMemo(() => {
     const equivNums = subs
       .map(sub => {
@@ -125,7 +125,7 @@ function WhatIfPanel({ midTerm, eqScale }) {
       </div>
       <div style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.7 }}>
         {passNeed == null
-          ? <div>A passing grade isn't reachable from your midterm alone — talk to your teacher about your options.</div>
+          ? <div>A passing grade isn't reachable from your midterm alone - talk to your teacher about your options.</div>
           : passNeed <= 0
             ? <div style={{ color: 'var(--green)' }}>You've already secured a passing final grade.</div>
             : <div>Score at least <strong style={{ color: 'var(--green)' }}>{fmtNeed(passNeed)}%</strong> on your Finals term to <strong>pass</strong>.</div>}
@@ -137,7 +137,7 @@ function WhatIfPanel({ midTerm, eqScale }) {
         <span style={{ fontSize: 12, color: 'var(--ink2)' }}>Try a finals score:</span>
         <input
           className="input" type="number" min="0" max="100" value={val}
-          onChange={e => setVal(e.target.value)} placeholder="0–100"
+          onChange={e => setVal(e.target.value)} placeholder="0-100"
           style={{ width: 90, fontSize: 13 }}
         />
         {proj && (
@@ -200,16 +200,16 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
   const rem = gradeFullyUploaded ? gr.equiv.rem : 'Pending'
   const remarksColor = rem === 'Passed' ? 'badge-green' : rem === 'Conditional' ? 'badge-yellow' : rem === 'Failed' ? 'badge-red' : 'badge-gray'
 
-  // Class-standing components — all straight from the engine.
+  // Class-standing components - all straight from the engine.
   const actVal      = gr.components.activities
   const quizzesAvg  = gr.components.quizzes
   const attRate     = gr.components.attendance
   const attitudeVal = gr.components.attitude
   const cs          = gr.cs
-  const midEq = gr.equiv.midEq === '—' ? null : gr.equiv.midEq
-  const finEq = gr.equiv.finEq === '—' ? null : gr.equiv.finEq
+  const midEq = gr.equiv.midEq === '-' ? null : gr.equiv.midEq
+  const finEq = gr.equiv.finEq === '-' ? null : gr.equiv.finEq
 
-  // Per-activity / per-quiz detail rows — sourced from the same engine
+  // Per-activity / per-quiz detail rows - sourced from the same engine
   // derivation as the averages above, so rows and averages can never disagree.
   const displayActs = gr.detail.activityItems.map(i => ({ title: i.title, score: i.score, max: i.max, pct: i.pct, missing: i.missing }))
   const qzEntries   = gr.detail.quizItems.map((q, i) => [`q${i + 1}`, q.pct, q.title || null, q.missing])
@@ -230,7 +230,7 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
         <div className="sg-card-grade">
           {rem === 'Pending'
             ? <>
-                <div className="sg-grade-num" style={{ color: 'var(--ink3)' }}>—</div>
+                <div className="sg-grade-num" style={{ color: 'var(--ink3)' }}>-</div>
                 <div className="sg-grade-badges">
                   <span className="badge badge-gray" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                     <Clock size={11} />Pending
@@ -244,7 +244,7 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
               </>
             : <>
                 <div className="sg-grade-num" style={{ color: gradeColor }} title={g != null ? `${g}%` : ''}>
-                  {eq !== '—' ? eq : '—'}
+                  {eq !== '-' ? eq : '-'}
                 </div>
                 {g != null && <div className="sg-grade-pct">{g}%</div>}
                 <div className="sg-grade-badges">
@@ -265,7 +265,7 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
                   <div className="sg-term-val" style={{ color: midG >= 75 ? 'var(--green)' : midG >= 60 ? 'var(--yellow)' : 'var(--red)' }}>{midG}%</div>
                   <div className="sg-term-eq">{midEq}</div>
                 </>
-              : <div className="sg-term-val" style={{ color: 'var(--ink3)' }}>—</div>
+              : <div className="sg-term-val" style={{ color: 'var(--ink3)' }}>-</div>
             }
           </div>
           <div className="sg-term-divider" />
@@ -276,18 +276,18 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
                   <div className="sg-term-val" style={{ color: finG >= 75 ? 'var(--green)' : finG >= 60 ? 'var(--yellow)' : 'var(--red)' }}>{finG}%</div>
                   <div className="sg-term-eq">{finEq}</div>
                 </>
-              : <div className="sg-term-val" style={{ color: 'var(--ink3)' }}>—</div>
+              : <div className="sg-term-val" style={{ color: 'var(--ink3)' }}>-</div>
             }
           </div>
           <div className="sg-term-divider" />
           <div className="sg-term-item">
             <div className="sg-term-label">Final Grade</div>
-            {eq !== '—'
+            {eq !== '-'
               ? <>
                   <div className="sg-term-val sg-term-val--final" style={{ color: gradeColor }}>{eq}</div>
                   <div className="sg-term-eq">{g != null ? `${g}%` : ''}</div>
                 </>
-              : <div className="sg-term-val" style={{ color: 'var(--ink3)' }}>—</div>
+              : <div className="sg-term-val" style={{ color: 'var(--ink3)' }}>-</div>
             }
           </div>
         </div>
@@ -323,7 +323,7 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
 
           {showTrail && (
             <div className="sg-trail-body">
-              {/* Plain-language explanation — generated from the engine's exact
+              {/* Plain-language explanation - generated from the engine's exact
                   numbers, so it can never disagree with the figures below. */}
               {explanation && (
                 <p style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--ink2)', background: 'var(--bg2)', borderRadius: 12, padding: '10px 12px', margin: '0 0 12px' }}>
@@ -339,8 +339,8 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
                 }}>
                   {audit.drift ? <RefreshCw size={14} /> : <Check size={14} />}
                   {audit.drift
-                    ? 'Some items changed after this grade was posted — your teacher will re-sync it.'
-                    : 'Verified — this grade matches your current activities, quizzes, and attendance.'}
+                    ? 'Some items changed after this grade was posted - your teacher will re-sync it.'
+                    : 'Verified - this grade matches your current activities, quizzes, and attendance.'}
                 </div>
               )}
               {/* Step 1: Class Standing */}
@@ -386,7 +386,7 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
               )}
 
               {/* Step 4: Final Grade */}
-              {midG != null && finG != null && eq !== '—' && (
+              {midG != null && finG != null && eq !== '-' && (
                 <div className="sg-trail-step">
                   <div className="sg-trail-step-title">④ Final Grade (School Equivalency Table)</div>
                   <TrailRow label={`Midterm equiv`} value={String(midEq)} />
@@ -413,7 +413,7 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
             const rawPct = a.score != null && a.max ? (a.score / a.max) * 100 : null
             const floored = !a.missing && rawPct != null && Math.abs(a.pct - rawPct) > 0.01
             const label = a.title
-              ? `Activity ${i + 1} — ${a.title.slice(0, 35)}${a.title.length > 35 ? '…' : ''}`
+              ? `Activity ${i + 1} - ${a.title.slice(0, 35)}${a.title.length > 35 ? '…' : ''}`
               : `Activity ${i + 1}`
             return (
               <div key={i} className="sg-score-row">
@@ -454,12 +454,12 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
             const num = parseInt(k.slice(1))
             const col = v == null ? 'var(--ink3)' : v >= 75 ? 'var(--green)' : v >= 60 ? 'var(--yellow)' : 'var(--red)'
             const label = title
-              ? `Quiz ${isNaN(num) ? k : num} — ${title.slice(0, 30)}${title.length > 30 ? '…' : ''}`
+              ? `Quiz ${isNaN(num) ? k : num} - ${title.slice(0, 30)}${title.length > 30 ? '…' : ''}`
               : `Quiz ${isNaN(num) ? k : num}`
             return (
               <div key={k} className="sg-score-row">
                 <span className="sg-score-label">{label}{missing && <span style={{ color: 'var(--ink3)', fontWeight: 400 }}> · not taken</span>}</span>
-                <span className="sg-score-val" style={{ color: col }}>{v != null ? `${v}%` : '—'}</span>
+                <span className="sg-score-val" style={{ color: col }}>{v != null ? `${v}%` : '-'}</span>
               </div>
             )
           })}

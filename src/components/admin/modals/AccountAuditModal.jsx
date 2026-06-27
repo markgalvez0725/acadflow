@@ -21,8 +21,8 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
   // the subset eligible to nudge right now (the rest are within their cooldown).
   const incomplete = useMemo(() => incompleteProfiles(students), [students])
   const nudgeList  = useMemo(() => nudgeTargets(students), [students])
-  // ACTIVE accounts with a self-fixable data gap — eligible to be sent back to
-  // pending for re-verification (course/section gaps are excluded — see helper).
+  // ACTIVE accounts with a self-fixable data gap - eligible to be sent back to
+  // pending for re-verification (course/section gaps are excluded - see helper).
   const demoteList = useMemo(() => demoteCandidates(students), [students])
   // incomplete = pending accounts + active-with-data-gap accounts (disjoint:
   // active ≠ pending). Pending ones are the nudge audience; active ones are the
@@ -34,7 +34,7 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
     if (!legacyIds.length) return
     const ok = await openDialog({
       title: `Mark ${legacyIds.length} legacy account${legacyIds.length > 1 ? 's' : ''} verified?`,
-      msg: 'These are active accounts that pre-date AI verification. Marking them teacher-verified clears the "never checked" state — it does not change their access.',
+      msg: 'These are active accounts that pre-date AI verification. Marking them teacher-verified clears the "never checked" state - it does not change their access.',
       type: 'warn', confirmLabel: 'Mark verified', showCancel: true,
     })
     if (!ok) return
@@ -49,7 +49,7 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
     if (!nudgeList.length) return
     const ok = await openDialog({
       title: `Nudge ${nudgeList.length} student${nudgeList.length > 1 ? 's' : ''} to finish their profile?`,
-      msg: 'Sends an in-app notification that opens Edit Profile. When they save, the AI re-checks their details and can activate them automatically. Only reaches students who have signed in and have something they can fix themselves — never-logged-in accounts are not included (use “Verify & activate” for those).',
+      msg: 'Sends an in-app notification that opens Edit Profile. When they save, the AI re-checks their details and can activate them automatically. Only reaches students who have signed in and have something they can fix themselves - never-logged-in accounts are not included (use “Verify & activate” for those).',
       type: 'info', confirmLabel: 'Send nudge', showCancel: true,
     })
     if (!ok) return
@@ -64,7 +64,7 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
     if (!demoteList.length) return
     const ok = await openDialog({
       title: `Send ${demoteList.length} incomplete account${demoteList.length > 1 ? 's' : ''} back to pending?`,
-      msg: 'These are ACTIVE students missing a profile photo or a properly formatted name. Each one is set back to "pending" (grade/quiz/activity access paused) and nudged to finish their profile. When they complete it, the AI re-checks them and restores full access automatically — or you can approve them manually. Only students who can fix the gap themselves are included.',
+      msg: 'These are ACTIVE students missing a profile photo or a properly formatted name. Each one is set back to "pending" (grade/quiz/activity access paused) and nudged to finish their profile. When they complete it, the AI re-checks them and restores full access automatically - or you can approve them manually. Only students who can fix the gap themselves are included.',
       type: 'warn', confirmLabel: 'Send to pending & nudge', showCancel: true,
     })
     if (!ok) return
@@ -84,7 +84,7 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
     setTimeout(() => {
       setScannedTotal(registeredCount)
       setScanning(false)
-      toast(`Scanned ${registeredCount} account${registeredCount !== 1 ? 's' : ''} — ${demoteList.length} active to re-verify, ${nudgeList.length} pending to nudge.`, 'blue')
+      toast(`Scanned ${registeredCount} account${registeredCount !== 1 ? 's' : ''} - ${demoteList.length} active to re-verify, ${nudgeList.length} pending to nudge.`, 'blue')
     }, 350)
   }
 
@@ -98,7 +98,7 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
         <div className="text-[11px] text-ink3">
           {scannedTotal != null
             ? `Scanned ${scannedTotal} account${scannedTotal !== 1 ? 's' : ''} · ${incomplete.length} incomplete · ${nudgeList.length} ready to nudge`
-            : `Live scan of all ${registeredCount} registered account${registeredCount !== 1 ? 's' : ''} — active included`}
+            : `Live scan of all ${registeredCount} registered account${registeredCount !== 1 ? 's' : ''} - active included`}
         </div>
         <button className="btn btn-ghost btn-sm" disabled={busy || scanning} onClick={rescan} title="Re-evaluate every account on the roster now">
           {scanning ? <><Loader2 size={13} className="spin" /> Scanning…</> : <><RefreshCw size={13} /> Re-scan roster</>}

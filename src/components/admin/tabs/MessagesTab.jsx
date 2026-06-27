@@ -209,7 +209,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
     return groups
   }, [students, classes])
 
-  // Current-semester (non-archived) classes — broadcast + subject targets.
+  // Current-semester (non-archived) classes - broadcast + subject targets.
   const currentClasses = useMemo(() => classes.filter(c => isClassCurrent(c, semester)), [classes, semester])
 
   // Open subjects for the CURRENT semester → a group message reaches every
@@ -260,7 +260,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
       id,
       from:      'admin',
       to,
-      subject:   '',            // no subject field — message body stands alone
+      subject:   '',            // no subject field - message body stands alone
       body:      body.trim(),
       ts:        Date.now(),
       read:      [],
@@ -304,7 +304,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
   const sendHint = (() => {
     if (to === 'all') return 'Announcement to every student'
     if (to.startsWith('class:')) return 'Class broadcast group chat'
-    if (to.startsWith('subject:')) return 'Subject group chat — everyone taking it'
+    if (to.startsWith('subject:')) return 'Subject group chat - everyone taking it'
     const s = students.find(x => x.id === to)
     return s ? `Direct message to ${s.name}` : 'Choose a recipient'
   })()
@@ -313,7 +313,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
     <Modal onClose={onClose} size="md">
       <div className="pr-8 mb-4">
         <h3 className="text-lg font-bold text-ink mb-1"><Pencil size={18} /> New Message</h3>
-        <p className="text-xs text-ink2">Send a direct message or start a group chat — no subject needed.</p>
+        <p className="text-xs text-ink2">Send a direct message or start a group chat - no subject needed.</p>
       </div>
 
       <div className="field mb-1">
@@ -352,11 +352,11 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
           onClick={() => { setSecureTouched(true); setSecureOn(v => !v) }}
           aria-pressed={secureOn}
         >
-          <Lock size={14} style={{ marginRight: 5 }} /> {secureOn ? 'Private — on' : 'Send as private'}
+          <Lock size={14} style={{ marginRight: 5 }} /> {secureOn ? 'Private - on' : 'Send as private'}
         </button>
         {secureOn && (
           <span style={{ fontSize: 12, color: 'var(--accent)' }}>
-            {draftFlag.sensitive ? `AI: ${sensitivityLabel(draftFlag.reasons)} — recipients must tap to reveal.` : 'Recipients must tap to reveal.'}
+            {draftFlag.sensitive ? `AI: ${sensitivityLabel(draftFlag.reasons)} - recipients must tap to reveal.` : 'Recipients must tap to reveal.'}
           </span>
         )}
       </div>
@@ -546,7 +546,7 @@ function ReplyBox({ onSend, onType, onStop, replyingTo, onCancelReply }) {
       )}
       {secureOn && (
         <div className="msg-lock-hint">
-          <Lock size={12} /> {flag.sensitive ? `Private — ${sensitivityLabel(flag.reasons)}. Sent blurred.` : 'Private — sent blurred until tapped.'}
+          <Lock size={12} /> {flag.sensitive ? `Private - ${sensitivityLabel(flag.reasons)}. Sent blurred.` : 'Private - sent blurred until tapped.'}
         </div>
       )}
       <div id="admin-reply-input-wrap" className="msg-reply-bar">
@@ -554,7 +554,7 @@ function ReplyBox({ onSend, onType, onStop, replyingTo, onCancelReply }) {
           type="button"
           className={`msg-lock-btn${secureOn ? ' on' : ''}`}
           onClick={() => { setSecureTouched(true); setSecureOn(v => !v) }}
-          title={secureOn ? 'Private message — click to turn off' : 'Send as private (blurred until tapped)'}
+          title={secureOn ? 'Private message - click to turn off' : 'Send as private (blurred until tapped)'}
           aria-pressed={secureOn}
           aria-label="Send as private message"
         >
@@ -687,7 +687,7 @@ export default function MessagesTab() {
     if (!ids.size) return
     const ok = await openDialog({
       title: `Delete ${tokens.length} ${tokens.length > 1 ? 'items' : 'item'}?`,
-      msg: `This permanently removes the selected message${tokens.length > 1 ? 's' : ''} for everyone — they are also removed from the students' inboxes. This cannot be undone.`,
+      msg: `This permanently removes the selected message${tokens.length > 1 ? 's' : ''} for everyone - they are also removed from the students' inboxes. This cannot be undone.`,
       type: 'danger', confirmLabel: 'Delete', showCancel: true,
     })
     if (!ok) return
@@ -738,7 +738,7 @@ export default function MessagesTab() {
     })
   }, [messages])
 
-  // Group chats / broadcasts — every admin announcement is its own thread item.
+  // Group chats / broadcasts - every admin announcement is its own thread item.
   const groupItems = useMemo(() => {
     return messages.filter(isGroupMessage).map(m => {
       const replies = m.replies || []
@@ -925,7 +925,7 @@ export default function MessagesTab() {
 
     try {
       if (thread.type === 'conversation') {
-        // Append to most recent student message — but if the student has never
+        // Append to most recent student message - but if the student has never
         // messaged (a teacher-started conversation), there's nothing to attach a
         // reply to. Send a fresh direct message doc instead so the reply isn't
         // silently dropped.
@@ -1005,7 +1005,7 @@ export default function MessagesTab() {
       const isSubject = typeof m.to === 'string' && m.to.startsWith('subject:')
       const lastRep = (m.replies || []).reduce((mx, r) => ((r.ts || 0) > (mx?.ts || 0) ? r : mx), null)
       const newestEntry = (lastRep && (lastRep.ts || 0) > (m.ts || 0)) ? lastRep : m
-      const preview = (m.subject ? m.subject + ' — ' : '') + previewText(m.body, { secure: newestEntry.secure })
+      const preview = (m.subject ? m.subject + ' - ' : '') + previewText(m.body, { secure: newestEntry.secure })
       const isActive = activeConv?.type === 'message' && activeConv.msgId === m.id
       return (
         <ConvItem

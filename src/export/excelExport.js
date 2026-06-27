@@ -1,6 +1,6 @@
 // ── Excel Export Layer ────────────────────────────────────────────────────
-// Uses window.XLSX (SheetJS — loaded via CDN <script> tag in index.html).
-// All functions accept explicit (students, classes) args — no globals.
+// Uses window.XLSX (SheetJS - loaded via CDN <script> tag in index.html).
+// All functions accept explicit (students, classes) args - no globals.
 
 import {
   gradeInfoForStudent,
@@ -73,7 +73,7 @@ export function fgIF(mtRef, ftRef) {
     const k = mtKeys[i]
     expr = `IF(${mtRef}="${k}",${ftLookup(EQUIV_COMBINE_TABLE[k])},${expr})`
   }
-  return `IF(${mtRef}="—","—",IF(${ftRef}="—","—",${expr}))`
+  return `IF(${mtRef}="-","-",IF(${ftRef}="-","-",${expr}))`
 }
 
 /**
@@ -81,7 +81,7 @@ export function fgIF(mtRef, ftRef) {
  */
 export function remarkIF(fgRef) {
   return (
-    `IF(${fgRef}="—","Pending",` +
+    `IF(${fgRef}="-","Pending",` +
     `IF(${fgRef}="5.00","Failed",` +
     `IF(${fgRef}="4.00","Conditional","Passed")))`
   )
@@ -121,12 +121,12 @@ function rosterData(students, classes, semester) {
   const dataRows = sorted.map((s, idx) => {
     const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
     const primary = classes.find(c => c.id === s.classId) || classes.find(c => enrolledIds.includes(c.id))
-    // Only CURRENT-semester (non-archived) subjects — past/archived classes drop off.
+    // Only CURRENT-semester (non-archived) subjects - past/archived classes drop off.
     const subjects = activeSubjects(s, classes, semester).join(', ')
     const n = splitStudentName(s.name)
     return [idx + 1, s.id, n.last, n.first, n.middle, courseShort(s.course) || s.course || '', s.year || '', subjects, primary?.section || '']
   })
-  // Dropdown sources — NOT the column data. Subjects = the distinct subjects across
+  // Dropdown sources - NOT the column data. Subjects = the distinct subjects across
   // the app's CURRENT-semester (non-archived) classes only. Courses = the canonical
   // short codes (BSEMC / BSIT / BSIS / BSCS) from the official course list.
   const currentClasses = (classes || []).filter(c => isClassCurrent(c, semester))
@@ -136,7 +136,7 @@ function rosterData(students, classes, semester) {
   const widths = [4, 14, 18, 18, 6, 20, 12, 40, 12]
   const fileName = `StudentRoster_${new Date().toISOString().slice(0, 10)}.xlsx`
   const pwGuide = [
-    ['AcadFlow — Password Guide'], [''],
+    ['AcadFlow - Password Guide'], [''],
     ['Default student password: Welcome@2026'],
     ['Students must change their password on first login.'], [''],
     ['Requirements:'], ['  • At least 8 characters'],
@@ -145,18 +145,18 @@ function rosterData(students, classes, semester) {
   return { exportDate, total: sorted.length, headers, dataRows, allSubjects, courseShorts, yearLevels, widths, fileName, pwGuide }
 }
 
-// ExcelJS writer — real dropdowns on Course (col F), Year Level (col G) +
+// ExcelJS writer - real dropdowns on Course (col F), Year Level (col G) +
 // Class Subject (col H), referencing a "Lists" sheet (no inline-list length limit).
 async function rosterExcelJS(ExcelJS, ctx) {
   const { exportDate, total, headers, dataRows, allSubjects, courseShorts, yearLevels, widths, fileName, pwGuide } = ctx
   const wb = new ExcelJS.Workbook()
   const ws = wb.addWorksheet('Students', { views: [{ state: 'frozen', ySplit: 11 }] })
 
-  ws.addRow(['AcadFlow — Student Roster'])
+  ws.addRow(['AcadFlow - Student Roster'])
   ws.addRow([`Exported: ${exportDate}`])
   ws.addRow([])
   ws.addRow(['Total Students:', total])
-  for (let i = 0; i < 6; i++) ws.addRow([]) // rows 5–10
+  for (let i = 0; i < 6; i++) ws.addRow([]) // rows 5-10
   ws.addRow(headers)                          // row 11
   dataRows.forEach(r => ws.addRow(r))         // rows 12+
   for (let i = 0; i < 5; i++) ws.addRow([])   // 5 trailing blanks
@@ -196,11 +196,11 @@ async function rosterExcelJS(ExcelJS, ctx) {
   downloadBlob(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), fileName)
 }
 
-// SheetJS writer (fallback) — same layout + AutoFilter, no per-cell dropdowns.
+// SheetJS writer (fallback) - same layout + AutoFilter, no per-cell dropdowns.
 function rosterSheetJS(XLSX, ctx) {
   const { exportDate, total, headers, dataRows, widths, fileName, pwGuide } = ctx
   const titleRows = [
-    ['AcadFlow — Student Roster'], [`Exported: ${exportDate}`], [''],
+    ['AcadFlow - Student Roster'], [`Exported: ${exportDate}`], [''],
     ['Total Students:', total], [''], [''], [''], [''], [''], [''],
   ]
   const blankRows = Array.from({ length: 5 }, () => Array(headers.length).fill(''))
@@ -230,7 +230,7 @@ export function downloadBlob(blob, fileName) {
 }
 
 // Load ExcelJS on demand from the CDN (only when exporting a roster). Resolves to
-// the global, or null if it can't load — the caller falls back to SheetJS.
+// the global, or null if it can't load - the caller falls back to SheetJS.
 let _exceljsLoading = null
 export function ensureExcelJS() {
   if (window.ExcelJS) return Promise.resolve(window.ExcelJS)
@@ -290,9 +290,9 @@ export async function exportStudentImportTemplate({ classes = [] } = {}) {
   const notes = [
     'Notes:',
     '• Required: "Student No." and "Surname" + "First Name" (M.I. optional). Course is recommended.',
-    '• Course & Year Level have dropdowns — pick from the list. Course + Year + Section decide which classes a student can be enrolled in.',
+    '• Course & Year Level have dropdowns - pick from the list. Course + Year + Section decide which classes a student can be enrolled in.',
     '• Default password for imported students: Welcome@2026 (changed on first login).',
-    '• Keep or delete the example row — rows with errors are skipped on import.',
+    '• Keep or delete the example row - rows with errors are skipped on import.',
   ]
   const ctx = { columns: STUDENT_IMPORT_COLUMNS, example, widths, courseShorts, yearLevels, refRows, notes }
 
@@ -306,7 +306,7 @@ export async function exportStudentImportTemplate({ classes = [] } = {}) {
   }
 }
 
-// ExcelJS template writer — Course (col E) + Year Level (col F) dropdowns sourced
+// ExcelJS template writer - Course (col E) + Year Level (col F) dropdowns sourced
 // from a visible "Lists" sheet (same approach as the roster export).
 async function importTemplateExcelJS(ExcelJS, ctx) {
   const { columns, example, widths, courseShorts, yearLevels, refRows, notes } = ctx
@@ -314,7 +314,7 @@ async function importTemplateExcelJS(ExcelJS, ctx) {
   const ws = wb.addWorksheet('Students', { views: [{ state: 'frozen', ySplit: 1 }] })
   ws.addRow(columns)                          // row 1
   ws.addRow(example)                          // row 2
-  for (let i = 0; i < 30; i++) ws.addRow([])  // rows 3–32 (ready to type)
+  for (let i = 0; i < 30; i++) ws.addRow([])  // rows 3-32 (ready to type)
   widths.forEach((w, i) => { ws.getColumn(i + 1).width = w })
 
   // Dropdowns over the example + blank rows. Course = col 5, Year Level = col 6.
@@ -327,7 +327,7 @@ async function importTemplateExcelJS(ExcelJS, ctx) {
 
   // Reference sheet (active classes + notes).
   const wsRef = wb.addWorksheet('Classes')
-  wsRef.addRow(['Reference — your active classes (informational only)'])
+  wsRef.addRow(['Reference - your active classes (informational only)'])
   wsRef.addRow([])
   wsRef.addRow(['Class Name', 'Section', 'Subjects'])
   refRows.forEach(r => wsRef.addRow(r))
@@ -349,7 +349,7 @@ async function importTemplateExcelJS(ExcelJS, ctx) {
   downloadBlob(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `StudentImportTemplate_${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
-// SheetJS template writer (fallback) — same layout + columns, no per-cell dropdowns.
+// SheetJS template writer (fallback) - same layout + columns, no per-cell dropdowns.
 function importTemplateSheetJS(XLSX, ctx) {
   const { columns, example, widths, refRows, notes } = ctx
   const blanks = Array.from({ length: 30 }, () => Array(columns.length).fill(''))
@@ -361,7 +361,7 @@ function importTemplateSheetJS(XLSX, ctx) {
   XLSX.utils.book_append_sheet(wb, ws, 'Students')
 
   const wsRef = XLSX.utils.aoa_to_sheet([
-    ['Reference — your active classes (informational only)'],
+    ['Reference - your active classes (informational only)'],
     [''],
     ['Class Name', 'Section', 'Subjects'],
     ...refRows,
@@ -437,13 +437,13 @@ export function buildGradesData(classId, students, classes, eqScale = DEFAULT_EQ
 
   const headers = ['Student Name', 'Student No.', 'Course', 'Year',
     ...subs,
-    'Average (%)', 'GWA (1.0–5.0)', 'Status',
+    'Average (%)', 'GWA (1.0-5.0)', 'Status',
   ]
 
   const rows = roster.map(s => {
     const subGrades = subs.map(sub => {
       const info = gradeInfoForStudent(s, sub, eqScale)
-      return info.eq === '—' ? '—' : info.eq
+      return info.eq === '-' ? '-' : info.eq
     })
     const numericEquivs = subGrades
       .map(eq => parseFloat(eq))
@@ -452,8 +452,8 @@ export function buildGradesData(classId, students, classes, eqScale = DEFAULT_EQ
       ? numericEquivs.reduce((a, b) => a + b, 0) / numericEquivs.length
       : null
 
-    const avgEqStr  = avgEq != null ? avgEq.toFixed(2) : '—'
-    const avgInfo   = avgEq != null ? equivInfo(avgEqStr) : { ltr: '—', rem: 'No Grade' }
+    const avgEqStr  = avgEq != null ? avgEq.toFixed(2) : '-'
+    const avgInfo   = avgEq != null ? equivInfo(avgEqStr) : { ltr: '-', rem: 'No Grade' }
 
     return [
       s.name, s.id, s.course || '', s.year || '',
@@ -467,13 +467,13 @@ export function buildGradesData(classId, students, classes, eqScale = DEFAULT_EQ
   // Class average row
   const subAvgs = subs.map((sub, si) => {
     const vals = rows.map(r => parseFloat(r[4 + si])).filter(n => !isNaN(n))
-    if (!vals.length) return '—'
+    if (!vals.length) return '-'
     return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2)
   })
   const avgEquivs = subAvgs.map(v => parseFloat(v)).filter(n => !isNaN(n))
   const overallAvg = avgEquivs.length
     ? (avgEquivs.reduce((a, b) => a + b, 0) / avgEquivs.length).toFixed(2)
-    : '—'
+    : '-'
 
   const summaryRow = ['CLASS AVERAGE', '', '', '', ...subAvgs, overallAvg, overallAvg, '']
 
@@ -522,7 +522,7 @@ export function buildAttendanceData(classId, students, classes) {
     })
     const rates = subs.map((sub, si) => {
       const held = getHeldDays(classId, sub, students)
-      return held > 0 ? parseFloat(((presentCounts[si] / held) * 100).toFixed(1)) : '—'
+      return held > 0 ? parseFloat(((presentCounts[si] / held) * 100).toFixed(1)) : '-'
     })
     const totalPresent = presentCounts.reduce((a, b) => a + b, 0)
     const overallRate  = getAttRate(s, students, classes)
@@ -531,25 +531,25 @@ export function buildAttendanceData(classId, students, classes) {
       ...presentCounts,
       ...rates,
       totalPresent,
-      overallRate != null ? overallRate : '—',
+      overallRate != null ? overallRate : '-',
     ]
   })
 
   // Summary row
   const subAvgPresent = subs.map((_, si) => {
     const vals = rows.map(r => r[4 + si]).filter(v => typeof v === 'number')
-    return vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : '—'
+    return vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : '-'
   })
   const subAvgRate = subs.map((_, si) => {
     const vals = rows.map(r => r[4 + subs.length + si]).filter(v => typeof v === 'number')
-    return vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : '—'
+    return vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : '-'
   })
   const totalPresentAvg = rows.length
     ? (rows.map(r => r[4 + subs.length * 2]).reduce((a, b) => a + b, 0) / rows.length).toFixed(1)
-    : '—'
+    : '-'
   const overallRateAvg = (() => {
     const vals = rows.map(r => r[4 + subs.length * 2 + 1]).filter(v => typeof v === 'number')
-    return vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : '—'
+    return vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : '-'
   })()
 
   const summaryRow = [
@@ -567,7 +567,7 @@ export function buildAttendanceData(classId, students, classes) {
 /**
  * Builds grades XLSX workbook from buildGradesData() output.
  * Sheet 1: Grades Summary; per-subject sheets follow.
- * @param {object} data — from buildGradesData()
+ * @param {object} data - from buildGradesData()
  * @param {object[]} students
  * @param {object[]} classes
  * @param {object[]} [eqScale]
@@ -580,7 +580,7 @@ export function buildGradesWorkbook(data, students, classes, eqScale = DEFAULT_E
   // Title rows (4 rows + blank)
   const exportDate = new Date().toLocaleDateString('en-PH', { dateStyle: 'long' })
   const titleRows  = [
-    [`GRADE SUMMARY — ${cls.name || cls.id}`],
+    [`GRADE SUMMARY - ${cls.name || cls.id}`],
     [`Section: ${cls.section || ''}  |  S.Y. ${cls.sy || ''}  |  Exported: ${exportDate}`],
     [`Total Students: ${rows.length}`],
     [''],
@@ -611,17 +611,17 @@ export function buildGradesWorkbook(data, students, classes, eqScale = DEFAULT_E
       const midG = comp.midterm ?? null
       const finG = comp.finals  ?? null
       const info = gradeInfoForStudent(s, sub, eqScale)
-      const mtInfo = midG != null ? gradeInfo(midG, eqScale) : { eq: '—' }
-      const ftInfo = finG != null ? gradeInfo(finG, eqScale) : { eq: '—' }
+      const mtInfo = midG != null ? gradeInfo(midG, eqScale) : { eq: '-' }
+      const ftInfo = finG != null ? gradeInfo(finG, eqScale) : { eq: '-' }
       return [
         s.name, s.id, s.course || '', s.year || '',
-        midG ?? '—', finG ?? '—',
-        (midG != null && finG != null) ? ((midG + finG) / 2).toFixed(2) : '—',
+        midG ?? '-', finG ?? '-',
+        (midG != null && finG != null) ? ((midG + finG) / 2).toFixed(2) : '-',
         info.eq, info.ltr, info.rem,
       ]
     })
     const subAoa = [
-      [`${sub} — ${cls.name || cls.id}`],
+      [`${sub} - ${cls.name || cls.id}`],
       [],
       subHdr,
       ...subRows,
@@ -639,7 +639,7 @@ export function buildGradesWorkbook(data, students, classes, eqScale = DEFAULT_E
 // ── buildAttendanceWorkbook ───────────────────────────────────────────────
 /**
  * Builds attendance XLSX workbook from buildAttendanceData() output.
- * @param {object} data — from buildAttendanceData()
+ * @param {object} data - from buildAttendanceData()
  * @param {object[]} students
  * @param {object[]} classes
  * @returns {object} XLSX workbook
@@ -650,7 +650,7 @@ export function buildAttendanceWorkbook(data, students, classes) {
 
   const exportDate = new Date().toLocaleDateString('en-PH', { dateStyle: 'long' })
   const titleRows  = [
-    [`ATTENDANCE SUMMARY — ${cls.name || cls.id}`],
+    [`ATTENDANCE SUMMARY - ${cls.name || cls.id}`],
     [`Section: ${cls.section || ''}  |  S.Y. ${cls.sy || ''}  |  Exported: ${exportDate}`],
     [`Total Students: ${rows.length}`],
     [''],
@@ -698,11 +698,11 @@ export function buildAttendanceWorkbook(data, students, classes) {
         if (exArr.includes(d))  return 'E'
         return 'A'
       })
-      const rate = held > 0 ? parseFloat(((attArr.length / held) * 100).toFixed(1)) : '—'
+      const rate = held > 0 ? parseFloat(((attArr.length / held) * 100).toFixed(1)) : '-'
       return [s.name, s.id, ...perDate, attArr.length, exArr.length, held, rate]
     })
     const subAoa = [
-      [`${sub} — ${cls.name || cls.id}`],
+      [`${sub} - ${cls.name || cls.id}`],
       [`Sessions held: ${held}`],
       subHdr,
       ...subRows,
@@ -720,9 +720,9 @@ export function buildAttendanceWorkbook(data, students, classes) {
 // ── buildStudentWorkbook ──────────────────────────────────────────────────
 /**
  * Builds a per-student XLSX workbook with Grades and Attendance sheets.
- * @param {object} s — student record
+ * @param {object} s - student record
  * @param {object[]} classes
- * @param {object[]} students — full roster (for held-days calc)
+ * @param {object[]} students - full roster (for held-days calc)
  * @param {object[]} [eqScale]
  * @returns {object} XLSX workbook
  */
@@ -737,9 +737,9 @@ export function buildStudentWorkbook(s, classes, students, eqScale = DEFAULT_EQ_
 
   // ── Grades sheet ──────────────────────────────────────────────────────
   const gradeRows = [
-    [`STUDENT GRADE REPORT — ${s.name}`],
-    [`Student No.: ${s.id}  |  Course: ${s.course || '—'}  |  Year: ${s.year || '—'}`],
-    [`Exported: ${exportDate}  |  GWA: ${gwa != null ? gwa.toFixed(2) : '—'}`],
+    [`STUDENT GRADE REPORT - ${s.name}`],
+    [`Student No.: ${s.id}  |  Course: ${s.course || '-'}  |  Year: ${s.year || '-'}`],
+    [`Exported: ${exportDate}  |  GWA: ${gwa != null ? gwa.toFixed(2) : '-'}`],
     [],
     ['Subject', 'Midterm (%)', 'Finals (%)', 'Midterm Equiv', 'Finals Equiv', 'Final Equiv', 'Letter', 'Remark', 'Uploaded'],
   ]
@@ -749,18 +749,18 @@ export function buildStudentWorkbook(s, classes, students, eqScale = DEFAULT_EQ_
     const midG    = comp.midterm ?? null
     const finG    = comp.finals  ?? null
     const info    = gradeInfoForStudent(s, sub, eqScale)
-    const mtInfo  = midG != null ? gradeInfo(midG, eqScale) : { eq: '—' }
-    const ftInfo  = finG != null ? gradeInfo(finG, eqScale) : { eq: '—' }
+    const mtInfo  = midG != null ? gradeInfo(midG, eqScale) : { eq: '-' }
+    const ftInfo  = finG != null ? gradeInfo(finG, eqScale) : { eq: '-' }
     const ts      = s.gradeUploadedAt?.[sub]
-    const uploaded = ts ? new Date(ts).toLocaleDateString('en-PH', { dateStyle: 'medium' }) : '—'
+    const uploaded = ts ? new Date(ts).toLocaleDateString('en-PH', { dateStyle: 'medium' }) : '-'
 
-    const displayEq  = info.eq  !== '—' ? info.eq  : (midG != null ? mtInfo.eq : '—')
-    const displayLtr = info.ltr !== '—' ? info.ltr : (midG != null ? mtInfo.ltr : '—')
+    const displayEq  = info.eq  !== '-' ? info.eq  : (midG != null ? mtInfo.eq : '-')
+    const displayLtr = info.ltr !== '-' ? info.ltr : (midG != null ? mtInfo.ltr : '-')
     const displayRem = info.rem !== 'Pending' ? info.rem : (midG != null ? 'Midterm Only' : 'Pending')
 
     gradeRows.push([
       sub,
-      midG ?? '—', finG ?? '—',
+      midG ?? '-', finG ?? '-',
       mtInfo.eq, ftInfo.eq,
       displayEq, displayLtr, displayRem, uploaded,
     ])
@@ -773,8 +773,8 @@ export function buildStudentWorkbook(s, classes, students, eqScale = DEFAULT_EQ_
   // ── Attendance sheet ──────────────────────────────────────────────────
   const attRate = getAttRate(s, students, classes)
   const attRows = [
-    [`ATTENDANCE RECORD — ${s.name}`],
-    [`Student No.: ${s.id}  |  Overall Rate: ${attRate != null ? attRate + '%' : '—'}`],
+    [`ATTENDANCE RECORD - ${s.name}`],
+    [`Student No.: ${s.id}  |  Overall Rate: ${attRate != null ? attRate + '%' : '-'}`],
     [`Exported: ${exportDate}`],
     [],
     ['Subject', 'Total Sessions', 'Present', 'Excused', 'Absent', 'Rate (%)'],
@@ -788,7 +788,7 @@ export function buildStudentWorkbook(s, classes, students, eqScale = DEFAULT_EQ_
     const present  = attSet instanceof Set ? attSet.size : (Array.isArray(attSet) ? attSet.length : 0)
     const excused  = exSet  instanceof Set ? exSet.size  : (Array.isArray(exSet)  ? exSet.length  : 0)
     const absent   = Math.max(0, held - present - excused)
-    const rate     = held > 0 ? parseFloat(((present / held) * 100).toFixed(1)) : '—'
+    const rate     = held > 0 ? parseFloat(((present / held) * 100).toFixed(1)) : '-'
     attRows.push([sub, held, present, excused, absent, rate])
   })
 
@@ -806,13 +806,13 @@ export function buildStudentWorkbook(s, classes, students, eqScale = DEFAULT_EQ_
 /**
  * Exports a comprehensive master grading workbook covering all active classes.
  * Structure:
- *   Sheet 1        – Summary: every student with GWA, attendance, overall status
- *   Per class      – One overview sheet per class (all subjects, equiv only)
- *   Per class+sub  – One detail sheet per class × subject with full computation:
+ *   Sheet 1        - Summary: every student with GWA, attendance, overall status
+ *   Per class      - One overview sheet per class (all subjects, equiv only)
+ *   Per class+sub  - One detail sheet per class × subject with full computation:
  *                    Acts Avg | Qz Avg | Att % | Class Standing |
  *                    Midterm Exam | Midterm Term (%) | Finals Exam | Finals Term (%) |
  *                    Final Grade (%) | Equiv | Letter | Remark
- *   Last           – Grade Scale reference
+ *   Last           - Grade Scale reference
  *
  * @param {{ students: object[], classes: object[], eqScale?: object[] }} opts
  */
@@ -828,7 +828,7 @@ export function exportMasterGradingReport({ students, classes, eqScale = DEFAULT
   const sortedStudents = sortByLastName(students)
 
   const sumTitleRows = [
-    ['AcadFlow — Master Grading Report'],
+    ['AcadFlow - Master Grading Report'],
     [`Exported: ${exportDate}`],
     [`Active Classes: ${activeClasses.length}  |  Total Students: ${students.length}`],
     [''],
@@ -854,11 +854,11 @@ export function exportMasterGradingReport({ students, classes, eqScale = DEFAULT
       else                            pending++
     })
     const gwaVal     = getGWA(s, classes)
-    const gwaEquiv   = gwaVal != null ? gradeInfo(gwaVal, eqScale).eq : '—'
+    const gwaEquiv   = gwaVal != null ? gradeInfo(gwaVal, eqScale).eq : '-'
     const attRate    = getAttRate(s, students, classes)
-    const attRateStr = attRate != null ? parseFloat(attRate.toFixed(1)) : '—'
+    const attRateStr = attRate != null ? parseFloat(attRate.toFixed(1)) : '-'
     const overallStatus =
-      allSubs.length === 0 ? '—'
+      allSubs.length === 0 ? '-'
       : pending > 0        ? 'Incomplete'
       : failed > 0         ? 'Failed'
       : conditional > 0    ? 'Conditional'
@@ -917,8 +917,8 @@ export function exportMasterGradingReport({ students, classes, eqScale = DEFAULT
 
     // ── Per-class overview sheet (all subjects, equiv summary) ────────────
     const ovTitleRows = [
-      ['AcadFlow — Class Grade Overview'],
-      [`Class: ${cls.name}  |  Section: ${cls.section || '—'}  |  S.Y. ${cls.sy || '—'}`],
+      ['AcadFlow - Class Grade Overview'],
+      [`Class: ${cls.name}  |  Section: ${cls.section || '-'}  |  S.Y. ${cls.sy || '-'}`],
       [`Subjects: ${subs.join(', ')}`],
       [`Students: ${roster.length}  |  Exported: ${exportDate}`],
       [''],
@@ -935,9 +935,9 @@ export function exportMasterGradingReport({ students, classes, eqScale = DEFAULT
         row.push(eq, rem)
       })
       const gwaVal   = getGWA(s, classes)
-      const gwaEquiv = gwaVal != null ? gradeInfo(gwaVal, eqScale).eq : '—'
+      const gwaEquiv = gwaVal != null ? gradeInfo(gwaVal, eqScale).eq : '-'
       const attRate  = getAttRate(s, students, classes)
-      const attStr   = attRate != null ? parseFloat(attRate.toFixed(1)) : '—'
+      const attStr   = attRate != null ? parseFloat(attRate.toFixed(1)) : '-'
       let passed = 0, failed = 0, conditional = 0, pending = 0
       subs.forEach(sub => {
         const rem = gradeInfoForStudent(s, sub, eqScale).rem
@@ -950,7 +950,7 @@ export function exportMasterGradingReport({ students, classes, eqScale = DEFAULT
         pending > 0       ? 'Incomplete'
         : failed > 0      ? 'Failed'
         : conditional > 0 ? 'Conditional'
-                          : passed > 0 ? 'Passed' : '—'
+                          : passed > 0 ? 'Passed' : '-'
       row.push(gwaEquiv, attStr, overallStatus)
       return row
     })
@@ -966,8 +966,8 @@ export function exportMasterGradingReport({ students, classes, eqScale = DEFAULT
     // ── Per-subject detail sheets (one per class × subject) ───────────────
     subs.forEach(sub => {
       const subTitleRows = [
-        ['AcadFlow — Grading Computation Detail'],
-        [`Class: ${cls.name}  |  Section: ${cls.section || '—'}  |  S.Y. ${cls.sy || '—'}`],
+        ['AcadFlow - Grading Computation Detail'],
+        [`Class: ${cls.name}  |  Section: ${cls.section || '-'}  |  S.Y. ${cls.sy || '-'}`],
         [`Subject: ${sub}`],
         [`Students: ${roster.length}  |  Exported: ${exportDate}`],
         [''],
@@ -990,15 +990,15 @@ export function exportMasterGradingReport({ students, classes, eqScale = DEFAULT
         const { eq, ltr, rem } = gradeInfoForStudent(s, sub, eqScale)
         return [
           idx + 1, s.id, s.name, s.course || '', s.year || '',
-          comp.activities  != null ? comp.activities  : '—',
-          comp.quizzes     != null ? comp.quizzes     : '—',
-          attRate          != null ? attRate           : '—',
-          cs               != null ? cs               : '—',
-          comp.midtermExam != null ? comp.midtermExam : '—',
-          comp.midterm     != null ? comp.midterm     : '—',
-          comp.finalsExam  != null ? comp.finalsExam  : '—',
-          comp.finals      != null ? comp.finals      : '—',
-          s.grades?.[sub]  != null ? s.grades[sub]   : '—',
+          comp.activities  != null ? comp.activities  : '-',
+          comp.quizzes     != null ? comp.quizzes     : '-',
+          attRate          != null ? attRate           : '-',
+          cs               != null ? cs               : '-',
+          comp.midtermExam != null ? comp.midtermExam : '-',
+          comp.midterm     != null ? comp.midterm     : '-',
+          comp.finalsExam  != null ? comp.finalsExam  : '-',
+          comp.finals      != null ? comp.finals      : '-',
+          s.grades?.[sub]  != null ? s.grades[sub]   : '-',
           eq, ltr, rem,
         ]
       })
@@ -1014,10 +1014,10 @@ export function exportMasterGradingReport({ students, classes, eqScale = DEFAULT
             return typeof v === 'number' ? v : parseFloat(v)
           }).filter(n => !isNaN(n))
           avgRow.push(
-            vals.length ? parseFloat((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1)) : '—'
+            vals.length ? parseFloat((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1)) : '-'
           )
         } else {
-          avgRow.push('—')
+          avgRow.push('-')
         }
       })
 
@@ -1040,7 +1040,7 @@ export function exportMasterGradingReport({ students, classes, eqScale = DEFAULT
 
   // ── Grade Scale reference sheet ────────────────────────────────────────
   const wsScale = XLSX.utils.aoa_to_sheet([
-    ['AcadFlow — Grade Equivalency Scale'],
+    ['AcadFlow - Grade Equivalency Scale'],
     [`Reference for: ${exportDate}`],
     [''],
     ['Min Score', 'Max Score', 'Equivalent', 'Letter', 'Remark'],
@@ -1067,7 +1067,7 @@ export function exportMasterGradingReport({ students, classes, eqScale = DEFAULT
 /**
  * Builds an HTML string for grades preview (color-coded by equiv value).
  * ≤2.00 (good) → green; ≤3.00 → amber; else red.
- * @param {object} data — from buildGradesData()
+ * @param {object} data - from buildGradesData()
  * @returns {string} HTML
  */
 export function buildGradesPreviewHTML(data) {
@@ -1100,7 +1100,7 @@ export function buildGradesPreviewHTML(data) {
   }).join('')
 
   return `
-    <h3 style="font-size:13px;margin:0 0 8px;font-weight:700">${cls.name || cls.id} — Grade Summary</h3>
+    <h3 style="font-size:13px;margin:0 0 8px;font-weight:700">${cls.name || cls.id} - Grade Summary</h3>
     <div style="overflow-x:auto">
       <table style="border-collapse:collapse;min-width:600px;font-family:sans-serif">
         <thead><tr>${ths}</tr></thead>
@@ -1113,7 +1113,7 @@ export function buildGradesPreviewHTML(data) {
 /**
  * Builds an HTML string for attendance preview (color-coded by rate).
  * ≥90% → green; ≥80% → amber; else red.
- * @param {object} data — from buildAttendanceData()
+ * @param {object} data - from buildAttendanceData()
  * @returns {string} HTML
  */
 export function buildAttendancePreviewHTML(data) {
@@ -1146,7 +1146,7 @@ export function buildAttendancePreviewHTML(data) {
   }).join('')
 
   return `
-    <h3 style="font-size:13px;margin:0 0 8px;font-weight:700">${cls.name || cls.id} — Attendance Summary</h3>
+    <h3 style="font-size:13px;margin:0 0 8px;font-weight:700">${cls.name || cls.id} - Attendance Summary</h3>
     <div style="overflow-x:auto">
       <table style="border-collapse:collapse;min-width:600px;font-family:sans-serif">
         <thead><tr>${ths}</tr></thead>
@@ -1159,9 +1159,9 @@ export function buildAttendancePreviewHTML(data) {
 /**
  * Builds an HTML string for student report preview.
  * Includes student info card, grades table, and attendance table.
- * @param {object} s — student record
+ * @param {object} s - student record
  * @param {object[]} classes
- * @param {object[]} students — full roster
+ * @param {object[]} students - full roster
  * @param {object[]} [eqScale]
  * @returns {string} HTML
  */
@@ -1200,15 +1200,15 @@ export function buildStudentPreviewHTML(s, classes, students, eqScale = DEFAULT_
     const info   = gradeInfoForStudent(s, sub, eqScale)
     const ts     = s.gradeUploadedAt?.[sub]
 
-    const displayEq  = info.eq  !== '—' ? info.eq  : (midG != null ? gradeInfo(midG, eqScale).eq  : '—')
-    const displayLtr = info.ltr !== '—' ? info.ltr : (midG != null ? gradeInfo(midG, eqScale).ltr : '—')
+    const displayEq  = info.eq  !== '-' ? info.eq  : (midG != null ? gradeInfo(midG, eqScale).eq  : '-')
+    const displayLtr = info.ltr !== '-' ? info.ltr : (midG != null ? gradeInfo(midG, eqScale).ltr : '-')
     const displayRem = info.rem !== 'Pending' ? info.rem : (midG != null ? 'Midterm Only' : 'Pending')
     const color = gradeColor(displayEq)
 
     return `<tr>
       <td style="${tdStyle}">${sub}</td>
-      <td style="${tdStyle};text-align:center">${midG ?? '—'}</td>
-      <td style="${tdStyle};text-align:center">${finG ?? '—'}</td>
+      <td style="${tdStyle};text-align:center">${midG ?? '-'}</td>
+      <td style="${tdStyle};text-align:center">${finG ?? '-'}</td>
       <td style="${tdStyle};text-align:center${color ? ';' + color : ''}">${displayEq}</td>
       <td style="${tdStyle};text-align:center">${displayLtr}</td>
       <td style="${tdStyle}">${displayRem}</td>
@@ -1225,7 +1225,7 @@ export function buildStudentPreviewHTML(s, classes, students, eqScale = DEFAULT_
     const present = attSet instanceof Set ? attSet.size : (Array.isArray(attSet) ? attSet.length : 0)
     const excused = exSet  instanceof Set ? exSet.size  : (Array.isArray(exSet)  ? exSet.length  : 0)
     const absent  = Math.max(0, held - present - excused)
-    const rate    = held > 0 ? parseFloat(((present / held) * 100).toFixed(1)) : '—'
+    const rate    = held > 0 ? parseFloat(((present / held) * 100).toFixed(1)) : '-'
     const color   = rateColor(rate)
     return `<tr>
       <td style="${tdStyle}">${sub}</td>
@@ -1241,16 +1241,16 @@ export function buildStudentPreviewHTML(s, classes, students, eqScale = DEFAULT_
     <div style="font-family:sans-serif;max-width:700px">
       <div style="background:#1e3a8a;color:#fff;padding:14px 18px;border-radius:10px 10px 0 0">
         <div style="font-size:16px;font-weight:700">${s.name}</div>
-        <div style="font-size:11px;opacity:.8;margin-top:3px">${s.id} · ${s.course || '—'} · ${s.year || '—'}</div>
+        <div style="font-size:11px;opacity:.8;margin-top:3px">${s.id} · ${s.course || '-'} · ${s.year || '-'}</div>
       </div>
       <div style="display:flex;gap:12px;padding:10px 18px;background:#eff6ff;border:1px solid #bfdbfe">
         <div style="flex:1;text-align:center">
           <div style="font-size:11px;color:#6b7280">GWA</div>
-          <div style="font-size:18px;font-weight:700;color:#1e3a8a">${gwa != null ? gwa.toFixed(2) : '—'}</div>
+          <div style="font-size:18px;font-weight:700;color:#1e3a8a">${gwa != null ? gwa.toFixed(2) : '-'}</div>
         </div>
         <div style="flex:1;text-align:center">
           <div style="font-size:11px;color:#6b7280">Attendance</div>
-          <div style="font-size:18px;font-weight:700;color:#14532d">${attRate != null ? attRate + '%' : '—'}</div>
+          <div style="font-size:18px;font-weight:700;color:#14532d">${attRate != null ? attRate + '%' : '-'}</div>
         </div>
       </div>
 

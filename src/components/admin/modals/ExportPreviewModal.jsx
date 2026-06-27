@@ -20,13 +20,13 @@ import {
 } from '@/export/pdfExport'
 
 /**
- * Export preview modal — shows an HTML preview before download.
+ * Export preview modal - shows an HTML preview before download.
  *
  * Props:
  *  - type       {'grades' | 'attendance' | 'student'}
- *  - classId    {string}   — required for grades / attendance
- *  - subject    {string}   — required for grades / attendance
- *  - student    {object}   — required for student report
+ *  - classId    {string}   - required for grades / attendance
+ *  - subject    {string}   - required for grades / attendance
+ *  - student    {object}   - required for student report
  *  - onClose    {function}
  */
 export default function ExportPreviewModal({ type, classId, subject, student: studentProp, onClose }) {
@@ -57,10 +57,10 @@ export default function ExportPreviewModal({ type, classId, subject, student: st
   // ── Derive title / subtitle ─────────────────────────────────────────
   const cls = classId ? classes.find(c => c.id === classId) : null
   const title = type === 'student'
-    ? `Student Report — ${studentProp?.name || ''}`
+    ? `Student Report - ${studentProp?.name || ''}`
     : type === 'grades'
-      ? `Grades — ${cls ? cls.name + ' ' + cls.section : ''} · ${subject || ''}`
-      : `Attendance — ${cls ? cls.name + ' ' + cls.section : ''} · ${subject || ''}`
+      ? `Grades - ${cls ? cls.name + ' ' + cls.section : ''} · ${subject || ''}`
+      : `Attendance - ${cls ? cls.name + ' ' + cls.section : ''} · ${subject || ''}`
 
   // ── Download handlers ───────────────────────────────────────────────
   async function handleExcel() {

@@ -60,7 +60,7 @@ export default function FeedbackTab({ student }) {
     [studentFeedback, student?.id]
   )
 
-  // Standing over the student's own feedback — recomputed from `mine`, so the
+  // Standing over the student's own feedback - recomputed from `mine`, so the
   // ring and Feedback Watch can't disagree with the history list.
   const stats = useMemo(() => {
     const total = mine.length
@@ -80,7 +80,7 @@ export default function FeedbackTab({ student }) {
   const watch = useMemo(() => {
     if (!stats.total) {
       return {
-        findings: [{ tone: 'info', Icon: MessageSquare, lead: 'No feedback yet', text: ' — your ideas help shape AcadFlow.' }],
+        findings: [{ tone: 'info', Icon: MessageSquare, lead: 'No feedback yet', text: ' - your ideas help shape AcadFlow.' }],
         lead: 'Share your first idea or bug report.',
       }
     }
@@ -91,18 +91,18 @@ export default function FeedbackTab({ student }) {
       f.push({ tone: 'info', Icon: Clock, lead: `${stats.awaiting} awaiting`, text: ' review.' })
     if (stats.top) {
       const cat = CATEGORIES.find(c => c.key === stats.top.k) || CATEGORIES[3]
-      f.push({ tone: 'info', Icon: cat.Icon, lead: 'Most sent', text: ` — ${cat.label.toLowerCase()}s.` })
+      f.push({ tone: 'info', Icon: cat.Icon, lead: 'Most sent', text: ` - ${cat.label.toLowerCase()}s.` })
     }
     return { findings: f.slice(0, 4), lead: `${stats.total} sent · ${stats.handled} reviewed.` }
   }, [stats])
 
-  // Deterministic draft helper — reacts to the chosen type + message length.
+  // Deterministic draft helper - reacts to the chosen type + message length.
   const draftTip = useMemo(() => {
     const len = message.trim().length
     if (len > 0 && len < 15) return { warn: true, Icon: AlertTriangle, text: 'Add a bit more detail so your teacher can act on it.' }
     if (category === 'bug') return { warn: false, Icon: Wand2, text: 'Helpful bug reports include what you did, what happened, and what you expected.' }
     if (category === 'enhancement' || category === 'request') return { warn: false, Icon: Wand2, text: 'Say what to change and why it would help. The clearer it is, the faster your teacher can act.' }
-    return { warn: false, Icon: Wand2, text: 'Tell your teacher anything on your mind — every comment helps.' }
+    return { warn: false, Icon: Wand2, text: 'Tell your teacher anything on your mind - every comment helps.' }
   }, [category, message])
 
   async function handleSubmit(e) {

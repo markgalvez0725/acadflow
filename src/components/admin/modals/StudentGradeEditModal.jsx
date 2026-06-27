@@ -34,7 +34,7 @@ function SubjectRow({ sub, meta, eqScale, row, onChange }) {
     finalsExam:  toNum(row.finalsExam),
   })
 
-  let equiv = '—', remark = null, remarkCls = 'badge-gray'
+  let equiv = '-', remark = null, remarkCls = 'badge-gray'
   if (midterm != null && finals != null) {
     const combined = combineEquiv(gradeInfo(midterm, eqScale).eq, gradeInfo(finals, eqScale).eq)
     equiv = combined.eq
@@ -46,12 +46,12 @@ function SubjectRow({ sub, meta, eqScale, row, onChange }) {
     equiv = gradeInfo(finals, eqScale).eq
   }
 
-  const finalDisplay = final != null ? Math.round(final) : '—'
-  const csDisplay = meta.cs != null ? Math.round(meta.cs) : '—'
+  const finalDisplay = final != null ? Math.round(final) : '-'
+  const csDisplay = meta.cs != null ? Math.round(meta.cs) : '-'
 
   return (
     <>
-      {/* Desktop / tablet — grid row */}
+      {/* Desktop / tablet - grid row */}
       <div className="hidden sm:grid" style={{ gridTemplateColumns: '1.4fr 84px 84px 56px 64px auto', gap: 8, alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: col, flexShrink: 0 }} />
@@ -63,7 +63,7 @@ function SubjectRow({ sub, meta, eqScale, row, onChange }) {
           style={{ padding: '4px 8px', fontSize: 13, height: 32 }}
           value={row.midtermExam}
           onChange={e => onChange('midtermExam', e.target.value)}
-          placeholder="—"
+          placeholder="-"
           aria-label={`${sub} midterm exam`}
         />
         <input
@@ -72,7 +72,7 @@ function SubjectRow({ sub, meta, eqScale, row, onChange }) {
           style={{ padding: '4px 8px', fontSize: 13, height: 32 }}
           value={row.finalsExam}
           onChange={e => onChange('finalsExam', e.target.value)}
-          placeholder="—"
+          placeholder="-"
           aria-label={`${sub} finals exam`}
         />
         <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--ink2)' }} title="Class standing (activities, quizzes, attendance, attitude)">
@@ -88,7 +88,7 @@ function SubjectRow({ sub, meta, eqScale, row, onChange }) {
         </div>
       </div>
 
-      {/* Mobile — card per subject */}
+      {/* Mobile - card per subject */}
       <div className="sm:hidden" style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 12, marginBottom: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13, marginBottom: 10, minWidth: 0 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: col, flexShrink: 0 }} />
@@ -98,12 +98,12 @@ function SubjectRow({ sub, meta, eqScale, row, onChange }) {
           <div>
             <div style={{ fontSize: 11, color: 'var(--ink3)', marginBottom: 3 }}>Midterm</div>
             <input type="number" min="0" max="100" step="0.1" className="input" style={{ textAlign: 'center', height: 38 }}
-              value={row.midtermExam} onChange={e => onChange('midtermExam', e.target.value)} placeholder="—" aria-label={`${sub} midterm exam`} />
+              value={row.midtermExam} onChange={e => onChange('midtermExam', e.target.value)} placeholder="-" aria-label={`${sub} midterm exam`} />
           </div>
           <div>
             <div style={{ fontSize: 11, color: 'var(--ink3)', marginBottom: 3 }}>Finals</div>
             <input type="number" min="0" max="100" step="0.1" className="input" style={{ textAlign: 'center', height: 38 }}
-              value={row.finalsExam} onChange={e => onChange('finalsExam', e.target.value)} placeholder="—" aria-label={`${sub} finals exam`} />
+              value={row.finalsExam} onChange={e => onChange('finalsExam', e.target.value)} placeholder="-" aria-label={`${sub} finals exam`} />
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)', fontSize: 12 }}>
@@ -172,7 +172,7 @@ export default function StudentGradeEditModal() {
     setRows(initRows)
   }
 
-  // Live count of subjects whose Midterm/Finals differ from the stored values —
+  // Live count of subjects whose Midterm/Finals differ from the stored values -
   // mirrors the change detection in handleSave so the footer stays truthful.
   const changedCount = useMemo(() => {
     let n = 0
@@ -196,7 +196,7 @@ export default function StudentGradeEditModal() {
   }
 
   function handleChange(sub, field, val) {
-    // clamp 0–100 on entry so the preview can't show out-of-range values
+    // clamp 0-100 on entry so the preview can't show out-of-range values
     let v = val
     if (v !== '') {
       const n = parseFloat(v)
@@ -304,8 +304,8 @@ export default function StudentGradeEditModal() {
       </div>
 
       <p style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 12, lineHeight: 1.5 }}>
-        Enter the <strong>Midterm</strong> and <strong>Finals</strong> exam scores per subject. Class standing (CS) —
-        activities, quizzes, attendance &amp; attitude — is carried over and folded into each term automatically.
+        Enter the <strong>Midterm</strong> and <strong>Finals</strong> exam scores per subject. Class standing (CS) -
+        activities, quizzes, attendance &amp; attitude - is carried over and folded into each term automatically.
         Leave both blank to keep a subject untouched.
       </p>
 

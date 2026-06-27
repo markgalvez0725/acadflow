@@ -42,7 +42,7 @@ export default function LoginScreen({ onRevealFaculty }) {
 
   // Hidden faculty entrance: tap the logo 5× within 2s to reveal the faculty
   // sign-in. Lets teachers reach it inside the installed PWA, where there's no
-  // address bar to type the /faculty path — without showing a link to students.
+  // address bar to type the /faculty path - without showing a link to students.
   const logoTaps = useRef({ count: 0, first: 0 })
   function handleLogoTap() {
     const now = Date.now()
@@ -96,7 +96,7 @@ export default function LoginScreen({ onRevealFaculty }) {
   const [fpNewPass,  setFpNewPass]  = useState('')
   const [fpNewPass2, setFpNewPass2] = useState('')
 
-  // Forgot — set security question (for legacy accounts without one)
+  // Forgot - set security question (for legacy accounts without one)
   const [fpSetSqKey,    setFpSetSqKey]    = useState('')
   const [fpSetSqAnswer, setFpSetSqAnswer] = useState('')
 
@@ -125,7 +125,7 @@ export default function LoginScreen({ onRevealFaculty }) {
     }
   }
 
-  // Biometric quick sign-in — offered only when this device has a credential set
+  // Biometric quick sign-in - offered only when this device has a credential set
   // up (see BiometricSetupModal). Unlock reveals the stored password and runs
   // the normal login. Password sign-in always remains available below.
   const [bioOffered, setBioOffered] = useState(false)
@@ -146,7 +146,7 @@ export default function LoginScreen({ onRevealFaculty }) {
     }
   }
 
-  // ── Forgot password — live reset coordinated with the teacher ─────────────
+  // ── Forgot password - live reset coordinated with the teacher ─────────────
   // The student enters their number and taps Start. We poll the server; while
   // the teacher's reset window is open, the server hands back a fresh temporary
   // password, which we use to sign the student in automatically.
@@ -171,13 +171,13 @@ export default function LoginScreen({ onRevealFaculty }) {
         body: JSON.stringify({ studentNumber: number }),
       })
       const data = await r.json().catch(() => ({}))
-      if (!r.ok) { /* transient — keep waiting unless it's a hard error */
+      if (!r.ok) { /* transient - keep waiting unless it's a hard error */
         if (r.status === 404 || r.status === 501) { stopReset(); setRpStatus('idle'); setErr(data.error || 'Reset is unavailable right now.') }
         return
       }
       if (data.customToken) {
         stopReset()
-        // Sign in with a one-time custom token — this does NOT change the
+        // Sign in with a one-time custom token - this does NOT change the
         // student's password (their current one stays valid). They then set a
         // new password before reaching the portal; updatePassword works because
         // they just authenticated. If they abandon here, nothing was destroyed.
@@ -194,7 +194,7 @@ export default function LoginScreen({ onRevealFaculty }) {
       }
       // else: { pending: true } → keep polling
     } catch {
-      // network blip — keep polling until the deadline
+      // network blip - keep polling until the deadline
     }
   }
 
@@ -245,7 +245,7 @@ export default function LoginScreen({ onRevealFaculty }) {
       return setErr(result.msg || 'Password saved, but sign-in failed. Try signing in normally.')
     }
     toast('Password updated. Welcome back!', 'success')
-    // Session starts — this screen unmounts as the student portal loads.
+    // Session starts - this screen unmounts as the student portal loads.
   }
 
   function handleForgotCancel() {
@@ -257,7 +257,7 @@ export default function LoginScreen({ onRevealFaculty }) {
     clearMessages()
   }
 
-  // ── Forgot password — self-service Face ID reset (no teacher needed) ───────
+  // ── Forgot password - self-service Face ID reset (no teacher needed) ───────
   // The modal owns the student-number step, so just open it (optionally
   // prefilled with whatever's already typed in the panel).
   function openFaceReset() {
@@ -276,12 +276,12 @@ export default function LoginScreen({ onRevealFaculty }) {
     const result = await loginStudent(clean, newPassword)
     if (!result.ok) {
       setMode('student')
-      return setErr(result.msg || 'Your password was updated — please sign in with it.')
+      return setErr(result.msg || 'Your password was updated - please sign in with it.')
     }
     toast('Password updated. Welcome back!', 'success')
   }
 
-  // ── Register — verified, roster-gated account creation (Firebase Auth) ─────
+  // ── Register - verified, roster-gated account creation (Firebase Auth) ─────
   // Flow: create the auth account (signs in), then read the roster record while
   // authenticated and verify the details. If anything fails, the just-created
   // account is deleted so nothing is left behind.
@@ -358,7 +358,7 @@ export default function LoginScreen({ onRevealFaculty }) {
 
       // 4) Create the account on the roster record. It starts PENDING:
       //    `verified` is set to true only by the server gate below (strong match)
-      //    or by a teacher — never by this device. Writing it explicitly false
+      //    or by a teacher - never by this device. Writing it explicitly false
       //    keeps the account pending even if the server is unreachable.
       const patch = {
         'account.registered': true,
@@ -376,7 +376,7 @@ export default function LoginScreen({ onRevealFaculty }) {
       // 5) Server-side verification (authoritative). On a strong match the server
       //    flips account.verified=true → the student is Active immediately. If the
       //    endpoint is unconfigured/unreachable, the account stays Pending for the
-      //    teacher to approve — the student is never blocked.
+      //    teacher to approve - the student is never blocked.
       let verified = false
       try {
         const idToken = await createdUser.getIdToken()
@@ -386,13 +386,13 @@ export default function LoginScreen({ onRevealFaculty }) {
           body: JSON.stringify({ idToken, studentNumber: regSnum, ...entered }),
         })
         if (resp.ok) { const d = await resp.json().catch(() => ({})); verified = !!d.verified }
-      } catch (_) { /* leave pending — teacher will verify */ }
+      } catch (_) { /* leave pending - teacher will verify */ }
 
       // 6) Sign out so they sign in cleanly with their new password.
       await signOut(auth).catch(() => {})
       setOkMsg(verified
         ? '✅ Verified! Sign in with your student number.'
-        : '✅ Account created. You can sign in now — full access unlocks once your teacher verifies you.')
+        : '✅ Account created. You can sign in now - full access unlocks once your teacher verifies you.')
       setTimeout(() => { setMode('student'); clearMessages() }, 2400)
     } catch (err) {
       if (createdUser) { try { await deleteUser(createdUser) } catch (_) {} }
@@ -404,7 +404,7 @@ export default function LoginScreen({ onRevealFaculty }) {
   }
 
 
-  // ── Forgot Step 1 — look up student, display security question ───────────
+  // ── Forgot Step 1 - look up student, display security question ───────────
   async function handleFpStep1(e) {
     e.preventDefault()
     clearMessages()
@@ -418,11 +418,11 @@ export default function LoginScreen({ onRevealFaculty }) {
         return setErr('No account found for that student number. Please contact your teacher.')
       }
       if (!s.account?.registered) {
-        return setErr('This student number has no account yet. Switch to "Register" to create one — you\'ll verify your identity with your course, year, and section.')
+        return setErr('This student number has no account yet. Switch to "Register" to create one - you\'ll verify your identity with your course, year, and section.')
       }
       setFpPending({ snum: s.id })
       if (!s.account?.securityQuestion) {
-        // Legacy account — let them set a security question first
+        // Legacy account - let them set a security question first
         setFpSetSqKey('')
         setFpSetSqAnswer('')
         setMode('fp-set-sq')
@@ -437,7 +437,7 @@ export default function LoginScreen({ onRevealFaculty }) {
     }
   }
 
-  // ── Forgot Step 1b — set security question for legacy accounts ──────────
+  // ── Forgot Step 1b - set security question for legacy accounts ──────────
   async function handleFpSetSq(e) {
     e.preventDefault()
     clearMessages()
@@ -465,7 +465,7 @@ export default function LoginScreen({ onRevealFaculty }) {
     }
   }
 
-  // ── Forgot Step 2 — verify answer, save new password ────────────────────
+  // ── Forgot Step 2 - verify answer, save new password ────────────────────
   async function handleFpStep2(e) {
     e.preventDefault()
     clearMessages()
@@ -553,7 +553,7 @@ export default function LoginScreen({ onRevealFaculty }) {
             )}
           </h1>
           <p className="auth2-tagline">
-            Grades, attendance, announcements, and messages — one calm place for your whole semester.
+            Grades, attendance, announcements, and messages - one calm place for your whole semester.
           </p>
           <div className="auth2-feats">
             {STUDENT_FEATURES.map(({ Icon, label }) => (
@@ -570,7 +570,7 @@ export default function LoginScreen({ onRevealFaculty }) {
           {/* Brand (mobile / tablet only) */}
           <div className="auth2-brandtop">
             <span onClick={handleLogoTap}><AcadFlowLogo variant="stacked" size="lg" className="justify-center" /></span>
-            <p className="auth2-tagline">Grades, attendance, and messages — live, in one calm place.</p>
+            <p className="auth2-tagline">Grades, attendance, and messages - live, in one calm place.</p>
           </div>
 
           <div className="auth2-card">
@@ -658,7 +658,7 @@ export default function LoginScreen({ onRevealFaculty }) {
               </p>
               <div className="field-float field-float--select">
                 <select value={regCourse} onChange={e => setRegCourse(e.target.value)}>
-                  <option value="">— Select course —</option>
+                  <option value="">- Select course -</option>
                   {courseOptions(regCourse).map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
                 <label>Course / Program</label>
@@ -727,13 +727,13 @@ export default function LoginScreen({ onRevealFaculty }) {
             </form>
           )}
 
-          {/* ── Forgot Password — teacher-managed reset ──────────────── */}
+          {/* ── Forgot Password - teacher-managed reset ──────────────── */}
           {mode === 'forgot' && rpStatus !== 'setpass' && rpStatus !== 'saving' && (
             <form onSubmit={handleForgotStart}>
               <h3 className="font-display text-lg font-bold text-ink mb-1">Forgot Password</h3>
               <p className="text-sm text-ink2 mb-4" style={{ lineHeight: 1.6 }}>
                 First, message your teacher and ask them to open a reset for you. Enter your
-                student number below, then tap <strong>Start</strong> — the moment your teacher
+                student number below, then tap <strong>Start</strong> - the moment your teacher
                 opens the window, you'll be signed in automatically.
               </p>
 
@@ -796,9 +796,9 @@ export default function LoginScreen({ onRevealFaculty }) {
             />
           )}
 
-          {/* ── Forgot Password — blocking "set a new password" modal ─────────
+          {/* ── Forgot Password - blocking "set a new password" modal ─────────
                Persistent overlay: the student must set a new password before
-               reaching the portal. No close or cancel — it cannot be skipped. */}
+               reaching the portal. No close or cancel - it cannot be skipped. */}
           {mode === 'forgot' && (rpStatus === 'setpass' || rpStatus === 'saving') && (
             <div
               style={{ position: 'fixed', inset: 0, background: 'rgba(10,20,50,.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, backdropFilter: 'blur(3px)' }}
@@ -809,7 +809,7 @@ export default function LoginScreen({ onRevealFaculty }) {
                   <div style={{ marginBottom: 8, color: 'var(--accent)' }}><KeyRound size={40} style={{ display: 'inline-block' }} /></div>
                   <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: 6 }}>Set your new password</h3>
                   <p style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.5 }}>
-                    You're verified. Choose a new password to finish — this step can't be skipped.
+                    You're verified. Choose a new password to finish - this step can't be skipped.
                   </p>
                 </div>
 
@@ -846,7 +846,7 @@ export default function LoginScreen({ onRevealFaculty }) {
             </div>
           )}
 
-          {/* ── Forgot Password Step 1b — Set Security Question ─────── */}
+          {/* ── Forgot Password Step 1b - Set Security Question ─────── */}
           {mode === 'fp-set-sq' && (
             <form onSubmit={handleFpSetSq}>
               <h3 className="font-display text-lg font-bold text-ink mb-1">Set Security Question</h3>
@@ -883,7 +883,7 @@ export default function LoginScreen({ onRevealFaculty }) {
             </form>
           )}
 
-          {/* ── Forgot Password Step 2 — Answer + New Password ──────── */}
+          {/* ── Forgot Password Step 2 - Answer + New Password ──────── */}
           {mode === 'fp-sq' && (() => {
             const s = students.find(x => x.id === fpPending?.snum)
             const q = SECURITY_QUESTIONS.find(q => q.key === s?.account?.securityQuestion)
@@ -942,7 +942,7 @@ export default function LoginScreen({ onRevealFaculty }) {
 
           </div>{/* /auth2-card */}
 
-          {/* Mode switch — Instagram-style secondary card */}
+          {/* Mode switch - Instagram-style secondary card */}
           {mode === 'student' && (
             <div className="auth2-subcard">
               New here?{' '}

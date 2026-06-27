@@ -1,6 +1,6 @@
 // ── Teacher: open a password-reset session for one student ────────────────
 // The teacher (verified by their Firebase ID token) authorises a short-lived
-// reset window for a specific student. No password is generated here — the
+// reset window for a specific student. No password is generated here - the
 // student's own device claims a fresh temporary password via /api/claim-reset
 // while the window is open. This keeps any temporary password off the teacher
 // screen and out of long-term storage.

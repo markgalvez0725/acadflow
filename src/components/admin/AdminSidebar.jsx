@@ -57,7 +57,7 @@ export default function AdminSidebar({ onSettingsOpen }) {
         </div>
       </div>
 
-      {/* Nav — flat list */}
+      {/* Nav - flat list */}
       <nav className="sb-nav flex-1 overflow-y-auto">
         {NAV_ITEMS.map(item => {
           const badge = item.badgeId ? getBadge(item.badgeId) : 0
@@ -95,7 +95,7 @@ export default function AdminSidebar({ onSettingsOpen }) {
           <div className="sb-avatar" style={{ flexShrink: 0 }}>{adminInitial}</div>
           <div className="sb-user-info">
             <strong>{adminName}</strong>
-            <span>{admin?.email || '—'}</span>
+            <span>{admin?.email || '-'}</span>
           </div>
         </div>
         <button className="sb-logout" onClick={onSettingsOpen} title="Settings" aria-label="Settings">

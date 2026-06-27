@@ -22,14 +22,14 @@ import { accountStatusKey } from '@/utils/accountStatus'
 import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare, Library, ListChecks, MessageSquarePlus, ShieldCheck } from 'lucide-react'
 
 // Tabs hidden until the account is fully Active (verified + Face ID). Covers
-// every surface that exposes grades, activities, or quizzes — including the
+// every surface that exposes grades, activities, or quizzes - including the
 // Overview dashboard (the default landing tab: GWA, grade bars, study analyzer,
 // open-quiz / pending-activity counts) and the Calendar (activity/quiz
 // deadlines). Only setup, comms, and enrollment surfaces stay reachable.
 const PENDING_GATED_TABS = new Set(['overview', 'grades', 'quizzes', 'activities', 'assignments', 'calendar'])
 
 // Shown in place of a protected tab while the account isn't fully Active. One
-// generic gate for every onboarding state — the guided VerificationCenter (opened
+// generic gate for every onboarding state - the guided VerificationCenter (opened
 // via onVerify) owns all the step-specific detail, so this stays simple.
 function VerificationGate({ onVerify, onContact }) {
   return (
@@ -38,7 +38,7 @@ function VerificationGate({ onVerify, onContact }) {
       <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--ink)', marginTop: 4 }}>Get verified to unlock</div>
       <p style={{ fontSize: 13.5, color: 'var(--ink2)', lineHeight: 1.6, marginTop: 8 }}>
         Your grades, quizzes, and activities unlock once your account is verified.
-        It only takes a minute — I'll guide you through each step.
+        It only takes a minute - I'll guide you through each step.
       </p>
       <button className="btn btn-primary btn-sm" style={{ marginTop: 16 }} onClick={onVerify}>
         <ShieldCheck size={14} style={{ marginRight: 6 }} /> Get verified
@@ -116,7 +116,7 @@ export default function StudentLayout() {
   const { students, classes, messages, activities, quizzes, db, fbReady, semester, studentCheckIn, attendanceSessions, eqScale } = useData()
   const { currentStudent, setCurrentStudent, logout, loginTime, lastLogin } = useAuth()
 
-  // Resolve pending student (session restore — only id is known until students load)
+  // Resolve pending student (session restore - only id is known until students load)
   const [student, setStudent] = useState(() =>
     currentStudent?._pending ? null : currentStudent
   )
@@ -133,7 +133,7 @@ export default function StudentLayout() {
   }, [currentStudent, students])
 
   // Multi-class: track which class is being viewed. Only current-semester,
-  // non-archived classes appear — previous/ended semesters are hidden.
+  // non-archived classes appear - previous/ended semesters are hidden.
   const enrolledClasses = student ? activeClasses(student, classes, semester) : []
 
   // Needs onboarding = a registered account that isn't fully Active yet. This is
@@ -151,7 +151,7 @@ export default function StudentLayout() {
     }
   }, [enrolledClasses])
 
-  // Student notifications — subscribe to notifications/{studentId}
+  // Student notifications - subscribe to notifications/{studentId}
   const [studentNotifs, setStudentNotifs] = useState([])
   const notifsUnsubRef = useRef(null)
 
@@ -190,7 +190,7 @@ export default function StudentLayout() {
 
   // Auto-open the student into "Get verified" ONCE per load while onboarding is
   // incomplete (replaces the old forced-password + forced-profile + setup-checklist
-  // + 90s-nag stack). Re-surfaces only when a gated tab is opened — no timer.
+  // + 90s-nag stack). Re-surfaces only when a gated tab is opened - no timer.
   const autoVerifyRef = useRef(false)
   useEffect(() => {
     if (needsOnboarding && !autoVerifyRef.current) {
@@ -218,7 +218,7 @@ export default function StudentLayout() {
     const raw = (() => { try { return localStorage.getItem(key) } catch (e) { return null } })()
 
     // First run for this student+semester: silently baseline whatever is already
-    // passing so historical passes don't celebrate — only NEW passes after this
+    // passing so historical passes don't celebrate - only NEW passes after this
     // point trigger the congrats overlay.
     if (raw === null) {
       try { localStorage.setItem(key, JSON.stringify(passed.map(p => p.subject))) } catch (e) { /* ignore */ }
@@ -235,7 +235,7 @@ export default function StudentLayout() {
     setPassedQueue(q => [...q, ...fresh])
   }, [student, classes, semester, eqScale])
 
-  // First-run onboarding tour — once per device, never during verification setup.
+  // First-run onboarding tour - once per device, never during verification setup.
   const [tourOpen, setTourOpen] = useState(false)
   useEffect(() => {
     if (!student?.id || needsOnboarding) return
@@ -244,10 +244,10 @@ export default function StudentLayout() {
     if (!seen) setTourOpen(true)
   }, [student?.id, needsOnboarding])
 
-  // Web push (FCM) — opt-in per device, no-op when unsupported/unconfigured
+  // Web push (FCM) - opt-in per device, no-op when unsupported/unconfigured
   const push = usePushNotifications({ db, fbReady, ownerId: student?.id, role: 'student', toast })
 
-  // Smart deadline reminders — fires 24h / 3h before activity & quiz deadlines
+  // Smart deadline reminders - fires 24h / 3h before activity & quiz deadlines
   // while the app is open. Idempotent, so it never double-reminds.
   useReminders(student)
 
@@ -400,7 +400,7 @@ export default function StudentLayout() {
       const fresh = list.filter(n => (n.ts || 0) > lastNotifTs.current).sort((a, b) => b.ts - a.ts)
       lastNotifTs.current = latest
       const n = fresh[0]
-      if (n) toast(n.body ? `${n.title} — ${n.body}` : n.title, 'info')
+      if (n) toast(n.body ? `${n.title} - ${n.body}` : n.title, 'info')
     }
   }, [studentNotifs])
 
@@ -430,7 +430,7 @@ export default function StudentLayout() {
         <div className="fixed inset-0 z-30 bg-black/40" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* Sidebar — collapsed icon rail on desktop, expands on hover (overlay) */}
+      {/* Sidebar - collapsed icon rail on desktop, expands on hover (overlay) */}
       <div className={`sidebar-wrap${sidebarOpen ? ' open' : ''}`}>
         <StudentSidebar
           student={student}
@@ -482,7 +482,7 @@ export default function StudentLayout() {
         {/* Tab content */}
         <main className="admin-body" id="main-content" tabIndex={-1}>
           <InstallPrompt />
-          {/* Persistent activation prompt — the account isn't Active (and the
+          {/* Persistent activation prompt - the account isn't Active (and the
               protected tabs stay locked) until verification is complete. */}
           {needsOnboarding && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', marginBottom: 14, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--accent-l)', color: 'var(--ink)' }}>
@@ -521,7 +521,7 @@ export default function StudentLayout() {
         </main>
       </div>
 
-      {/* Mobile bottom nav — 4 primary + More */}
+      {/* Mobile bottom nav - 4 primary + More */}
       <nav className="admin-bottom-nav" aria-label="Sections">
         {MOBILE_NAV.map(t => {
           const badge = t.badgeId ? badgeFor(t.id) : 0
@@ -584,7 +584,7 @@ export default function StudentLayout() {
       )}
 
       {/* Modals */}
-      {/* Standalone profile editor — ACTIVE students only (header / Notifications
+      {/* Standalone profile editor - ACTIVE students only (header / Notifications
           tab). Onboarding profile edits happen inside the VerificationCenter. */}
       {profileOpen && (
         <Suspense fallback={null}>

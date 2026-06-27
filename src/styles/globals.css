@@ -19,7 +19,7 @@
 }
 
 /*
- * Wordmark: always-visible brand gradient using only accent/purple — 
+ * Wordmark: always-visible brand gradient using only accent/purple - 
  * never var(--ink) which can become near-white in dark-theme or
  * scene-override contexts and blend into the background.
  * Lighter stop values (mix toward white) ensure the gradient stays vivid
@@ -37,7 +37,7 @@
     acadflow-glow  3s  ease-in-out 0.7s infinite;
 }
 
-/* Wordmark: solid accent-purple — always visible regardless of backdrop-filter ancestors */
+/* Wordmark: solid accent-purple - always visible regardless of backdrop-filter ancestors */
 .acadflow-wordmark {
   color: #a78bfa;
 }
@@ -89,10 +89,10 @@
 }
 
 /* ══════════════════════════════════════════
-   DESIGN TOKENS — Light & Dark
+   DESIGN TOKENS - Light & Dark
 ══════════════════════════════════════════ */
 :root {
-  /* Refined light palette — soft warm-neutral canvas, layered surfaces, vivid indigo-violet accent */
+  /* Refined light palette - soft warm-neutral canvas, layered surfaces, vivid indigo-violet accent */
   --bg:        #f4f4f9;
   --bg2:       #eceaf4;
   --surface:   #ffffff;
@@ -206,7 +206,7 @@
 @layer base {
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  /* Responsive root — one knob scales the whole rem-based type ladder.
+  /* Responsive root - one knob scales the whole rem-based type ladder.
      Desktop 100% · tablet ~97% · mobile ~94% (keeps dense tables from overflowing). */
   html { scroll-behavior: smooth; font-size: 100%; }
   @media (max-width: 1023px) { html { font-size: 96.875%; } }
@@ -238,7 +238,7 @@
 .spin { animation: spin 0.9s linear infinite; transform-origin: center; }
 @keyframes blink-caret { 0%, 100% { opacity: 1 } 50% { opacity: 0 } }
 
-/* Typing cursor — inline element that blinks */
+/* Typing cursor - inline element that blinks */
 .typing-cursor {
   display: inline-block;
   width: 2px;
@@ -795,7 +795,7 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 [data-theme="dark"] .sb-nav .nav-item:hover  { background: rgba(255, 255, 255, .06); }
 [data-theme="dark"] .sb-nav .nav-item.active { background: rgba(255, 255, 255, .10); }
 
-/* Nav item label — hidden when collapsed */
+/* Nav item label - hidden when collapsed */
 .sb-nav .nav-item .nav-label {
   opacity: 0;
   max-width: 0;
@@ -1017,7 +1017,7 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
   text-overflow: ellipsis;
 }
 
-/* Hide collapse toggle on mobile — it only makes sense on desktop */
+/* Hide collapse toggle on mobile - it only makes sense on desktop */
 
 
 /* ── Desktop: left sidebar rail ──────────────────────────────────────────── */
@@ -1594,7 +1594,7 @@ textarea.input { resize: vertical; }
   border-top: 1px solid var(--border);
   flex-wrap: wrap;
 }
-/* Sticky variant — pins the action bar to the modal bottom while the body
+/* Sticky variant - pins the action bar to the modal bottom while the body
    scrolls. Negative margins bleed past .modal-scroll's 28px padding so the
    bar sits flush with the panel edge. */
 .modal-footer-sticky {
@@ -2419,7 +2419,7 @@ textarea.input { resize: vertical; }
 .msg-seen { font-size: 0.7188rem; color: var(--ink3); text-align: right; padding-right: 4px; margin: -2px 0 8px; display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
 .msg-seen.read { color: var(--accent); }
 
-/* Rounded reply bar — pill input + circular send (Messenger/IG style) */
+/* Rounded reply bar - pill input + circular send (Messenger/IG style) */
 .msg-reply-bar { display: flex; align-items: flex-end; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
 .msg-reply-pill { flex: 1; display: flex; align-items: center; background: var(--bg2); border: 1px solid var(--border); border-radius: 20px; padding: 0 6px 0 14px; transition: border-color .15s; }
 .msg-reply-pill:focus-within { border-color: var(--accent); }
@@ -2433,7 +2433,7 @@ textarea.input { resize: vertical; }
 .msg-fill-height { height: calc(100dvh - 100px); min-height: 480px; }
 @media (max-width: 767px) { .msg-fill-height { height: calc(100dvh - 150px); min-height: 0; } }
 
-/* List pane header — title + compose icon (Messenger/IG style) */
+/* List pane header - title + compose icon (Messenger/IG style) */
 .msg-pane-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .msg-pane-title { font-size: 1.25rem; font-weight: 700; color: var(--ink); }
 .msg-icon-btn { background: none; border: none; cursor: pointer; color: var(--ink2); display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; transition: background .15s, color .15s; }
@@ -2450,7 +2450,7 @@ textarea.input { resize: vertical; }
 /* Thread header with avatar */
 .msg-thread-head { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; min-width: 0; overflow: hidden; }
 /* Keep the back button, avatar and actions menu at fixed size so the title block
-   (flex:1, min-width:0) is the only part that shrinks and truncates — otherwise a
+   (flex:1, min-width:0) is the only part that shrinks and truncates - otherwise a
    long group name pushes the header wider and overlaps the conversation list. */
 .msg-thread-head > button,
 .msg-thread-head > .msg-thread-head-av { flex-shrink: 0; }
@@ -2498,7 +2498,7 @@ textarea.input { resize: vertical; }
 .msg-reply-banner .rb-x { flex-shrink: 0; border: none; background: none; color: var(--ink3); cursor: pointer; display: flex; padding: 2px; }
 .msg-reply-banner .rb-x:hover { color: var(--ink); }
 
-/* Smart-locked (sensitive) message body — blurred until press-and-held. */
+/* Smart-locked (sensitive) message body - blurred until press-and-held. */
 .msg-secure { position: relative; cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; display: inline-block; min-width: 90px; }
 .msg-secure-text { white-space: pre-wrap; filter: blur(7px); transition: filter .14s ease; }
 .msg-secure.revealed .msg-secure-text { filter: none; }
@@ -2507,7 +2507,7 @@ textarea.input { resize: vertical; }
   font-size: 0.6875rem; font-weight: 700; letter-spacing: -.01em; white-space: nowrap;
 }
 .msg-secure.revealed .msg-secure-hint { display: none; }
-/* Lock badge shown to the SENDER above their own private message — they wrote
+/* Lock badge shown to the SENDER above their own private message - they wrote
    it, so they always see the text (the blur is for the recipient + screenshots). */
 .msg-own-private { display: inline-flex; align-items: center; gap: 3px; font-size: 0.625rem; font-weight: 700; opacity: .65; margin-bottom: 2px; }
 /* Lock toggle in the composer (sender chooses / AI suggests a private send). */
@@ -2524,7 +2524,7 @@ textarea.input { resize: vertical; }
   font-size: 0.6875rem; font-weight: 600; color: var(--accent);
 }
 
-/* "… took a screenshot" — a centered system notice inside a message thread,
+/* "… took a screenshot" - a centered system notice inside a message thread,
    shown to both the student and the teacher (Instagram / Messenger style). */
 .msg-screenshot-note {
   display: flex; align-items: center; justify-content: center; gap: 6px;
@@ -3046,7 +3046,7 @@ textarea.input { resize: vertical; }
 .att2-ld { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 
 /* ══════════════════════════════════════════
-   STUDENT ACTIVITIES — standing ring + Activity Watch + pills
+   STUDENT ACTIVITIES - standing ring + Activity Watch + pills
 ══════════════════════════════════════════ */
 .sact-top {
   display: grid;
@@ -3122,7 +3122,7 @@ textarea.input { resize: vertical; }
   .sact-grid { grid-template-columns: 1fr 1fr; }
 }
 
-/* Assignment tracker — urgency-grouped tap-to-jump rows */
+/* Assignment tracker - urgency-grouped tap-to-jump rows */
 .sact-group-h {
   font-size: 0.7rem;
   font-weight: 700;
@@ -3163,7 +3163,7 @@ textarea.input { resize: vertical; }
 .sact-row-meta { font-size: 0.74rem; color: var(--ink3); margin-top: 2px; }
 .sact-row-due { font-size: 0.74rem; font-weight: 700; flex-shrink: 0; }
 
-/* Quiz fullscreen focus mode — full-viewport panel (covers the app even when
+/* Quiz fullscreen focus mode - full-viewport panel (covers the app even when
    the OS Fullscreen API is unsupported, e.g. iOS Safari). */
 .quiz-focus-overlay {
   position: fixed;
@@ -3232,7 +3232,7 @@ textarea.input { resize: vertical; }
 .rich-editor em, .rich-editor i { font-style: italic; }
 .rich-editor u { text-decoration: underline; }
 
-/* Links, code blocks, and tables — shared by the editor and the rendered output */
+/* Links, code blocks, and tables - shared by the editor and the rendered output */
 .rich-editor a, .ann-message a { color: var(--accent); text-decoration: underline; word-break: break-word; }
 .rich-editor pre, .ann-message pre {
   background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
@@ -3437,7 +3437,7 @@ textarea.input { resize: vertical; }
 }
 
 /* ══════════════════════════════════════════
-   UTILITY — gradient text, glass, hero
+   UTILITY - gradient text, glass, hero
 ══════════════════════════════════════════ */
 
 
@@ -3537,7 +3537,7 @@ textarea.input { resize: vertical; }
 } /* end @layer components */
 
 /* ══════════════════════════════════════════════════════════════════════════════
-   DAY / NIGHT WEATHER SCENE — Login Screen Enhancements
+   DAY / NIGHT WEATHER SCENE - Login Screen Enhancements
    Uses modern CSS @property for smooth animatable custom properties,
    scene-responsive glassmorphism, and atmospheric ambient overlays.
 ══════════════════════════════════════════════════════════════════════════════ */
@@ -3651,10 +3651,10 @@ textarea.input { resize: vertical; }
 /* Pre-dawn */
 
 
-/* Sunrise / sunset — golden warmth */
+/* Sunrise / sunset - golden warmth */
 
 
-/* Day scenes — light frosted glass */
+/* Day scenes - light frosted glass */
 
 
 /* Dark theme overrides: always keep dark surface */
@@ -3687,7 +3687,7 @@ textarea.input { resize: vertical; }
 
 /* ══════════════════════════════════════════
    MACBOOK GLASS LOGIN CARD
-   Floating frosted-glass panel — macOS Sequoia-style
+   Floating frosted-glass panel - macOS Sequoia-style
 ══════════════════════════════════════════ */
 
 
@@ -3700,13 +3700,13 @@ textarea.input { resize: vertical; }
 /* Pre-dawn */
 
 
-/* Sunrise / sunset — warm tinted glass */
+/* Sunrise / sunset - warm tinted glass */
 
 
-/* Day scenes — bright frosted glass */
+/* Day scenes - bright frosted glass */
 
 
-/* Glass card tab switcher — active pill */
+/* Glass card tab switcher - active pill */
 
 
 
@@ -3716,9 +3716,9 @@ textarea.input { resize: vertical; }
 
 
 /* ══════════════════════════════════════════
-   DESIGN REFRESH — base polish, a11y, motion
+   DESIGN REFRESH - base polish, a11y, motion
    Additive only. No selectors removed, no
-   structure changed — pure presentation.
+   structure changed - pure presentation.
 ══════════════════════════════════════════ */
 @layer base {
   /* Cohesive serif heading rhythm for the editorial display font */
@@ -3771,7 +3771,7 @@ textarea.input { resize: vertical; }
 
 
 /* ══════════════════════════════════════════
-   FROSTED GLASS — Apple-style panels
+   FROSTED GLASS - Apple-style panels
    Translucent fills + backdrop blur + bright
    rim, refracting a faint ambient aurora.
    Additive: presentation only, no structure.
@@ -3790,7 +3790,7 @@ textarea.input { resize: vertical; }
   --glass-shadow:    0 1px 0 rgba(255,255,255,.05) inset, 0 16px 44px rgba(0,0,0,.5);
 }
 
-/* Ambient aurora — fixed, very low contrast, sits behind all content so the
+/* Ambient aurora - fixed, very low contrast, sits behind all content so the
    frosted panels have something to refract. */
 body::before {
   content: '';
@@ -3832,7 +3832,7 @@ body::before {
   background: var(--glass-bg-strong);
 }
 
-/* Graceful fallback when backdrop-filter isn't supported — stay solid. */
+/* Graceful fallback when backdrop-filter isn't supported - stay solid. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .glass-panel, .card, .sidebar { background: var(--surface); }
 }
@@ -3953,13 +3953,13 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 .btn-primary:hover:not(:disabled) { background: var(--accent-m); box-shadow: none; transform: none; }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   MODERN ACADEMIC — STUDENT REVAMP
+   MODERN ACADEMIC - STUDENT REVAMP
    App-like, card-based student portal. Everything scoped to #student-portal
-   so the admin side is untouched. Presentation only — no markup/logic depends
+   so the admin side is untouched. Presentation only - no markup/logic depends
    on this. Appended last so it wins. Fully revertible by removing this block.
 ══════════════════════════════════════════════════════════════════════════ */
 
-/* — App header — */
+/* - App header - */
 #student-portal .student-topbar {
   padding: 12px 16px;
   gap: 12px;
@@ -3977,7 +3977,7 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 
 
 
-/* — Panels / cards: bigger radius, app-like — */
+/* - Panels / cards: bigger radius, app-like - */
 #student-portal .card {
   border-radius: var(--radius-xl);
   border: 1px solid var(--border);
@@ -3989,14 +3989,14 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 #student-portal .card:hover { box-shadow: var(--shadow-lg); transform: translateY(-1px); }
 #student-portal .rounded-xl { border-radius: var(--radius-xl) !important; }
 
-/* — Section headers — */
+/* - Section headers - */
 #student-portal .sec-hdr { align-items: center; margin-bottom: 12px; }
 #student-portal .sec-title {
   font-size: 1.0313rem; font-weight: 700; letter-spacing: -.01em; color: var(--ink);
   display: flex; align-items: center; gap: 7px;
 }
 
-/* — Stat tiles — */
+/* - Stat tiles - */
 
 
 
@@ -4004,10 +4004,10 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 
 
 
-/* — Bottom nav: dark floating capsule, icon-only (mobile/tablet only).
-   Maya-style — a contained near-black pill that floats clear of the screen
+/* - Bottom nav: dark floating capsule, icon-only (mobile/tablet only).
+   Maya-style - a contained near-black pill that floats clear of the screen
    edges and the iOS/Android safe area, with white icons and a bright-blue
-   active tab. At >=1024px the nav is a vertical sidebar (handled below). — */
+   active tab. At >=1024px the nav is a vertical sidebar (handled below). - */
 @media (max-width: 1023px) {
   #student-portal .student-bottom-nav {
     left: 12px;
@@ -4054,7 +4054,7 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
   
 }
 
-/* — Desktop sidebar (>=1024px): navy active item, no pill oval — */
+/* - Desktop sidebar (>=1024px): navy active item, no pill oval - */
 @media (min-width: 1024px) {
   #student-portal .student-bottom-nav {
     border-radius: 0;
@@ -4066,8 +4066,8 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
   }
 }
 
-/* — Admin mobile bottom nav: dark floating capsule (matches the student nav).
-   Hidden on desktop, where the sidebar handles navigation. — */
+/* - Admin mobile bottom nav: dark floating capsule (matches the student nav).
+   Hidden on desktop, where the sidebar handles navigation. - */
 .admin-bottom-nav { display: none; }
 @media (max-width: 1023px) {
   .admin-bottom-nav {
@@ -4113,8 +4113,8 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
   }
 }
 
-/* — Admin mobile: keep every tab/panel within the screen (no sideways
-   overflow), and let toolbars wrap instead of running off the edge. — */
+/* - Admin mobile: keep every tab/panel within the screen (no sideways
+   overflow), and let toolbars wrap instead of running off the edge. - */
 @media (max-width: 1023px) {
   #admin-portal .admin-body {
     overflow-x: hidden;
@@ -4132,7 +4132,7 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   BALANCED LOGIN — white-dominant with a contained navy branding accent.
+   BALANCED LOGIN - white-dominant with a contained navy branding accent.
    Static (no weather scene, no animation, no lag). Scoped to the two login
    screens. The navy is limited to the branding panel/card; the form sits on a
    clean light surface. Theme toggle pinned visibly top-right. Revertible.
@@ -4190,11 +4190,11 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 
 
 
-/* Help (FAQ) button — sits to the left of the theme toggle on login screens */
+/* Help (FAQ) button - sits to the left of the theme toggle on login screens */
 #login-screen .help-btn, #admin-login-screen .help-btn { right: 60px; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   AUTH v2 — centered academic sign-in (Facebook/Instagram-style)
+   AUTH v2 - centered academic sign-in (Facebook/Instagram-style)
    One layout that scales identically from installed-PWA mobile → desktop.
    Everything reads live theme tokens, so dark mode + the academic theme
    follow automatically. Replaces the old split brand-panel / form-panel.
@@ -4509,7 +4509,7 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 .res-open { color: var(--ink3); flex-shrink: 0; }
 .res-item--link:hover .res-open { color: var(--accent); }
 
-/* Resource Hub redesign — 2-up grid, search, "New" marker */
+/* Resource Hub redesign - 2-up grid, search, "New" marker */
 .res-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
 @media (min-width: 680px) { .res-grid { grid-template-columns: 1fr 1fr; } }
 .res-search { position: relative; margin-bottom: 12px; }
@@ -4524,7 +4524,7 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 }
 .res-sub-count { color: var(--ink3); font-weight: 400; font-size: 0.85rem; }
 
-/* Calendar redesign — balanced two-column (grid + side rail) */
+/* Calendar redesign - balanced two-column (grid + side rail) */
 .cal2-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
 .cal2-title { font-size: 1.15rem; font-weight: 700; color: var(--ink); }
 .cal2-sub { font-size: 0.8rem; color: var(--ink3); margin-top: 2px; }
@@ -4538,7 +4538,7 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 .cal2-ag + .cal2-ag { margin-top: 6px; }
 .cal2-agi { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 
-/* Online classes redesign — hero + Session Watch + single-scroll sections */
+/* Online classes redesign - hero + Session Watch + single-scroll sections */
 .oc-top { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 14px; }
 @media (min-width: 760px) { .oc-top { grid-template-columns: 1fr 1fr; } }
 .oc-sec-h {
@@ -4571,7 +4571,7 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
   font-size: 0.82rem;
 }
 
-/* Feedback hub redesign — two-column (form + Feedback Watch rail) */
+/* Feedback hub redesign - two-column (form + Feedback Watch rail) */
 .fb2-top { display: grid; grid-template-columns: 1fr; gap: 12px; align-items: start; margin-bottom: 18px; }
 @media (min-width: 760px) { .fb2-top { grid-template-columns: minmax(0, 1fr) 240px; } }
 .fb2-ring-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
@@ -4593,7 +4593,7 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 .fb-tip-warn { border-color: color-mix(in srgb, var(--gold-var) 50%, var(--border)); color: var(--gold-var); }
 .fb-tip-warn svg { color: var(--gold-var); }
 
-/* Face ID enrollment + reset — camera viewport */
+/* Face ID enrollment + reset - camera viewport */
 .faceid-cam {
   position: relative;
   border-radius: 14px;
@@ -4694,12 +4694,12 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 
 
 
-/* — Pill badges — */
+/* - Pill badges - */
 #student-portal .badge {
   border-radius: 999px; padding: 3px 10px; font-weight: 600; font-size: 0.7813rem;
 }
 
-/* — Friendlier empty states — */
+/* - Friendlier empty states - */
 #student-portal .empty { padding: 38px 20px; color: var(--ink3); }
 #student-portal .empty-icon {
   width: 64px; height: 64px; border-radius: 50%;
@@ -4708,7 +4708,7 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
   margin: 0 auto 14px;
 }
 
-/* — List rows (notifications, messages) — */
+/* - List rows (notifications, messages) - */
 #student-portal .notif-item,
 #student-portal .s-msg-thread-item { padding: 12px 14px; transition: background .14s ease; }
 #student-portal .notif-item.unread { background: var(--accent-l); }
@@ -4719,14 +4719,14 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
   border-radius: 12px;
 }
 
-/* — Tables (grades, etc.) — */
+/* - Tables (grades, etc.) - */
 #student-portal table thead th { background: var(--surface2); }
 #student-portal table tbody tr:hover td { background: var(--accent-l); }
 
-/* — Inputs sit a touch larger for touch — */
+/* - Inputs sit a touch larger for touch - */
 #student-portal .form-input, #student-portal .input { border-radius: var(--radius); }
 
-/* — Home standing hero — */
+/* - Home standing hero - */
 
 
 
@@ -4737,7 +4737,7 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 
 /* ══════════════════════════════════════════════════════════════════════════
    MOBILE APP-SHELL SCROLL LOCK
-   On phones/tablets the document itself must NOT scroll — otherwise the
+   On phones/tablets the document itself must NOT scroll - otherwise the
    floating bottom nav (position: fixed) drifts up and down as the mobile
    browser's dynamic toolbar / momentum scroll changes the visual viewport.
    Instead we pin each portal to the viewport height and scroll an inner
@@ -4750,11 +4750,11 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
     overscroll-behavior-y: none;
   }
 
-  /* Student portal — the root is the flex column. */
+  /* Student portal - the root is the flex column. */
   
   
 
-  /* Admin portal — the flex column is .admin-main inside the root. */
+  /* Admin portal - the flex column is .admin-main inside the root. */
   #admin-portal.admin-layout {
     height: 100vh;
     height: 100dvh;
@@ -4802,10 +4802,10 @@ h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   POLISH SWEEP — Phase 1: motion & affordances (additive, no regressions)
+   POLISH SWEEP - Phase 1: motion & affordances (additive, no regressions)
    Appended last and purely additive: a reduced-motion safety net, smooth
    in-page scrolling, and a branded text selection. Nothing here overrides an
-   existing component's look — it only adds behavior that was missing.
+   existing component's look - it only adds behavior that was missing.
 ══════════════════════════════════════════════════════════════════════════ */
 html { scroll-behavior: smooth; }
 
@@ -4824,7 +4824,7 @@ html { scroll-behavior: smooth; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   STUDENT "TODAY AT A GLANCE" — tappable daily summary chips (OverviewTab)
+   STUDENT "TODAY AT A GLANCE" - tappable daily summary chips (OverviewTab)
 ══════════════════════════════════════════════════════════════════════════ */
 .today-strip {
   display: grid;
@@ -4855,7 +4855,7 @@ html { scroll-behavior: smooth; }
 .today-chip-lbl { font-size: 0.7813rem; font-weight: 600; color: var(--ink3); text-transform: uppercase; letter-spacing: .03em; }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   STUDENT ONBOARDING TOUR — first-run walkthrough overlay
+   STUDENT ONBOARDING TOUR - first-run walkthrough overlay
 ══════════════════════════════════════════════════════════════════════════ */
 .onb-overlay {
   position: fixed; inset: 0; z-index: 1300;
@@ -4900,7 +4900,7 @@ html { scroll-behavior: smooth; }
 
 
 /* ══════════════════════════════════════════════════════════════════════════
-   MODAL CLOSE BUTTON — one consistent control on every Modal panel
+   MODAL CLOSE BUTTON - one consistent control on every Modal panel
    (backdrop click no longer closes; users click this X or press Esc)
 ══════════════════════════════════════════════════════════════════════════ */
 .modal-close-btn {
@@ -4931,7 +4931,7 @@ html { scroll-behavior: smooth; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   SUBJECT PASSED — celebratory overlay + CSS confetti
+   SUBJECT PASSED - celebratory overlay + CSS confetti
 ══════════════════════════════════════════════════════════════════════════ */
 .passed-overlay {
   position: fixed; inset: 0; z-index: 1400;
@@ -4987,16 +4987,16 @@ html { scroll-behavior: smooth; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   PANEL / NAV CLEANUP (appended last — wins)
+   PANEL / NAV CLEANUP (appended last - wins)
    • Remove the decorative left accent bar on nav items.
    • Drop all non-shadow hover motion (no lift / slide / accent reveal).
    • Panels & cards now respond to hover with ONLY a drop shadow.
-   • Left accent bars are removed everywhere — including the formerly
+   • Left accent bars are removed everywhere - including the formerly
    "semantic" ones (unread message, pinned post, attendance state, at-risk
    rows, quiz review): those rules were stripped at their source definitions.
 ══════════════════════════════════════════════════════════════════════════ */
 
-/* Left accent bars on active nav items — gone (active state still reads via
+/* Left accent bars on active nav items - gone (active state still reads via
    the highlighted background + accent text). */
 .sb-nav .nav-item.active::before,
 .student-bottom-nav .nav-item.active::before { display: none !important; }
@@ -5035,8 +5035,8 @@ html { scroll-behavior: smooth; }
    Clean Academic overrides (which also use !important).
 ══════════════════════════════════════════════════════════════════════════ */
 html[data-glass="on"] {
-  --glass-bg:        rgba(255, 255, 255, .70);   /* content cards — translucent */
-  --glass-bg-strong: rgba(255, 255, 255, .92);   /* chrome / modals — near-opaque, stays legible */
+  --glass-bg:        rgba(255, 255, 255, .70);   /* content cards - translucent */
+  --glass-bg-strong: rgba(255, 255, 255, .92);   /* chrome / modals - near-opaque, stays legible */
   --glass-border:    rgba(255, 255, 255, .55);
   --glass-blur:      blur(16px) saturate(140%);
 }
@@ -5069,7 +5069,7 @@ html[data-glass="on"] .student-bottom-nav {
 /* NOTE: the left sidebar is intentionally NOT glassed. It is an opaque navy
    panel with light nav text (see design-system.css). Any attempt to make it
    translucent/white turns the light labels invisible, so glass mode must leave
-   the sidebar's navy styling completely untouched — across all views & themes. */
+   the sidebar's navy styling completely untouched - across all views & themes. */
 /* Ambient aurora behind everything so the frosted panels have something to refract. */
 html[data-glass="on"] body::before {
   content: '';
@@ -5104,7 +5104,7 @@ html[data-glass="on"][data-theme="dark"] body::before {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   MESSAGES — profile-photo avatars, multi-select delete, recipient picker
+   MESSAGES - profile-photo avatars, multi-select delete, recipient picker
 ══════════════════════════════════════════════════════════════════════════ */
 /* Profile photo inside the round conversation avatar. */
 .msg-conv-avatar-img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
@@ -5227,7 +5227,7 @@ html[data-glass="on"][data-theme="dark"] body::before {
 .recipient-empty { font-size: 0.8438rem; color: var(--ink3); padding: 14px; text-align: center; }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   TOP BAR — keep the page title/subtitle on a single line so a long subtitle
+   TOP BAR - keep the page title/subtitle on a single line so a long subtitle
    never wraps into (and crowds) the search / notification action icons.
    Applies to both teacher and student layouts (both use .admin-topbar).
 ══════════════════════════════════════════════════════════════════════════ */
@@ -5255,7 +5255,7 @@ html[data-glass="on"][data-theme="dark"] body::before {
   .student-topbar > :first-child span { display: none; }
 }
 
-/* ── Grade Integrity tab — responsive layout ─────────────────────────────── */
+/* ── Grade Integrity tab - responsive layout ─────────────────────────────── */
 .gi-metrics      { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .gi-chips        { display: flex; gap: 5px; flex-shrink: 0; }
 .gi-final        { text-align: right; width: 78px; flex-shrink: 0; }
@@ -5267,7 +5267,7 @@ html[data-glass="on"][data-theme="dark"] body::before {
   .gi-detail-grid { grid-template-columns: 1fr; }
 }
 
-/* ── Attendance tab — responsive roster card grid ────────────────────────── */
+/* ── Attendance tab - responsive roster card grid ────────────────────────── */
 .att-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(208px, 1fr));
@@ -5277,7 +5277,7 @@ html[data-glass="on"][data-theme="dark"] body::before {
   .att-card-grid { grid-template-columns: 1fr; }   /* phones: single column, no squeeze */
 }
 
-/* ── Dashboard — on-device AI analyzer card ──────────────────────────────── */
+/* ── Dashboard - on-device AI analyzer card ──────────────────────────────── */
 .ai-card {
   background: var(--surface);
   border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
@@ -5310,7 +5310,7 @@ html[data-glass="on"][data-theme="dark"] body::before {
 .ai-find-src { font-size: 11px; color: var(--ink3); margin-top: 3px; }
 .ai-find-act { flex: none; align-self: center; }
 
-/* ── Dashboard — clickable student card grid ─────────────────────────────── */
+/* ── Dashboard - clickable student card grid ─────────────────────────────── */
 .ds-stud-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));

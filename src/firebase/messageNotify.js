@@ -2,7 +2,7 @@
 // Cross-side notifications for the messaging system. Every helper writes an
 // in-app notification item (the badge source) into notifications/{ownerId},
 // then fires a best-effort web push. Push silently no-ops when FCM is not
-// configured or the recipient has no registered token — the in-app badge is
+// configured or the recipient has no registered token - the in-app badge is
 // the guaranteed, free behavior and never depends on push.
 import { doc, runTransaction } from 'firebase/firestore'
 import { fbWithTimeout } from './firebaseInit'
@@ -16,7 +16,7 @@ function newId() {
  * Append an in-app notification to notifications/{ownerId}.
  * Runs inside a transaction so two notifications arriving close together (e.g.
  * a teacher sending several messages, or many students messaging the teacher)
- * can't overwrite each other — which previously dropped badges silently.
+ * can't overwrite each other - which previously dropped badges silently.
  */
 export async function appendNotif(db, ownerId, notif) {
   if (!db || !ownerId) return

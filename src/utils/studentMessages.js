@@ -3,7 +3,7 @@
 // frozen recipient list. So a student newly added/registered into a class (or
 // section) automatically "joins" any existing group chat (class broadcast or
 // current-semester subject group) for that class and can read the whole past
-// thread — no backfill needed.
+// thread - no backfill needed.
 //
 // Before joining a group, we verify the student genuinely belongs:
 //   • enrolled in one of the message's target classes (current semester), AND
@@ -13,7 +13,7 @@ import { activeClassIds } from '@/utils/active'
 
 const norm = v => String(v ?? '').trim().toLowerCase()
 
-// Course/year alignment — lenient: only rejects when both sides have a value and
+// Course/year alignment - lenient: only rejects when both sides have a value and
 // they differ, so missing/blank fields never hide a legitimately-enrolled student.
 function courseYearMatches(cls, student) {
   if (!cls) return true // class record missing → trust the enrollment link
