@@ -3,13 +3,13 @@ import { Lightbulb, Download, Upload, ShieldCheck, CalendarDays, KeyRound, Bell,
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 import FieldCheck, { SaveStatus, SmartCheckTag } from '@/components/primitives/FieldCheck'
-import { checkEmail, checkPassword, checkMatch, checkPin, checkAcademicYear, checkDateOrder, checkDescending } from '@/utils/settingsVerify'
+import { checkEmail, checkPassword, checkMatch, checkPin, checkAcademicYear, checkDateOrder } from '@/utils/settingsVerify'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { encryptFbConfig } from '@/utils/crypto'
 import { getFbConfigFromEnv } from '@/firebase/firebaseInit'
 import { verifyPassword, hashPassword } from '@/utils/crypto'
-import { gradeInfo, DEFAULT_EQ_SCALE } from '@/utils/grades'
+import { gradeInfo, DEFAULT_EQ_SCALE, validateEqScale } from '@/utils/grades'
 import { saveSettingsToFirebase } from '@/firebase/settings'
 
 // Grouped settings landing (Facebook/Instagram-style sections). Each row drills
@@ -400,22 +400,22 @@ function EquivScaleTab() {
     }))
   }, [scores, eqScale])
 
-  const descChk = checkDescending(scores.map(s => parseFloat(s) || 0), EQ_LABELS)
+  // Candidate scale = edited minimums merged onto the live tiers (eq/ltr/rem).
+  // Validated through the GRADING engine's own validator so the smart check stays
+  // in sync with how grades are actually computed and looked up.
+  const candidateScale = scores.map((s, i) => ({ ...eqScale[i], minScore: parseFloat(s) || 0 }))
+  const descChk = validateEqScale(candidateScale)
 
   function handleChange(i, val) {
     setScores(prev => { const n = [...prev]; n[i] = val; return n })
   }
 
   async function handleSave() {
-    const parsed = scores.map((s, i) => ({ ...eqScale[i], minScore: parseFloat(s) || 0 }))
-    // Validate descending
-    for (let i = 1; i < parsed.length; i++) {
-      if (parsed[i].minScore >= parsed[i - 1].minScore) {
-        toast(`Score for ${EQ_LABELS[i]} must be less than ${EQ_LABELS[i - 1]}.`, 'warn'); return
-      }
-    }
+    // Same grading-connected validator the smart check + save gate use.
+    const v = validateEqScale(candidateScale)
+    if (v.state === 'error') { toast(v.msg, 'warn'); return }
     setSaving(true)
-    await saveEquivScale(parsed)
+    await saveEquivScale(candidateScale)
     setSaving(false)
     toast('Equivalency scale saved.', 'success')
   }

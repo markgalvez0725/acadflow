@@ -35,6 +35,38 @@ export function gradeInfo(g, eqScale = DEFAULT_EQ_SCALE) {
   return { eq: '5.00', ltr: 'F', rem: 'Failed' };
 }
 
+// ── Equivalency-scale validator (connected to the grading engine) ─────────────
+// Lives next to gradeInfo and validates a candidate scale with the SAME threshold
+// model the grade computation uses, so the settings "smart check" stays in sync
+// with how grades are actually computed. Returns a FieldCheck-compatible
+// { state: 'ok'|'warn'|'error', msg } the settings panel can gate the save on.
+//   • every tier minimum must be a number within 0–100
+//   • minimums must be strictly descending (highest equivalent first)
+//   • the scale must round-trip through gradeInfo at the passing boundary, so the
+//     grade engine reads the same Passed/Failed cut the teacher intends
+export function validateEqScale(scale = []) {
+  if (!Array.isArray(scale) || !scale.length) return { state: 'error', msg: 'Scale is empty' };
+  for (const t of scale) {
+    const n = Number(t.minScore);
+    if (isNaN(n)) return { state: 'error', msg: 'Every tier needs a numeric minimum score' };
+    if (n < 0 || n > 100) return { state: 'error', msg: 'Scores must be between 0 and 100' };
+  }
+  for (let i = 1; i < scale.length; i++) {
+    if (!(Number(scale[i].minScore) < Number(scale[i - 1].minScore))) {
+      const a = scale[i].eq || `tier ${i + 1}`, b = scale[i - 1].eq || `tier ${i}`;
+      return { state: 'error', msg: `${a} must be lower than ${b}` };
+    }
+  }
+  // Passing boundary must agree with the grading engine (gradeInfo).
+  const passes = scale.filter(t => t.rem === 'Passed');
+  if (!passes.length) return { state: 'warn', msg: 'No passing tier — every grade would fail' };
+  const passMin = Math.min(...passes.map(t => Number(t.minScore)));
+  if (gradeInfo(passMin, scale).rem !== 'Passed' || gradeInfo(passMin - 0.01, scale).rem === 'Passed') {
+    return { state: 'warn', msg: 'Passing boundary doesn’t line up with the grading engine' };
+  }
+  return { state: 'ok', msg: `In sync with grading — passing at ${passMin}% and above` };
+}
+
 // ── Equivalency string → letter/remark ───────────────────────────────────
 export function equivInfo(eq) {
   if (!eq || eq === '—') return { ltr: '—', rem: 'No Grade' };
