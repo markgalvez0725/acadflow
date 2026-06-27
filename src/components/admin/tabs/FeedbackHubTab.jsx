@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
+import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import { useUI } from '@/context/UIContext'
 import { Sparkles, Bug, Lightbulb, MessageSquare, Search, CheckCircle2, Clock, Archive, RotateCcw } from 'lucide-react'
 
@@ -28,7 +29,7 @@ function StatusPill({ status }) {
 }
 
 export default function FeedbackHubTab() {
-  const { studentFeedback = [], updateFeedbackStatus } = useData()
+  const { studentFeedback = [], updateFeedbackStatus, students = [] } = useData()
   const { toast } = useUI()
   const [filter, setFilter] = useState('new')
   const [q, setQ] = useState('')
@@ -105,7 +106,7 @@ export default function FeedbackHubTab() {
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>
                     <cat.Icon size={14} /> {cat.label}
                   </span>
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>{f.studentName || f.studentId}</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 600 }}>{f.studentName || f.studentId}<VerifiedBadge studentId={f.studentId} students={students} size={13} /></span>
                   {f.subject && <span style={{ fontSize: 12, color: 'var(--ink2)' }}>· {f.subject}</span>}
                   <span style={{ marginLeft: 'auto' }}><StatusPill status={f.status} /></span>
                 </div>

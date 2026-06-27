@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Users, Check, ChevronDown, ChevronUp } from 'lucide-react'
+import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 
 function initials(name) {
   return (name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
@@ -54,7 +55,7 @@ export default function GroupMembers({ members = [], readerIds = [], readAt = {}
             return (
               <div className="gm-row" key={s.id}>
                 <Av s={s} size={26} />
-                <span className="gm-name">{s.name}</span>
+                <span className="gm-name" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{s.name}<VerifiedBadge student={s} size={13} /></span>
                 <span className={`gm-status${seen ? ' seen' : ''}`} title={seen ? seenLabel(readAt[s.id]) : 'Not seen yet'}>
                   {seen ? <><Check size={12} /> Seen</> : 'Not seen'}
                 </span>

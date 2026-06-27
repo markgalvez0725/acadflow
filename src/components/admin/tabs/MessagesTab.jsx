@@ -6,6 +6,7 @@ import { sortByLastName, dayLabel, getInitials, fmtTime as timeLabel } from '@/u
 import { isClassCurrent } from '@/utils/active'
 import { isGroupMessage, autoGroupName, groupName, studentTag, groupMembers } from '@/utils/groupChat'
 import GroupMembers from '@/components/primitives/GroupMembers'
+import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import TypingIndicator from '@/components/primitives/TypingIndicator'
 import { useTyping } from '@/hooks/useTyping'
 import { notifyStudentMessage, notifyStudentsBroadcast } from '@/firebase/messageNotify'
@@ -170,7 +171,7 @@ function RecipientPicker({ students, classes, classGroups, classBroadcasts, subj
                 <button type="button" key={s.id} className="recipient-opt" onClick={() => pick(s.id)}>
                   <Avatar photo={s.photo} char={getInitials(s.name)} size={30} />
                   <span className="recipient-opt-text">
-                    <span className="recipient-opt-name">{s.name}{s.account?.registered ? '' : ' · no account'}</span>
+                    <span className="recipient-opt-name" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{s.name}<VerifiedBadge student={s} size={13} />{s.account?.registered ? '' : ' · no account'}</span>
                     <span className="recipient-opt-sub">{studentTag(s, classes) || label}</span>
                   </span>
                   {value === s.id && <Check size={15} className="recipient-check" />}

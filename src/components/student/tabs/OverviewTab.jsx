@@ -3,6 +3,7 @@ import { getGWA, getAttRate, computeFinalGradeFromTerms } from '@/utils/grades'
 import { computeSubjectGrade } from '@/utils/gradeEngine'
 import { computeSemesterWrapped } from '@/utils/semesterWrapped'
 import { useData } from '@/context/DataContext'
+import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import { BookOpen, Clock, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, BarChart3, ChevronDown, ChevronRight, Sparkles } from 'lucide-react'
 import { SkeletonDashboard } from '@/components/primitives/SkeletonLoader'
@@ -164,6 +165,7 @@ function StudentCommentsSection({ ann, student }) {
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                 <span style={{ fontSize: 12, fontWeight: 700 }}>{c.authorName}</span>
+                <VerifiedBadge studentId={c.authorId} students={students} size={13} />
                 <span style={{ fontSize: 10, color: 'var(--ink3)' }}>
                   {c.role === 'teacher' ? 'Teacher' : 'Student'}
                 </span>

@@ -5,6 +5,7 @@ import { useUI } from '@/context/UIContext'
 import { hashPassword } from '@/utils/crypto'
 import { validateSnum } from '@/utils/validate'
 import { accountStatus, accountStatusKey, accountStatusRank, isPendingVerification, verificationInfo } from '@/utils/accountStatus'
+import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import { describeFields } from '@/utils/identityVerify'
 import { getFbAuth } from '@/firebase/firebaseInit'
 import { notifyStudentsBroadcast } from '@/firebase/messageNotify'
@@ -1430,7 +1431,10 @@ export default function StudentsTab() {
                               : initial}
                           </div>
                           <div>
-                            <div className="stu-name-text" style={{ color: 'var(--accent)' }}>{s.name}</div>
+                            <div className="stu-name-text" style={{ color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                              <VerifiedBadge student={s} size={14} />
+                            </div>
                             <div className="stu-year-text">{s.year || ''}</div>
                           </div>
                         </button>
@@ -1516,7 +1520,10 @@ export default function StudentsTab() {
                           : initial}
                       </div>
                       <div className="min-w-0">
-                        <div className="stu-name-text truncate" style={{ color: 'var(--accent)' }}>{s.name}</div>
+                        <div className="stu-name-text" style={{ color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                          <span className="truncate">{s.name}</span>
+                          <VerifiedBadge student={s} size={14} />
+                        </div>
                         <div className="stu-year-text truncate" style={{ fontFamily: 'monospace' }}>{s.id}{s.year ? ` · ${s.year}` : ''}</div>
                       </div>
                     </button>

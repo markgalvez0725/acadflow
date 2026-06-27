@@ -9,6 +9,7 @@ import { sendPushToOwners } from '@/firebase/pushTokens'
 import { computeAssessmentStats } from '@/utils/assessmentStats'
 import { sortByLastName } from '@/utils/format'
 import Badge from '@/components/primitives/Badge'
+import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import DonutChart from '@/components/charts/DonutChart'
 import AiAnalyzer from '@/components/ds/AiAnalyzer'
 import {
@@ -277,7 +278,10 @@ export default function DashboardTab() {
                 >
                   <div className="ds-stud-av" style={{ background: tint.bg, color: tint.fg }}>{initials(r.student.name)}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.student.name}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.student.name}</span>
+                      <VerifiedBadge student={r.student} size={14} />
+                    </div>
                     <div className="ds-stud-id">{r.student.id}{cls ? ` · ${cls.name} ${cls.section}` : ''}</div>
                     <div style={{ fontSize: 11, color: 'var(--ink2)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {r.reasons.slice(0, 2).map(rs => rs.text).join(' · ')}
@@ -336,7 +340,10 @@ export default function DashboardTab() {
                   >
                     <div className="ds-stud-av" style={{ background: tint.bg, color: tint.fg }}>{initials(s.name)}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</span>
+                        <VerifiedBadge student={s} size={14} />
+                      </div>
                       <div className="ds-stud-id">{s.id}{cls ? ` · ${cls.name} ${cls.section}` : ''}</div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flex: 'none' }}>

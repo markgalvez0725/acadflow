@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { useData } from '@/context/DataContext'
+import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import { useUI } from '@/context/UIContext'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, Clock, Users, Award, CheckCircle2, XCircle, AlertCircle, Plus, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered } from 'lucide-react'
@@ -323,6 +324,7 @@ function CommentsSection({ ann, authorId, authorName, role }) {
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                 <span style={{ fontSize: 12, fontWeight: 700 }}>{c.authorName}</span>
+                <VerifiedBadge studentId={c.authorId} students={students} size={13} />
                 <span style={{ fontSize: 10, color: 'var(--ink3)' }}>{c.role === 'teacher' ? 'Teacher' : 'Student'}</span>
                 <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 'auto' }}>
                   {new Date(c.createdAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}

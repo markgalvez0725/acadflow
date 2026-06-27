@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { useData } from '@/context/DataContext'
+import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import { useUI } from '@/context/UIContext'
 import Modal from '@/components/primitives/Modal'
 import {
@@ -121,7 +122,10 @@ export default function StudentProfileModal() {
           {student.photo ? <img src={student.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : initial}
         </div>
         <div style={{ minWidth: 0 }}>
-          <h3 className="text-lg font-bold text-ink" style={{ margin: 0 }}>{student.name}</h3>
+          <h3 className="text-lg font-bold text-ink" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{student.name}</span>
+            <VerifiedBadge student={student} size={17} />
+          </h3>
           <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
             #{student.id} · {student.course || '—'} · {student.year || '—'}
           </div>
