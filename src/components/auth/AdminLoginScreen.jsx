@@ -97,7 +97,6 @@ export default function AdminLoginScreen() {
         {/* ── Brand column (desktop only) ── */}
         <div className="auth2-brand">
           <AcadFlowLogo size="lg" />
-          <div className="auth2-eyebrow"><ShieldCheck size={13} /> Faculty portal</div>
           <h1 className="auth2-headline">
             {typedLine1}
             {!typed[1] && (
@@ -135,6 +134,7 @@ export default function AdminLoginScreen() {
           </div>
 
           <div className="auth2-card">
+            <div className="auth2-eyebrow auth2-eyebrow--card"><ShieldCheck size={13} /> Faculty portal</div>
             <div className="auth2-title">{modeTitle}</div>
             <p className="auth2-sub-text">{modeSub}</p>
 

@@ -536,7 +536,6 @@ export default function LoginScreen({ onRevealFaculty }) {
         {/* ── Brand column (desktop only) ── */}
         <div className="auth2-brand">
           <span onClick={handleLogoTap}><AcadFlowLogo size="lg" /></span>
-          <div className="auth2-eyebrow"><GraduationCap size={13} /> Student portal</div>
           <h1 className="auth2-headline">
             {typedLine1}
             {!typed[1] && (
@@ -574,6 +573,7 @@ export default function LoginScreen({ onRevealFaculty }) {
           </div>
 
           <div className="auth2-card">
+            <div className="auth2-eyebrow auth2-eyebrow--card"><GraduationCap size={13} /> Student portal</div>
             {(mode === 'student' || mode === 'register') && (
               <>
                 <div className="auth2-title">{mode === 'student' ? 'Welcome back' : 'Create account'}</div>
