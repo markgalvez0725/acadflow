@@ -77,6 +77,7 @@ export function parseMediaLink(raw, meta = {}) {
       embedUrl: `https://drive.google.com/file/d/${dId}/preview`,
       imageUrl: `https://drive.google.com/thumbnail?id=${dId}&sz=w1200`,
       href: `https://drive.google.com/file/d/${dId}/view`,
+      downloadUrl: `https://drive.google.com/uc?export=download&id=${dId}`,
       mime: meta.mime || '', size: meta.size || 0,
     }
   }
@@ -101,18 +102,18 @@ export function parseMediaLink(raw, meta = {}) {
   }
 
   if (IMG_RE.test(url)) {
-    return { id: 'img-' + hash(url), kind: 'image', name: meta.name || fileNameFromUrl(url), imageUrl: url, href: url }
+    return { id: 'img-' + hash(url), kind: 'image', name: meta.name || fileNameFromUrl(url), imageUrl: url, href: url, downloadUrl: url }
   }
 
   if (VID_RE.test(url)) {
-    return { id: 'vid-' + hash(url), kind: 'video', name: meta.name || fileNameFromUrl(url), embedUrl: url, href: url }
+    return { id: 'vid-' + hash(url), kind: 'video', name: meta.name || fileNameFromUrl(url), embedUrl: url, href: url, downloadUrl: url }
   }
 
   if (DOC_RE.test(url)) {
     return {
       id: 'doc-' + hash(url), kind: 'doc', name: meta.name || fileNameFromUrl(url),
       embedUrl: `https://docs.google.com/viewer?embedded=true&url=${encodeURIComponent(url)}`,
-      href: url, mime: meta.mime || '',
+      href: url, downloadUrl: url, mime: meta.mime || '',
     }
   }
 
@@ -136,6 +137,7 @@ export function mediaFromAnnouncement(ann) {
   const push = d => { if (d && !seen.has(d.id)) { seen.add(d.id); out.push(d) } }
 
   if (Array.isArray(ann?.attachments)) ann.attachments.forEach(a => push(descriptorFromAttachment(a)))
+  if (ann?.referenceVideo) push(parseMediaLink(ann.referenceVideo))
   if (ann?.moduleLink) push(parseMediaLink(ann.moduleLink))
 
   return out

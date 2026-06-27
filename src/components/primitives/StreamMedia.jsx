@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Play, Eye, FileText, FileSpreadsheet, Presentation, File as FileIcon } from 'lucide-react'
+import { Play, Eye, Download, FileText, FileSpreadsheet, Presentation, File as FileIcon } from 'lucide-react'
 import { splitMedia, formatBytes, extOf } from '@/utils/streamMedia'
 
 // Instagram-style media block for a Stream post: a photo/thumbnail grid plus
@@ -55,14 +55,30 @@ function FileTile({ item, index, onOpen }) {
   const meta = [extOf(item.name).toUpperCase(), formatBytes(item.size), item.kind === 'drive' ? 'Drive' : null]
     .filter(Boolean).join(' · ')
   return (
-    <button type="button" className="s-media-file" onClick={() => onOpen(index)} aria-label={`Preview ${item.name}`}>
-      <span className="s-media-file-ico"><Icon size={20} /></span>
-      <span className="s-media-file-info">
-        <span className="s-media-file-name">{item.name}</span>
-        {meta && <span className="s-media-file-meta">{meta}</span>}
-      </span>
-      <span className="s-media-file-btn"><Eye size={14} /> Preview</span>
-    </button>
+    <div className="s-media-file">
+      <button type="button" className="s-media-file-main" onClick={() => onOpen(index)} aria-label={`Preview ${item.name}`}>
+        <span className="s-media-file-ico"><Icon size={20} /></span>
+        <span className="s-media-file-info">
+          <span className="s-media-file-name">{item.name}</span>
+          {meta && <span className="s-media-file-meta">{meta}</span>}
+        </span>
+        <span className="s-media-file-btn"><Eye size={14} /> Preview</span>
+      </button>
+      {item.downloadUrl && (
+        <a
+          className="s-media-file-dl"
+          href={item.downloadUrl}
+          target="_blank"
+          rel="noreferrer"
+          download
+          onClick={e => e.stopPropagation()}
+          aria-label={`Download ${item.name}`}
+          title="Download"
+        >
+          <Download size={15} />
+        </a>
+      )}
+    </div>
   )
 }
 

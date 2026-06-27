@@ -3,7 +3,7 @@ import { useData } from '@/context/DataContext'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import { useUI } from '@/context/UIContext'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
-import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, Clock, Users, Award, CheckCircle2, XCircle, AlertCircle, Plus, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered, Paperclip, Image as ImageIcon, FileText, Sparkles } from 'lucide-react'
+import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, Clock, Users, Award, CheckCircle2, XCircle, AlertCircle, Plus, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered, Paperclip, Image as ImageIcon, FileText, Sparkles, Library } from 'lucide-react'
 import { composeAnnouncementMessage } from '@/utils/announceCompose'
 import { isConfigured as driveConfigured, getConnection as getDriveConnection, uploadFile as driveUpload } from '@/utils/googleDrive'
 import DOMPurify from 'dompurify'
@@ -271,6 +271,7 @@ function AnnouncementFormModal({ ann, onClose }) {
   const [message,     setMessage]     = useState(ann?.message     || '')
   const [meetingLink, setMeetingLink] = useState(ann?.meetingLink || '')
   const [moduleLink,  setModuleLink]  = useState(ann?.moduleLink  || '')
+  const [referenceVideo, setReferenceVideo] = useState(ann?.referenceVideo || '')
   const [topics,      setTopics]      = useState(ann?.topics      || [''])
   const [expiresAt,   setExpiresAt]   = useState(() => {
     if (ann?.expiresAt) {
@@ -335,6 +336,7 @@ function AnnouncementFormModal({ ann, onClose }) {
     if (type === 'no_class') return `No Class Today - ${classLabel}`
     if (type === 'online_class') return `Online Class - ${classLabel}`
     if (type === 'meeting_topics') return `Lesson topics - ${classLabel}`
+    if (type === 'resource_hub') return `Resource Hub - ${classLabel}`
     return ''
   }, [type, classLabel])
 
@@ -356,6 +358,7 @@ function AnnouncementFormModal({ ann, onClose }) {
     if (!finalTitle) { setErr('Title is required.'); return }
     if (type === 'online_class' && meetingLink && !meetingLink.startsWith('http')) { setErr('Meeting link must start with http:// or https://'); return }
     if (moduleLink && !moduleLink.startsWith('http')) { setErr('Module link must start with http:// or https://'); return }
+    if (type === 'resource_hub' && referenceVideo && !referenceVideo.startsWith('http')) { setErr('Reference video link must start with http:// or https://'); return }
     if (type === 'meeting_topics') {
       const filled = topics.filter(t => t.trim())
       if (!filled.length) { setErr('Add at least one topic.'); return }
@@ -371,6 +374,7 @@ function AnnouncementFormModal({ ann, onClose }) {
         message:     message.trim(),
         meetingLink: type === 'online_class' ? (meetingLink.trim() || null) : null,
         moduleLink:  moduleLink.trim() || null,
+        referenceVideo: type === 'resource_hub' ? (referenceVideo.trim() || null) : null,
         topics:      type === 'meeting_topics' ? topics.map(t => t.trim()).filter(Boolean) : null,
         createdAt:   ann?.createdAt || Date.now(),
         active:      ann?.active ?? true,
@@ -397,11 +401,12 @@ function AnnouncementFormModal({ ann, onClose }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 320 }}>
         <div>
           <label className="form-label">Announcement type</label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 4 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginTop: 4 }}>
             {[
               { v: 'no_class',       label: 'No class today', Icon: CalendarOff, color: 'var(--yellow)' },
               { v: 'online_class',   label: 'Online class',   Icon: Video,      color: 'var(--accent)' },
               { v: 'meeting_topics', label: 'Lesson topics',  Icon: BookOpen,   color: 'var(--purple, #a855f7)' },
+              { v: 'resource_hub',   label: 'Resource Hub',   Icon: Library,    color: 'var(--teal, #14b8a6)' },
             ].map(({ v, label, Icon, color }) => {
               const active = type === v
               return (
@@ -443,7 +448,7 @@ function AnnouncementFormModal({ ann, onClose }) {
             onChange={setMessage}
             placeholder="Additional details..."
             rows={3}
-            onCompose={classId ? () => composeAnnouncementMessage({ type, classLabel, subject, topics, meetingLink }) : null}
+            onCompose={classId ? () => composeAnnouncementMessage({ type, classLabel, subject, topics, meetingLink, referenceVideo }) : null}
           />
         </div>
         {type === 'online_class' && (
@@ -468,6 +473,15 @@ function AnnouncementFormModal({ ann, onClose }) {
               <button type="button" className="btn btn-ghost btn-sm" style={{ alignSelf: 'flex-start', fontSize: 12, marginTop: 2 }} onClick={() => setTopics([...topics, ''])}>
                 <Plus size={13} style={{ marginRight: 4 }} /> Add topic
               </button>
+            </div>
+          </div>
+        )}
+        {type === 'resource_hub' && (
+          <div>
+            <label className="form-label">Reference video <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(optional)</span></label>
+            <input className="form-input" value={referenceVideo} placeholder="https://youtu.be/..." onChange={e => setReferenceVideo(e.target.value)} />
+            <div style={{ fontSize: 11.5, color: 'var(--ink3)', marginTop: 4, lineHeight: 1.5 }}>
+              Add learning files below with Add photo / Add file. They appear in the post with a preview and a download button.
             </div>
           </div>
         )}
@@ -535,10 +549,10 @@ function AnnouncementDetailModal({ ann, classes, onClose, onEdit }) {
     return c ? c.name + (c.section ? ` - ${c.section}` : '') : classId
   }
 
-  const typeLabel = ann.type === 'no_class' ? 'No Class Today' : ann.type === 'online_class' ? 'Online Class' : 'Lesson topics'
-  const typeBadge = ann.type === 'no_class' ? 'badge-yellow' : ann.type === 'online_class' ? 'badge-blue' : 'badge-purple'
-  const iconColor = ann.type === 'no_class' ? 'var(--yellow)' : ann.type === 'online_class' ? 'var(--accent)' : 'var(--purple, #a855f7)'
-  const Icon = ann.type === 'no_class' ? CalendarOff : ann.type === 'online_class' ? Video : BookOpen
+  const typeLabel = ann.type === 'no_class' ? 'No Class Today' : ann.type === 'online_class' ? 'Online Class' : ann.type === 'resource_hub' ? 'Resource Hub' : 'Lesson topics'
+  const typeBadge = ann.type === 'no_class' ? 'badge-yellow' : ann.type === 'online_class' ? 'badge-blue' : ann.type === 'resource_hub' ? 'badge-teal' : 'badge-purple'
+  const iconColor = ann.type === 'no_class' ? 'var(--yellow)' : ann.type === 'online_class' ? 'var(--accent)' : ann.type === 'resource_hub' ? 'var(--teal, #14b8a6)' : 'var(--purple, #a855f7)'
+  const Icon = ann.type === 'no_class' ? CalendarOff : ann.type === 'online_class' ? Video : ann.type === 'resource_hub' ? Library : BookOpen
 
   return (
     <Modal onClose={onClose} size="md">

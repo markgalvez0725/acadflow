@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback } from 'react'
 import ReactDOM from 'react-dom'
-import { X, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, ExternalLink, Download } from 'lucide-react'
 
 // Full-screen instant-preview overlay for Stream media. Shows the item at
 // `index`: photos in an <img>, videos in <video>, and Drive / Google Docs /
@@ -75,6 +75,11 @@ export default function MediaLightbox({ items = [], index = 0, onClose, onIndex 
           <span className="s-lb-name">{item.name}</span>
           <span className="s-lb-actions">
             {count > 1 && <span className="s-lb-count">{index + 1} / {count}</span>}
+            {item.downloadUrl && (
+              <a href={item.downloadUrl} target="_blank" rel="noreferrer" download className="s-lb-open" onClick={e => e.stopPropagation()}>
+                <Download size={14} /> Download
+              </a>
+            )}
             {item.href && (
               <a href={item.href} target="_blank" rel="noreferrer" className="s-lb-open" onClick={e => e.stopPropagation()}>
                 <ExternalLink size={14} /> Open

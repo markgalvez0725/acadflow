@@ -15,7 +15,7 @@ function pick(arr, seed) {
   return arr[h % arr.length]
 }
 
-export function composeAnnouncementMessage({ type, classLabel = '', subject = '', topics = [], meetingLink = '' } = {}) {
+export function composeAnnouncementMessage({ type, classLabel = '', subject = '', topics = [], meetingLink = '', referenceVideo = '' } = {}) {
   const who = subject || classLabel || 'class'
   const seed = `${type}|${classLabel}|${subject}`
 
@@ -49,6 +49,18 @@ export function composeAnnouncementMessage({ type, classLabel = '', subject = ''
     ], seed)
     const ul = list.length ? `<ul>${list.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : ''
     return `<p>${esc(open)}</p>${ul}<p>Please review any related materials beforehand so we can make the most of our time together.</p>`
+  }
+
+  if (type === 'resource_hub') {
+    const open = pick([
+      `I've gathered some resources for our ${who} class to help you study.`,
+      `Here are the learning resources for ${who}.`,
+      `Sharing a few materials for ${who} that should help with our lessons.`,
+    ], seed)
+    const vid = referenceVideo
+      ? `<p>Reference video: <a href="${esc(referenceVideo)}">${esc(referenceVideo)}</a></p>`
+      : ''
+    return `<p>${esc(open)}</p>${vid}<p>The files are attached below. You can preview each one or download it for offline study. Let me know if anything does not open.</p>`
   }
 
   return `<p>Please check the details for our next ${esc(who)} session.</p>`

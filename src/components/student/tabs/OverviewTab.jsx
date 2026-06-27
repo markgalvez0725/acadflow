@@ -5,7 +5,7 @@ import { computeSemesterWrapped } from '@/utils/semesterWrapped'
 import { useData } from '@/context/DataContext'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
-import { BookOpen, Clock, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Sparkles, Bookmark } from 'lucide-react'
+import { BookOpen, Clock, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Sparkles, Bookmark, Library } from 'lucide-react'
 import { courseShort } from '@/constants/courses'
 import { SkeletonDashboard } from '@/components/primitives/SkeletonLoader'
 import { useUI } from '@/context/UIContext'
@@ -50,6 +50,7 @@ function AnnTypeBadge({ type }) {
     no_class:       { label: 'No Class Today',  cls: 'badge-yellow' },
     online_class:   { label: 'Online Class',     cls: 'badge-blue'   },
     meeting_topics: { label: 'Lesson topics',    cls: 'badge-purple' },
+    resource_hub:   { label: 'Resource Hub',     cls: 'badge-teal'   },
   }
   const { label, cls } = map[type] || { label: type, cls: 'badge-gray' }
   return <span className={`badge ${cls}`}>{label}</span>
@@ -356,24 +357,28 @@ function annBgColor(type) {
   if (type === 'no_class')       return 'rgba(234,179,8,0.1)'
   if (type === 'online_class')   return 'var(--accent-l)'
   if (type === 'meeting_topics') return 'var(--purple-l)'
+  if (type === 'resource_hub')   return 'var(--teal-l)'
   return 'var(--accent-l)'
 }
 function annBorderColor(type) {
   if (type === 'no_class')       return 'rgba(234,179,8,0.3)'
   if (type === 'online_class')   return 'color-mix(in srgb, var(--accent) 30%, transparent)'
   if (type === 'meeting_topics') return 'var(--purple)'
+  if (type === 'resource_hub')   return 'var(--teal)'
   return 'color-mix(in srgb, var(--accent) 30%, transparent)'
 }
 function annIconColor(type) {
   if (type === 'no_class')       return 'var(--yellow)'
   if (type === 'online_class')   return 'var(--accent)'
   if (type === 'meeting_topics') return 'var(--purple)'
+  if (type === 'resource_hub')   return 'var(--teal)'
   return 'var(--accent)'
 }
 function AnnIcon({ type, size = 18 }) {
   if (type === 'no_class')       return <CalendarOff size={size} />
   if (type === 'online_class')   return <Video size={size} />
   if (type === 'meeting_topics') return <BookOpen size={size} />
+  if (type === 'resource_hub')   return <Library size={size} />
   return <Video size={size} />
 }
 

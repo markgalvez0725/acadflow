@@ -1473,6 +1473,7 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 .badge-yellow { background: var(--yellow-l); color: var(--yellow); }
 .badge-red    { background: var(--red-l);    color: var(--red); }
 .badge-purple { background: var(--purple-l); color: var(--purple); }
+.badge-teal   { background: var(--teal-l);   color: var(--teal); }
 .badge-gray   { background: var(--bg2);      color: var(--ink2); }
 
 
@@ -3489,8 +3490,11 @@ textarea.input { resize: vertical; }
 .s-media-fallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--ink3); background: var(--bg2); }
 .s-media-play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; pointer-events: none; }
 .s-media-more { position: absolute; inset: 0; background: rgba(0,0,0,.5); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: 700; }
-.s-media-file { display: flex; align-items: center; gap: 10px; text-align: left; cursor: pointer; background: var(--surface2, var(--bg2)); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin: 8px 12px 0; }
+.s-media-file { display: flex; align-items: center; gap: 8px; background: var(--surface2, var(--bg2)); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin: 8px 12px 0; }
 .s-media-file:hover { border-color: var(--border2); }
+.s-media-file-main { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; text-align: left; cursor: pointer; background: transparent; border: none; padding: 0; font: inherit; }
+.s-media-file-dl { flex-shrink: 0; width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; color: var(--ink2); border: 1px solid var(--border); text-decoration: none; }
+.s-media-file-dl:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-l); }
 .s-media-file-ico { width: 38px; height: 38px; border-radius: 8px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--bg2); color: var(--accent); }
 .s-media-file-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .s-media-file-name { font-size: 0.8438rem; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
