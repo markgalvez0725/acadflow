@@ -203,7 +203,8 @@
   font-optical-sizing: auto;
   text-transform: lowercase;
 }
-.sb-brand span { color: rgba(255,255,255,.55); }
+/* No `.sb-brand span` rule: the only span in .sb-brand is the cap logo, and a
+   generic span selector would restyle/hide it (the portal subtext was removed). */
 
 .sb-nav .nav-item { color: #c2cde6; }
 .sb-nav .nav-item:hover { background: rgba(255,255,255,.08); color: #fff; }

@@ -691,8 +691,7 @@ html[data-theme="dark"] .aflogo-dark { display: block; }
     z-index: 50;
     box-shadow: 4px 0 28px rgba(15, 23, 42, .14);
   }
-  .sidebar-wrap:hover .sb-brand h2,
-  .sidebar-wrap:hover .sb-brand span { opacity: 1; max-width: 160px; }
+  .sidebar-wrap:hover .sb-brand h2 { opacity: 1; max-width: 160px; margin-left: 12px; }
   .sidebar-wrap:hover .sb-nav .nav-item .nav-label { opacity: 1; max-width: 160px; height: auto; }
   .sidebar-wrap:hover .nav-badge { opacity: 1; }
   .sidebar-wrap:hover .sb-user-info { opacity: 1; max-width: 160px; }
@@ -773,8 +772,7 @@ html[data-theme="dark"] .aflogo-dark { display: block; }
 
 /* Mobile drawer: reveal all labels when sidebar slides open */
 @media (max-width: 767px) {
-  .sidebar-wrap.open .sb-brand h2  { opacity: 1; max-width: 160px; }
-  .sidebar-wrap.open .sb-brand span { opacity: 1; max-width: 160px; }
+  .sidebar-wrap.open .sb-brand h2  { opacity: 1; max-width: 160px; margin-left: 12px; }
   .sidebar-wrap.open .sb-nav .nav-item .nav-label { opacity: 1; max-width: 160px; }
   .sidebar-wrap.open .sb-user-info { opacity: 1; max-width: 160px; }
   .sidebar-wrap.open .sb-logout .nav-label { opacity: 1; max-width: 120px; }
@@ -784,7 +782,8 @@ html[data-theme="dark"] .aflogo-dark { display: block; }
   display: flex;
   align-items: center;
   justify-content: center;   /* collapsed: cap centred in the rail, like the nav icons */
-  gap: 12px;
+  gap: 0;                     /* NOT gap - the wordmark uses margin-left so a 0-width
+                                  collapsed wordmark never shifts the centred cap. */
   height: 62px;
   padding: 0 6px;
   flex-shrink: 0;
@@ -807,9 +806,11 @@ html[data-theme="dark"] .aflogo-dark { display: block; }
   position: relative;
   z-index: 1;
 }
-/* Belt-and-suspenders: the inline cap mark uses the size BrandMark sets on the
-   <svg> (width/height attrs) and can never be shrunk to 0 by a flex parent. */
-.sb-brand-logo svg { flex: 0 0 auto; display: block; }
+/* Explicit width/height so the flex parent gets a definite size from the cap
+   (an <svg> sized only by its width/height ATTRS does not give the flex item a
+   definite basis, so the slot collapsed to 0). Keep in sync with BrandMark
+   height={34} -> 54x34. */
+.sb-brand-logo svg { width: 54px; height: 34px; flex: 0 0 auto; display: block; }
 .sb-brand h2 {
   /* Literal Bricolage stack (not var(--font-accent)) so the brand wordmark
      resolves even where the theme var doesn't reach. */
@@ -820,30 +821,20 @@ html[data-theme="dark"] .aflogo-dark { display: block; }
   text-transform: lowercase;
   min-width: 0;
   max-width: 0;
+  margin-left: 0;            /* becomes 12px when expanded (replaces the brand gap) */
   overflow: hidden;
   white-space: nowrap;
   color: var(--ink);
   line-height: 1.2;
   opacity: 0;
-  transition: opacity 180ms ease, max-width 220ms ease;
+  transition: opacity 180ms ease, max-width 220ms ease, margin-left 220ms ease;
   letter-spacing: -.02em;
 }
-.sidebar-wrap.expanded .sb-brand h2 { opacity: 1; max-width: 160px; }
-
-.sb-brand span {
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  color: var(--ink3);
-  white-space: nowrap;
-  overflow: hidden;
-  max-width: 0;
-  opacity: 0;
-  transition: opacity 180ms ease, max-width 220ms ease;
-  display: block;
-}
-.sidebar-wrap.expanded .sb-brand span { opacity: 1; max-width: 160px; }
+.sidebar-wrap.expanded .sb-brand h2 { opacity: 1; max-width: 160px; margin-left: 12px; }
+/* NOTE: there is intentionally NO `.sb-brand span` rule. The brand contains a
+   `<span class="sb-brand-logo">` (the cap); a generic `.sb-brand span` rule would
+   match it and (when it carried max-width:0/opacity:0 for the old portal subtext)
+   hide the cap. The subtext is gone - do not reintroduce a `.sb-brand span` rule. */
 
 
 .sb-nav { padding: 8px 0; overflow-y: auto; flex: 1; }
