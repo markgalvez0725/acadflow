@@ -1,4 +1,4 @@
-// On-device "AI" guidance engine for the guided account-verification flow.
+// On-device "Smart" guidance engine for the guided account-verification flow.
 // Pure + deterministic (the same on-device pattern used elsewhere in the app):
 // given a student's LIVE account state, it decides which step is active, the
 // stepper status, and a friendly, context-aware guidance message. It reads the

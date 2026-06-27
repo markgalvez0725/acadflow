@@ -1,5 +1,5 @@
 // ── Smart Insights engine ─────────────────────────────────────────────────
-// Deterministic, on-device "assistant" - no external AI, no API key, no
+// Deterministic, on-device "assistant" - no external services, no API key, no
 // network. It reads the same data the app already computes and turns it into
 // plain-language summaries and suggestions. Pure functions only.
 import { getGWA, getAttRate, computeFinalGradeFromTerms } from '@/utils/grades'

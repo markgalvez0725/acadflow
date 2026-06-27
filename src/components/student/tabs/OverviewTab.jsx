@@ -14,7 +14,7 @@ import { Home, CalendarCheck, Award, ClipboardList, FileQuestion, Radio, CheckCi
 import { pendingItems, humanLeft } from '@/utils/reminders'
 import BarChart from '@/components/charts/BarChart'
 import DonutChart from '@/components/charts/DonutChart'
-import AiAnalyzer from '@/components/ds/AiAnalyzer'
+import SmartAnalyzer from '@/components/ds/SmartAnalyzer'
 import { buildStudentReportCard } from '@/export/reportCard'
 import { FileDown } from 'lucide-react'
 import { activeClassIds, activeSubjects } from '@/utils/active'
@@ -693,8 +693,8 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
           trend={{ dir: 'flat', text: statusSub }} />
       </div>
 
-      {/* Study analyzer - on-device, no external AI */}
-      <AiAnalyzer title="Study analyzer" headline={sHeadline} findings={sFindings} />
+      {/* Study analyzer - on-device, no external services */}
+      <SmartAnalyzer title="Study analyzer" headline={sHeadline} findings={sFindings} />
 
       {/* At a glance - subject standing donut */}
       {gradedSubs.length > 0 && (

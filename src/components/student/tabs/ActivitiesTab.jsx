@@ -92,7 +92,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
     return { handled, rate, color }
   }, [counts])
 
-  // Deterministic "Activity Watch" findings - recomputed from `derived`, no AI/network.
+  // Deterministic "Activity Watch" findings - recomputed from `derived`, no network calls.
   const watch = useMemo(() => {
     const missed   = derived.filter(d => d.status === 'missed')
     const dueSoon  = derived.filter(d => d.status === 'open' && d.dueSoon).sort((a, b) => a.act.deadline - b.act.deadline)

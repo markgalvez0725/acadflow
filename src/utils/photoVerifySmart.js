@@ -1,4 +1,4 @@
-// ── On-device profile-photo AI ────────────────────────────────────────────
+// ── On-device profile-photo Smart ────────────────────────────────────────────
 // Custom, in-browser replacement for the Gemini /api/validate-photo call.
 // The student's photo NEVER leaves the device - every model runs client-side:
 //
@@ -16,7 +16,7 @@
 // same way) and are cached for the session. Weight files are fetched by the
 // model packages from their own hosts; the app sets no CSP so this is allowed.
 //
-// runOnDeviceAI() returns null ONLY when the models can't load or the canvas is
+// runOnDeviceSmart() returns null ONLY when the models can't load or the canvas is
 // tainted - the caller (photoValidate.js) then falls back to legacy heuristics.
 // When models load it returns structured signals (any field may be null if that
 // individual stage failed):
@@ -110,7 +110,7 @@ function ensureSeg() {
  * Call this when the photo UI opens so the first real check isn't a cold, janky
  * download-and-compile. Safe to call repeatedly; all errors swallowed.
  */
-export function prewarmOnDeviceAI() {
+export function prewarmOnDeviceSmart() {
   if (typeof window === 'undefined' || typeof document === 'undefined') return
   const warm = document.createElement('canvas')
   warm.width = 64; warm.height = 64
@@ -176,7 +176,7 @@ function frontalFromMesh(kp) {
  * @param {HTMLImageElement} imgEl
  * @returns {Promise<object|null>} signals, or null if models/canvas unavailable.
  */
-export async function runOnDeviceAI(imgEl) {
+export async function runOnDeviceSmart(imgEl) {
   if (typeof window === 'undefined' || typeof document === 'undefined') return null
 
   // Load both independently; tolerate either one failing.

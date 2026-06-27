@@ -245,7 +245,7 @@ export function computeSubjectGrade(s, sub, ctx = {}, opts = {}) {
 }
 
 // Human-readable, step-by-step trace - the data the student "How is this
-// computed?" panel and the AI explainer render. Numbers come straight from the
+// computed?" panel and the Smart explainer render. Numbers come straight from the
 // engine; nothing is re-derived downstream.
 function buildTrace({ act, qz, att, attitude, midtermExam, finalsExam, live, midterm, finals, final, equiv, overridden, floor }) {
   const floorNote = floor > 0 ? `, minimum ${floor}` : ''

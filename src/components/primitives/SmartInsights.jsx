@@ -75,7 +75,7 @@ export default function SmartInsights({
           )}
           <div style={{ fontSize: 10.5, color: 'var(--ink3)', marginTop: 12, display: 'flex', alignItems: 'center', gap: 5 }}>
             <Sparkles size={11} />
-            Generated on your device from your data. No external AI.
+            Generated on your device from your data. no external services.
           </div>
         </div>
       )}

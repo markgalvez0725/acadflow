@@ -1,4 +1,4 @@
-// ── Student: AI identity verification at self-registration ────────────────
+// ── Student: Smart identity verification at self-registration ────────────────
 // Called by the student's own device right after it creates the account. The
 // server re-looks-up the roster row, scores the entered identity DETERMINISTICALLY
 // (so the browser can't forge it), and - only on a strong match - flips

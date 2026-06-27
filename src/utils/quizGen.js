@@ -1,4 +1,4 @@
-// ── On-device quiz drafter (free, no AI) ──────────────────────────────────
+// ── On-device quiz drafter (free, on-device) ──────────────────────────────────
 // Turns lesson text into draft quiz questions using deterministic rules.
 // Output matches the app's question shape: { id, type, question, options?, answer }.
 // Drafts are meant to be reviewed and edited by the professor before saving.

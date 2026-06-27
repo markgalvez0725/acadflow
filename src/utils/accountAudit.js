@@ -1,5 +1,5 @@
 // ── Existing-account verification audit (on-device) ───────────────────────
-// The AI identity check only runs at self-registration; accounts that already
+// The Smart identity check only runs at self-registration; accounts that already
 // existed were grandfathered. This analyzes the CURRENT registered accounts for
 // integrity signals the roster row can still reveal - there is no separate
 // "claim vs record" left, so it checks consistency + anomalies instead of an
@@ -146,7 +146,7 @@ export function nudgeTargets(students = [], now = Date.now()) {
     .map(s => ({ id: s.id, name: s.name || s.id, reasons: profileGapReasons(s), nudgedAt: s.account?.profileNudgedAt || 0 }))
 }
 
-// IDs of grandfathered accounts - registered + active but never AI/professor
+// IDs of grandfathered accounts - registered + active but never Smart/professor
 // verified - for the "mark all legacy accounts verified" bulk action.
 export function legacyActiveIds(students = []) {
   return students.filter(s => {

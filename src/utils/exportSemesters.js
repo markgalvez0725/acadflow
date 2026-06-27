@@ -3,7 +3,7 @@
 // which can mix the current term with a past one. This deterministic (no
 // network) analyzer groups the student's enrolled classes by their tagged
 // semester so the professor can pick which term to export. Same on-device
-// "AI" pattern as verificationGuide.js.
+// "Smart" pattern as verificationGuide.js.
 
 import { enrolledClassIds, isClassCurrent } from '@/utils/active'
 

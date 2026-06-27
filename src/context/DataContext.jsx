@@ -281,7 +281,7 @@ export function DataProvider({ children }) {
 
   // Bulk "complete your profile" nudge. Writes an in-app notification to each
   // student that deep-links straight into Edit Profile, where saving re-runs the
-  // AI identity check and can auto-activate them. Each successfully-notified
+  // Smart identity check and can auto-activate them. Each successfully-notified
   // student is stamped with account.profileNudgedAt, which drops them out of the
   // nudge target set (so the button disables once everyone flagged is notified)
   // until the cooldown elapses. Students that failed to notify are NOT stamped,
@@ -321,7 +321,7 @@ export function DataProvider({ children }) {
   // The notification is best-effort: it is NOT gated on delivery (the per-day
   // dedup in fbPushReminderNotif would otherwise wrongly block the demotion when a
   // student was already nudged today). When the student completes the profile, the
-  // Edit-Profile save re-runs the AI check and can auto-activate them. Returns the
+  // Edit-Profile save re-runs the Smart check and can auto-activate them. Returns the
   // number demoted. Admin-only.
   const bulkDemoteAndNudge = useCallback(async (ids) => {
     const db = dbRef.current

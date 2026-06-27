@@ -10,7 +10,7 @@ import { courseShort } from '@/constants/courses'
 
 // ── Grade Integrity ────────────────────────────────────────────────────────
 // Every published grade, its full computation breakdown, a publish history
-// timeline, and an on-device AI re-audit of each one. The verifier recomputes
+// timeline, and an on-device Smart re-audit of each one. The verifier recomputes
 // every number from the GradeEngine (no model, no network), so its verdict can
 // never disagree with what the student and gradebook show.
 
@@ -165,7 +165,7 @@ export default function GradeIntegrityTab() {
       {records.length === 0 ? (
         <div className="empty" style={{ padding: '40px 0' }}>
           <div className="empty-icon"><CheckCircle2 size={40} /></div>
-          No grades are published yet. Once you upload grades in the Grades tab, every one shows here with its history and an AI verification.
+          No grades are published yet. Once you upload grades in the Grades tab, every one shows here with its history and an Smart verification.
         </div>
       ) : filtered.length === 0 ? (
         <div className="empty" style={{ padding: '32px 0' }}>Nothing matches this filter.</div>
@@ -300,9 +300,9 @@ function RecordRow({ rec, expanded, onToggle, onSync, busy }) {
               </div>
             </div>
 
-            {/* AI verification */}
+            {/* Smart verification */}
             <div>
-              <SectionLabel>AI verification</SectionLabel>
+              <SectionLabel>Smart verification</SectionLabel>
               <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '11px 13px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 9 }}>
                   <Sparkles size={15} style={{ color: 'var(--accent)' }} />

@@ -1,4 +1,4 @@
-// ── On-device AI quiz generator ───────────────────────────────────────────
+// ── On-device Smart quiz generator ───────────────────────────────────────────
 // Custom, in-browser replacement for the Gemini quiz endpoint. A neural
 // sentence-embedding model (paraphrase-multilingual-MiniLM-L12-v2, ~120 MB
 // quantized) runs entirely on the professor's device via Transformers.js. It is
@@ -12,14 +12,14 @@
 // questions. Every question and answer is still drawn verbatim from the lesson,
 // so the output is grounded and safe to grade.
 //
-// generateQuizAI() returns null when the model can't load or the lesson is too
+// generateQuizSmart() returns null when the model can't load or the lesson is too
 // thin - the caller then falls back to the instant rule-based drafter.
 
 import { splitSentences, keyTerms, definitions } from '@/utils/quizGen'
 import { ensureExtractor, embedAll, cos, prewarmEmbeddings } from '@/utils/embeddings'
 
 // Warm the shared embedding model when the lesson modal opens (re-export).
-export const prewarmQuizAI = prewarmEmbeddings
+export const prewarmQuizSmart = prewarmEmbeddings
 
 function meanVec(vecs) {
   if (!vecs.length) return null
@@ -157,13 +157,13 @@ const TEXT_TYPES = new Set(['short_answer', 'fill_in_the_blank', 'identification
  * model. Mines grounded synonyms from the quiz's own content (+ optional lesson
  * text) and merges them with the deterministic separator split. Questions that
  * already have acceptedAnswers are left untouched.
- * @returns {Promise<{questions:Array, touched:number, aiUsed:boolean}|null>}
+ * @returns {Promise<{questions:Array, touched:number, smartUsed:boolean}|null>}
  *   null when the model can't load - caller should fall back to split-only.
  */
 export async function smartAutoKey(questions, { contextText = '' } = {}) {
   const list = questions || []
   const targets = list.filter(q => TEXT_TYPES.has(q.type) && !(Array.isArray(q.acceptedAnswers) && q.acceptedAnswers.length))
-  if (!targets.length) return { questions: list, touched: 0, aiUsed: false }
+  if (!targets.length) return { questions: list, touched: 0, smartUsed: false }
 
   // Candidate pool: the quiz's own answers/options/stems, plus any lesson text.
   let pool = []
@@ -203,7 +203,7 @@ export async function smartAutoKey(questions, { contextText = '' } = {}) {
     touched++
     return { ...q, acceptedAnswers: merged }
   })
-  return { questions: out, touched, aiUsed: true }
+  return { questions: out, touched, smartUsed: true }
 }
 
 /**
@@ -212,7 +212,7 @@ export async function smartAutoKey(questions, { contextText = '' } = {}) {
  * @param {{count?:number, types?:string[], difficulty?:'easy'|'medium'|'hard'}} opts
  * @returns {Promise<Array<object>|null>} questions, or null to fall back.
  */
-export async function generateQuizAI(text, { count = 10, types = ['multiple_choice', 'true_false', 'fill_in_the_blank', 'identification'], difficulty = 'medium' } = {}) {
+export async function generateQuizSmart(text, { count = 10, types = ['multiple_choice', 'true_false', 'fill_in_the_blank', 'identification'], difficulty = 'medium' } = {}) {
   if (typeof window === 'undefined') return null
   const order = types.length ? types : ['multiple_choice']
 
@@ -223,7 +223,7 @@ export async function generateQuizAI(text, { count = 10, types = ['multiple_choi
   if (terms.length < 4) return null
   const defs = definitions(sentences)
 
-  // ── Embed (the AI step) ───────────────────────────────────────────────────
+  // ── Embed (the Smart step) ───────────────────────────────────────────────────
   let extractor
   try { extractor = await ensureExtractor() } catch { return null }
   let sentVecs, termVecs
@@ -334,7 +334,7 @@ export async function generateQuizAI(text, { count = 10, types = ['multiple_choi
       }
     }
 
-    // Fallback within the AI path: a fill-in-the-blank from the next salient sentence.
+    // Fallback within the Smart path: a fill-in-the-blank from the next salient sentence.
     if (!item) {
       const hit = nextSentenceWithTerm()
       if (hit) {

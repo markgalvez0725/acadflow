@@ -8,7 +8,7 @@ import { isPendingVerification } from '@/utils/accountStatus'
 import { dataGapReasons } from '@/utils/accountAudit'
 import { validateSnum } from '@/utils/validate'
 import { validateProfilePhoto } from '@/utils/photoValidate'
-import { prewarmOnDeviceAI } from '@/utils/photoVerifyAI'
+import { prewarmOnDeviceSmart } from '@/utils/photoVerifySmart'
 import { matchPhotoToEnrolledFace } from '@/utils/faceMatch'
 import Modal from '@/components/primitives/Modal'
 import FieldCheck, { SaveStatus } from '@/components/primitives/FieldCheck'
@@ -75,7 +75,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
 
   // Auto-save the name parts once both required parts are valid (debounced).
   // ONLY in normal edit mode - a forced/pending setup keeps its explicit verified
-  // save so the AI account verification runs exactly once when setup completes
+  // save so the Smart account verification runs exactly once when setup completes
   // (not on every keystroke). Photo + email keep their own explicit/confirm flows.
   const canAuto = !forced && !isPendingVerification(s)
   useEffect(() => {
@@ -103,9 +103,9 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
   const [photoCheck, setPhotoCheck] = useState(null)
   const photoBlocked = photoCheck?.status === 'done' && photoCheck.result && !photoCheck.result.ok
 
-  // Warm the on-device AI models the moment the modal opens, so the first photo
+  // Warm the on-device Smart models the moment the modal opens, so the first photo
   // check isn't a cold download-and-compile (the cause of the loading lag).
-  useEffect(() => { prewarmOnDeviceAI() }, [])
+  useEffect(() => { prewarmOnDeviceSmart() }, [])
 
   // Email password-confirm flow
   const [emailStep,     setEmailStep]     = useState('idle') // 'idle' | 'confirm' | 'verified'
@@ -178,9 +178,9 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
         const dataUrl = canvas.toDataURL('image/jpeg', 0.82)
         setPhoto(dataUrl)
 
-        // Validate: on-device (white bg, face, framing) + optional AI (attire).
+        // Validate: on-device (white bg, face, framing) + optional Smart (attire).
         // The full-resolution `img` gives the best on-device read; the small
-        // dataUrl is what gets sent to the AI endpoint.
+        // dataUrl is what gets sent to the Smart endpoint.
         setPhotoCheck({ status: 'checking', result: null })
         try {
           const result = await validateProfilePhoto(img, dataUrl)
@@ -212,7 +212,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
           else toast('Photo looks professional!', 'success')
         } catch (err) {
           // Never hard-block on an unexpected validator error - just advise.
-          setPhotoCheck({ status: 'done', result: { ok: true, hardFails: [], warnings: ['Could not fully verify the photo on this device.'], passes: [], aiUsed: false } })
+          setPhotoCheck({ status: 'done', result: { ok: true, hardFails: [], warnings: ['Could not fully verify the photo on this device.'], passes: [], smartUsed: false } })
         }
       }
       img.onerror = () => toast('Could not read that image.', 'warn')
@@ -252,7 +252,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
       const pending = isPendingVerification(s)
 
       // A pending account auto-verifies ONLY once its self-fixable data gaps
-      // (name/photo) are resolved - completion is the trigger. We re-run the AI
+      // (name/photo) are resolved - completion is the trigger. We re-run the Smart
       // check BEFORE saving the edited name, so the server scores the student's
       // claim against the professor's CURRENT roster record (not the edit scoring
       // against itself). The verified flag is set server-side; we then persist the
@@ -280,7 +280,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
             if (resp.ok) {
               const d = await resp.json().catch(() => ({}))
               verified = !!d.verified
-              // Mirror the server's verification record so coverage reads "AI",
+              // Mirror the server's verification record so coverage reads "Smart",
               // not stale (the server set this authoritatively just now).
               if (verified) verification = { method: 'ai', confidence: d.confidence ?? null, fields: d.fields ?? null, at: Date.now() }
             }
@@ -423,7 +423,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
                   <div key={'p' + i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, color: 'var(--ink3)' }}><CheckCircle2 size={13} style={{ flexShrink: 0, marginTop: 1, color: 'var(--green)' }} /> {m}</div>
                 ))}
                 <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 4 }}>
-                  {photoCheck.result.aiUsed ? 'Verified privately on your device with AI - your photo never leaves this device.' : 'Verified on-device. Tip: business attire on a plain white wall works best.'}
+                  {photoCheck.result.smartUsed ? 'Verified privately on your device - your photo never leaves this device.' : 'Verified on-device. Tip: business attire on a plain white wall works best.'}
                   {photoBlocked && ' Replace the photo or Remove it to continue.'}
                 </div>
               </div>

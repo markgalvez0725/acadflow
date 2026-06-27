@@ -10,7 +10,7 @@ import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
 import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil, ClipboardList, AlarmClock, CircleDot, BarChart3, CheckCircle2, Check, Save, Plus, Copy, Users } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
-import { deviceRubric, aiInstructions, aiRubric, aiGrade, aiGradeGroups, autoFormGroups, prewarmActivityAI } from '@/utils/activityAI'
+import { deviceRubric, smartInstructions, smartRubric, smartGrade, smartGradeGroups, autoFormGroups, prewarmActivitySmart } from '@/utils/activitySmart'
 import { sendPushToOwners } from '@/firebase/pushTokens'
 import { pushStudentNotif } from '@/firebase/studentNotif'
 import { lateInfo, applyLatePenalty } from '@/utils/latePenalty'
@@ -120,13 +120,13 @@ function ActivityFormModal({ act, onClose }) {
   const [rubric, setRubric] = useState(() => act?.rubric?.length ? act.rubric : [])
   const [err,     setErr]     = useState('')
   const [saving,  setSaving]  = useState(false)
-  const [aiBusyInstr, setAiBusyInstr] = useState(false)
-  const [aiBusyRubric, setAiBusyRubric] = useState(false)
+  const [smartBusyInstr, setAiBusyInstr] = useState(false)
+  const [smartBusyRubric, setAiBusyRubric] = useState(false)
   const [tab, setTab] = useState('details') // 'details' | 'rubric'
 
-  // Warm the shared on-device AI model when the form opens so the rubric
+  // Warm the shared on-device Smart model when the form opens so the rubric
   // suggestion isn't a cold wait.
-  useEffect(() => { prewarmActivityAI() }, [])
+  useEffect(() => { prewarmActivitySmart() }, [])
 
   const selectedClass = classes.find(c => c.id === classId)
 
@@ -178,7 +178,7 @@ function ActivityFormModal({ act, onClose }) {
     if (!title.trim()) { toast('Add a title first.', 'warn'); return }
     setAiBusyInstr(true)
     try {
-      const text = await aiInstructions(title, subject)
+      const text = await smartInstructions(title, subject)
       if (text) setInstructions(text)
     } finally { setAiBusyInstr(false) }
   }
@@ -188,7 +188,7 @@ function ActivityFormModal({ act, onClose }) {
     if (!title.trim()) { toast('Add a title first.', 'warn'); return }
     setAiBusyRubric(true)
     try {
-      const r = await aiRubric(title, subject, instructions)
+      const r = await smartRubric(title, subject, instructions)
       setRubric(r.length ? r : deviceRubric(title, subject))
     } finally { setAiBusyRubric(false) }
   }
@@ -361,8 +361,8 @@ function ActivityFormModal({ act, onClose }) {
       <div className="field mb-3">
         <div className="flex items-center justify-between mb-1">
           <label className="text-xs font-semibold text-ink2">Instructions <span className="font-normal text-ink3">(optional)</span></label>
-          <button type="button" className="btn btn-ghost btn-xs" onClick={suggestInstructions} disabled={aiBusyInstr}>
-            <Sparkles size={12} className="inline-block mr-1" />{aiBusyInstr ? 'Writing…' : 'Auto-write'}
+          <button type="button" className="btn btn-ghost btn-xs" onClick={suggestInstructions} disabled={smartBusyInstr}>
+            <Sparkles size={12} className="inline-block mr-1" />{smartBusyInstr ? 'Writing…' : 'Auto-write'}
           </button>
         </div>
         <textarea className="input w-full" rows={3} value={instructions} onChange={e => setInstructions(e.target.value)} placeholder="Brief instructions for students…" />
@@ -375,7 +375,7 @@ function ActivityFormModal({ act, onClose }) {
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>Group case-study activity</span>
         </label>
         <p className="text-xs text-ink3 mt-1" style={{ marginLeft: 24 }}>
-          Students work in teams; each group submits one analysis. The on-device AI drafts a rubric score per group, which you review and apply to all members.
+          Students work in teams; each group submits one analysis. On-device Smart grading drafts a rubric score per group, which you review and apply to all members.
         </p>
         {isGroup && (
           <div className="mt-2" style={{ marginLeft: 24 }}>
@@ -400,8 +400,8 @@ function ActivityFormModal({ act, onClose }) {
             <button type="button" className={`btn btn-sm ${showLib ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setShowLib(v => !v)} title="Reusable rubric library">
               <ClipboardList size={13} className="inline-block mr-1" />Library{rubricLibrary?.length ? ` (${rubricLibrary.length})` : ''}
             </button>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={suggestRubric} disabled={aiBusyRubric}>
-              <Wand2 size={13} className="inline-block mr-1" />{aiBusyRubric ? 'Suggesting…' : 'Suggest rubric'}
+            <button type="button" className="btn btn-ghost btn-sm" onClick={suggestRubric} disabled={smartBusyRubric}>
+              <Wand2 size={13} className="inline-block mr-1" />{smartBusyRubric ? 'Suggesting…' : 'Suggest rubric'}
             </button>
             <button type="button" className="btn btn-ghost btn-sm" onClick={addCriterion}>+ Add Criterion</button>
           </div>
@@ -563,10 +563,10 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
   const [feedbacks,     setFeedbacks]    = useState({}) // { [studentId]: string } - professor feedback
   const [rubricChecks,  setRubricChecks] = useState({}) // { [studentId]: { [criterionId]: bool } }
   const [waived,        setWaived]       = useState({}) // { [studentId]: bool } - late penalty waived
-  const [aiFor,    setAiFor]    = useState(null)  // studentId for grading assist
-  const [aiText,   setAiText]   = useState('')
-  const [aiBusy,   setAiBusy]   = useState(false)
-  const [aiResult, setAiResult] = useState(null)  // { score, feedback, criteria }
+  const [smartFor,    setAiFor]    = useState(null)  // studentId for grading assist
+  const [smartText,   setAiText]   = useState('')
+  const [smartBusy,   setAiBusy]   = useState(false)
+  const [smartResult, setAiResult] = useState(null)  // { score, feedback, criteria }
   const [saving,        setSaving]       = useState({})
   const [savingAll,     setSavingAll]    = useState(false)
 
@@ -778,40 +778,40 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
   }
 
   async function runAiGrade(studentId) {
-    if (!aiText.trim()) { toast('Paste the student\'s submission text first.', 'warn'); return }
+    if (!smartText.trim()) { toast('Paste the student\'s submission text first.', 'warn'); return }
     setAiBusy(true); setAiResult(null)
     try {
-      const res = await aiGrade({
+      const res = await smartGrade({
         title: act.title, subject: act.subject, instructions: act.instructions,
-        rubric: act.rubric, maxScore: act.maxScore, submissionText: aiText,
+        rubric: act.rubric, maxScore: act.maxScore, submissionText: smartText,
       })
       if (res) setAiResult(res)
-      else toast('On-device AI is unavailable on this device. Grade manually against the rubric.', 'warn', 7000)
+      else toast('On-device Smart grading is unavailable on this device. Grade manually against the rubric.', 'warn', 7000)
     } catch (e) {
-      toast('AI error: ' + e.message, 'error', 7000)
+      toast('Smart grading error: ' + e.message, 'error', 7000)
     } finally { setAiBusy(false) }
   }
 
   function applyAiGrade(studentId) {
-    if (!aiResult) return
-    setScores(prev => ({ ...prev, [studentId]: String(aiResult.score) }))
-    // Pre-fill the feedback box with the AI's notes so the professor can review,
+    if (!smartResult) return
+    setScores(prev => ({ ...prev, [studentId]: String(smartResult.score) }))
+    // Pre-fill the feedback box with the Smart's notes so the professor can review,
     // edit, and save it for the student (previously it was shown but discarded).
-    if (aiResult.feedback) setFeedbacks(prev => ({ ...prev, [studentId]: aiResult.feedback }))
-    if (hasRubric && Array.isArray(aiResult.criteria)) {
+    if (smartResult.feedback) setFeedbacks(prev => ({ ...prev, [studentId]: smartResult.feedback }))
+    if (hasRubric && Array.isArray(smartResult.criteria)) {
       const checks = {}
       act.rubric.forEach(c => {
-        const m = aiResult.criteria.find(x => (x.name || '').toLowerCase().trim() === c.name.toLowerCase().trim())
+        const m = smartResult.criteria.find(x => (x.name || '').toLowerCase().trim() === c.name.toLowerCase().trim())
         if (m && m.met) checks[c.id] = true
       })
       setRubricChecks(prev => ({ ...prev, [studentId]: checks }))
     }
     setAiFor(null); setAiText(''); setAiResult(null)
-    toast('AI suggestion applied. Review and Save.', 'green')
+    toast('Smart suggestion applied. Review and Save.', 'green')
   }
 
   // Warm the on-device model when the grading modal opens.
-  useEffect(() => { prewarmActivityAI() }, [])
+  useEffect(() => { prewarmActivitySmart() }, [])
 
   // Auto-grade every group at once, then pre-fill each member's score/feedback/
   // rubric so the existing Save-All path persists it (per-member adjustable).
@@ -822,11 +822,11 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
     if (!groupsForAI.length) { toast('Paste each group\'s submission text first.', 'warn'); return }
     setGradingGroups(true)
     try {
-      const res = await aiGradeGroups({
+      const res = await smartGradeGroups({
         title: act.title, subject: act.subject, casePrompt: act.casePrompt,
         rubric: act.rubric, maxScore: act.maxScore, groups: groupsForAI,
       })
-      if (!res) { toast('On-device AI is unavailable on this device. Grade groups manually.', 'warn', 7000); return }
+      if (!res) { toast('On-device Smart grading is unavailable on this device. Grade groups manually.', 'warn', 7000); return }
       const byId = {}; res.forEach(r => { byId[r.groupId] = r })
       setGroupResults(byId)
       const nextScores = {}, nextFb = {}, nextChecks = {}
@@ -970,7 +970,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
           <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
             <div className="text-xs font-semibold text-ink2"><Users size={14} className="inline-block mr-1" />Case-study groups · {(act.groups || []).length}</div>
             <button className="btn btn-primary btn-sm" onClick={runGroupGrade} disabled={gradingGroups}>
-              <Sparkles size={13} className="inline-block mr-1" />{gradingGroups ? 'Grading…' : 'AI grade all groups'}
+              <Sparkles size={13} className="inline-block mr-1" />{gradingGroups ? 'Grading…' : 'Smart grade all groups'}
             </button>
           </div>
           {act.casePrompt && (
@@ -1123,7 +1123,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                         {hasLink && (
                           <button
                             className="btn btn-ghost btn-sm"
-                            title="AI grading assistant"
+                            title="Smart grading assistant"
                             onClick={() => { setAiFor(s.id); setAiText(''); setAiResult(null) }}
                           >
                             <Sparkles size={13} />
@@ -1166,15 +1166,15 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
         </button>
       </div>
 
-      {aiFor && (() => {
-        const stud = enrolledStudents.find(x => x.id === aiFor)
-        const sub = (act.submissions || {})[aiFor] || {}
+      {smartFor && (() => {
+        const stud = enrolledStudents.find(x => x.id === smartFor)
+        const sub = (act.submissions || {})[smartFor] || {}
         return (
           <Modal onClose={() => setAiFor(null)} size="md">
             <h3 className="text-lg font-bold mb-1"><Sparkles size={16} className="inline-block mr-1 align-text-bottom" />Grading Assist <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--green)', background: 'var(--green-l)', padding: '2px 8px', borderRadius: 999, marginLeft: 6, verticalAlign: 'middle' }}>on-device</span></h3>
             <p className="modal-sub">{stud?.name} · {act.title}</p>
             <div style={{ fontSize: 12, color: 'var(--ink2)', background: 'var(--accent-l)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', margin: '8px 0 12px' }}>
-              Paste the student's work below (open their link, copy the text). On-device AI estimates how well it covers each rubric criterion and drafts a score - a starting point you review and adjust before saving. Nothing is uploaded.
+              Paste the student's work below (open their link, copy the text). On-device Smart grading estimates how well it covers each rubric criterion and drafts a score - a starting point you review and adjust before saving. Nothing is uploaded.
             </div>
             {sub.link && (
               <a href={sub.link} target="_blank" rel="noopener noreferrer" className="link-btn" style={{ fontSize: 12, marginBottom: 8, display: 'inline-block' }}>Open submission ↗</a>
@@ -1183,23 +1183,23 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
               className="input w-full"
               rows={6}
               placeholder="Paste the student's submission text here…"
-              value={aiText}
+              value={smartText}
               onChange={e => setAiText(e.target.value)}
             />
             <div className="flex gap-2 mt-2">
-              <button className="btn btn-primary btn-sm" onClick={() => runAiGrade(aiFor)} disabled={aiBusy || !aiText.trim()}>
-                <Sparkles size={13} className="inline-block mr-1" />{aiBusy ? 'Assessing…' : 'Suggest grade'}
+              <button className="btn btn-primary btn-sm" onClick={() => runAiGrade(smartFor)} disabled={smartBusy || !smartText.trim()}>
+                <Sparkles size={13} className="inline-block mr-1" />{smartBusy ? 'Assessing…' : 'Suggest grade'}
               </button>
             </div>
-            {aiResult && (
+            {smartResult && (
               <div style={{ marginTop: 14, padding: 12, borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface2)' }}>
                 <div style={{ fontSize: 14, fontWeight: 700 }}>
-                  Suggested score: <span style={{ color: 'var(--accent)' }}>{aiResult.score} / {act.maxScore}</span>
+                  Suggested score: <span style={{ color: 'var(--accent)' }}>{smartResult.score} / {act.maxScore}</span>
                 </div>
-                {aiResult.feedback && <div style={{ fontSize: 12, color: 'var(--ink2)', marginTop: 6, lineHeight: 1.6 }}>{aiResult.feedback}</div>}
-                {hasRubric && aiResult.criteria?.length > 0 && (
+                {smartResult.feedback && <div style={{ fontSize: 12, color: 'var(--ink2)', marginTop: 6, lineHeight: 1.6 }}>{smartResult.feedback}</div>}
+                {hasRubric && smartResult.criteria?.length > 0 && (
                   <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    {aiResult.criteria.map((c, i) => (
+                    {smartResult.criteria.map((c, i) => (
                       <div key={i} style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ color: c.met ? 'var(--green)' : 'var(--ink3)', fontWeight: 700 }}>{c.met ? <Check size={14} /> : <X size={14} />}</span>{c.name}
                       </div>
@@ -1207,7 +1207,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                   </div>
                 )}
                 <div className="flex gap-2 mt-3">
-                  <button className="btn btn-primary btn-sm" onClick={() => applyAiGrade(aiFor)}>Apply to score</button>
+                  <button className="btn btn-primary btn-sm" onClick={() => applyAiGrade(smartFor)}>Apply to score</button>
                   <button className="btn btn-ghost btn-sm" onClick={() => setAiFor(null)}>Cancel</button>
                 </div>
               </div>

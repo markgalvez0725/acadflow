@@ -1,4 +1,4 @@
-// ── AI identity verification (on-device, deterministic) ────────────────────
+// ── Smart identity verification (on-device, deterministic) ────────────────────
 //
 // Scores how well a self-registering student's details match the roster row for
 // their student number - a fuzzy, multi-signal confidence (0-100) that replaces

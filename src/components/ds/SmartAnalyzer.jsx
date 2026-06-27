@@ -1,7 +1,7 @@
 import React from 'react'
 import { Sparkles, Cpu } from 'lucide-react'
 
-// On-device "AI analyzer" card - a $0, deterministic synthesizer that turns the
+// On-device "Smart Analyzer" card - a $0, deterministic synthesizer that turns the
 // numbers already on the page into plain-English findings with one-tap actions.
 // It recomputes from the same data the dashboard renders, so it can never
 // disagree with the cards below it. Shared by the professor dashboard and the
@@ -13,7 +13,7 @@ const SEV = {
   info:    'var(--accent)',
 }
 
-export default function AiAnalyzer({ title = 'AI analyzer', headline, findings = [] }) {
+export default function SmartAnalyzer({ title = 'Smart Analyzer', headline, findings = [] }) {
   return (
     <div className="ai-card mb-4">
       <div className="ai-head">

@@ -9,7 +9,7 @@ import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { extractTextFromFile } from '@/utils/lessonExtract'
 import { generateDraftQuestions } from '@/utils/quizGen'
-import { generateQuizAI, prewarmQuizAI, smartAutoKey, splitAnswerAlternates } from '@/utils/quizGenAI'
+import { generateQuizSmart, prewarmQuizSmart, smartAutoKey, splitAnswerAlternates } from '@/utils/quizGenSmart'
 import { auditDistractors } from '@/utils/distractorAudit'
 import { compareStyle, collectQuizText } from '@/utils/stylometry'
 import { mineAnswerKey } from '@/utils/answerKeyMine'
@@ -58,7 +58,7 @@ function buildTemplate(topic, count, types, generalPrompt, lesson) {
     ? `Base every question STRICTLY on the lesson material in the "lesson" field below; do not invent facts or use outside knowledge.${topic?.trim() ? ` Focus on: ${topic.trim()}.` : ''}`
     : `Generate questions about this topic: ${topic?.trim() || '(none provided)'}.`
 
-  const instructions = `INSTRUCTIONS FOR AI:
+  const instructions = `INSTRUCTIONS:
 Generate exactly ${count} quiz questions.
 ${source}
 Use ${typeLabel}. Do NOT generate any other question type.
@@ -84,7 +84,7 @@ ${examples}
   }
 }
 
-const AI_PROMPT_TEXT = `I have a quiz template JSON file. Please read the _instructions field inside it carefully and generate the quiz questions exactly as described.
+const ASSISTANT_PROMPT_TEXT = `I have a quiz template JSON file. Please read the _instructions field inside it carefully and generate the quiz questions exactly as described.
 
 Each question object must include an "explanation" field (1-2 sentences on why the answer is correct).
 Respond ONLY with a valid JSON array - no markdown, no commentary, no code block. Just the raw JSON array starting with [ and ending with ].`
@@ -114,7 +114,7 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
   }
 
   function handleCopyPrompt() {
-    navigator.clipboard.writeText(AI_PROMPT_TEXT).then(() => {
+    navigator.clipboard.writeText(ASSISTANT_PROMPT_TEXT).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
@@ -136,14 +136,14 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
     a.download = `quiz-template-${base}.json`
     a.click()
     URL.revokeObjectURL(url)
-    toast('Template exported! Send it to your AI platform.', 'green')
+    toast('Template exported! Send it to your chat assistant.', 'green')
   }
 
   return (
     <Modal onClose={onClose} size="md">
       <h3 className="text-lg font-bold text-ink mb-1"><Upload size={18} className="inline-block mr-1 align-text-bottom" />Export Quiz Template</h3>
       <p className="modal-sub">
-        Upload a lesson file (or type a topic), export the template JSON, send it to any AI chat (Perplexity, ChatGPT, Claude…), then import the AI's response back here.
+        Upload a lesson file (or type a topic), export the template JSON, send it to any chat assistant (Perplexity, ChatGPT, Claude…), then import the response back here.
       </p>
 
       {/* Lesson file - questions are drawn from its content (read on your device) */}
@@ -198,7 +198,7 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
 
       <div className="field mb-4">
         <label className="text-xs font-semibold text-ink2 mb-1 block">
-          Additional Prompt for AI <span className="font-normal text-ink3">(optional)</span>
+          Additional Prompt <span className="font-normal text-ink3">(optional)</span>
         </label>
         <textarea
           className="input w-full"
@@ -213,15 +213,15 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
         <strong style={{ color: 'var(--ink)' }}>How it works:</strong>
         <ol style={{ margin: '6px 0 0 16px', lineHeight: 1.8 }}>
           <li>Click <strong>Export Template</strong> to download a <code>.json</code> file</li>
-          <li>Go to ChatGPT, Gemini, Claude, or any AI platform</li>
+          <li>Go to ChatGPT, Gemini, Claude, or any chat assistant</li>
           <li>Copy the prompt below, paste it, then attach or paste the <code>.json</code> file contents</li>
-          <li>Copy the AI's JSON output, then click <strong>Import AI Response</strong></li>
+          <li>Copy the assistant’s JSON output, then click <strong>Import Response</strong></li>
         </ol>
       </div>
 
       <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 16, overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px', borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink2)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Prompt to paste into AI</span>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink2)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Prompt to paste into the assistant</span>
           <button
             type="button"
             onClick={handleCopyPrompt}
@@ -231,14 +231,14 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
           </button>
         </div>
         <pre style={{ margin: 0, padding: '10px 14px', fontSize: 12, color: 'var(--ink)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.6, userSelect: 'all' }}>
-          {AI_PROMPT_TEXT}
+          {ASSISTANT_PROMPT_TEXT}
         </pre>
       </div>
 
       <div className="modal-footer">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
         <button className="btn btn-ghost" onClick={onSwitchToImport}>
-          <Download size={13} className="inline-block mr-1" />Import AI Response
+          <Download size={13} className="inline-block mr-1" />Import Response
         </button>
         <button className="btn btn-primary" onClick={handleExport} disabled={(!topic.trim() && !lessonText.trim()) || !qTypes.length || extracting}>
           <Upload size={13} className="inline-block mr-1" />Export Template
@@ -248,7 +248,7 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
   )
 }
 
-// ── Import AI Response Modal ──────────────────────────────────────────────────
+// ── Import Response Modal ──────────────────────────────────────────────────
 function ImportResponseModal({ onClose, onImported }) {
   const [jsonInput, setJsonInput] = useState('')
   const [jsonErr, setJsonErr] = useState('')
@@ -270,13 +270,13 @@ function ImportResponseModal({ onClose, onImported }) {
 
   return (
     <Modal onClose={onClose} size="md">
-      <h3 className="text-lg font-bold text-ink mb-1"><Download size={18} className="inline-block mr-1 align-text-bottom" />Import AI Response</h3>
+      <h3 className="text-lg font-bold text-ink mb-1"><Download size={18} className="inline-block mr-1 align-text-bottom" />Import Response</h3>
       <p className="modal-sub">
-        Paste the JSON array returned by your AI platform. The quiz will be auto-configured and ready to save.
+        Paste the JSON array returned by your chat assistant. The quiz will be auto-configured and ready to save.
       </p>
 
       <div className="field mb-3">
-        <label className="text-xs font-semibold text-ink2 mb-1 block">Paste AI JSON Output <span className="text-red-500">*</span></label>
+        <label className="text-xs font-semibold text-ink2 mb-1 block">Paste JSON Output <span className="text-red-500">*</span></label>
         <textarea
           className="input w-full"
           rows={12}
@@ -342,7 +342,7 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
   const [tab, setTab] = useState('details') // 'details' | 'questions'
 
   // Warm the shared on-device model so the first Auto-key / Audit click is fast.
-  useEffect(() => { prewarmQuizAI() }, [])
+  useEffect(() => { prewarmQuizSmart() }, [])
 
   const mcCount = useMemo(() => questions.filter(q => q.type === 'multiple_choice' && Array.isArray(q.options) && q.options.length >= 2).length, [questions])
 
@@ -384,7 +384,7 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
   const TEXT_TYPES = ['short_answer', 'fill_in_the_blank', 'identification']
 
   // Smart Auto-key: fill accepted alternate answers for text questions. Uses the
-  // on-device AI to mine grounded synonyms from the quiz's own content, merged
+  // on-device Smart to mine grounded synonyms from the quiz's own content, merged
   // with the deterministic separator split. Falls back to split-only if the
   // model can't load. Suggestions are review-required (shown in editable boxes).
   async function bulkAutoKey() {
@@ -596,7 +596,7 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
             {mcCount > 0 && (
               <button type="button" className="btn btn-ghost btn-sm" onClick={runAudit} disabled={auditing} title="Check multiple-choice distractors for ambiguous, duplicate, or giveaway options (on-device, advisory)"><ScanSearch size={12} className="inline-block mr-1" />{auditing ? 'Auditing…' : 'Audit choices'}</button>
             )}
-            <button type="button" className="btn btn-ghost btn-sm" onClick={bulkAutoKey} disabled={keying} title="Suggest accepted alternate answers using on-device AI (review before sharing)"><Wand2 size={12} className="inline-block mr-1" />{keying ? 'Auto-keying…' : 'Auto-key'}</button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={bulkAutoKey} disabled={keying} title="Suggest accepted alternate answers using on-device Smart suggestions (review before sharing)"><Wand2 size={12} className="inline-block mr-1" />{keying ? 'Auto-keying…' : 'Auto-key'}</button>
             <button type="button" className="btn btn-ghost btn-sm" onClick={addQuestion}>+ Add Question</button>
           </div>
         </div>
@@ -1203,12 +1203,12 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
   const [count, setCount] = useState(10)
   const [qTypes, setQTypes] = useState(['multiple_choice', 'true_false', 'fill_in_the_blank', 'identification'])
   const [difficulty, setDifficulty] = useState('medium') // 'easy' | 'medium' | 'hard'
-  const [method, setMethod] = useState('smart') // 'smart' (on-device AI) | 'quick' (instant rules)
+  const [method, setMethod] = useState('smart') // 'smart' (on-device) | 'quick' (instant rules)
   const [busy, setBusy] = useState(false)
 
-  // Warm the on-device AI model the moment the modal opens so the first
+  // Warm the on-device Smart model the moment the modal opens so the first
   // generation isn't a cold ~120MB download-and-compile wait.
-  useEffect(() => { prewarmQuizAI() }, [])
+  useEffect(() => { prewarmQuizSmart() }, [])
 
   function toggleType(t) {
     setQTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])
@@ -1239,10 +1239,10 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
     setBusy(true)
     try {
       if (method === 'smart') {
-        // Custom on-device AI (sentence embeddings). Grounded in the lesson,
+        // Custom on-device Smart (sentence embeddings). Grounded in the lesson,
         // private, $0 - no Gemini. Falls back to quick drafts if it can't run.
         try {
-          const qs = await generateQuizAI(text, { count, types: qTypes, difficulty })
+          const qs = await generateQuizSmart(text, { count, types: qTypes, difficulty })
           if (qs && qs.length) { onGenerated(qs, difficulty); return }
           toast('Smart generator unavailable on this device - using quick drafts.', 'info', 5000)
         } catch {
@@ -1348,7 +1348,7 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
         <label className="text-xs font-semibold text-ink2 mb-2 block">Generation method</label>
         <div className="flex flex-col gap-2">
           {[
-            { id: 'smart', title: 'Smart AI (on-device)', desc: 'Best quality. A multilingual AI model reads your lesson on this device - private, free, no key, works in Filipino. First run downloads ~120MB, then it’s cached.' },
+            { id: 'smart', title: 'Smart (on-device)', desc: 'Best quality. A multilingual on-device model reads your lesson - private, free, no key, works in Filipino. First run downloads ~120MB, then it’s cached.' },
             { id: 'quick', title: 'Quick draft', desc: 'Instant, no download. Rule-based drafts from your lesson text.' },
           ].map(opt => {
             const active = method === opt.id
@@ -1454,7 +1454,7 @@ export default function QuizTab() {
       <div className="sec-hdr mb-3">
         <div className="sec-title">Quizzes</div>
         <div className="flex gap-2 flex-wrap">
-          <button className="btn btn-ghost btn-sm" onClick={() => setShowImport(true)}><Download size={13} className="inline-block mr-1" />Import AI Response</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowImport(true)}><Download size={13} className="inline-block mr-1" />Import Response</button>
           <button className="btn btn-ghost btn-sm" onClick={() => setShowExport(true)}><Upload size={13} className="inline-block mr-1" />Export Template</button>
           <button className="btn btn-primary btn-sm" onClick={() => setShowLesson(true)}><Wand2 size={13} className="inline-block mr-1" />Generate from Lesson</button>
         </div>
@@ -1463,7 +1463,7 @@ export default function QuizTab() {
       {!activeQuizzes.length && !archivedQuizzes.length ? (
         <div className="empty">
           <div className="empty-icon"><FileText size={32} /></div>
-          No quizzes yet. Export a template, generate with AI, then import the response.
+          No quizzes yet. Export a template, generate with a chat assistant, then import the response.
         </div>
       ) : activeQuizzes.length === 0 ? (
         <div className="empty">

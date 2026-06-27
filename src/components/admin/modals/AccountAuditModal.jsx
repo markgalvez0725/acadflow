@@ -5,7 +5,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { auditAccounts, legacyActiveIds, nudgeTargets, incompleteProfiles, demoteCandidates } from '@/utils/accountAudit'
 
-// Professor-side analyzer for EXISTING accounts (the AI identity check only runs at
+// Professor-side analyzer for EXISTING accounts (the Smart identity check only runs at
 // registration). Shows verification coverage + flags integrity anomalies, with a
 // one-click "mark all legacy accounts verified" and a jump into each flagged row.
 export default function AccountAuditModal({ onClose, onOpenStudent }) {
@@ -34,7 +34,7 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
     if (!legacyIds.length) return
     const ok = await openDialog({
       title: `Mark ${legacyIds.length} legacy account${legacyIds.length > 1 ? 's' : ''} verified?`,
-      msg: 'These are active accounts that pre-date AI verification. Marking them professor-verified clears the "never checked" state - it does not change their access.',
+      msg: 'These are active accounts that pre-date Smart verification. Marking them professor-verified clears the "never checked" state - it does not change their access.',
       type: 'warn', confirmLabel: 'Mark verified', showCancel: true,
     })
     if (!ok) return
@@ -49,7 +49,7 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
     if (!nudgeList.length) return
     const ok = await openDialog({
       title: `Nudge ${nudgeList.length} student${nudgeList.length > 1 ? 's' : ''} to finish their profile?`,
-      msg: 'Sends an in-app notification that opens Edit Profile. When they save, the AI re-checks their details and can activate them automatically. Only reaches students who have signed in and have something they can fix themselves - never-logged-in accounts are not included (use “Verify & activate” for those).',
+      msg: 'Sends an in-app notification that opens Edit Profile. When they save, the Smart re-checks their details and can activate them automatically. Only reaches students who have signed in and have something they can fix themselves - never-logged-in accounts are not included (use “Verify & activate” for those).',
       type: 'info', confirmLabel: 'Send nudge', showCancel: true,
     })
     if (!ok) return
@@ -64,7 +64,7 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
     if (!demoteList.length) return
     const ok = await openDialog({
       title: `Send ${demoteList.length} incomplete account${demoteList.length > 1 ? 's' : ''} back to pending?`,
-      msg: 'These are ACTIVE students missing a profile photo or a properly formatted name. Each one is set back to "pending" (grade/quiz/activity access paused) and nudged to finish their profile. When they complete it, the AI re-checks them and restores full access automatically - or you can approve them manually. Only students who can fix the gap themselves are included.',
+      msg: 'These are ACTIVE students missing a profile photo or a properly formatted name. Each one is set back to "pending" (grade/quiz/activity access paused) and nudged to finish their profile. When they complete it, the Smart re-checks them and restores full access automatically - or you can approve them manually. Only students who can fix the gap themselves are included.',
       type: 'warn', confirmLabel: 'Send to pending & nudge', showCancel: true,
     })
     if (!ok) return
@@ -107,7 +107,7 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
 
       <div className="grid gap-2 mb-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))' }}>
         {[
-          ['AI-verified', coverage.ai, 'var(--green)'],
+          ['Smart-verified', coverage.ai, 'var(--green)'],
           ['Professor-verified', coverage.teacher, 'var(--green)'],
           ['Legacy (unchecked)', coverage.legacy, coverage.legacy > 0 ? 'var(--yellow)' : undefined],
           ['Awaiting review', coverage.pendingVerify, coverage.pendingVerify > 0 ? 'var(--yellow)' : undefined],

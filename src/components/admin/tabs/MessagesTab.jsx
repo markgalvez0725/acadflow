@@ -356,7 +356,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
         </button>
         {secureOn && (
           <span style={{ fontSize: 12, color: 'var(--accent)' }}>
-            {draftFlag.sensitive ? `AI: ${sensitivityLabel(draftFlag.reasons)} - recipients must tap to reveal.` : 'Recipients must tap to reveal.'}
+            {draftFlag.sensitive ? `Smart-lock: ${sensitivityLabel(draftFlag.reasons)} - recipients must tap to reveal.` : 'Recipients must tap to reveal.'}
           </span>
         )}
       </div>

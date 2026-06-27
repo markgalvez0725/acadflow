@@ -1,6 +1,6 @@
 // ── Shared on-device embedding model ──────────────────────────────────────
 // One singleton sentence-embedding model (paraphrase-multilingual-MiniLM-L12-v2,
-// ~120 MB quantized) loaded via Transformers.js and shared by EVERY AI feature
+// ~120 MB quantized) loaded via Transformers.js and shared by EVERY Smart feature
 // in the app - quiz generation, Auto-key synonyms, activity rubric matching, and
 // grading-coverage estimates. Multilingual on purpose (the content here is
 // Filipino/Tagalog). Nothing is uploaded; inference runs entirely in-browser.
@@ -59,7 +59,7 @@ export function cos(a, b) {
 
 /**
  * Warm the model up ahead of time (download + compile) so the first real use
- * isn't a cold wait. Call when an AI-using modal opens. Errors swallowed.
+ * isn't a cold wait. Call when an Smart-using modal opens. Errors swallowed.
  */
 export function prewarmEmbeddings() {
   if (typeof window === 'undefined') return

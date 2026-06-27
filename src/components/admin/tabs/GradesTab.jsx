@@ -8,7 +8,7 @@ import {
 } from '@/utils/grades'
 import { exportMasterGradingReport } from '@/export/excelExport'
 import { exportGradingSheet, parseGradingSheetImport, exportCurrentGrades } from '@/export/gradingSheet'
-import { verifyGradeRows } from '@/utils/gradeImportVerifyAI'
+import { verifyGradeRows } from '@/utils/gradeImportVerifySmart'
 import { makeHistoryEntry, appendGradeHistory } from '@/utils/gradeEngine'
 import { classTag, courseShort } from '@/utils/groupChat'
 import { pushStudentNotif } from '@/firebase/studentNotif'

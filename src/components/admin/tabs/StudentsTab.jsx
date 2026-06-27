@@ -22,7 +22,7 @@ import { courseOptions, courseFromShort, courseShort } from '@/constants/courses
 import { classMatchesCourseYear } from '@/utils/enrollment'
 import { activeSubjects } from '@/utils/active'
 import { splitStudentName, buildStudentName } from '@/utils/studentName'
-import { verifyImportRows } from '@/utils/importVerifyAI'
+import { verifyImportRows } from '@/utils/importVerifySmart'
 
 const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
 
@@ -523,7 +523,7 @@ function EditStudentModal({ student, onClose }) {
             return (
               <div className="mt-2 p-2.5 rounded-lg" style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}>
                 <div className="text-xs text-ink2" style={{ lineHeight: 1.5 }}>
-                  Self-registered. AI identity match: <strong style={{ color: 'var(--ink)' }}>{v?.confidence != null ? `${v.confidence}%` : '-'}</strong>
+                  Self-registered. Smart identity match: <strong style={{ color: 'var(--ink)' }}>{v?.confidence != null ? `${v.confidence}%` : '-'}</strong>
                   {detail ? <> · <span className="text-ink3">{detail}</span></> : null}
                 </div>
                 <div className="flex gap-2 mt-2">
@@ -752,7 +752,7 @@ function ImportStudentsModal({ onClose }) {
   const fileRef = useRef(null)
   const [rows, setRows]     = useState([])
   const [errors, setErrors] = useState({})
-  const [warnings, setWarnings] = useState({})   // on-device "AI check" advisories (non-blocking)
+  const [warnings, setWarnings] = useState({})   // on-device "Smart check" advisories (non-blocking)
   const [fileName, setFileName] = useState('')
   const [saving, setSaving] = useState(false)
   const [page, setPage]     = useState(1)
@@ -898,7 +898,7 @@ function ImportStudentsModal({ onClose }) {
         <input ref={fileRef} type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={handleFile} />
       </div>
 
-      {/* Preview + on-device AI check */}
+      {/* Preview + on-device Smart check */}
       {rows.length > 0 && (
         <div className="mb-4">
           {/* Filter tabs (with counts) + search */}
@@ -933,12 +933,12 @@ function ImportStudentsModal({ onClose }) {
             </div>
           </div>
 
-          {/* AI-check caption (on-device; never blocks import) */}
+          {/* Smart-check caption (on-device; never blocks import) */}
           <div className="flex items-center gap-1.5 mb-2 text-xs text-ink3">
             <Sparkles size={13} className="text-accent shrink-0" />
             {counts.review > 0
-              ? <span>AI check flagged <strong className="text-amber-600">{counts.review}</strong> row{counts.review !== 1 ? 's' : ''} to review - advisory only, won’t block import.</span>
-              : <span>AI check: the filled-in file looks good.</span>}
+              ? <span>Smart check flagged <strong className="text-amber-600">{counts.review}</strong> row{counts.review !== 1 ? 's' : ''} to review - advisory only, won’t block import.</span>
+              : <span>Smart check: the filled-in file looks good.</span>}
           </div>
 
           {/* Paged preview table */}

@@ -72,7 +72,7 @@ export default function OnlineClassesTab({ student }) {
   }, [classes])
 
   // Deterministic "Session Watch" - live now, next up, missing link. Recomputed
-  // from the same meetings the list renders. No AI/network.
+  // from the same meetings the list renders. no network calls.
   const watch = useMemo(() => {
     const f = []
     const noLink = upcoming.filter(m => !m.meetLink)

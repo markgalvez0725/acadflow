@@ -12,7 +12,7 @@ import { courseShort } from '@/constants/courses'
 import Badge from '@/components/primitives/Badge'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import DonutChart from '@/components/charts/DonutChart'
-import AiAnalyzer from '@/components/ds/AiAnalyzer'
+import SmartAnalyzer from '@/components/ds/SmartAnalyzer'
 import {
   Users, CalendarCheck, AlertTriangle, BarChart2, TrendingUp, CheckCircle2,
   ClipboardList, Bell, ChevronDown, Download, Home, PieChart,
@@ -169,7 +169,7 @@ export default function DashboardTab() {
   const gwaNum = parseFloat(stats.avgGwa)
   const attNum = parseFloat(stats.avgAtt)
 
-  // ── Build the AI analyzer's findings - all derived from the real numbers above,
+  // ── Build the Smart analyzer's findings - all derived from the real numbers above,
   // so the analyzer can never contradict the cards on the page. ───────────────
   const scrollToNeeds = () => document.getElementById('needs-attention')?.scrollIntoView({ behavior: 'smooth' })
   const findings = []
@@ -226,8 +226,8 @@ export default function DashboardTab() {
         actions={<button className="btn" onClick={() => setAdminTab('grades')}><Download size={16} /> Export</button>}
       />
 
-      {/* On-device AI analyzer (replaces Class Insights) */}
-      <AiAnalyzer headline={headline} findings={findings} />
+      {/* On-device Smart analyzer (replaces Class Insights) */}
+      <SmartAnalyzer headline={headline} findings={findings} />
 
       {/* Metric cards */}
       <div className="stat-grid mb-4">

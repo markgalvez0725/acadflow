@@ -1,6 +1,6 @@
-// ── On-device import verification ("AI check") ─────────────────────────────
+// ── On-device import verification ("Smart check") ─────────────────────────────
 // Custom, in-browser check that a filled-in student-import file looks right -
-// the same on-device-AI approach the app uses elsewhere (photoVerifyAI,
+// the same on-device-Smart approach the app uses elsewhere (photoVerifySmart,
 // identityVerify): nothing leaves the device, runs instantly, $0. It produces
 // soft *warnings* (advisory, non-blocking) that complement the hard validation
 // in the import modal (missing id/name/course, bad student-no, duplicates).

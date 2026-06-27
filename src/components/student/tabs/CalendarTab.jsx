@@ -155,7 +155,7 @@ export default function CalendarTab({ student, viewClassId, classes }) {
   }, [eventMap])
 
   // Deterministic "Schedule Watch" - past-due, next-up, busy days in the next 7
-  // days. Recomputed from the same event map the grid renders. No AI/network.
+  // days. Recomputed from the same event map the grid renders. no network calls.
   const watch = useMemo(() => {
     const now = Date.now()
     const horizon = now + 7 * 86400000

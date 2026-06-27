@@ -532,7 +532,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
 function ReviewRow({ q, index, isCorrect, partial, studentAns }) {
   // Explanations are authored once when the quiz is generated (see the quiz
   // generator / Gemini endpoint) and stored on the question - so reviewing
-  // never triggers a per-student AI request.
+  // never triggers a per-student network request.
   const exp = q.explanation ? String(q.explanation) : ''
 
   return (
@@ -659,7 +659,7 @@ export default function StudentQuizTab({ student, viewClassId }) {
   }, [decorated])
 
   // Deterministic "Quiz Watch" findings - closing-soon, missed, review-worthy,
-  // strongest subject. No AI, no network; recomputed from `decorated`.
+  // strongest subject. No network calls; recomputed from `decorated`.
   const watch = useMemo(() => {
     const f = []
     const open      = decorated.filter(d => d.group === 'open')

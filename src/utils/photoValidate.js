@@ -2,10 +2,10 @@
 // Layered check that a student profile photo is a professional headshot in
 // business attire on a plain white background.
 //
-//   1. On-device AI (primary): a custom in-browser pipeline - BlazeFace +
+//   1. On-device Smart (primary): a custom in-browser pipeline - BlazeFace +
 //      MediaPipe Selfie Segmentation - judges face/count/pose, the TRUE
 //      background, and an attire proxy. The photo never leaves the device.
-//      (src/utils/photoVerifyAI.js). Replaces the former Gemini vision call.
+//      (src/utils/photoVerifySmart.js). Replaces the former Gemini vision call.
 //   2. Legacy heuristics (fallback only): when the models can't load on this
 //      device, fall back to the pixel white-background score + the browser's
 //      native FaceDetector where present.
@@ -18,7 +18,7 @@
 //
 // Returns a single verdict object the UI can render directly.
 
-import { runOnDeviceAI } from '@/utils/photoVerifyAI'
+import { runOnDeviceSmart } from '@/utils/photoVerifySmart'
 
 /** Draw an image onto an offscreen canvas no larger than `max` px. */
 function toCanvas(imgEl, max = 256) {
@@ -87,7 +87,7 @@ async function detectFaces(imgEl) {
   }
 }
 
-/** Legacy on-device checks (no ML models) - used only when AI is unavailable. */
+/** Legacy on-device checks (no ML models) - used only when Smart is unavailable. */
 async function legacyChecks(imgEl, w, h, hardFails, warnings, passes) {
   const bg = whiteBackgroundScore(imgEl)
   if (bg.supported && bg.score != null) {
@@ -117,12 +117,12 @@ async function legacyChecks(imgEl, w, h, hardFails, warnings, passes) {
  * Run the full layered validation.
  * @param {HTMLImageElement} imgEl  a fully-loaded image element
  * @param {string} [dataUrl]        unused (kept for call-site compatibility)
- * @param {{ useAI?: boolean }} [opts]
+ * @param {{ useSmart?: boolean }} [opts]
  * @returns {Promise<{ ok:boolean, hardFails:string[], warnings:string[],
- *   passes:string[], aiUsed:boolean, aiError:?string }>}
+ *   passes:string[], smartUsed:boolean, smartError:?string }>}
  */
 export async function validateProfilePhoto(imgEl, dataUrl, opts = {}) {
-  const useAI = opts.useAI !== false
+  const useSmart = opts.useSmart !== false
   const hardFails = []
   const warnings = []
   const passes = []
@@ -135,16 +135,16 @@ export async function validateProfilePhoto(imgEl, dataUrl, opts = {}) {
   else if (minDim < 240) warnings.push('Low resolution - a sharper photo is recommended.')
   else passes.push('Resolution is sufficient.')
 
-  // ── On-device AI (primary) ──────────────────────────────────────────────
-  let aiUsed = false
-  let aiError = null
+  // ── On-device Smart (primary) ──────────────────────────────────────────────
+  let smartUsed = false
+  let smartError = null
   let ai = null
-  if (useAI) {
-    try { ai = await runOnDeviceAI(imgEl) } catch { ai = null }
+  if (useSmart) {
+    try { ai = await runOnDeviceSmart(imgEl) } catch { ai = null }
   }
 
   if (ai) {
-    aiUsed = true
+    smartUsed = true
 
     // Stage A - face & pose
     if (ai.faces == null) {
@@ -195,8 +195,8 @@ export async function validateProfilePhoto(imgEl, dataUrl, opts = {}) {
   } else {
     // ── Legacy fallback (no ML models available on this device) ─────────────
     await legacyChecks(imgEl, w, h, hardFails, warnings, passes)
-    if (useAI) aiError = 'on-device-unavailable'
+    if (useSmart) smartError = 'on-device-unavailable'
   }
 
-  return { ok: hardFails.length === 0, hardFails, warnings, passes, aiUsed, aiError }
+  return { ok: hardFails.length === 0, hardFails, warnings, passes, smartUsed, smartError }
 }

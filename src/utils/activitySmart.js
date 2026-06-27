@@ -1,10 +1,10 @@
-// ── Activity AI helpers (fully on-device - no Gemini, no server) ───────────
+// ── Activity Smart helpers (fully on-device - no Gemini, no server) ───────────
 // Used by the New Activity form (instructions, rubric) and the grading assist.
 // Everything runs in-browser:
 //   • instructions  → the shared embedding model classifies the activity TYPE by
 //                     meaning, then a polished, type-specific template is rendered
 //                     (deterministic output → 100% reliable, never hallucinates).
-//                     The "AI" is real semantic classification; the writing is
+//                     The "Smart" is real semantic classification; the writing is
 //                     guaranteed-clean composition, not a small-model generation.
 //   • rubric        → the shared embedding model picks the best-fit rubric
 //                     archetype by MEANING (semantic match, multilingual)
@@ -16,7 +16,7 @@ import { ensureExtractor, embedAll, cos, prewarmEmbeddings } from '@/utils/embed
 import { splitSentences } from '@/utils/quizGen'
 
 // Warm the shared embedding model when the activity modal opens (re-export).
-export const prewarmActivityAI = prewarmEmbeddings
+export const prewarmActivitySmart = prewarmEmbeddings
 
 // ── On-device rubric templates by activity type ───────────────────────────
 const RUBRIC_TEMPLATES = [
@@ -93,11 +93,11 @@ export function deviceInstructions(title = '', subject = '') {
 }
 
 // ── Instructions (semantic type classification + clean template, on-device) ─
-// Mirrors aiRubric: embed the activity context, pick the closest type by MEANING
+// Mirrors smartRubric: embed the activity context, pick the closest type by MEANING
 // (handles synonyms, multilingual, and titles with no exact keyword), then render
 // that type's guaranteed-clean instruction set. Falls back to the keyword match
 // if the embedding model can't load - so a draft is ALWAYS produced.
-export async function aiInstructions(title, subject) {
+export async function smartInstructions(title, subject) {
   const t = String(title || '').trim()
   if (!t) return deviceInstructions(title, subject)
   const s = subjectPhrase(subject)
@@ -115,7 +115,7 @@ export async function aiInstructions(title, subject) {
 }
 
 // ── Rubric (semantic archetype match, on-device) ──────────────────────────
-export async function aiRubric(title, subject, instructions) {
+export async function smartRubric(title, subject, instructions) {
   const ctx = [title, subject, instructions].filter(Boolean).join('. ').trim()
   if (!ctx) return deviceRubric(title, subject)
   try {
@@ -138,7 +138,7 @@ export async function aiRubric(title, subject, instructions) {
  * @returns {Promise<{score:number, feedback:string, criteria:Array<{name,met,points}>}|null>}
  *   null when the model can't load (caller should tell the professor).
  */
-export async function aiGrade({ title, subject, instructions, rubric, maxScore, submissionText }) {
+export async function smartGrade({ title, subject, instructions, rubric, maxScore, submissionText }) {
   const text = String(submissionText || '').trim()
   if (!text) return null
   const max = maxScore || (rubric?.length ? rubric.reduce((s, c) => s + (c.points || 0), 0) : 100)
@@ -182,7 +182,7 @@ export async function aiGrade({ title, subject, instructions, rubric, maxScore, 
     score,
     feedback: fb.trim(),
     criteria: results.map(r => ({ name: r.name, met: r.met, points: r.points })),
-    aiUsed: true,
+    smartUsed: true,
   }
 }
 
@@ -207,7 +207,7 @@ function coverageFrac(sim) { return Math.max(0, Math.min(1, (sim - 0.15) / (0.5 
  * @returns {Promise<Array<{groupId,name,score,feedback,relevance,copies:string[],
  *   criteria:Array<{name,met,points}>}>|null>} null if the model can't load.
  */
-export async function aiGradeGroups({ title, subject, casePrompt, rubric, maxScore, groups }) {
+export async function smartGradeGroups({ title, subject, casePrompt, rubric, maxScore, groups }) {
   const valid = (groups || []).filter(g => String(g.text || '').trim())
   if (!valid.length) return null
 

@@ -67,7 +67,7 @@ const TAB_TITLES = {
   integrity:     ['Grade Integrity', 'Verify every published grade matches the live data'],
   attendance:    ['Attendance',    'Track student attendance'],
   activities:    ['Activities',    'Post activities, collect submissions, and auto-grade'],
-  quizzes:       ['Quizzes',       'AI-generated quizzes with auto-grading'],
+  quizzes:       ['Quizzes',       'Smart-generated quizzes with auto-grading'],
   notifications:  ['Notifications',  'Real-time alerts for messages and activity submissions'],
   calendar:       ['Calendar',       'Monthly view of activities, quizzes, and announcements'],
   onlineClasses:  ['Online Classes', 'Schedule and manage Google Meet sessions for your classes'],

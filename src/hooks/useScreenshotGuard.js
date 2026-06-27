@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react'
 // IMPORTANT, read before relying on this: browsers cannot reliably detect a
 // screenshot. iOS Safari and Android Chrome expose NO API for it, and macOS
 // intercepts its own screenshot shortcuts (Cmd+Shift+3/4/5) before the page
-// ever sees the keypress. There is no "AI detector" that changes this - the
+// ever sees the keypress. There is no "Smart detector" that changes this - the
 // pixels never reach JavaScript.
 //
 // So this hook only catches the cases that ARE observable from the page:
