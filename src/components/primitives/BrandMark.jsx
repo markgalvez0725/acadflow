@@ -1,16 +1,19 @@
-import React, { useId } from 'react'
+import React from 'react'
 
 // The AcadFlow cap mark as INLINE SVG (not an <img src>), so it can't be
 // right-click-saved as a file and stays razor-sharp at any size. Sized by
-// `height`; width follows the mark's natural ratio via the viewBox. The purple
-// gradient matches the brand lockups.
-export default function BrandMark({ height = 30, className = '', style, title = 'AcadFlow' }) {
+// `height`; width follows the mark's natural ratio via the viewBox.
+//
+// Solid fill (not a gradient): a gradient needs an id, and the browser resolves
+// url(#id) to the FIRST matching id on the page - which, when the sidebar is
+// collapsed/expanded or another logo is present, can land on a hidden copy and
+// leave the cap unpainted. A flat brand-purple fill has nothing to resolve, so
+// the mark ALWAYS paints. `color` lets callers override the fill (e.g. white on
+// a coloured surface) via currentColor.
+export default function BrandMark({ height = 30, color = '#7c6cf2', className = '', style, title = 'AcadFlow' }) {
   // Explicit width (from the viewBox ratio) so the inline SVG doesn't collapse
   // to 0 when it's a direct flex child (e.g. the sidebar's centred logo slot).
   const width = Math.round(height * (179.5 / 112))
-  // Per-instance gradient id: a fixed id would let the browser resolve url(#...)
-  // to the first match elsewhere on the page and leave this cap unpainted.
-  const gradId = `af-mark-grad-${useId().replace(/[^a-zA-Z0-9]/g, '')}`
   return (
     <svg
       className={className}
@@ -22,14 +25,8 @@ export default function BrandMark({ height = 30, className = '', style, title = 
       role="img"
       aria-label={title}
     >
-      <defs>
-        <linearGradient id={gradId} x1="-1155.52" y1="-452.62" x2="1616.79" y2="818.19" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#8b5cf6" />
-          <stop offset="1" stopColor="#6366f1" />
-        </linearGradient>
-      </defs>
       <path
-        fill={`url(#${gradId})`}
+        fill={color}
         d="M226.61,126.79c-26.98-10.93-53.78-21.8-80.4-32.61-1.36-.55-2.89-.55-4.27,0l-81.19,32.97c-.34.15-.53.51-.42.87.11.4.47.74,1.08.98,26.31,10.66,53.04,21.51,80.15,32.55,1.63.68,3.46.68,5.12.02l34.5-14.01c.3-.13.62.08.62.4v20.49c0,.38-.23.7-.57.85l-35.14,14.27c-1.27.51-2.68.51-3.95,0l-33.91-13.78c-.93-.38-1.55-1.3-1.55-2.31v-10.32c0-.96-.57-1.8-1.42-2.14l-6.96-2.82c-.91-.36-1.38-.06-1.38.91v21.12c0,.89.55,1.72,1.4,2.06l42.65,17.35c2.04.81,4.29.81,6.31,0l42.55-17.28c.98-.4,1.47-1.13,1.47-2.19v-32.74c0-.98-.53-1.85-1.38-2.31-3.8-2.04-6.31-3.04-10.96-1.15-9.26,3.74-19.98,8.09-32.19,13.08-1.63.68-3.5.68-5.14,0l-54.63-22.21c-1.51-.62-1.51-1.21,0-1.83l19.68-8c.87-.34,1.72-.34,2.57,0l35.71,14.52c1.72.7,3.44.68,5.16-.08l7.26-3.21c1.72-.76,1.72-1.51-.02-2.21l-34.05-13.84c-1.61-.66-1.61-1.32,0-1.97l17.62-7.15c2.1-.85,4.2-.85,6.31,0l55.39,22.5c.7.28,1.15.96,1.15,1.7.04,11.61,0,26.43-.11,44.44,0,.41-.09.74-.13,1.12-3.52,1.3-6.03,4.66-6.03,8.63,0,5.1,4.13,9.23,9.23,9.23s9.23-4.13,9.23-9.23c0-4.2-2.82-7.7-6.65-8.82-.1-.77-.16-1.57-.16-2.41-.02-14.8,0-26.26.06-34.37.02-1.13.7-2.14,1.74-2.55l16.09-6.28c.11-.04.21-.11.3-.21.64-.87.38-1.55-.74-2Z"
       />
     </svg>

@@ -565,25 +565,34 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 ══════════════════════════════════════════ */
 .app-splash {
   position: fixed; inset: 0; z-index: 9999;
-  background: #5046E4;
+  background: #1c2440;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 18px; padding: 32px; text-align: center;
+  gap: 22px; padding: 32px; text-align: center;
   animation: splashIn .35s var(--ease-out, ease-out) both;
 }
 .app-splash-glow {
-  position: absolute; inset: 0; opacity: .12; pointer-events: none;
+  position: absolute; inset: 0; opacity: .5; pointer-events: none;
   background:
-    radial-gradient(circle at 28% 22%, #fff 0, transparent 38%),
-    radial-gradient(circle at 80% 82%, #fff 0, transparent 34%);
+    radial-gradient(circle at 26% 18%, rgba(124,108,242,.45) 0, transparent 42%),
+    radial-gradient(circle at 82% 86%, rgba(80,70,228,.40) 0, transparent 40%);
 }
 .app-splash-lockup {
-  display: block;
-  animation: splashPulse 2.6s ease-in-out infinite;
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  position: relative; z-index: 1;
+  animation: splashFloat 3s ease-in-out infinite;
 }
-.app-splash-lockup svg { width: min(340px, 72vw); height: auto; display: block; }
-.app-splash-bar { width: 150px; height: 4px; border-radius: 99px; background: rgba(255,255,255,.22); overflow: hidden; }
-.app-splash-bar > span { display: block; height: 100%; width: 40%; border-radius: 99px; background: #fff; animation: splashBar 1.25s ease-in-out infinite; }
-.app-splash-hint { font-size: .72rem; color: rgba(255,255,255,.6); letter-spacing: .04em; }
+.app-splash-cap { width: min(96px, 26vw); display: block; }
+.app-splash-cap svg { width: 100%; height: auto; display: block; filter: drop-shadow(0 6px 16px rgba(0,0,0,.3)); }
+.app-splash-cap svg path { animation: splashPop .7s cubic-bezier(.34,1.56,.64,1) both; }
+.app-splash-word {
+  font-family: 'Bricolage Grotesque', 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 800; font-size: clamp(2.1rem, 9vw, 2.8rem); line-height: 1;
+  color: #fff; letter-spacing: -.02em; text-transform: lowercase;
+}
+.app-splash-tag { font-size: .85rem; color: rgba(255,255,255,.66); }
+.app-splash-bar { width: 150px; height: 4px; border-radius: 99px; background: rgba(255,255,255,.16); overflow: hidden; position: relative; z-index: 1; }
+.app-splash-bar > span { display: block; height: 100%; width: 42%; border-radius: 99px; background: #7c6cf2; animation: splashBar 1.25s ease-in-out infinite; }
+.app-splash-hint { font-size: .72rem; color: rgba(255,255,255,.5); letter-spacing: .04em; position: relative; z-index: 1; }
 /* Brand lockup (AcadFlowLogo) - swap color/white by theme so the wordmark
    never disappears on a dark surface. */
 .aflogo { display: inline-flex; align-items: center; }
@@ -598,10 +607,11 @@ html[data-theme="dark"] .aflogo-dark { display: block; }
 @media (prefers-reduced-motion: reduce) { .aflogo img { animation: none; } }
 
 @keyframes splashIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes splashPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+@keyframes splashFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+@keyframes splashPop { 0% { opacity: 0; transform: scale(.5) rotate(-8deg); } 100% { opacity: 1; transform: none; } }
 @keyframes splashBar { 0% { transform: translateX(-130%); } 100% { transform: translateX(330%); } }
 @media (prefers-reduced-motion: reduce) {
-  .app-splash, .app-splash-logo, .app-splash-bar > span { animation: none; }
+  .app-splash, .app-splash-lockup, .app-splash-cap svg path, .app-splash-bar > span { animation: none; }
 }
 
 /* ══════════════════════════════════════════
@@ -775,7 +785,10 @@ html[data-theme="dark"] .aflogo-dark { display: block; }
   z-index: 1;
 }
 .sb-brand h2 {
-  font-family: var(--font-accent);
+  /* Literal Bricolage stack (not var(--font-accent)) so the brand wordmark
+     resolves even where the theme var doesn't reach. */
+  font-family: 'Bricolage Grotesque', 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-optical-sizing: auto;
   font-size: 1.375rem;
   font-weight: 800;
   text-transform: lowercase;
