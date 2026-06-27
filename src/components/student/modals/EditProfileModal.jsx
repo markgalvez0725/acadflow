@@ -10,7 +10,9 @@ import { validateSnum } from '@/utils/validate'
 import { validateProfilePhoto } from '@/utils/photoValidate'
 import { prewarmOnDeviceAI } from '@/utils/photoVerifyAI'
 import Modal from '@/components/primitives/Modal'
-import { Camera, Lock, Timer, CheckCircle2, Save, Eye, EyeOff, ShieldCheck, AlertTriangle, XCircle, Loader2 } from 'lucide-react'
+import FieldCheck, { SaveStatus } from '@/components/primitives/FieldCheck'
+import { checkRequiredName, checkMiddleInitial, checkEmail } from '@/utils/settingsVerify'
+import { Camera, Lock, Timer, CheckCircle2, Save, Eye, EyeOff, ShieldCheck, AlertTriangle, XCircle, Loader2, ChevronLeft } from 'lucide-react'
 
 const SNUM_CHANGE_DAYS = 30
 const YEAR_OPTIONS = ['1st Year', '2nd Year', '3rd Year', '4th Year']
@@ -62,6 +64,38 @@ export default function EditProfileModal({ student: s, onClose, forced = false }
   const [error,  setError]  = useState('')
   const [saving, setSaving] = useState(false)
   const fileRef = useRef(null)
+
+  // ── On-device smart check + name auto-save ────────────────────────────────
+  const surChk   = checkRequiredName(surname, 'Surname')
+  const firstChk = checkRequiredName(firstName, 'First name')
+  const miChk    = checkMiddleInitial(middleName)
+  const emailChk = checkEmail(email, { required: false }) // email is optional
+  const [nameStatus, setNameStatus] = useState('idle') // idle | saving | saved
+
+  // Auto-save the name parts once both required parts are valid (debounced).
+  // ONLY in normal edit mode — a forced/pending setup keeps its explicit verified
+  // save so the AI account verification runs exactly once when setup completes
+  // (not on every keystroke). Photo + email keep their own explicit/confirm flows.
+  const canAuto = !forced && !isPendingVerification(s)
+  useEffect(() => {
+    if (!canAuto) return
+    if (surChk.state === 'error' || firstChk.state === 'error') return
+    const newName = composedName.trim()
+    // Compare case-insensitively so simply opening the modal (which uppercases the
+    // canonical name) never triggers a write — only a real name change does.
+    if (!newName || newName === (s.name || '').toUpperCase()) return
+    setNameStatus('saving')
+    const t = setTimeout(async () => {
+      try {
+        const updated = { ...s, name: newName }
+        await saveStudents(students.map(x => x.id === s.id ? updated : x), [s.id])
+        setCurrentStudent(updated)
+        setNameStatus('saved')
+        setTimeout(() => setNameStatus('idle'), 1500)
+      } catch { setNameStatus('idle') }
+    }, 1000)
+    return () => clearTimeout(t)
+  }, [surname, firstName, middleName]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Profile-photo validation (white background + business-attire headshot).
   // null = no new photo checked; { status:'checking'|'done', result } otherwise.
@@ -298,7 +332,13 @@ export default function EditProfileModal({ student: s, onClose, forced = false }
 
   return (
     <Modal onClose={forced ? undefined : onClose}>
-      <div>
+      <style>{`@keyframes epfSlideIn{from{transform:translateX(22px);opacity:.35}to{transform:translateX(0);opacity:1}} .epf-slide{animation:epfSlideIn .22s ease both}`}</style>
+      <div className="epf-slide">
+        {!forced && (
+          <button type="button" onClick={onClose} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink2)', fontSize: 13, fontWeight: 600, padding: 0, marginBottom: 8 }}>
+            <ChevronLeft size={16} /> Back
+          </button>
+        )}
         <h3 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: 20, marginBottom: forced ? 6 : 20 }}>{forced ? 'Complete your profile' : 'Edit Profile'}</h3>
         {forced && (
           <p style={{ fontSize: 12.5, color: 'var(--ink2)', marginBottom: 18, lineHeight: 1.5 }}>
@@ -372,20 +412,26 @@ export default function EditProfileModal({ student: s, onClose, forced = false }
         <div className="form-group">
           <label className="form-label">Surname *</label>
           <input className="input" value={surname} onChange={e => setSurname(e.target.value)} placeholder="e.g. Dela Cruz" />
+          <FieldCheck result={surChk} />
         </div>
         <div className="form-group">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="form-label">First Name *</label>
               <input className="input" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="e.g. Juan" />
+              <FieldCheck result={firstChk} />
             </div>
             <div>
-              <label className="form-label">Middle Name <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(optional)</span></label>
-              <input className="input" value={middleName} onChange={e => setMiddleName(e.target.value)} placeholder="e.g. Santos" />
+              <label className="form-label">M.I. <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(optional)</span></label>
+              <input className="input" value={middleName} onChange={e => setMiddleName(e.target.value)} placeholder="e.g. S" maxLength={4} />
+              <FieldCheck result={miChk} />
             </div>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 6 }}>
-            Saved as: <strong style={{ color: 'var(--ink)' }}>{composedName || 'Surname, First Middle'}</strong>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 6 }}>
+            <div style={{ fontSize: 11, color: 'var(--ink3)' }}>
+              Saved as: <strong style={{ color: 'var(--ink)' }}>{composedName || 'Surname, First M.I.'}</strong>
+            </div>
+            <SaveStatus status={nameStatus} />
           </div>
         </div>
 
@@ -446,8 +492,9 @@ export default function EditProfileModal({ student: s, onClose, forced = false }
             type="email"
             value={email}
             onChange={e => { setEmail(e.target.value); setEmailStep('idle'); setEmailError('') }}
-            placeholder="your@email.com"
+            placeholder="your@email.com (optional)"
           />
+          <FieldCheck result={emailChk} />
 
           {/* Password confirmation — shown when email differs and not yet verified */}
           {emailStep !== 'verified' && email.trim() && email.trim() !== (s.account?.email || '') && (

@@ -1,7 +1,9 @@
-import React, { useState, useMemo, useRef } from 'react'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { Lightbulb, Download, Upload, ShieldCheck, CalendarDays, KeyRound, Bell, Scale, Clock, DatabaseBackup, Flame, ChevronRight, ChevronLeft, Search, Palette } from 'lucide-react'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
+import FieldCheck, { SaveStatus, SmartCheckTag } from '@/components/primitives/FieldCheck'
+import { checkEmail, checkPassword, checkMatch, checkPin } from '@/utils/settingsVerify'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { encryptFbConfig } from '@/utils/crypto'
@@ -246,15 +248,31 @@ function CredentialsTab() {
   const [pin,          setPin]          = useState('')
   const [pinConf,      setPinConf]      = useState('')
   const [saving,       setSaving]       = useState(false)
+  const [emailStatus,  setEmailStatus]  = useState('idle') // idle | saving | saved
 
-  async function handleSaveEmail(e) {
-    e.preventDefault()
-    if (!email.trim()) return
-    setSaving(true)
-    await saveAdmin({ ...admin, email: email.trim() })
-    setSaving(false)
-    toast('Email updated.', 'success')
-  }
+  // Smart-check results (on-device, deterministic).
+  const emailChk = checkEmail(email, { required: true })
+  const passChk  = checkPassword(newPass)
+  const matchChk = checkMatch(newPass, confPass, 'Passwords')
+  const pinChk   = checkPin(pin)
+  const pinMatch = checkMatch(pin, pinConf, 'PINs')
+
+  // Auto-save the email once it's valid and actually changed (debounced). The
+  // guard against the saved value prevents a re-save loop after saveAdmin lands.
+  useEffect(() => {
+    const v = email.trim()
+    if (v === (admin.email || '')) return
+    if (emailChk.state !== 'ok') return
+    setEmailStatus('saving')
+    const t = setTimeout(async () => {
+      try {
+        await saveAdmin({ ...admin, email: v })
+        setEmailStatus('saved')
+        setTimeout(() => setEmailStatus('idle'), 1500)
+      } catch { setEmailStatus('idle') }
+    }, 900)
+    return () => clearTimeout(t)
+  }, [email]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleChangePassword(e) {
     e.preventDefault()
@@ -285,21 +303,24 @@ function CredentialsTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-      {/* Email */}
-      <form onSubmit={handleSaveEmail}>
-        <div className="form-label" style={{ fontWeight: 600, marginBottom: 10 }}>Admin Email</div>
-        <div className="flex gap-2">
-          <input
-            className="form-input flex-1"
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="admin@school.edu"
-          />
-          <button className="btn btn-primary btn-sm" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+      <SmartCheckTag />
+
+      {/* Email — auto-saves when valid */}
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div className="form-label" style={{ fontWeight: 600, margin: 0 }}>Admin Email</div>
+          <SaveStatus status={emailStatus} />
         </div>
-        <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>Used for OTP delivery and notifications.</div>
-      </form>
+        <input
+          className="form-input"
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          placeholder="admin@school.edu"
+        />
+        <FieldCheck result={emailChk} />
+        <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>Used for OTP delivery and notifications. Saves automatically when valid.</div>
+      </div>
 
       <hr style={{ border: 'none', borderTop: '1px solid var(--border)' }} />
 
@@ -308,10 +329,16 @@ function CredentialsTab() {
         <div className="form-label" style={{ fontWeight: 600, marginBottom: 10 }}>Change Password</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <input className="form-input" type="password" placeholder="Current password" value={curPass} onChange={e => setCurPass(e.target.value)} />
-          <input className="form-input" type="password" placeholder="New password (min 8 chars)" value={newPass} onChange={e => setNewPass(e.target.value)} />
-          <input className="form-input" type="password" placeholder="Confirm new password" value={confPass} onChange={e => setConfPass(e.target.value)} />
+          <div>
+            <input className="form-input" type="password" placeholder="New password (min 8 chars)" value={newPass} onChange={e => setNewPass(e.target.value)} />
+            <FieldCheck result={passChk} />
+          </div>
+          <div>
+            <input className="form-input" type="password" placeholder="Confirm new password" value={confPass} onChange={e => setConfPass(e.target.value)} />
+            <FieldCheck result={matchChk} />
+          </div>
         </div>
-        <button className="btn btn-primary btn-sm" type="submit" disabled={saving} style={{ marginTop: 10 }}>{saving ? 'Saving…' : 'Update Password'}</button>
+        <button className="btn btn-primary btn-sm" type="submit" disabled={saving || !curPass || passChk.state === 'error' || matchChk.state === 'error'} style={{ marginTop: 10 }}>{saving ? 'Saving…' : 'Update Password'}</button>
       </form>
 
       <hr style={{ border: 'none', borderTop: '1px solid var(--border)' }} />
@@ -341,8 +368,9 @@ function CredentialsTab() {
             onChange={e => setPinConf(e.target.value.replace(/\D/g, '').slice(0, 4))}
             style={{ width: 110 }}
           />
-          <button className="btn btn-primary btn-sm" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Set PIN'}</button>
+          <button className="btn btn-primary btn-sm" type="submit" disabled={saving || pin.length !== 4 || pinMatch.state === 'error'}>{saving ? 'Saving…' : 'Set PIN'}</button>
         </div>
+        {pin && <FieldCheck result={pinChk.state === 'ok' ? pinMatch : pinChk} />}
       </form>
     </div>
   )
@@ -857,6 +885,8 @@ export default function AdminSettingsModal({ onClose, push }) {
       .aset-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden }
       .aset-back { display: inline-flex; align-items: center; gap: 4px; background: none; border: none; cursor: pointer; color: var(--ink2); font-size: 13px; font-weight: 600; padding: 0; margin-bottom: 8px }
       .aset-back:hover { color: var(--ink) }
+      .aset-slide { animation: asetSlideIn .22s ease both }
+      @keyframes asetSlideIn { from { transform: translateX(22px); opacity: .35 } to { transform: translateX(0); opacity: 1 } }
     `}</style>
   )
 
@@ -864,11 +894,13 @@ export default function AdminSettingsModal({ onClose, push }) {
     return (
       <Modal onClose={onClose} size="lg">
         {styleTag}
-        <button type="button" className="aset-back" onClick={() => setView('home')}>
-          <ChevronLeft size={16} /> Settings
-        </button>
-        <ModalHeader title={PANEL_TITLE[view]} />
-        {renderPanel(view)}
+        <div className="aset-slide" key={view}>
+          <button type="button" className="aset-back" onClick={() => setView('home')}>
+            <ChevronLeft size={16} /> Settings
+          </button>
+          <ModalHeader title={PANEL_TITLE[view]} />
+          {renderPanel(view)}
+        </div>
       </Modal>
     )
   }
