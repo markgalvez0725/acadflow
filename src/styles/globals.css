@@ -565,7 +565,7 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 ══════════════════════════════════════════ */
 .app-splash {
   position: fixed; inset: 0; z-index: 9999;
-  background: #1c2440;
+  background: #16264a;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 22px; padding: 32px; text-align: center;
   animation: splashIn .35s var(--ease-out, ease-out) both;
@@ -792,6 +792,7 @@ html[data-theme="dark"] .aflogo-dark { display: block; }
   font-size: 1.375rem;
   font-weight: 800;
   text-transform: lowercase;
+  min-width: 0;
   max-width: 0;
   overflow: hidden;
   white-space: nowrap;
