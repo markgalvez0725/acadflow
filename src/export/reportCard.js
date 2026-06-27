@@ -7,6 +7,7 @@ import {
 import { pdfHeader } from '@/export/pdfExport.js'
 import { courseShort } from '@/constants/courses'
 import { drawSignatures, getReportBranding } from '@/export/reportTemplate.js'
+import { preloadPdfFonts } from '@/export/pdfFonts.js'
 
 function fmtDate() {
   return new Date().toLocaleDateString('en-PH', { dateStyle: 'long' })
@@ -134,8 +135,9 @@ function renderReportCard(doc, student, { classes = [], students = [], eqScale =
  * @param {object} student
  * @param {{classes:object[], students:object[], eqScale?:object[], semester?:object}} ctx
  */
-export function buildStudentReportCard(student, ctx = {}) {
+export async function buildStudentReportCard(student, ctx = {}) {
   if (!window.jspdf) { alert('PDF library not loaded yet. Please try again in a moment.'); return }
+  await preloadPdfFonts()
   const { jsPDF } = window.jspdf
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   renderReportCard(doc, student, ctx)
@@ -148,9 +150,10 @@ export function buildStudentReportCard(student, ctx = {}) {
  * @param {object} cls   the class document
  * @param {{classes:object[], students:object[], eqScale?:object[], semester?:object}} ctx
  */
-export function buildClassReportCards(cls, ctx = {}) {
+export async function buildClassReportCards(cls, ctx = {}) {
   if (!window.jspdf) { alert('PDF library not loaded yet. Please try again in a moment.'); return }
   if (!cls) return
+  await preloadPdfFonts()
   const { students = [] } = ctx
   const enrolled = students
     .filter(s => s.classId === cls.id || s.classIds?.includes(cls.id))

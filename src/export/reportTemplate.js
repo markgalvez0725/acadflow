@@ -11,6 +11,8 @@
 // instead of hand-drawing a header. pdfHeader() in pdfExport.js is now a thin
 // shim over drawReportHeader().
 
+import { registerPdfFonts } from '@/export/pdfFonts'
+
 // ── Branding cache (set once, read everywhere) ─────────────────────────────
 let _branding = null
 export function setReportBranding(b) { _branding = (b && typeof b === 'object') ? b : null }
@@ -51,6 +53,11 @@ export function drawReportHeader(doc, { title = '', subtitle = '', accent = REPO
   const pageW = doc.internal.pageSize.getWidth()
   const bandH = 26
 
+  // Embed Plus Jakarta Sans + Lexend on this doc (overrides Helvetica -> Lexend
+  // for the whole report); HEAD is the headings face, falling back to Helvetica.
+  const fams = registerPdfFonts(doc)
+  const HEAD = fams ? fams.head : 'helvetica'
+
   doc.setFillColor(accent[0], accent[1], accent[2])
   doc.rect(0, 0, pageW, bandH, 'F')
 
@@ -69,7 +76,7 @@ export function drawReportHeader(doc, { title = '', subtitle = '', accent = REPO
 
   // School block (left)
   doc.setTextColor(255, 255, 255)
-  doc.setFont('helvetica', 'bold')
+  doc.setFont(HEAD, 'bold')
   doc.setFontSize(13)
   doc.text(String(b.schoolName || 'AcadFlow'), textX, 10)
   let ly = 15
@@ -86,7 +93,7 @@ export function drawReportHeader(doc, { title = '', subtitle = '', accent = REPO
 
   // Title + subtitle (right-aligned)
   doc.setTextColor(255, 255, 255)
-  doc.setFont('helvetica', 'bold')
+  doc.setFont(HEAD, 'bold')
   doc.setFontSize(13)
   doc.text(String(title), pageW - 10, 10, { align: 'right' })
   if (subtitle) {

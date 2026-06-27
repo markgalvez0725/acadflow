@@ -14,6 +14,7 @@ import {
 import { sortByLastName } from '@/utils/format.js'
 import { courseShort } from '@/constants/courses'
 import { drawReportHeader, drawReportFooter, drawSignatures, REPORT_ACCENTS } from '@/export/reportTemplate.js'
+import { preloadPdfFonts } from '@/export/pdfFonts.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -51,8 +52,9 @@ export function pdfHeader(doc, title, subtitle, cls, accent = REPORT_ACCENTS.gra
  * @param {object[]} students
  * @param {object[]} classes
  */
-export function buildGradesPDFDoc(data, students, classes) {
+export async function buildGradesPDFDoc(data, students, classes) {
   if (!window.jspdf) { alert('jsPDF not loaded.'); return }
+  await preloadPdfFonts()
   const { jsPDF } = window.jspdf
   const { cls, headers, rows, summaryRow, subs } = data
 
@@ -142,8 +144,9 @@ export function buildGradesPDFDoc(data, students, classes) {
  * @param {object[]} students
  * @param {object[]} classes
  */
-export function buildAttendancePDFDoc(data, students, classes) {
+export async function buildAttendancePDFDoc(data, students, classes) {
   if (!window.jspdf) { alert('jsPDF not loaded.'); return }
+  await preloadPdfFonts()
   const { jsPDF } = window.jspdf
   const { cls, headers, rows, summaryRow, subs } = data
 
@@ -241,8 +244,9 @@ export function buildAttendancePDFDoc(data, students, classes) {
  * @param {object[]} students - full roster
  * @param {object[]} [eqScale]
  */
-export function buildStudentPDFDoc(s, classes, students, eqScale = DEFAULT_EQ_SCALE) {
+export async function buildStudentPDFDoc(s, classes, students, eqScale = DEFAULT_EQ_SCALE) {
   if (!window.jspdf) { alert('jsPDF not loaded.'); return }
+  await preloadPdfFonts()
   const { jsPDF } = window.jspdf
 
   const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
@@ -441,9 +445,10 @@ export function buildStudentPDFDoc(s, classes, students, eqScale = DEFAULT_EQ_SC
  * @param {object} data - from buildQuizData() / buildActivitiesData()
  * @param {object} opts - { title, accent, fileBase }
  */
-function buildScoreMatrixPDFDoc(data, { title, accent, fileBase }) {
+async function buildScoreMatrixPDFDoc(data, { title, accent, fileBase }) {
   if (!window.jspdf) { alert('jsPDF not loaded.'); return }
   if (!data) return
+  await preloadPdfFonts()
   const { jsPDF } = window.jspdf
   const { cls, headers, rows, summaryRow } = data
   if (headers.length <= 5) { alert(`No ${title.toLowerCase().replace(' report', '')} found for this class yet.`); return }

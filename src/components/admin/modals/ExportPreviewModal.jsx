@@ -122,24 +122,27 @@ export default function ExportPreviewModal({ type, classId, subject, student: st
     }
   }
 
-  function handlePDF() {
+  async function handlePDF() {
     if (!window.jspdf) { toast('jsPDF not loaded.', 'error'); return }
+    setDownloading(true)
     try {
       if (type === 'grades') {
         const data = buildGradesData(classId, students, classes, eqScale)
-        buildGradesPDFDoc(data, students, classes)
+        await buildGradesPDFDoc(data, students, classes)
       } else if (type === 'attendance') {
         const data = buildAttendanceData(classId, students, classes)
-        buildAttendancePDFDoc(data, students, classes)
+        await buildAttendancePDFDoc(data, students, classes)
       } else if (type === 'student') {
-        buildStudentPDFDoc(studentProp, classes, students, eqScale)
+        await buildStudentPDFDoc(studentProp, classes, students, eqScale)
       } else if (type === 'quiz') {
-        buildQuizPDFDoc(buildQuizData(classId, students, classes, quizzes))
+        await buildQuizPDFDoc(buildQuizData(classId, students, classes, quizzes))
       } else if (type === 'activities') {
-        buildActivitiesPDFDoc(buildActivitiesData(classId, students, classes, activities))
+        await buildActivitiesPDFDoc(buildActivitiesData(classId, students, classes, activities))
       }
     } catch (e) {
       toast('PDF failed: ' + e.message, 'error')
+    } finally {
+      setDownloading(false)
     }
   }
 
