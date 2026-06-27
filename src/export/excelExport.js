@@ -727,12 +727,12 @@ export function buildAttendanceWorkbook(data, students, classes) {
  * @param {object[]} [eqScale]
  * @returns {object} XLSX workbook
  */
-export function buildStudentWorkbook(s, classes, students, eqScale = DEFAULT_EQ_SCALE) {
+export function buildStudentWorkbook(s, classes, students, eqScale = DEFAULT_EQ_SCALE, opts = {}) {
   const XLSX = window.XLSX
   const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
-  const allSubs = [...new Set(
-    enrolledIds.flatMap(id => (classes.find(c => c.id === id)?.subjects) || [])
-  )]
+  const allSubs = (opts.subjectFilter && opts.subjectFilter.length)
+    ? opts.subjectFilter
+    : [...new Set(enrolledIds.flatMap(id => (classes.find(c => c.id === id)?.subjects) || []))]
   const exportDate = new Date().toLocaleDateString('en-PH', { dateStyle: 'long' })
   const gwa = getGWA(s, classes)
 
@@ -740,7 +740,7 @@ export function buildStudentWorkbook(s, classes, students, eqScale = DEFAULT_EQ_
   const gradeRows = [
     [`STUDENT GRADE REPORT - ${s.name}`],
     [`Student No.: ${s.id}  |  Course: ${courseShort(s.course) || '-'}  |  Year: ${s.year || '-'}`],
-    [`Exported: ${exportDate}  |  GWA: ${gwa != null ? gwa.toFixed(2) : '-'}`],
+    [`${opts.semesterLabel ? 'Term: ' + opts.semesterLabel + '  |  ' : ''}Exported: ${exportDate}  |  GWA: ${gwa != null ? gwa.toFixed(2) : '-'}`],
     [],
     ['Subject', 'Midterm (%)', 'Finals (%)', 'Midterm Equiv', 'Finals Equiv', 'Final Equiv', 'Letter', 'Remark', 'Uploaded'],
   ]
@@ -1166,11 +1166,11 @@ export function buildAttendancePreviewHTML(data) {
  * @param {object[]} [eqScale]
  * @returns {string} HTML
  */
-export function buildStudentPreviewHTML(s, classes, students, eqScale = DEFAULT_EQ_SCALE) {
+export function buildStudentPreviewHTML(s, classes, students, eqScale = DEFAULT_EQ_SCALE, opts = {}) {
   const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
-  const allSubs = [...new Set(
-    enrolledIds.flatMap(id => (classes.find(c => c.id === id)?.subjects) || [])
-  )]
+  const allSubs = (opts.subjectFilter && opts.subjectFilter.length)
+    ? opts.subjectFilter
+    : [...new Set(enrolledIds.flatMap(id => (classes.find(c => c.id === id)?.subjects) || []))]
   const gwa     = getGWA(s, classes)
   const attRate = getAttRate(s, students, classes)
 

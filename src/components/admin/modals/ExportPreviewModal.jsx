@@ -20,6 +20,7 @@ import {
   buildActivitiesWorkbook,
 } from '@/export/excelExport'
 import { courseShort } from '@/constants/courses'
+import { analyzeStudentSemesters, subjectsForKey, labelForKey } from '@/utils/exportSemesters'
 import {
   buildGradesPDFDoc,
   buildAttendancePDFDoc,
@@ -39,9 +40,21 @@ import {
  *  - onClose    {function}
  */
 export default function ExportPreviewModal({ type, classId, subject, student: studentProp, onClose }) {
-  const { students, classes, eqScale, quizzes, activities } = useData()
+  const { students, classes, eqScale, quizzes, activities, semester } = useData()
   const { toast } = useUI()
   const [downloading, setDownloading] = useState(false)
+
+  // On-device semester check (student report only): group the student's classes
+  // by term so the professor can scope the export to one semester.
+  const studentSem = useMemo(
+    () => (type === 'student' && studentProp) ? analyzeStudentSemesters(studentProp, classes, semester) : null,
+    [type, studentProp, classes, semester]
+  )
+  const [semKey, setSemKey] = useState(null)
+  const effKey = semKey || studentSem?.recommended || 'all'
+  const studentOpts = studentSem
+    ? { subjectFilter: subjectsForKey(studentSem, effKey), semesterLabel: labelForKey(effKey) }
+    : {}
 
   // ── Build preview HTML ──────────────────────────────────────────────
   const previewHtml = useMemo(() => {
@@ -55,7 +68,7 @@ export default function ExportPreviewModal({ type, classId, subject, student: st
         return buildAttendancePreviewHTML(data)
       }
       if (type === 'student') {
-        return buildStudentPreviewHTML(studentProp, classes, students, eqScale)
+        return buildStudentPreviewHTML(studentProp, classes, students, eqScale, studentOpts)
       }
       if (type === 'quiz') {
         return buildQuizPreviewHTML(buildQuizData(classId, students, classes, quizzes))
@@ -67,7 +80,7 @@ export default function ExportPreviewModal({ type, classId, subject, student: st
       return `<p style="color:red;padding:16px">Error building preview: ${e.message}</p>`
     }
     return ''
-  }, [type, classId, subject, studentProp, students, classes, eqScale, quizzes, activities])
+  }, [type, classId, subject, studentProp, students, classes, eqScale, quizzes, activities, effKey, studentSem])
 
   // ── Derive title / subtitle ─────────────────────────────────────────
   const cls = classId ? classes.find(c => c.id === classId) : null
@@ -95,7 +108,7 @@ export default function ExportPreviewModal({ type, classId, subject, student: st
         const data = buildAttendanceData(classId, students, classes)
         wb = buildAttendanceWorkbook(data, students, classes)
       } else if (type === 'student') {
-        wb = buildStudentWorkbook(studentProp, classes, students, eqScale)
+        wb = buildStudentWorkbook(studentProp, classes, students, eqScale, studentOpts)
       } else if (type === 'quiz') {
         wb = buildQuizWorkbook(buildQuizData(classId, students, classes, quizzes))
       } else if (type === 'activities') {
@@ -133,7 +146,7 @@ export default function ExportPreviewModal({ type, classId, subject, student: st
         const data = buildAttendanceData(classId, students, classes)
         await buildAttendancePDFDoc(data, students, classes)
       } else if (type === 'student') {
-        await buildStudentPDFDoc(studentProp, classes, students, eqScale)
+        await buildStudentPDFDoc(studentProp, classes, students, eqScale, studentOpts)
       } else if (type === 'quiz') {
         await buildQuizPDFDoc(buildQuizData(classId, students, classes, quizzes))
       } else if (type === 'activities') {
@@ -172,6 +185,26 @@ export default function ExportPreviewModal({ type, classId, subject, student: st
           </button>
         </div>
       </div>
+
+      {type === 'student' && studentSem?.hasMultiple && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', background: 'var(--accent-l)', borderRadius: 10, padding: '10px 12px', margin: '0 0 10px' }}>
+          <span style={{ fontSize: 11.5, color: 'var(--accent)', lineHeight: 1.5, flex: 1, minWidth: 180 }}>
+            <strong>On-device check:</strong> {studentSem.narration}
+          </span>
+          <select
+            value={effKey}
+            onChange={e => setSemKey(e.target.value)}
+            style={{ fontSize: 12.5, padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink)' }}
+          >
+            {studentSem.groups.map(g => (
+              <option key={g.label} value={g.label} disabled={!g.gradedCount}>
+                {(g.isCurrent ? 'Current' : 'Past') + ' · ' + g.label + ' (' + g.gradedCount + ')'}
+              </option>
+            ))}
+            <option value="all">All semesters ({studentSem.groups.reduce((n, g) => n + g.gradedCount, 0)})</option>
+          </select>
+        </div>
+      )}
 
       <div className="modal-body" style={{ padding: 0 }}>
         {previewHtml ? (

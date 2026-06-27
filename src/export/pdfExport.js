@@ -246,15 +246,15 @@ export async function buildAttendancePDFDoc(data, students, classes) {
  * @param {object[]} students - full roster
  * @param {object[]} [eqScale]
  */
-export async function buildStudentPDFDoc(s, classes, students, eqScale = DEFAULT_EQ_SCALE) {
+export async function buildStudentPDFDoc(s, classes, students, eqScale = DEFAULT_EQ_SCALE, opts = {}) {
   if (!window.jspdf) { alert('jsPDF not loaded.'); return }
   await preloadPdfFonts()
   const { jsPDF } = window.jspdf
 
   const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
-  const allSubs = [...new Set(
-    enrolledIds.flatMap(id => (classes.find(c => c.id === id)?.subjects) || [])
-  )]
+  const allSubs = (opts.subjectFilter && opts.subjectFilter.length)
+    ? opts.subjectFilter
+    : [...new Set(enrolledIds.flatMap(id => (classes.find(c => c.id === id)?.subjects) || []))]
 
   const doc     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const pageW   = doc.internal.pageSize.getWidth()
@@ -264,7 +264,11 @@ export async function buildStudentPDFDoc(s, classes, students, eqScale = DEFAULT
   const attRate = getAttRate(s, students, classes)
   const gwaInfo = gwa != null ? equivInfo(gwa.toFixed(2)) : { rem: 'No Grade' }
 
-  const subtitle = `${s.id}  ·  ${courseShort(s.course) || '-'}  ·  ${s.year || '-'}  ·  Exported: ${fmtDate()}`
+  const subtitle = [
+    `${s.id}  ·  ${courseShort(s.course) || '-'}  ·  ${s.year || '-'}`,
+    opts.semesterLabel ? `Term: ${opts.semesterLabel}` : null,
+    `Exported: ${fmtDate()}`,
+  ].filter(Boolean).join('  ·  ')
   let y = pdfHeader(doc, 'Student Report', subtitle)
 
   // ── Student info card ─────────────────────────────────────────────────

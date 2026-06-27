@@ -16,7 +16,7 @@ import AccountAuditModal from '@/components/admin/modals/AccountAuditModal'
 import KebabMenu from '@/components/primitives/KebabMenu'
 import { Download, Upload, KeyRound, GraduationCap, CheckCircle2, Pencil, Plus, Save, BookOpen, Check, Users, ClipboardList, Hourglass, Send, AlertTriangle, ShieldCheck, XCircle, Search, Sparkles } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
-import { buildStudentReportCard } from '@/export/reportCard'
+import { useStudentReportCardExport } from '@/hooks/useStudentReportCardExport'
 import { exportStudentRosterExcel, exportStudentImportTemplate, parseStudentImportExcel } from '@/export/excelExport'
 import { courseOptions, courseFromShort, courseShort } from '@/constants/courses'
 import { classMatchesCourseYear } from '@/utils/enrollment'
@@ -1071,6 +1071,7 @@ function MessageSelectedModal({ recipients, onClose }) {
 export default function StudentsTab() {
   const { classes, students, saveStudents, deleteStudent, restoreStudents, eqScale, semester, fbReady, bulkVerifyActivate } = useData()
   const { toast, toastAction, openDialog, openStudentProfile } = useUI()
+  const [exportReportCard, reportCardModal] = useStudentReportCardExport()
 
   const [search, setSearch]       = useState('')
   const [perPage, setPerPage]     = useState(50)
@@ -1477,7 +1478,7 @@ export default function StudentsTab() {
                           { label: 'Edit', onClick: () => setEditStudent(s) },
                           s.account?.registered && { label: 'Reset password', onClick: () => setResetStudent(s) },
                           { label: 'Export report', onClick: () => setExportStudent(s) },
-                          { label: 'Report card (PDF)', onClick: () => buildStudentReportCard(s, { classes, students, eqScale, semester }) },
+                          { label: 'Report card (PDF)', onClick: () => exportReportCard(s) },
                           { label: 'Delete', onClick: () => handleDelete(s), danger: true },
                         ]} />
                       </td>
@@ -1586,6 +1587,7 @@ export default function StudentsTab() {
           />
         </Suspense>
       )}
+      {reportCardModal}
     </div>
   )
 }

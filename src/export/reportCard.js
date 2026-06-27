@@ -23,15 +23,18 @@ function enrolledIdsOf(s) {
 // Draw one complete report card onto the current page of `doc`. Creating the
 // document and saving it are the caller's responsibility - this lets a single
 // student card and a whole-class batch share the exact same layout.
-function renderReportCard(doc, student, { classes = [], students = [], eqScale = DEFAULT_EQ_SCALE, semester } = {}) {
+function renderReportCard(doc, student, { classes = [], students = [], eqScale = DEFAULT_EQ_SCALE, semester, subjectFilter, semesterLabel } = {}) {
   const pageW = doc.internal.pageSize.getWidth()
 
-  const semLabel = semester ? (semester.label || `${semester.term || ''} AY ${semester.year || ''}`.trim()) : '-'
+  const semLabel = semesterLabel
+    || (semester ? (semester.label || `${semester.term || ''} AY ${semester.year || ''}`.trim()) : '-')
   const ids = enrolledIdsOf(student)
   const primaryClass = classes.find(c => c.id === (student.classId || ids[0]))
-  const subs = ids.length
-    ? [...new Set(ids.flatMap(id => classes.find(c => c.id === id)?.subjects || []))]
-    : Object.keys(student.grades || {})
+  const subs = (subjectFilter && subjectFilter.length)
+    ? subjectFilter
+    : (ids.length
+      ? [...new Set(ids.flatMap(id => classes.find(c => c.id === id)?.subjects || []))]
+      : Object.keys(student.grades || {}))
 
   let y = pdfHeader(doc, 'Report Card', `${semLabel}  ·  Generated ${fmtDate()}`)
 
@@ -163,9 +166,12 @@ export async function buildClassReportCards(cls, ctx = {}) {
 
   const { jsPDF } = window.jspdf
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  // A class is one semester: scope every card to this class's subjects + term so
+  // a student's other-semester grades don't leak into the batch.
+  const classCtx = { ...ctx, subjectFilter: cls.subjects || [], semesterLabel: cls.activeSemester || '' }
   enrolled.forEach((s, i) => {
     if (i > 0) doc.addPage()
-    renderReportCard(doc, s, ctx)
+    renderReportCard(doc, s, classCtx)
   })
   doc.save(`ClassReportCards_${safeFileName(`${cls.name}${cls.section ? '_' + cls.section : ''}`)}.pdf`)
 }

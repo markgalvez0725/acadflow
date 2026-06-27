@@ -9,7 +9,7 @@ import {
 import { subjectColor } from '@/utils/subjectColor'
 import { activeClassIds, activeSubjects } from '@/utils/active'
 import { accountStatus } from '@/utils/accountStatus'
-import { buildStudentReportCard } from '@/export/reportCard'
+import { useStudentReportCardExport } from '@/hooks/useStudentReportCardExport'
 import { courseShort } from '@/constants/courses'
 import {
   BarChart3, CalendarCheck, BookOpen, ClipboardList, FileDown,
@@ -91,6 +91,7 @@ function SubjectBlock({ sub, student, classes, eqScale, activities, quizzes, enr
 export default function StudentProfileModal() {
   const { viewStudentId, closeStudentProfile, setAdminTab, openEditGradesForStudent } = useUI()
   const { students, classes, activities, quizzes, eqScale, semester } = useData()
+  const [exportReportCard, reportCardModal] = useStudentReportCardExport()
 
   const student = useMemo(() => students.find(s => s.id === viewStudentId) || null, [students, viewStudentId])
 
@@ -154,7 +155,7 @@ export default function StudentProfileModal() {
 
       {/* Quick actions */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-        <button className="btn btn-ghost btn-sm" onClick={() => buildStudentReportCard(student, { classes, students, eqScale, semester })}>
+        <button className="btn btn-ghost btn-sm" onClick={() => exportReportCard(student)}>
           <FileDown size={14} /> Report card
         </button>
         <button className="btn btn-ghost btn-sm" onClick={() => { closeStudentProfile(); setAdminTab('grades'); openEditGradesForStudent(student.id) }}>
@@ -184,6 +185,7 @@ export default function StudentProfileModal() {
           ))}
         </div>
       )}
+      {reportCardModal}
     </Modal>
   )
 }
