@@ -921,6 +921,7 @@ export default function StreamTab() {
   const [formOpen, setFormOpen] = useState(false)
   const [editAnn,  setEditAnn]  = useState(null)
   const [deleteId, setDeleteId] = useState(null)
+  const [deleting, setDeleting] = useState(false)
 
   const activeClasses = useMemo(() => classes.filter(c => !c.archived), [classes])
 
@@ -1104,12 +1105,14 @@ export default function StreamTab() {
   }
 
   async function handleDelete(id) {
+    setDeleting(true)
     try {
       await deleteAnnouncement(id)
       toast('Announcement deleted.', 'success')
     } catch {
       toast('Failed to delete announcement.', 'error')
     } finally {
+      setDeleting(false)
       setDeleteId(null)
     }
   }
@@ -1206,7 +1209,7 @@ export default function StreamTab() {
                 onEdit={() => { setEditAnn(item.data); setFormOpen(true) }}
                 onToggleActive={() => handleToggleActive(item.data)}
                 onTogglePin={() => handleTogglePin(item.data)}
-                onDelete={() => { if (window.confirm('Delete this announcement?')) handleDelete(item.data.id) }}
+                onDelete={() => setDeleteId(item.data.id)}
               />
             )}
             {item.type === 'activity' && <ActivityCard item={item} classObj={classObj} students={students} />}
@@ -1226,12 +1229,21 @@ export default function StreamTab() {
         />
       )}
       {deleteId && (
-        <Modal onClose={() => setDeleteId(null)} title="Delete Announcement">
+        <Modal onClose={() => { if (!deleting) setDeleteId(null) }} title="Delete announcement">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <p style={{ fontSize: 14, color: 'var(--ink2)' }}>Are you sure you want to delete this announcement? This cannot be undone.</p>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <span style={{ flexShrink: 0, width: 38, height: 38, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--red-l, rgba(239,68,68,.12))', color: 'var(--red)' }}>
+                <AlertCircle size={20} />
+              </span>
+              <div style={{ fontSize: 14, color: 'var(--ink2)', lineHeight: 1.5 }}>
+                Delete{' '}
+                <strong style={{ color: 'var(--ink)' }}>{announcements.find(a => a.id === deleteId)?.title || 'this announcement'}</strong>?
+                This removes it for everyone and cannot be undone. Attached Drive files are not deleted.
+              </div>
+            </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button className="btn btn-ghost" onClick={() => setDeleteId(null)}>Cancel</button>
-              <button className="btn btn-danger" onClick={() => handleDelete(deleteId)}>Delete</button>
+              <button className="btn btn-ghost" onClick={() => setDeleteId(null)} disabled={deleting}>Cancel</button>
+              <button className="btn btn-danger" onClick={() => handleDelete(deleteId)} disabled={deleting}>{deleting ? 'Deleting…' : 'Delete'}</button>
             </div>
           </div>
         </Modal>
