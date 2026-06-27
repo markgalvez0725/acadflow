@@ -20,7 +20,7 @@ import { studentSeesMessage } from '@/utils/studentMessages'
 import { computePassedSubjects } from '@/utils/passedSubjects'
 import { isNotifAllowed } from '@/utils/notifPrefs'
 import { accountStatusKey } from '@/utils/accountStatus'
-import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare, Library, ListChecks, MessageSquarePlus, ShieldCheck } from 'lucide-react'
+import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare, ListChecks, MessageSquarePlus, ShieldCheck } from 'lucide-react'
 
 // Tabs hidden until the account is fully Active (verified + Face ID). Covers
 // every surface that exposes grades, activities, or quizzes - including the
@@ -66,7 +66,6 @@ const CalendarTab      = lazy(() => import('./tabs/CalendarTab'))
 const OnlineClassesTab = lazy(() => import('./tabs/OnlineClassesTab'))
 const EnrollmentTab    = lazy(() => import('./tabs/EnrollmentTab'))
 const MessagesTab      = lazy(() => import('./tabs/MessagesTab'))
-const ResourcesTab     = lazy(() => import('./tabs/ResourcesTab'))
 const FeedbackTab      = lazy(() => import('./tabs/FeedbackTab'))
 
 // Lazy-load modals
@@ -90,7 +89,6 @@ const TAB_TITLES = {
   onlineClasses: ['Online Classes', 'Join your Google Meet sessions'],
   enrollment:    ['Enrollment',     'Your enrolled subjects'],
   messages:      ['Messages',       'Chat with your professor'],
-  resources:     ['Resource Hub',   'Modules, slides, and links by subject'],
   feedback:      ['Feedback',       'Send ideas, bugs, and requests to your professor'],
 }
 
@@ -108,7 +106,6 @@ const MORE_NAV = [
   { id: 'calendar',      Icon: CalendarDays,        label: 'Calendar' },
   { id: 'enrollment',    Icon: ClipboardSignature,  label: 'Enrollment' },
   { id: 'onlineClasses', Icon: Video,               label: 'Meet' },
-  { id: 'resources',     Icon: Library,             label: 'Resources' },
   { id: 'feedback',      Icon: MessageSquarePlus,   label: 'Feedback' },
 ]
 
@@ -514,7 +511,6 @@ export default function StudentLayout() {
               {studentTab === 'onlineClasses' && <OnlineClassesTab student={student} />}
               {studentTab === 'enrollment'    && <EnrollmentTab    student={student} />}
               {studentTab === 'messages'      && <MessagesTab      student={student} messages={messages} />}
-              {studentTab === 'resources'     && <ResourcesTab     student={student} viewClassId={effectiveClassId} classes={classes} />}
               {studentTab === 'feedback'      && <FeedbackTab      student={student} />}
               </>}
             </Suspense>

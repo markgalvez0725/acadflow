@@ -6,7 +6,7 @@ import {
   persistStudentsSync, persistClassesSync, persistAdmin, loadAdminFromStorage,
   fbDeleteStudent, fbSaveAnnouncement, fbDeleteAnnouncement, fbPushAnnouncementNotifs,
   fbAddAnnouncementComment, fbAddCommentReply, fbToggleAnnouncementLike, fbToggleSavedPost, fbToggleAnnouncementFollow,
-  fbSaveResource, fbDeleteResource, fbSaveRubricLibrary,
+  fbSaveRubricLibrary,
   fbSaveMeetLink, fbScheduleMeeting, fbStartMeeting, fbEndMeeting, fbCancelMeeting, fbPushMeetingNotifs,
   fbSetSubjectRep, fbDeleteClassRelatedData, fbAddAuditLog, fbRestoreFromBackup,
   fbSubmitStudentFeedback, fbUpdateFeedbackStatus,
@@ -51,7 +51,6 @@ export function DataProvider({ children }) {
   const [excuseRequests, setExcuseRequests]         = useState([])
   const [studentFeedback, setStudentFeedback]       = useState([])
   const [auditLog, setAuditLog]                     = useState([])
-  const [resources, setResources]                   = useState([])
   const [rubricLibrary, setRubricLibrary]           = useState([])
   const [fbReady, setFbReady]           = useState(false)
   const [fbConfig, setFbConfig]         = useState(null) // decrypted config object
@@ -135,7 +134,6 @@ export function DataProvider({ children }) {
         onExcuseRequestsUpdate: setExcuseRequests,
         onStudentFeedbackUpdate: setStudentFeedback,
         onAuditLogUpdate: isAdminUser() ? setAuditLog : undefined,
-        onResourcesUpdate: setResources,
         onRubricLibraryUpdate: setRubricLibrary,
         onConfigUpdate: ({ ejsConfig }) => {
           if (ejsConfig) {
@@ -193,7 +191,6 @@ export function DataProvider({ children }) {
       onAttendanceSessionsUpdate: setAttendanceSessions,
       onExcuseRequestsUpdate: setExcuseRequests,
       onAuditLogUpdate: isAdminUser() ? setAuditLog : undefined,
-      onResourcesUpdate: setResources,
       onRubricLibraryUpdate: setRubricLibrary,
       onConfigUpdate: ({ ejsConfig }) => {
         if (ejsConfig) {
@@ -741,21 +738,6 @@ export function DataProvider({ children }) {
     await fbDeleteAnnouncement(dbRef.current, id)
   }, [])
 
-  // ── Resource Hub (per class + subject learning materials) ──────────────
-  const saveResource = useCallback(async (resource) => {
-    setResources(prev => {
-      const idx = prev.findIndex(r => r.id === resource.id)
-      if (idx >= 0) { const next = [...prev]; next[idx] = resource; return next }
-      return [resource, ...prev]
-    })
-    await fbSaveResource(dbRef.current, resource)
-  }, [])
-
-  const deleteResource = useCallback(async (id) => {
-    setResources(prev => prev.filter(r => r.id !== id))
-    await fbDeleteResource(dbRef.current, id)
-  }, [])
-
   // ── Rubric library (reusable grading rubrics - singleton portal doc) ────
   // Read-modify-write the whole list; optimistic local update + Firebase sync.
   const saveRubricToLibrary = useCallback(async (entry) => {
@@ -1263,7 +1245,6 @@ export function DataProvider({ children }) {
       adminNotifs, setAdminNotifs,
       quizzes, setQuizzes,
       announcements, setAnnouncements, saveAnnouncement, deleteAnnouncement, pushAnnouncementNotifs, addAnnouncementComment, addCommentReply, toggleAnnouncementLike, toggleSavedPost, toggleAnnouncementFollow,
-      resources, setResources, saveResource, deleteResource,
       rubricLibrary, saveRubricToLibrary, deleteLibraryRubric,
       purgeQuizFromStudents,
       syncDriftedGrades,

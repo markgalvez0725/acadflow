@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useUI } from '@/context/UIContext'
-import { LayoutDashboard, BookOpen, FileQuestion, Library, X, GraduationCap } from 'lucide-react'
+import { LayoutDashboard, BookOpen, FileQuestion, X, GraduationCap } from 'lucide-react'
 
 // First-run walkthrough for students. Shows once per device (localStorage),
 // explains where the core areas live, and can jump the student to a tab.
@@ -29,11 +29,6 @@ const STEPS = [
     Icon: FileQuestion, color: 'var(--purple)', tab: 'quizzes',
     title: 'Quizzes & assignments',
     body: 'Take quizzes (your answers autosave if you close mid-way), review them with explanations, and track every task in Assignments.',
-  },
-  {
-    Icon: Library, color: 'var(--accent)', tab: 'resources',
-    title: 'Resources & messages',
-    body: 'Find modules, slides, and links in the Resource Hub - and message your professor anytime from the chat bubble.',
   },
 ]
 

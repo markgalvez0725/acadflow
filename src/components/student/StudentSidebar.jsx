@@ -3,7 +3,7 @@ import { useUI } from '@/context/UIContext'
 import { useData } from '@/context/DataContext'
 import { studentStanding } from '@/utils/groupChat'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
-import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Settings, LogOut, Library, ListChecks, MessageSquarePlus, MessageSquare } from 'lucide-react'
+import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Settings, LogOut, ListChecks, MessageSquarePlus, MessageSquare } from 'lucide-react'
 
 // Flat, Instagram-style nav list (no section headers).
 const NAV_ITEMS = [
@@ -15,7 +15,6 @@ const NAV_ITEMS = [
   { id: 'assignments',   label: 'Assignments',    Icon: ListChecks },
   { id: 'quizzes',       label: 'Quizzes',        badgeId: 'quiz', Icon: FileQuestion },
   { id: 'messages',      label: 'Messages',       badgeId: 'msg',  Icon: MessageSquare },
-  { id: 'resources',     label: 'Resources',      Icon: Library },
   { id: 'calendar',      label: 'Calendar',       Icon: CalendarDays },
   { id: 'enrollment',    label: 'Enrollment',     Icon: ClipboardSignature },
   { id: 'onlineClasses', label: 'Online Classes', Icon: Video },

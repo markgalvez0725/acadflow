@@ -39,7 +39,7 @@ Do not add URL routes or `<Route>` components. Navigation between tabs is handle
 
 Two distinct storage patterns coexist; know which one you're touching:
 
-- **Per-document collections** - one doc per record: `students`, `activities`, `quizzes`, `announcements`, `onlineMeetings`, `messages`, `notifications`, `auditLog`, `attendanceSessions`, `excuseRequests`, `resources`, `studentFeedback`, `pushTokens`.
+- **Per-document collections** - one doc per record: `students`, `activities`, `quizzes`, `announcements`, `onlineMeetings`, `messages`, `notifications`, `auditLog`, `attendanceSessions`, `excuseRequests`, `studentFeedback`, `pushTokens`.
 - **Singleton docs under `portal/*`** - read-modify-write a whole document: `portal/classes` (holds the class list in a `list` array), `portal/config`, `portal/settings`, `portal/admin`. Editing one class means rewriting the `list` array.
 
 Two serialization quirks to preserve:

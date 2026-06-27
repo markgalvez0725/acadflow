@@ -22,7 +22,7 @@ rules_version = '2';
 //   students · portal/* (classes, config, settings, admin, rubricLibrary) ·
 //   onlineMeetings · auditLog · messages · typing · activities · notifications ·
 //   quizzes · announcements · attendanceSessions · excuseRequests · studentFeedback ·
-//   pushTokens · resources.  resetSessions/* is intentionally server-only (see bottom).
+//   pushTokens.  resetSessions/* is intentionally server-only (see bottom).
 //
 // HOW TO APPLY (these rules only take effect once PUBLISHED):
 //   Firebase Console → project (collegeportal-d2b98) → Build → Firestore
@@ -135,9 +135,6 @@ service cloud.firestore {
     // gate as the other shared collections so a legitimate write is never blocked.
     match /studentFeedback/{docId}    { allow read, write: if signedIn(); }
     match /pushTokens/{docId}         { allow read, write: if signedIn(); }
-
-    // Learning materials: everyone signed in reads; only the teacher posts/edits.
-    match /resources/{docId}          { allow read: if signedIn(); allow write: if isAdmin(); }
 
     // resetSessions/* and faceSignatures/* are intentionally NOT matched here —
     // they are written and read only by the server (service account), which
