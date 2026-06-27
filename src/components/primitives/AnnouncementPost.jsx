@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react'
-import { Heart, MessageCircle, Send, BadgeCheck, MoreHorizontal, BookOpen, CalendarOff, Video, Library } from 'lucide-react'
+import { Heart, MessageCircle, Send, MoreHorizontal, BookOpen, CalendarOff, Video, Library } from 'lucide-react'
+import ProfessorBadge from '@/components/primitives/ProfessorBadge'
 import { courseShort } from '@/constants/courses'
 import { sanitizeAnnouncementHtml } from '@/utils/sanitizeHtml'
 import StreamMedia from '@/components/primitives/StreamMedia'
@@ -114,7 +115,7 @@ export default function AnnouncementPost({
         <Avatar author={author} />
         <div className="ig-id">
           <span className="ig-name">{author?.name || 'Professor'}</span>
-          <BadgeCheck size={14} className="ig-check" />
+          <ProfessorBadge size={14} />
           <span className="ig-dot">·</span>
           <span className="ig-time">{timeAgo(ann.createdAt)}</span>
         </div>

@@ -143,13 +143,20 @@ export function UIProvider({ children }) {
   const clearPendingStreamClass = useCallback(() => setPendingStreamClassId(null), [])
 
   // ── "Ask the professor about this post": open the student's direct thread with
-  // the professor, pre-filling a draft that references the post. ──
+  // the professor, pre-filling a draft AND attaching a preview of the post so the
+  // professor sees (and can open) exactly which post it's about. Accepts either a
+  // postRef object { id, type, title, classLabel, classId, thumb } or a bare
+  // title string (back-compat). ──
   const [pendingMessageDraft, setPendingMessageDraft] = useState(null)
-  const messageProfessorAboutPost = useCallback((postTitle) => {
-    setPendingMessageDraft(postTitle ? `Re: ${postTitle}\n` : '')
+  const [pendingMessagePostRef, setPendingMessagePostRef] = useState(null)
+  const messageProfessorAboutPost = useCallback((post) => {
+    const ref = (post && typeof post === 'object') ? post : null
+    const title = ref ? ref.title : (post || '')
+    setPendingMessageDraft(title ? `Re: ${title}\n` : 'About this post:\n')
+    setPendingMessagePostRef(ref)
     setStudentTab('messages')
   }, [])
-  const clearPendingMessageDraft = useCallback(() => setPendingMessageDraft(null), [])
+  const clearPendingMessageDraft = useCallback(() => { setPendingMessageDraft(null); setPendingMessagePostRef(null) }, [])
 
   return (
     <UIContext.Provider value={{
@@ -164,7 +171,7 @@ export function UIProvider({ children }) {
       pendingMessageId, openStudentMessageThread, clearPendingMessage,
       pendingStreamAnnId, openStreamAnnouncement, clearPendingStreamAnn,
       pendingStreamClassId, clearPendingStreamClass,
-      pendingMessageDraft, messageProfessorAboutPost, clearPendingMessageDraft,
+      pendingMessageDraft, pendingMessagePostRef, messageProfessorAboutPost, clearPendingMessageDraft,
     }}>
       {children}
     </UIContext.Provider>

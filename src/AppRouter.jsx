@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
+import LoadingScreen from '@/components/primitives/LoadingScreen'
 
 // Screens - imported lazily to keep initial bundle small
 const LoginScreen      = React.lazy(() => import('@/components/auth/LoginScreen'))
@@ -30,6 +31,10 @@ export default function AppRouter() {
       stopLoading()
     }
   }, [fbReady])
+
+  // Branded splash while Firebase boots, so the login screen never flashes in
+  // half-initialized and the app has a proper loading screen.
+  if (!fbReady) return <LoadingScreen />
 
   return (
     <React.Suspense fallback={null}>

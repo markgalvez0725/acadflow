@@ -16,6 +16,7 @@ import { fbAddMessageReply, fbDeleteMessage } from '@/firebase/persistence'
 import Modal from '@/components/primitives/Modal'
 import MentionInput from '@/components/primitives/MentionInput'
 import MessageText from '@/components/primitives/MessageText'
+import PostRefCard from '@/components/primitives/PostRefCard'
 import KebabMenu from '@/components/primitives/KebabMenu'
 import { X, Pencil, Send, CheckCheck, Megaphone, Trash2, Search, ChevronDown, ChevronLeft, Check, BookOpen, SquarePen, MoreHorizontal, Camera, Lock } from 'lucide-react'
 import SecureBubble from '@/components/primitives/SecureBubble'
@@ -378,6 +379,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
 
 // ── Thread Panel ──────────────────────────────────────────────────────
 function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename }) {
+  const { setAdminTab } = useUI()
   const messagesEndRef = useRef(null)
   const chatKey = thread ? (thread.type === 'conversation' ? 'direct_' + thread.studentId : 'group_' + thread.msgId) : null
   const { typers, notifyTyping, stopTyping } = useTyping(chatKey, { id: 'admin', name: 'Professor' })
@@ -479,6 +481,9 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename })
                         <span className="msg-quote-author">{entry.quote.author}</span>
                         <span className="msg-quote-text">{entry.quote.text}</span>
                       </span>
+                    )}
+                    {entry.postRef && (
+                      <PostRefCard postRef={entry.postRef} onOpen={() => setAdminTab('stream')} />
                     )}
                     {entry.secure
                       ? (isAdmin
@@ -807,6 +812,7 @@ export default function MessagesTab() {
           secure: m.secure,
           quote: m.quote,
           kind: m.kind,
+          postRef: m.postRef,
           isMain: true,
           senderLabel: m.from === 'admin' ? 'You' : name,
           studentRead,
@@ -821,6 +827,7 @@ export default function MessagesTab() {
           kind: r.kind,
           secure: r.secure,
           quote: r.quote,
+          postRef: r.postRef,
           isMain: false,
           senderLabel: r.from === 'admin' ? 'You' : name,
           studentRead: false,

@@ -96,12 +96,35 @@ function classLabel(classObj) {
   return classObj?.name ? `${courseShort(classObj.name)}${classObj.section ? ' · ' + classObj.section : ''}` : ''
 }
 
+// A short, plain-text summary of an announcement for the "message professor"
+// post preview (title field is gone, so fall back to the message / topics).
+function announcementSummary(ann) {
+  if (ann.title) return String(ann.title).slice(0, 80)
+  const txt = (ann.message || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  if (txt) return txt.slice(0, 80)
+  if (ann.topics?.length) return ann.topics.slice(0, 2).join(', ')
+  return ''
+}
+
 // Thin wrapper: the IG card lives in the shared AnnouncementPost; the student
 // side just supplies its kebab (Save / notifications) and comment identity.
 function AnnouncementCard({ item, classObj, classPills, student, author, highlight }) {
   const { toggleAnnouncementLike, toggleSavedPost, toggleAnnouncementFollow } = useData()
   const { messageProfessorAboutPost } = useUI()
   const ann = item.data
+  // Compact post reference (with a thumbnail) sent into the professor DM so the
+  // message carries a tappable preview of this exact post.
+  function buildPostRef() {
+    const firstThumb = mediaFromAnnouncement(ann).find(m => m.imageUrl)
+    return {
+      id: ann.id,
+      type: ann.type,
+      title: announcementSummary(ann),
+      classLabel: (classPills && classPills[0]) || 'All classes',
+      classId: classObj?.id || null,
+      thumb: firstThumb?.imageUrl || null,
+    }
+  }
   const menuItems = student ? (() => {
     const saved = (student.savedPosts || []).includes(ann.id)
     const followed = (ann.followers || []).includes(student.id)
@@ -121,7 +144,7 @@ function AnnouncementCard({ item, classObj, classPills, student, author, highlig
       viewerId={student?.id}
       onToggleLike={toggleAnnouncementLike}
       commentAuthor={student ? { id: student.id, name: student.name || 'You', role: 'student' } : null}
-      onAskProfessor={student ? () => messageProfessorAboutPost(ann.title) : null}
+      onAskProfessor={student ? () => messageProfessorAboutPost(buildPostRef()) : null}
       domId={`annpost-${ann.id}`}
       highlight={highlight}
     />

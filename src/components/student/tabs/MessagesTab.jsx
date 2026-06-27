@@ -15,6 +15,8 @@ import { notifyAdminMessage, notifyMention } from '@/firebase/messageNotify'
 import { resolveMentions } from '@/utils/mentions'
 import MentionInput from '@/components/primitives/MentionInput'
 import MessageText from '@/components/primitives/MessageText'
+import ProfessorBadge from '@/components/primitives/ProfessorBadge'
+import PostRefCard from '@/components/primitives/PostRefCard'
 import { fbAddMessageReply, fbMarkMessageRead } from '@/firebase/persistence'
 import Pagination from '@/components/primitives/Pagination'
 import KebabMenu from '@/components/primitives/KebabMenu'
@@ -47,7 +49,7 @@ function saveHidden(sid, h) { try { localStorage.setItem(hiddenKey(sid), JSON.st
 
 export default function MessagesTab({ student: s, messages }) {
   const { db, fbReady, classes, semester, students, reportScreenshot, admin } = useData()
-  const { toast, openDialog, pendingMessageId, clearPendingMessage, pendingMessageDraft, clearPendingMessageDraft } = useUI()
+  const { toast, openDialog, pendingMessageId, clearPendingMessage, pendingMessageDraft, pendingMessagePostRef, clearPendingMessageDraft, openStreamAnnouncement } = useUI()
 
   // The professor's display identity (shown to the student in place of a generic
   // "Professor"/"T"). Falls back to "Professor" until the admin sets a name.
@@ -115,6 +117,9 @@ export default function MessagesTab({ student: s, messages }) {
   const [sending, setSending]    = useState(false)
   // Quoted reply: the bubble the student swiped / clicked the reply icon on.
   const [replyingTo, setReplyingTo] = useState(null) // { author, text } | null
+  // A Stream post attached to the next message (from "Message professor about
+  // this post"); rendered as a preview chip above the composer and on the bubble.
+  const [attachedPost, setAttachedPost] = useState(null)
   // Smart-lock: send the draft as a private (blurred) message. The on-device
   // classifier auto-suggests it for sensitive drafts; the student can override.
   const [secureOn, setSecureOn]       = useState(false)
@@ -127,7 +132,7 @@ export default function MessagesTab({ student: s, messages }) {
   // Reset the composer when the open thread changes so a half-typed draft, a
   // pending reply target, or a primed lock never leaks into a different thread.
   useEffect(() => {
-    setReplyingTo(null); setReplyText(''); setSecureOn(false); setSecureTouched(false)
+    setReplyingTo(null); setReplyText(''); setSecureOn(false); setSecureTouched(false); setAttachedPost(null)
   }, [activeKey])
   const threadRef = useRef(null)
 
@@ -200,7 +205,7 @@ export default function MessagesTab({ student: s, messages }) {
       : (messages.find(x => x.id === activeKey) ? [messages.find(x => x.id === activeKey)] : [])
     const entries = []
     src.forEach(m => {
-      entries.push({ from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, kind: m.kind, mentions: m.mentions, isMain: true })
+      entries.push({ from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, kind: m.kind, mentions: m.mentions, postRef: m.postRef, isMain: true })
       ;(m.replies || []).forEach(r => entries.push({ ...r, isMain: false }))
     })
     entries.sort((a, b) => a.ts - b.ts)
@@ -247,7 +252,7 @@ export default function MessagesTab({ student: s, messages }) {
     setReplyMsgId(lastMsg.id)
     const allEntries = []
     directMsgs.forEach(m => {
-      allEntries.push({ from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, kind: m.kind, mentions: m.mentions, isMain: true })
+      allEntries.push({ from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, kind: m.kind, mentions: m.mentions, postRef: m.postRef, isMain: true })
       ;(m.replies || []).forEach(r => allEntries.push({ ...r, isMain: false }))
     })
     allEntries.sort((a, b) => a.ts - b.ts)
@@ -264,7 +269,7 @@ export default function MessagesTab({ student: s, messages }) {
     markRead([msgId])
     setReplyMsgId(msgId)
     const allEntries = [
-      { from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, kind: m.kind, mentions: m.mentions, isMain: true },
+      { from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, kind: m.kind, mentions: m.mentions, postRef: m.postRef, isMain: true },
       ...(m.replies || []).map(r => ({ ...r, isMain: false })),
     ].sort((a, b) => a.ts - b.ts)
     setThreadTitle(groupName(m, classes))
@@ -291,9 +296,11 @@ export default function MessagesTab({ student: s, messages }) {
   useEffect(() => {
     if (pendingMessageDraft == null) return
     const draft = pendingMessageDraft
+    const postRef = pendingMessagePostRef
     clearPendingMessageDraft()
     openConversation()
-    const t = setTimeout(() => setReplyText(draft), 0)
+    // After openConversation's composer reset (keyed on activeKey) runs.
+    const t = setTimeout(() => { setReplyText(draft); if (postRef) setAttachedPost(postRef) }, 0)
     return () => clearTimeout(t)
   }, [pendingMessageDraft]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -328,13 +335,14 @@ export default function MessagesTab({ student: s, messages }) {
     const mentionedIds = resolveMentions(text, mentionCandidates).filter(id => id !== s.id)
     const mentions = mentionCandidates.filter(c => mentionedIds.includes(c.id)).map(c => ({ id: c.id, name: c.name }))
     const mentionObj = mentions.length ? { mentions } : {}
+    const postObj = attachedPost ? { postRef: attachedPost } : {}
     stopTyping()
     setSending(true)
     // Clear the composer optimistically for snappy UX; restored on failure.
-    setReplyText(''); setSecureOn(false); setSecureTouched(false); setReplyingTo(null)
+    setReplyText(''); setSecureOn(false); setSecureTouched(false); setReplyingTo(null); setAttachedPost(null)
     try {
       if (targetMsgId) {
-        const newReply = { from: s.id, body: text, ts: Date.now(), ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}), ...mentionObj }
+        const newReply = { from: s.id, body: text, ts: Date.now(), ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}), ...mentionObj, ...postObj }
         setThreadEntries(prev => [...prev, { ...newReply, isMain: false }])
         // Atomic append - won't clobber a professor reply sent at the same time.
         await fbAddMessageReply(db.current, targetMsgId, newReply, { readerId: s.id, adminRead: false })
@@ -349,7 +357,7 @@ export default function MessagesTab({ student: s, messages }) {
           subject: 'Message from ' + (s.name || s.id),
           body: text, ts: Date.now(),
           read: [s.id], adminRead: false, replies: [], type: 'direct',
-          ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}),
+          ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}), ...postObj,
         }
         await setDoc(doc(db.current, 'messages', newId), msg)
         // Anchor the open thread to the new doc so a follow-up message threads as
@@ -454,7 +462,7 @@ export default function MessagesTab({ student: s, messages }) {
             {selectMode && <span className={`msg-checkbox ${sel ? 'checked' : ''}`} aria-hidden="true">{sel && <Check size={13} />}</span>}
             <div className="s-conv-avatar">{profPhoto ? <img src={profPhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} /> : getInitials(profName)}</div>
             <div className="s-conv-body">
-              <div className="s-conv-name">{item.hasUnread && <span className="unread-dot" />}{profName}</div>
+              <div className="s-conv-name">{item.hasUnread && <span className="unread-dot" />}{profName}<ProfessorBadge size={12} /></div>
               <div className="s-conv-preview">{preview}</div>
               {replyHint && <div style={{ fontSize: 10, color: 'var(--green)', marginTop: 2 }}>{replyHint}</div>}
             </div>
@@ -557,7 +565,9 @@ export default function MessagesTab({ student: s, messages }) {
                   {showGroup ? <Megaphone size={16} /> : (profPhoto ? <img src={profPhoto} alt="" /> : <GraduationCap size={16} />)}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="font-semibold text-ink text-sm truncate">{threadTitle}</div>
+                  <div className="font-semibold text-ink text-sm" style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                    <span className="truncate">{threadTitle}</span>{!showGroup && <ProfessorBadge size={13} />}
+                  </div>
                   {threadSubtitle && <div className="text-xs text-ink2 truncate">{threadSubtitle}</div>}
                 </div>
               </div>
@@ -584,7 +594,7 @@ export default function MessagesTab({ student: s, messages }) {
                       {showDay && <div className="msg-day-sep"><span>{dayLabel(entry.ts)}</span></div>}
                       {!isSelf && showGroup && firstOfGroup && (
                         <div className="msg-sender-name" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                          {info.name}<VerifiedBadge studentId={info.id} students={students} size={12} />
+                          {info.name}{info.teacher ? <ProfessorBadge size={12} /> : <VerifiedBadge studentId={info.id} students={students} size={12} />}
                         </div>
                       )}
                       <SwipeReply side={isSelf ? 'sent' : 'received'} onReply={() => startReplyTo(entry)}>
@@ -603,6 +613,9 @@ export default function MessagesTab({ student: s, messages }) {
                                 <span className="msg-quote-author">{entry.quote.author}</span>
                                 <span className="msg-quote-text">{entry.quote.text}</span>
                               </span>
+                            )}
+                            {entry.postRef && (
+                              <PostRefCard postRef={entry.postRef} onOpen={() => openStreamAnnouncement(entry.postRef.id, entry.postRef.classId)} />
                             )}
                             {entry.secure
                               ? (isSelf
@@ -642,6 +655,12 @@ export default function MessagesTab({ student: s, messages }) {
                         <div className="rb-text">{replyingTo.text}</div>
                       </div>
                       <button className="rb-x" onClick={() => setReplyingTo(null)} aria-label="Cancel reply"><X size={14} /></button>
+                    </div>
+                  )}
+                  {attachedPost && (
+                    <div className="msg-attach-banner">
+                      <div className="msg-attach-grow"><PostRefCard postRef={attachedPost} onOpen={() => openStreamAnnouncement(attachedPost.id, attachedPost.classId)} /></div>
+                      <button className="rb-x" onClick={() => setAttachedPost(null)} aria-label="Remove attached post"><X size={14} /></button>
                     </div>
                   )}
                   {secureOn && (

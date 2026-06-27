@@ -3,6 +3,8 @@ import { useData } from '@/context/DataContext'
 import { MessageSquare, CornerDownRight, Send, X, MoreHorizontal, Check } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
+import ProfessorBadge from '@/components/primitives/ProfessorBadge'
+import MentionText from '@/components/primitives/MentionText'
 import KebabMenu from '@/components/primitives/KebabMenu'
 import MentionInput from '@/components/primitives/MentionInput'
 import { resolveMentions } from '@/utils/mentions'
@@ -81,6 +83,18 @@ export default function CommentsSection({ ann, authorId, authorName, role, compa
 
     return list.filter(inScope).map(x => ({ id: x.id, name: x.name || x.id }))
   }, [students, ann, role, authorId])
+
+  // Names to highlight in posted comments: everyone mentionable PLUS anyone who
+  // has actually posted in the thread (so a reply that @tags the professor, who
+  // isn't in a student's mention list, still lights up).
+  const mentionNames = useMemo(() => {
+    const set = new Set(mentionCandidates.map(c => c.name))
+    comments.forEach(c => {
+      if (c.authorName) set.add(c.authorName)
+      ;(c.replies || []).forEach(r => r.authorName && set.add(r.authorName))
+    })
+    return [...set]
+  }, [mentionCandidates, comments])
 
   function fireMentions(body) {
     const ids = resolveMentions(body, mentionCandidates).filter(id => id && id !== authorId)
@@ -210,7 +224,7 @@ export default function CommentsSection({ ann, authorId, authorName, role, compa
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                 <span style={{ fontSize: 12, fontWeight: 700 }}>{c.authorName}</span>
-                <VerifiedBadge studentId={c.authorId} students={students} size={13} />
+                {c.role === 'teacher' ? <ProfessorBadge size={13} /> : <VerifiedBadge studentId={c.authorId} students={students} size={13} />}
                 <span style={{ fontSize: 10, color: 'var(--ink3)' }}>{c.role === 'teacher' ? 'Professor' : 'Student'}</span>
                 <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 'auto' }}>
                   {new Date(c.createdAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
@@ -220,8 +234,8 @@ export default function CommentsSection({ ann, authorId, authorName, role, compa
               {editing && editing.commentId === c.id && !editing.replyId ? (
                 <EditRow value={editText} onChange={setEditText} onSave={saveEdit} onCancel={cancelEdit} saving={editSaving} candidates={mentionCandidates} />
               ) : (
-                <div style={{ fontSize: 13, color: 'var(--ink)', marginTop: 2, lineHeight: 1.5 }}>
-                  {c.text}{c.editedAt && <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 5 }}>(edited)</span>}
+                <div style={{ fontSize: 13, color: 'var(--ink)', marginTop: 2, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                  <MentionText text={c.text} names={mentionNames} />{c.editedAt && <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 5 }}>(edited)</span>}
                 </div>
               )}
               <button className="btn btn-ghost btn-sm" style={{ fontSize: 11, padding: '2px 6px', marginTop: 4, color: 'var(--ink2)' }} onClick={() => {
@@ -254,6 +268,7 @@ export default function CommentsSection({ ann, authorId, authorName, role, compa
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                       <span style={{ fontSize: 11, fontWeight: 700 }}>{r.authorName}</span>
+                      {r.role === 'teacher' ? <ProfessorBadge size={12} /> : <VerifiedBadge studentId={r.authorId} students={students} size={12} />}
                       <span style={{ fontSize: 10, color: 'var(--ink3)' }}>{r.role === 'teacher' ? 'Professor' : 'Student'}</span>
                       <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 'auto' }}>
                         {new Date(r.createdAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
@@ -263,8 +278,8 @@ export default function CommentsSection({ ann, authorId, authorName, role, compa
                     {editing && editing.commentId === c.id && editing.replyId === r.id ? (
                       <EditRow value={editText} onChange={setEditText} onSave={saveEdit} onCancel={cancelEdit} saving={editSaving} candidates={mentionCandidates} small />
                     ) : (
-                      <div style={{ fontSize: 12, color: 'var(--ink)', marginTop: 2, lineHeight: 1.5 }}>
-                        {r.text}{r.editedAt && <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 5 }}>(edited)</span>}
+                      <div style={{ fontSize: 12, color: 'var(--ink)', marginTop: 2, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                        <MentionText text={r.text} names={mentionNames} />{r.editedAt && <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 5 }}>(edited)</span>}
                       </div>
                     )}
                   </div>
