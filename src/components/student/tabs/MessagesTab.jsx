@@ -6,6 +6,7 @@ import { relativeTime, dayLabel, getInitials, fmtTime as timeLabel } from '@/uti
 import { getStudentMessages } from '@/utils/studentMessages'
 import { groupName, isGroupMessage, groupMembers } from '@/utils/groupChat'
 import GroupMembers from '@/components/primitives/GroupMembers'
+import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import TypingIndicator from '@/components/primitives/TypingIndicator'
 import { useTyping } from '@/hooks/useTyping'
 import { isClassCurrent } from '@/utils/active'
@@ -370,7 +371,7 @@ export default function MessagesTab({ student: s, messages }) {
     if (entry.from === s.id)    return { self: true,  name: 'You' }
     if (entry.from === 'admin') return { self: false, name: 'Teacher', teacher: true }
     const st = students.find(x => x.id === entry.from)
-    return { self: false, name: st?.name || 'Member' }
+    return { self: false, name: st?.name || 'Member', id: entry.from }
   }
 
   // Begin a quoted reply to a bubble (from a swipe or the hover reply icon).
@@ -543,7 +544,11 @@ export default function MessagesTab({ student: s, messages }) {
                   return (
                     <React.Fragment key={i}>
                       {showDay && <div className="msg-day-sep"><span>{dayLabel(entry.ts)}</span></div>}
-                      {!isSelf && showGroup && firstOfGroup && <div className="msg-sender-name">{info.name}</div>}
+                      {!isSelf && showGroup && firstOfGroup && (
+                        <div className="msg-sender-name" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          {info.name}<VerifiedBadge studentId={info.id} students={students} size={12} />
+                        </div>
+                      )}
                       <SwipeReply side={isSelf ? 'sent' : 'received'} onReply={() => startReplyTo(entry)}>
                         <div className={`msg-bubble-row ${isSelf ? 'sent' : 'received'}`} style={{ marginTop: sameAsPrev ? 2 : 8 }} title={timeLabel(entry.ts)}>
                           {!isSelf && (
