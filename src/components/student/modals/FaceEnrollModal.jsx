@@ -8,7 +8,7 @@ import {
   friendlyCameraError, createFaceScan, FACE_POLICY,
 } from '@/utils/faceId'
 
-export default function FaceEnrollModal({ student, onClose, embedded = false }) {
+export default function FaceEnrollModal({ student, onClose, embedded = false, hideCancel = false }) {
   const { toast } = useUI()
   const videoRef = useRef(null)
   const streamRef = useRef(null)
@@ -122,7 +122,7 @@ export default function FaceEnrollModal({ student, onClose, embedded = false }) 
           <p className="text-xs text-ink3" style={{ marginBottom: 18 }}>
             If you ever forget your password, choose “Reset with Face ID” on the login screen.
           </p>
-          <button className="btn btn-primary w-full" onClick={onClose}>Done</button>
+          {!hideCancel && <button className="btn btn-primary w-full" onClick={onClose}>Done</button>}
         </div>
       ) : phase === 'error' ? (
         <div style={{ textAlign: 'center', padding: '14px 8px' }}>
@@ -131,7 +131,7 @@ export default function FaceEnrollModal({ student, onClose, embedded = false }) 
           </div>
           <p className="text-sm text-ink" style={{ marginBottom: 16, lineHeight: 1.5 }}>{err}</p>
           <div className="flex gap-2">
-            <button className="btn btn-ghost btn-sm flex-1" onClick={onClose}>Close</button>
+            {!hideCancel && <button className="btn btn-ghost btn-sm flex-1" onClick={onClose}>Close</button>}
             <button className="btn btn-primary btn-sm flex-1" onClick={begin}><RefreshCw size={14} style={{ marginRight: 6 }} /> Try again</button>
           </div>
         </div>
@@ -152,7 +152,7 @@ export default function FaceEnrollModal({ student, onClose, embedded = false }) 
             <span>Only a math signature of your face is saved — never the photo. The camera runs entirely on your device.</span>
           </div>
 
-          <button className="btn btn-ghost btn-sm w-full" onClick={onClose} disabled={phase === 'saving'}>Cancel</button>
+          {!hideCancel && <button className="btn btn-ghost btn-sm w-full" onClick={onClose} disabled={phase === 'saving'}>Cancel</button>}
         </>
       )}
     </>

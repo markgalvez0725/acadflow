@@ -46,7 +46,7 @@ function buildStudentName(surname, first, middle) {
   return (sur ? `${sur}, ${fm}`.replace(/,\s*$/, '') : fm).toUpperCase()
 }
 
-export default function EditProfileModal({ student: s, onClose, forced = false, embedded = false }) {
+export default function EditProfileModal({ student: s, onClose, forced = false, embedded = false, hideCancel = false }) {
   const { students, saveStudents, db } = useData()
   const { setCurrentStudent, logout } = useAuth()
   const { toast } = useUI()
@@ -542,7 +542,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
         )}
 
         <div className="flex gap-2 justify-end mt-4">
-          <button className="btn btn-ghost btn-sm" onClick={() => { if (forced) logout(); else onClose() }} disabled={saving}>{forced ? 'Sign out instead' : 'Cancel'}</button>
+          {!hideCancel && <button className="btn btn-ghost btn-sm" onClick={() => { if (forced) logout(); else onClose() }} disabled={saving}>{forced ? 'Sign out instead' : 'Cancel'}</button>}
           <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving…' : <><Save size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />{forced ? 'Save & continue' : 'Save Profile'}</>}
           </button>

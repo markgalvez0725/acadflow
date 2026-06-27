@@ -110,10 +110,10 @@ export default function VerificationCenter({ student, onDone, onContact }) {
 
       <div key={active} style={{ animation: 'vcPush .22s ease both' }}>
         {active === 'password' && (
-          <ForceChangePasswordModal embedded student={student} onClose={() => {}} />
+          <ForceChangePasswordModal embedded hideCancel student={student} onClose={() => {}} />
         )}
         {active === 'profile' && (
-          <EditProfileModal embedded student={student} onClose={() => setTriedVerify(true)} />
+          <EditProfileModal embedded hideCancel student={student} onClose={() => setTriedVerify(true)} />
         )}
         {active === 'awaiting' && (
           <div style={{ textAlign: 'center', padding: '4px 4px 8px' }}>
@@ -123,7 +123,7 @@ export default function VerificationCenter({ student, onDone, onContact }) {
           </div>
         )}
         {active === 'face' && (
-          <FaceEnrollModal embedded student={student} onClose={() => {}} />
+          <FaceEnrollModal embedded hideCancel student={student} onClose={() => {}} />
         )}
       </div>
 

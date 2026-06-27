@@ -18,9 +18,8 @@ import { activeClasses, activeClassIds, activeSubjects } from '@/utils/active'
 import { studentSeesMessage } from '@/utils/studentMessages'
 import { computePassedSubjects } from '@/utils/passedSubjects'
 import { isNotifAllowed } from '@/utils/notifPrefs'
-import { isPendingVerification, needsFaceStep, accountStatusKey } from '@/utils/accountStatus'
-import { dataGapReasons } from '@/utils/accountAudit'
-import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare, Library, ListChecks, MessageSquarePlus, Hourglass, Camera, Circle, ScanFace } from 'lucide-react'
+import { accountStatusKey } from '@/utils/accountStatus'
+import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Menu, Settings, LogOut, MessageSquare, Library, ListChecks, MessageSquarePlus, ShieldCheck } from 'lucide-react'
 
 // Tabs hidden until the account is fully Active (verified + Face ID). Covers
 // every surface that exposes grades, activities, or quizzes — including the
@@ -29,75 +28,26 @@ import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell, FileQues
 // deadlines). Only setup, comms, and enrollment surfaces stay reachable.
 const PENDING_GATED_TABS = new Set(['overview', 'grades', 'quizzes', 'activities', 'assignments', 'calendar'])
 
-// Shown in place of a gated tab while a student's account is still pending.
-// If the blocker is a missing profile photo, lead with "Add your photo" — that's
-// the action the student can take right now to activate. Otherwise it's awaiting
-// the teacher's verification, so point them to messaging.
-function PendingVerificationGate({ student, onCompleteProfile, onContact }) {
-  const gaps = dataGapReasons(student || {})
-  const needsPhoto = !student?.photo
-
-  if (needsPhoto) {
-    return (
-      <div className="empty" style={{ padding: '40px 16px', textAlign: 'center', maxWidth: 460, margin: '0 auto' }}>
-        <div className="empty-icon" style={{ color: 'var(--accent)' }}><Camera size={40} /></div>
-        <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--ink)', marginTop: 4 }}>Add your photo to unlock</div>
-        <p style={{ fontSize: 13.5, color: 'var(--ink2)', lineHeight: 1.6, marginTop: 8 }}>
-          Your grades, quizzes, and activities are ready — finish your profile with a
-          clear photo to activate your account and unlock them.
-        </p>
-        {gaps.length > 0 && (
-          <ul style={{ listStyle: 'none', padding: 0, margin: '14px auto 0', maxWidth: 280, textAlign: 'left' }}>
-            {gaps.map((g, i) => (
-              <li key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--ink2)', padding: '4px 0' }}>
-                <Circle size={13} style={{ color: 'var(--ink3)', flexShrink: 0 }} /> {g}
-              </li>
-            ))}
-          </ul>
-        )}
-        <button className="btn btn-primary btn-sm" style={{ marginTop: 16 }} onClick={onCompleteProfile}>
-          <Camera size={14} style={{ marginRight: 6 }} /> Add your photo
+// Shown in place of a protected tab while the account isn't fully Active. One
+// generic gate for every onboarding state — the guided VerificationCenter (opened
+// via onVerify) owns all the step-specific detail, so this stays simple.
+function VerificationGate({ onVerify, onContact }) {
+  return (
+    <div className="empty" style={{ padding: '40px 16px', textAlign: 'center', maxWidth: 460, margin: '0 auto' }}>
+      <div className="empty-icon" style={{ color: 'var(--accent)' }}><ShieldCheck size={40} /></div>
+      <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--ink)', marginTop: 4 }}>Get verified to unlock</div>
+      <p style={{ fontSize: 13.5, color: 'var(--ink2)', lineHeight: 1.6, marginTop: 8 }}>
+        Your grades, quizzes, and activities unlock once your account is verified.
+        It only takes a minute — I'll guide you through each step.
+      </p>
+      <button className="btn btn-primary btn-sm" style={{ marginTop: 16 }} onClick={onVerify}>
+        <ShieldCheck size={14} style={{ marginRight: 6 }} /> Get verified
+      </button>
+      <div>
+        <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={onContact}>
+          <MessageSquare size={14} /> Message your teacher
         </button>
-        <div>
-          <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={onContact}>
-            <MessageSquare size={14} /> Message your teacher
-          </button>
-        </div>
       </div>
-    )
-  }
-
-  return (
-    <div className="empty" style={{ padding: '40px 16px', textAlign: 'center', maxWidth: 460, margin: '0 auto' }}>
-      <div className="empty-icon" style={{ color: 'var(--yellow)' }}><Hourglass size={40} /></div>
-      <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--ink)', marginTop: 4 }}>Awaiting verification</div>
-      <p style={{ fontSize: 13.5, color: 'var(--ink2)', lineHeight: 1.6, marginTop: 8 }}>
-        Thanks — your photo is in. Your account is being verified against the class
-        roster, and grades, quizzes, and activities unlock as soon as your teacher
-        confirms you. You can keep using the rest of the portal in the meantime.
-      </p>
-      <button className="btn btn-ghost btn-sm" style={{ marginTop: 14 }} onClick={onContact}>
-        <MessageSquare size={14} /> Message your teacher
-      </button>
-    </div>
-  )
-}
-
-// Shown in place of a gated tab when the only remaining activation step is Face
-// ID enrollment. A camera device is required — there is no exception.
-function FaceSetupGate({ onSetup }) {
-  return (
-    <div className="empty" style={{ padding: '40px 16px', textAlign: 'center', maxWidth: 460, margin: '0 auto' }}>
-      <div className="empty-icon" style={{ color: 'var(--accent)' }}><ScanFace size={40} /></div>
-      <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--ink)', marginTop: 4 }}>One last step — set up Face ID</div>
-      <p style={{ fontSize: 13.5, color: 'var(--ink2)', lineHeight: 1.6, marginTop: 8 }}>
-        Activate your account by setting up Face ID password reset. It lets you recover
-        your account yourself if you ever forget your password — and it unlocks your
-        grades, quizzes, and activities. You’ll need a device with a camera.
-      </p>
-      <button className="btn btn-primary btn-sm" style={{ marginTop: 16 }} onClick={onSetup}>
-        <ScanFace size={14} style={{ marginRight: 6 }} /> Set up Face ID
-      </button>
     </div>
   )
 }
@@ -186,15 +136,10 @@ export default function StudentLayout() {
   // non-archived classes appear — previous/ended semesters are hidden.
   const enrolledClasses = student ? activeClasses(student, classes, semester) : []
 
-  // Self-registered, not yet verified → limited access (grade tabs gated).
-  const pendingVerify = isPendingVerification(student)
-  const needsPhoto = pendingVerify && !student?.photo
-  const faceStep = needsFaceStep(student)   // step 2: Face ID enrollment required
-  const gated = pendingVerify || faceStep   // not fully Active until both steps done
-
-  // Needs onboarding = a registered account that isn't fully Active yet.
-  // EVERYTHING required to fix it (own password → profile → identity → Face ID →
-  // verified badge) now lives in ONE guided VerificationCenter inside Settings.
+  // Needs onboarding = a registered account that isn't fully Active yet. This is
+  // the SINGLE gate for protected tabs now: until own-password + profile +
+  // identity + Face ID are all done, grades/quizzes/etc stay locked and the
+  // student is funneled to the guided VerificationCenter inside Settings.
   const needsOnboarding = !!student?.account?.registered && accountStatusKey(student) !== 'active'
 
   const [viewClassId, setViewClassId] = useState(null)
@@ -537,43 +482,25 @@ export default function StudentLayout() {
         {/* Tab content */}
         <main className="admin-body" id="main-content" tabIndex={-1}>
           <InstallPrompt />
-          {/* Two-step activation prompt (required): verify profile → set up Face
-              ID. The account isn't Active (and the protected tabs stay locked)
-              until both are done. */}
-          {gated && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', marginBottom: 14, borderRadius: 12, border: '1px solid var(--border)', background: (needsPhoto || faceStep) ? 'var(--accent-l)' : 'rgba(234,179,8,.12)', color: 'var(--ink)' }}>
-              {needsPhoto
-                ? <Camera size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} />
-                : faceStep
-                  ? <ScanFace size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} />
-                  : <Hourglass size={16} style={{ color: 'var(--yellow)', flexShrink: 0 }} />}
+          {/* Persistent activation prompt — the account isn't Active (and the
+              protected tabs stay locked) until verification is complete. */}
+          {needsOnboarding && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', marginBottom: 14, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--accent-l)', color: 'var(--ink)' }}>
+              <ShieldCheck size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} />
               <span style={{ fontSize: 13, lineHeight: 1.5, flex: 1 }}>
-                {needsPhoto
-                  ? <><strong>Step 1 of 2 — add your photo.</strong> Complete your profile to verify your account.</>
-                  : pendingVerify
-                    ? <><strong>Account awaiting verification.</strong> You have limited access until your teacher confirms you.</>
-                    : <><strong>Step 2 of 2 — set up Face ID.</strong> Activate your account to unlock grades, quizzes and activities. A camera is required.</>}
+                <strong>Finish getting verified.</strong> Complete a few quick steps to unlock your grades, quizzes, and activities.
               </span>
-              {needsPhoto && (
-                <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }} onClick={openVerify}>
-                  <Camera size={14} style={{ marginRight: 5 }} /> Get verified
-                </button>
-              )}
-              {faceStep && (
-                <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }} onClick={openVerify}>
-                  <ScanFace size={14} style={{ marginRight: 5 }} /> Get verified
-                </button>
-              )}
+              <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }} onClick={openVerify}>
+                <ShieldCheck size={14} style={{ marginRight: 5 }} /> Get verified
+              </button>
             </div>
           )}
           <TabErrorBoundary key={studentTab}>
             <Suspense fallback={<SkeletonRows />}>
-              {gated && PENDING_GATED_TABS.has(studentTab) && (
-                pendingVerify
-                  ? <PendingVerificationGate student={student} onCompleteProfile={openVerify} onContact={() => setStudentTab('messages')} />
-                  : <FaceSetupGate onSetup={openVerify} />
+              {needsOnboarding && PENDING_GATED_TABS.has(studentTab) && (
+                <VerificationGate onVerify={openVerify} onContact={() => setStudentTab('messages')} />
               )}
-              {(!gated || !PENDING_GATED_TABS.has(studentTab)) && <>
+              {(!needsOnboarding || !PENDING_GATED_TABS.has(studentTab)) && <>
               {studentTab === 'stream'        && <StreamTab        student={student} viewClassId={effectiveClassId} classes={classes} />}
               {studentTab === 'overview'      && <OverviewTab      student={student} viewClassId={effectiveClassId} classes={classes} />}
               {studentTab === 'grades'        && <GradesTab        student={student} viewClassId={effectiveClassId} classes={classes} />}

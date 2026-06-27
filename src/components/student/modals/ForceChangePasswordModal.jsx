@@ -10,7 +10,7 @@ import { checkNewPassword, checkMatch } from '@/utils/settingsVerify'
 
 // Voluntary password change for the signed-in student. Uses Firebase Auth:
 // reauthenticate with the current password, then update to the new one.
-export default function ForceChangePasswordModal({ student: s, onClose, forced = false, embedded = false }) {
+export default function ForceChangePasswordModal({ student: s, onClose, forced = false, embedded = false, hideCancel = false }) {
   const { toast } = useUI()
   const { students, saveStudents } = useData()
   const { logout } = useAuth()
@@ -183,14 +183,16 @@ export default function ForceChangePasswordModal({ student: s, onClose, forced =
           {saving ? 'Saving…' : <><Check size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />{pwDone ? 'Finish' : 'Change password'}</>}
         </button>
 
-        <button
-          className="btn"
-          style={{ width: '100%', padding: 10, fontSize: 14, marginTop: 8 }}
-          onClick={() => { if (forced) logout(); else onClose() }}
-          disabled={saving}
-        >
-          <X size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />{forced ? 'Sign out instead' : 'Cancel'}
-        </button>
+        {!hideCancel && (
+          <button
+            className="btn"
+            style={{ width: '100%', padding: 10, fontSize: 14, marginTop: 8 }}
+            onClick={() => { if (forced) logout(); else onClose() }}
+            disabled={saving}
+          >
+            <X size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />{forced ? 'Sign out instead' : 'Cancel'}
+          </button>
+        )}
     </>
   )
 
