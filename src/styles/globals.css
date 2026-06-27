@@ -1,5 +1,23 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700;800&family=Lexend:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+/* Bricolage Grotesque is SELF-HOSTED (public/fonts) so the brand wordmark never
+   depends on the Google CDN being reachable - some networks/extensions block
+   fonts.googleapis.com, which silently fell the wordmark back to Plus Jakarta. */
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/bricolage-grotesque-700.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('/fonts/bricolage-grotesque-800.woff2') format('woff2');
+}
 
 @keyframes loadbar-shimmer {
   0%   { background-position: 200% center; }
@@ -763,27 +781,32 @@ html[data-theme="dark"] .aflogo-dark { display: block; }
 }
 
 .sb-brand {
-  padding: 16px 8px 14px;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
-  overflow: hidden;
+  gap: 12px;
+  height: 62px;
+  padding: 0 8px;
   flex-shrink: 0;
   position: relative;
+  /* NO overflow:hidden here - the logo slot must never be clippable. Only the
+     wordmark (.sb-brand h2) clips itself while collapsed. */
 }
 /* Fixed 48px logo slot = the 64px rail content width, so the mark is the SAME
    size and centred-on-the-rail position whether the sidebar is collapsed or
    expanded; only the text slides in beside it. */
 .sb-brand-logo {
+  flex: 0 0 48px;
   width: 48px;
-  flex-shrink: 0;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   z-index: 1;
 }
+/* Belt-and-suspenders: the inline cap mark fills its slot and can never be
+   shrunk to 0 by a flex parent, whatever the wordmark beside it does. */
+.sb-brand-logo svg { width: 48px; height: 30px; flex: 0 0 auto; display: block; }
 .sb-brand h2 {
   /* Literal Bricolage stack (not var(--font-accent)) so the brand wordmark
      resolves even where the theme var doesn't reach. */
