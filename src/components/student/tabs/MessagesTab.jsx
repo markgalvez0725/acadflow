@@ -7,6 +7,7 @@ import { getStudentMessages } from '@/utils/studentMessages'
 import { groupName, isGroupMessage, groupMembers } from '@/utils/groupChat'
 import GroupMembers from '@/components/primitives/GroupMembers'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
+import { groupFlags, previewText } from '@/utils/messageThread'
 import TypingIndicator from '@/components/primitives/TypingIndicator'
 import { useTyping } from '@/hooks/useTyping'
 import { isClassCurrent } from '@/utils/active'
@@ -361,7 +362,6 @@ export default function MessagesTab({ student: s, messages }) {
   const threadSubtitle = showGroup
     ? `Group · ${threadMemberCount} member${threadMemberCount === 1 ? '' : 's'}`
     : (threadEntries[0] ? '' : 'New conversation')
-  const GROUP_GAP = 5 * 60 * 1000 // 5 min → new visual group
   const adminSeen = messages.filter(x => x.from === 'admin' && x.to === s.id).some(x => x.replies?.some(r => r.from === 'admin')) ||
     messages.filter(x => x.from === s.id).some(x => x.adminRead)
   let lastSelfIdx = -1
@@ -396,10 +396,7 @@ export default function MessagesTab({ student: s, messages }) {
       if (item.type === 'direct') {
         const m = item.lastEntry || item.latest
         const isOwn = m.from === s.id
-        const body = m.body || ''
-        const preview = m.secure
-          ? (isOwn ? 'You: ' : '') + '🔒 Private message'
-          : (isOwn ? 'You: ' : '') + body.slice(0, 60) + (body.length > 60 ? '…' : '')
+        const preview = (isOwn ? 'You: ' : '') + previewText(m.body, { secure: m.secure })
         const replyHint = item.msgCount > 1
           ? `${item.msgCount} messages · ${item.replyCount} repl${item.replyCount === 1 ? 'y' : 'ies'}`
           : item.replyCount ? `${item.replyCount} repl${item.replyCount === 1 ? 'y' : 'ies'}` : ''
@@ -425,7 +422,7 @@ export default function MessagesTab({ student: s, messages }) {
       const m = item.msg
       const lastRep = (m.replies || []).reduce((mx, r) => ((r.ts || 0) > (mx?.ts || 0) ? r : mx), null)
       const newestEntry = (lastRep && (lastRep.ts || 0) > (m.ts || 0)) ? lastRep : m
-      const preview = newestEntry.secure ? '🔒 Private message' : m.body.slice(0, 60) + (m.body.length > 60 ? '…' : '')
+      const preview = previewText(m.body, { secure: newestEntry.secure })
       const replyCount = (m.replies || []).length
       // Class/subject group chats are teacher-owned: students can't delete them.
       const locked = isGroupChat(m)
@@ -534,13 +531,7 @@ export default function MessagesTab({ student: s, messages }) {
                     )
                   }
                   const isSelf = info.self
-                  const prev = threadEntries[i - 1]
-                  const next = threadEntries[i + 1]
-                  const sameAsPrev = prev && prev.from === entry.from && (entry.ts - prev.ts) < GROUP_GAP
-                  const sameAsNext = next && next.from === entry.from && (next.ts - entry.ts) < GROUP_GAP
-                  const showDay = !prev || new Date(prev.ts).toDateString() !== new Date(entry.ts).toDateString()
-                  const lastOfGroup = !sameAsNext
-                  const firstOfGroup = !sameAsPrev
+                  const { sameAsPrev, sameAsNext, firstOfGroup, lastOfGroup, showDay } = groupFlags(threadEntries, i)
                   return (
                     <React.Fragment key={i}>
                       {showDay && <div className="msg-day-sep"><span>{dayLabel(entry.ts)}</span></div>}

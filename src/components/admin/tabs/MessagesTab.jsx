@@ -2,7 +2,8 @@ import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { doc, setDoc, updateDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { sortByLastName, dayLabel, getInitials, fmtTime as timeLabel } from '@/utils/format'
+import { sortByLastName, dayLabel, getInitials, fmtTime as timeLabel, relativeTime } from '@/utils/format'
+import { groupFlags, previewText } from '@/utils/messageThread'
 import { isClassCurrent } from '@/utils/active'
 import { isGroupMessage, autoGroupName, groupName, studentTag, groupMembers } from '@/utils/groupChat'
 import GroupMembers from '@/components/primitives/GroupMembers'
@@ -44,17 +45,6 @@ function msgId() {
   return 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7)
 }
 
-function relativeTime(ts) {
-  const diff = Date.now() - ts
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return mins + 'm ago'
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return hrs + 'h ago'
-  const days = Math.floor(hrs / 24)
-  if (days < 7) return days + 'd ago'
-  return new Date(ts).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
-}
 
 // Round avatar that prefers a profile photo, falling back to initials/icon.
 function Avatar({ photo, char, announce = false, size = 38 }) {
@@ -414,7 +404,6 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename })
     )
   }
 
-  const GROUP_GAP = 5 * 60 * 1000 // 5 min → start a new visual group
   const isGroup = thread.isGroup
   const memberCount = (thread.members || []).length
   const subtitle = isGroup ? `Group · ${memberCount} member${memberCount === 1 ? '' : 's'}` : thread.headerSub
@@ -462,13 +451,7 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename })
               </div>
             )
           }
-          const prev = thread.entries[i - 1]
-          const next = thread.entries[i + 1]
-          const sameAsPrev = prev && prev.from === entry.from && (entry.ts - prev.ts) < GROUP_GAP
-          const sameAsNext = next && next.from === entry.from && (next.ts - entry.ts) < GROUP_GAP
-          const showDay = !prev || new Date(prev.ts).toDateString() !== new Date(entry.ts).toDateString()
-          const lastOfGroup = !sameAsNext
-          const firstOfGroup = !sameAsPrev
+          const { sameAsPrev, sameAsNext, firstOfGroup, lastOfGroup, showDay } = groupFlags(thread.entries, i)
           return (
             <React.Fragment key={i}>
               {showDay && <div className="msg-day-sep"><span>{dayLabel(entry.ts)}</span></div>}
@@ -995,7 +978,7 @@ export default function MessagesTab() {
           { body: m.body || '', ts: m.ts || 0, secure: m.secure },
           ...(m.replies || []).map(r => ({ body: r.body || '', ts: r.ts || 0, secure: r.secure })),
         ]).filter(e => e.body).sort((a, b) => b.ts - a.ts)[0] || item.latestMsg
-        const preview = lastEntry.secure ? '🔒 Private message' : (lastEntry.body || '').slice(0, 60) + ((lastEntry.body || '').length > 60 ? '…' : '')
+        const preview = previewText(lastEntry.body, { secure: lastEntry.secure })
         const isActive = activeConv?.type === 'conversation' && activeConv.studentId === item.sid
         return (
           <ConvItem
@@ -1022,9 +1005,7 @@ export default function MessagesTab() {
       const isSubject = typeof m.to === 'string' && m.to.startsWith('subject:')
       const lastRep = (m.replies || []).reduce((mx, r) => ((r.ts || 0) > (mx?.ts || 0) ? r : mx), null)
       const newestEntry = (lastRep && (lastRep.ts || 0) > (m.ts || 0)) ? lastRep : m
-      const preview = newestEntry.secure
-        ? (m.subject ? m.subject + ' — ' : '') + '🔒 Private message'
-        : (m.subject ? m.subject + ' — ' : '') + (m.body || '').slice(0, 60) + ((m.body || '').length > 60 ? '…' : '')
+      const preview = (m.subject ? m.subject + ' — ' : '') + previewText(m.body, { secure: newestEntry.secure })
       const isActive = activeConv?.type === 'message' && activeConv.msgId === m.id
       return (
         <ConvItem
