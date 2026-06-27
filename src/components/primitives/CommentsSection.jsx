@@ -173,7 +173,7 @@ export default function CommentsSection({ ann, authorId, authorName, role, compa
           )}
           {replyTo === c.id && (
             <div style={{ marginLeft: 36, marginTop: 6, display: 'flex', gap: 6 }}>
-              <MentionInput inputRef={replyRef} className="form-input" style={{ fontSize: 12, padding: '6px 10px' }} placeholder={`Reply to ${c.authorName}… (@ to mention)`} value={replyText} onChange={setReplyText} onEnter={() => handleReply(c.id)} candidates={mentionCandidates} disabled={replyPosting} />
+              <MentionInput inputRef={replyRef} className="form-input" style={{ fontSize: 12, padding: '7px 14px', borderRadius: 999 }} placeholder={`Reply to ${c.authorName}… (@ to mention)`} value={replyText} onChange={setReplyText} onEnter={() => handleReply(c.id)} candidates={mentionCandidates} disabled={replyPosting} />
               <button type="button" className="ig-send" onClick={() => handleReply(c.id)} disabled={replyPosting || !replyText.trim()} aria-label="Post reply"><Send size={19} /></button>
               <button type="button" className="ig-send ig-send--ghost" onClick={() => { setReplyTo(null); setReplyText('') }} aria-label="Cancel reply"><X size={18} /></button>
             </div>
@@ -181,7 +181,7 @@ export default function CommentsSection({ ann, authorId, authorName, role, compa
         </div>
       ))}
       <div style={{ display: 'flex', gap: 8, marginTop: 4, alignItems: 'center' }}>
-        <MentionInput inputRef={composerRef} className="form-input" style={{ fontSize: 13, padding: '7px 10px' }} placeholder="Write a comment… (@ to mention)" value={text} onChange={setText} onEnter={handlePost} candidates={mentionCandidates} disabled={posting} />
+        <MentionInput inputRef={composerRef} className="form-input" style={{ fontSize: 13, padding: '9px 16px', borderRadius: 999 }} placeholder="Write a comment… (@ to mention)" value={text} onChange={setText} onEnter={handlePost} candidates={mentionCandidates} disabled={posting} />
         <button type="button" className="ig-send" onClick={handlePost} disabled={posting || !text.trim()} aria-label="Post comment"><Send size={22} /></button>
       </div>
     </div>
