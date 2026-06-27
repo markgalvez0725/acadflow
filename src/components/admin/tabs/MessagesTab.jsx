@@ -27,6 +27,12 @@ function recipientDisplay(to, students) {
   return students.find(s => s.id === to)?.name || to
 }
 
+// Resolve a single student's display name by id (falls back to the id). One home
+// for the per-student lookup the conversation/header/sender labels all need.
+function peerName(students, id) {
+  return students.find(s => s.id === id)?.name || id
+}
+
 // Students enrolled in any of the given class ids.
 function studentsInClasses(students, classIds) {
   const ids = classIds || []
@@ -378,7 +384,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
 }
 
 // ── Thread Panel ──────────────────────────────────────────────────────
-function ThreadPanel({ thread, onReply, onClose, onDelete, onRename }) {
+function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename }) {
   const messagesEndRef = useRef(null)
   const chatKey = thread ? (thread.type === 'conversation' ? 'direct_' + thread.studentId : 'group_' + thread.msgId) : null
   const { typers, notifyTyping, stopTyping } = useTyping(chatKey, { id: 'admin', name: 'Teacher' })
@@ -430,7 +436,10 @@ function ThreadPanel({ thread, onReply, onClose, onDelete, onRename }) {
             : (isGroup ? <Megaphone size={16} /> : getInitials(thread.headerName))}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="font-semibold text-ink text-sm truncate">{thread.headerName}</div>
+          <div className="font-semibold text-ink text-sm" style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+            <span className="truncate">{thread.headerName}</span>
+            <VerifiedBadge studentId={thread.studentId} students={students} size={14} />
+          </div>
           <div className="text-xs text-ink2 truncate">{subtitle}</div>
         </div>
         {(onRename || onDelete) && (
@@ -594,7 +603,7 @@ function ReplyBox({ onSend, onType, onStop, replyingTo, onCancelReply }) {
 }
 
 // ── Conversation Item ─────────────────────────────────────────────────
-function ConvItem({ isActive, isUnread, avatarChar, photo, isAnnounce, name, preview, time, onClick, selectMode, selected, onToggleSelect, menuItems }) {
+function ConvItem({ isActive, isUnread, avatarChar, photo, isAnnounce, name, badge, preview, time, onClick, selectMode, selected, onToggleSelect, menuItems }) {
   return (
     <div
       className={`msg-conv-item ${isUnread ? 'unread' : ''} ${isActive ? 'active' : ''} ${selected ? 'selected' : ''}`}
@@ -608,7 +617,10 @@ function ConvItem({ isActive, isUnread, avatarChar, photo, isAnnounce, name, pre
       )}
       <Avatar photo={photo} char={avatarChar} announce={isAnnounce} />
       <div className="msg-conv-body">
-        <div className="msg-conv-name">{name}</div>
+        <div className="msg-conv-name" style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{name}</span>
+          {badge}
+        </div>
         <div className="msg-conv-preview">{preview}</div>
       </div>
       <div className="msg-conv-meta">
@@ -873,7 +885,7 @@ export default function MessagesTab() {
           secure: r.secure,
           quote: r.quote,
           isMain: false,
-          senderLabel: r.from === 'admin' ? 'You' : (students.find(s => s.id === r.from)?.name || r.from),
+          senderLabel: r.from === 'admin' ? 'You' : peerName(students, r.from),
           studentRead: false,
           readTitle: 'Delivered',
         })),
@@ -994,6 +1006,7 @@ export default function MessagesTab() {
             photo={s?.photo}
             isAnnounce={false}
             name={name}
+            badge={<VerifiedBadge studentId={item.sid} students={students} size={13} />}
             preview={preview}
             time={relativeTime(item.lastActivity)}
             onClick={() => openConversation(item.sid)}
@@ -1104,6 +1117,7 @@ export default function MessagesTab() {
           {thread ? (
             <ThreadPanel
               thread={thread}
+              students={students}
               onReply={handleReply}
               onClose={() => setActiveConv(null)}
               onDelete={() => deleteTokens([thread.type === 'conversation' ? 'conv:' + thread.studentId : 'msg:' + thread.msgId])}
