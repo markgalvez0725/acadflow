@@ -263,10 +263,12 @@ function AnnouncementFormModal({ ann, onClose }) {
   const photoInput = useRef(null)
   const fileInput  = useRef(null)
   const drive = getDriveConnection()
-  // Folder name for this post's class: AcadFlow / {this} / {Photos|Modules} / file
+  // Drive folder for this post: AcadFlow / {program} / {Photos|Modules} / file.
+  // Grouped by program only (BSIT, BSCS, ...), so every section's files share one
+  // program folder.
   const driveClassLabel = classId === 'all'
     ? 'All Classes'
-    : (() => { const c = classes.find(x => x.id === classId); return c ? `${courseShort(c.name)}${c.section ? ' ' + c.section : ''}`.trim() : '' })()
+    : (() => { const c = classes.find(x => x.id === classId); return c ? courseShort(c.name) : '' })()
 
   function addFiles(fileList) {
     if (!drive.connected) { toast('Connect Google Drive in Settings first.', 'error'); return }

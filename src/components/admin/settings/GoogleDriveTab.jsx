@@ -60,7 +60,7 @@ export default function GoogleDriveTab() {
     <div>
       {head}
       <p style={{ fontSize: 12.5, color: 'var(--ink3)', lineHeight: 1.55, margin: '0 0 14px' }}>
-        Files you attach to a Stream post are stored in your own Drive under <strong style={{ color: 'var(--ink2)' }}>AcadFlow / your class / Photos or Modules</strong> (photos in Photos, documents in Modules), and shared as view-only. Students only ever see the preview, never your other files.
+        Files you attach to a Stream post are stored in your own Drive under <strong style={{ color: 'var(--ink2)' }}>AcadFlow / program / Photos or Modules</strong> (grouped by program like BSIT, photos in Photos, documents in Modules), and shared as view-only. Students only ever see the preview, never your other files.
       </p>
 
       {conn.connected ? (
@@ -70,7 +70,7 @@ export default function GoogleDriveTab() {
             <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>· {conn.email}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg2)', borderRadius: 8, padding: '9px 12px', fontSize: 12.5, color: 'var(--ink2)' }}>
-            <FolderOpen size={15} style={{ color: 'var(--accent)', flexShrink: 0 }} /> AcadFlow <span style={{ color: 'var(--ink3)' }}>· by class, then Photos / Modules</span>
+            <FolderOpen size={15} style={{ color: 'var(--accent)', flexShrink: 0 }} /> AcadFlow <span style={{ color: 'var(--ink3)' }}>· by program, then Photos / Modules</span>
           </div>
           <button className="btn btn-ghost btn-sm" style={{ alignSelf: 'flex-start', color: 'var(--red)' }} onClick={handleDisconnect}>
             Disconnect
