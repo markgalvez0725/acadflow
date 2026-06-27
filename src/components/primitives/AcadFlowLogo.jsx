@@ -1,15 +1,24 @@
 import React from 'react'
+// Inlined SVG markup (?raw) - the lockups render as inline <svg>, not <img src>,
+// so they can't be saved as a file and stay crisp at any size. The SVGs were
+// sanitized (class fills -> inline fills, unique gradient ids, no <style>) so
+// several can coexist on one page without leaking styles or colliding ids.
+import lhColor from '@/assets/brand/logo-horizontal.svg?raw'
+import lhWhite from '@/assets/brand/logo-horizontal-white.svg?raw'
+import lhMono  from '@/assets/brand/logo-horizontal-mono.svg?raw'
+import lsColor from '@/assets/brand/logo-stacked.svg?raw'
+import lsWhite from '@/assets/brand/logo-stacked-white.svg?raw'
+import lsMono  from '@/assets/brand/logo-stacked-mono.svg?raw'
+import lmColor from '@/assets/brand/logo-mark.svg?raw'
+import lmWhite from '@/assets/brand/logo-mark-white.svg?raw'
+import lmMono  from '@/assets/brand/logo-mark-mono.svg?raw'
 
-// The real AcadFlow brand lockups (PNG exports live in /public/brand). Picks the
-// variant + size, and for tone="auto" renders both the color and all-white
-// lockups, letting CSS swap them by theme so the wordmark never disappears on a
-// dark surface. variant: 'horizontal' | 'stacked' | 'mark'.
 const SRC = {
-  horizontal: { color: '/brand/logo-horizontal.svg', white: '/brand/logo-horizontal-white.svg', mono: '/brand/logo-horizontal-mono.svg' },
-  stacked:    { color: '/brand/logo-stacked.svg',    white: '/brand/logo-stacked-white.svg',    mono: '/brand/logo-stacked-mono.svg' },
-  mark:       { color: '/brand/logo-mark.svg',       white: '/brand/logo-mark-white.svg',       mono: '/brand/logo-mark-mono.svg' },
+  horizontal: { color: lhColor, white: lhWhite, mono: lhMono },
+  stacked:    { color: lsColor, white: lsWhite, mono: lsMono },
+  mark:       { color: lmColor, white: lmWhite, mono: lmMono },
 }
-// Rendered height (px) per variant + size; width stays auto to keep the ratio.
+// Rendered height (px) per variant + size; width follows the viewBox ratio.
 const HEIGHT = {
   horizontal: { sm: 32, md: 44, lg: 60 },
   stacked:    { sm: 64, md: 96, lg: 128 },
@@ -19,17 +28,24 @@ const HEIGHT = {
 export default function AcadFlowLogo({ variant = 'horizontal', size = 'md', tone = 'auto', className = '' }) {
   const src = SRC[variant] || SRC.horizontal
   const h = (HEIGHT[variant] || HEIGHT.horizontal)[size] || (HEIGHT[variant] || HEIGHT.horizontal).md
-  // Height drives size; width auto keeps the ratio. Display is left to CSS so
-  // the light/dark swap classes can hide one without an inline override.
-  const style = { height: h, width: 'auto' }
 
   if (tone === 'auto') {
+    // Inline both color + white; CSS swaps them by theme so the dark wordmark
+    // never disappears on a dark surface.
     return (
-      <span className={`aflogo ${className}`}>
-        <img src={src.color} alt="AcadFlow" style={style} className="aflogo-light" />
-        <img src={src.white} alt="" aria-hidden="true" style={style} className="aflogo-dark" />
+      <span className={`aflogo ${className}`} style={{ height: h }} role="img" aria-label="AcadFlow">
+        <span className="aflogo-light" dangerouslySetInnerHTML={{ __html: src.color }} />
+        <span className="aflogo-dark" aria-hidden="true" dangerouslySetInnerHTML={{ __html: src.white }} />
       </span>
     )
   }
-  return <img src={src[tone] || src.color} alt="AcadFlow" style={style} className={`aflogo aflogo-solo ${className}`} />
+  return (
+    <span
+      className={`aflogo aflogo-solo ${className}`}
+      style={{ height: h }}
+      role="img"
+      aria-label="AcadFlow"
+      dangerouslySetInnerHTML={{ __html: src[tone] || src.color }}
+    />
+  )
 }
