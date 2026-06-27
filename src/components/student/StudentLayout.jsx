@@ -123,8 +123,6 @@ const EditProfileModal         = lazy(() => import('./modals/EditProfileModal'))
 const AccountVerifiedModal     = lazy(() => import('./modals/AccountVerifiedModal'))
 const ForceChangePasswordModal = lazy(() => import('./modals/ForceChangePasswordModal'))
 const StudentActionSheet       = lazy(() => import('./modals/StudentActionSheet'))
-const SetQuickPinModal         = lazy(() => import('./modals/SetQuickPinModal'))
-const BiometricSetupModal      = lazy(() => import('./modals/BiometricSetupModal'))
 const FaceEnrollModal          = lazy(() => import('./modals/FaceEnrollModal'))
 const ProfileSetupModal        = lazy(() => import('./modals/ProfileSetupModal'))
 const NotifyPrompt             = lazy(() => import('./NotifyPrompt'))
@@ -284,8 +282,6 @@ export default function StudentLayout() {
   }, [student?.account?.needsProfileSetup, student?.account?._tempPass])
 
   const [actionSheetOpen, setActionSheetOpen] = useState(false)
-  const [pinModalOpen, setPinModalOpen] = useState(false)
-  const [bioModalOpen, setBioModalOpen] = useState(false)
   const [faceModalOpen, setFaceModalOpen] = useState(false)
 
   // Celebrate newly-passed subjects (once each, per device). A queue lets us
@@ -714,10 +710,6 @@ export default function StudentLayout() {
         <StudentActionSheet
           open={actionSheetOpen}
           onClose={() => setActionSheetOpen(false)}
-          onChangePassword={() => { setForcePassIsForced(false); setForcePassOpen(true) }}
-          onSetPin={() => setPinModalOpen(true)}
-          onBiometric={() => setBioModalOpen(true)}
-          onFaceReset={() => setFaceModalOpen(true)}
           onCompleteSetup={() => setSetupModalOpen(true)}
           onLogout={() => logout('manual')}
           student={student}
@@ -737,17 +729,6 @@ export default function StudentLayout() {
         </Suspense>
       )}
 
-      {pinModalOpen && (
-        <Suspense fallback={null}>
-          <SetQuickPinModal onClose={() => setPinModalOpen(false)} />
-        </Suspense>
-      )}
-
-      {bioModalOpen && (
-        <Suspense fallback={null}>
-          <BiometricSetupModal student={student} onClose={() => setBioModalOpen(false)} />
-        </Suspense>
-      )}
 
       {faceModalOpen && (
         <Suspense fallback={null}>

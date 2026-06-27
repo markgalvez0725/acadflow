@@ -10,7 +10,7 @@ import { checkNewPassword, checkMatch } from '@/utils/settingsVerify'
 
 // Voluntary password change for the signed-in student. Uses Firebase Auth:
 // reauthenticate with the current password, then update to the new one.
-export default function ForceChangePasswordModal({ student: s, onClose, forced = false }) {
+export default function ForceChangePasswordModal({ student: s, onClose, forced = false, embedded = false }) {
   const { toast } = useUI()
   const { students, saveStudents } = useData()
   const { logout } = useAuth()
@@ -108,19 +108,17 @@ export default function ForceChangePasswordModal({ student: s, onClose, forced =
     }
   }
 
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(10,20,50,.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, backdropFilter: 'blur(3px)' }}>
-      <div role="dialog" aria-modal="true" aria-label="Change password" style={{ background: 'var(--surface)', borderRadius: 20, padding: '28px 24px', width: '100%', maxWidth: 420, boxShadow: '0 24px 64px rgba(0,0,0,.3)' }}>
-
-        {!forced && (
+  const inner = (
+    <>
+        {!forced && !embedded && (
           <button type="button" onClick={onClose} disabled={saving} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink2)', fontSize: 13, fontWeight: 600, padding: 0, marginBottom: 6 }}>
             <ChevronLeft size={16} /> Back
           </button>
         )}
 
         <div style={{ textAlign: 'center', marginBottom: 18 }}>
-          <div style={{ marginBottom: 8, color: 'var(--accent)' }}><KeyRound size={40} style={{ display: 'inline-block' }} /></div>
-          <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: 6 }}>{forced ? 'Set your own password' : 'Change your password'}</h3>
+          {!embedded && <div style={{ marginBottom: 8, color: 'var(--accent)' }}><KeyRound size={40} style={{ display: 'inline-block' }} /></div>}
+          {!embedded && <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: 6 }}>{forced ? 'Set your own password' : 'Change your password'}</h3>}
           <p style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.5 }}>
             {forced
               ? 'Your account uses a temporary password. For your security, set your own password before continuing.'
@@ -193,6 +191,15 @@ export default function ForceChangePasswordModal({ student: s, onClose, forced =
         >
           <X size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />{forced ? 'Sign out instead' : 'Cancel'}
         </button>
+    </>
+  )
+
+  // Embedded: the shared SettingsShell provides the panel/back/title chrome.
+  if (embedded) return inner
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(10,20,50,.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, backdropFilter: 'blur(3px)' }}>
+      <div role="dialog" aria-modal="true" aria-label="Change password" style={{ background: 'var(--surface)', borderRadius: 20, padding: '28px 24px', width: '100%', maxWidth: 420, boxShadow: '0 24px 64px rgba(0,0,0,.3)' }}>
+        {inner}
       </div>
     </div>
   )

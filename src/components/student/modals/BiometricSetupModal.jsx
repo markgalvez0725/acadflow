@@ -11,7 +11,7 @@ import {
 // Enable/disable biometric (Face ID / fingerprint) quick sign-in on THIS device.
 // Enabling stores the student's password AES-encrypted, unlocked by a biometric
 // assertion at the login screen. Password sign-in always remains as fallback.
-export default function BiometricSetupModal({ student, onClose }) {
+export default function BiometricSetupModal({ student, onClose, embedded = false }) {
   const { toast } = useUI()
   const [available, setAvailable] = useState(null) // null = checking
   const [enabled, setEnabled] = useState(isBiometricEnabled())
@@ -55,11 +55,13 @@ export default function BiometricSetupModal({ student, onClose }) {
     toast('Biometric sign-in turned off on this device.', 'dark')
   }
 
-  return (
-    <Modal onClose={onClose} size="md">
-      <h3 className="text-lg font-bold text-ink mb-1">
-        <Fingerprint size={18} className="inline-block mr-1 align-text-bottom" />Face ID / Fingerprint Sign-in
-      </h3>
+  const inner = (
+    <>
+      {!embedded && (
+        <h3 className="text-lg font-bold text-ink mb-1">
+          <Fingerprint size={18} className="inline-block mr-1 align-text-bottom" />Face ID / Fingerprint Sign-in
+        </h3>
+      )}
       <p className="modal-sub mb-3">Skip typing your password next time on this device. Your password stays the fallback.</p>
 
       {available === false && (
@@ -105,6 +107,9 @@ export default function BiometricSetupModal({ student, onClose }) {
       )}
 
       {available === null && <p className="text-sm text-ink3">Checking device support…</p>}
-    </Modal>
+    </>
   )
+
+  if (embedded) return inner
+  return <Modal onClose={onClose} size="md">{inner}</Modal>
 }

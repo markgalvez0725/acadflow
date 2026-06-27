@@ -8,7 +8,7 @@ import {
   friendlyCameraError, createFaceScan, FACE_POLICY,
 } from '@/utils/faceId'
 
-export default function FaceEnrollModal({ student, onClose }) {
+export default function FaceEnrollModal({ student, onClose, embedded = false }) {
   const { toast } = useUI()
   const videoRef = useRef(null)
   const streamRef = useRef(null)
@@ -101,12 +101,14 @@ export default function FaceEnrollModal({ student, onClose }) {
   }, [cleanup])
   useEffect(() => { begin() }, [begin])
 
-  return (
-    <Modal onClose={onClose} size="md">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 4 }}>
-        <ScanFace size={20} style={{ color: 'var(--accent)' }} />
-        <h3 className="text-base font-bold text-ink">Set up Face ID reset</h3>
-      </div>
+  const inner = (
+    <>
+      {!embedded && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 4 }}>
+          <ScanFace size={20} style={{ color: 'var(--accent)' }} />
+          <h3 className="text-base font-bold text-ink">Set up Face ID reset</h3>
+        </div>
+      )}
       <p className="text-xs text-ink2" style={{ marginBottom: 14 }}>
         Enroll your face once so you can reset your own password later — no teacher needed.
       </p>
@@ -153,6 +155,9 @@ export default function FaceEnrollModal({ student, onClose }) {
           <button className="btn btn-ghost btn-sm w-full" onClick={onClose} disabled={phase === 'saving'}>Cancel</button>
         </>
       )}
-    </Modal>
+    </>
   )
+
+  if (embedded) return inner
+  return <Modal onClose={onClose} size="md">{inner}</Modal>
 }

@@ -8,32 +8,32 @@ import SettingsShell from '@/components/primitives/SettingsShell'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import EditProfileModal from './EditProfileModal'
 import NotifPrefsModal from './NotifPrefsModal'
+import ForceChangePasswordModal from './ForceChangePasswordModal'
+import SetQuickPinModal from './SetQuickPinModal'
+import BiometricSetupModal from './BiometricSetupModal'
+import FaceEnrollModal from './FaceEnrollModal'
 
 /**
  * Student settings — now driven by the shared SettingsShell so it matches the
  * admin side and behaves natively across viewports: a full-height push-nav sheet
  * on mobile, master-detail on tablet/desktop.
  *
- * Two simple panels (Edit profile, Notification preferences) drill in IN PLACE
- * via the modals' `embedded` mode. The camera/WebAuthn flows (PIN, biometric,
- * Face-ID reset) and the reauth password change stay as actions that launch
- * their own dedicated modals — they're delegated to the handlers the layout
- * already wires up. Only the presentation changed, not what each action does.
+ * EVERY settings row drills in IN PLACE via the modals' `embedded` mode — edit
+ * profile, change password, app-lock PIN, biometric, Face-ID reset, and notif
+ * preferences all render as panels inside the shell (the camera/WebAuthn/reauth
+ * logic is unchanged; only their Modal chrome is swapped for the shell's). The
+ * push-enable row stays an instant action (it just triggers a permission prompt,
+ * there's no screen to show). Pending-badge + logout are actions.
  *
  * Props:
  *  - open {boolean} · onClose {fn}
- *  - onChangePassword · onSetPin · onBiometric · onFaceReset · onCompleteSetup
- *    · onLogout {fn}
+ *  - onCompleteSetup · onLogout {fn}
  *  - student {object} — current student (name/photo/standing)
  *  - push {object} — push-notification controller
  */
 export default function StudentActionSheet({
   open,
   onClose,
-  onChangePassword,
-  onSetPin,
-  onBiometric,
-  onFaceReset,
   onCompleteSetup,
   onLogout,
   student,
@@ -92,19 +92,19 @@ export default function StudentActionSheet({
       { id: 'profile', Icon: Pencil, label: 'Edit profile', sub: 'Name, photo, contact details',
         panel: ({ onDone }) => <EditProfileModal embedded student={student} onClose={onDone} /> },
       { id: 'password', Icon: KeyRound, label: 'Change password', sub: 'Update your password',
-        onClick: () => { onClose?.(); onChangePassword?.() } },
+        panel: ({ onDone }) => <ForceChangePasswordModal embedded student={student} onClose={onDone} /> },
     ] },
     { title: 'Security and sign-in', rows: [
       { id: 'pin', Icon: Lock, label: 'App lock PIN', sub: 'Lock the app with a 4-digit PIN',
-        onClick: () => { onClose?.(); onSetPin?.() } },
+        panel: ({ onDone }) => <SetQuickPinModal embedded onClose={onDone} /> },
       ...(isBiometricSupported() ? [{
         id: 'bio', Icon: Fingerprint, label: 'Face ID / fingerprint', sub: 'Quick biometric sign-in',
-        onClick: () => { onClose?.(); onBiometric?.() },
+        panel: ({ onDone }) => <BiometricSetupModal embedded student={student} onClose={onDone} />,
       }] : []),
       { id: 'face', Icon: ScanFace,
         label: faceOn ? 'Face ID password reset' : 'Set up Face ID reset',
         sub: faceOn ? 'Reset is on — tap to manage' : 'Reset your password by face match',
-        onClick: () => { onClose?.(); onFaceReset?.() } },
+        panel: ({ onDone }) => <FaceEnrollModal embedded student={student} onClose={onDone} /> },
     ] },
     { title: 'Notifications', rows: [
       ...(push?.supported ? [{

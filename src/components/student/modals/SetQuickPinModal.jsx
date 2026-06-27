@@ -7,7 +7,7 @@ import { Lock } from 'lucide-react'
 
 // Set / change / remove the device quick-unlock PIN. The PIN re-gates the app
 // after it sits idle, so you can return without re-typing your password.
-export default function SetQuickPinModal({ onClose }) {
+export default function SetQuickPinModal({ onClose, embedded = false }) {
   const { setSessionPin, clearSessionPin, sessionHasPin } = useAuth()
   const { toast } = useUI()
   const had = sessionHasPin()
@@ -35,9 +35,9 @@ export default function SetQuickPinModal({ onClose }) {
     onClose()
   }
 
-  return (
-    <Modal onClose={onClose} size="sm">
-      <ModalHeader title={had ? 'Change app lock PIN' : 'Set app lock PIN'} onClose={onClose} />
+  const inner = (
+    <>
+      {!embedded && <ModalHeader title={had ? 'Change app lock PIN' : 'Set app lock PIN'} onClose={onClose} />}
       <div style={{ textAlign: 'center' }}>
         <div style={{ width: 52, height: 52, borderRadius: 14, margin: '4px auto 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)', background: 'color-mix(in srgb, var(--accent) 12%, transparent)' }}>
           <Lock size={24} />
@@ -57,6 +57,9 @@ export default function SetQuickPinModal({ onClose }) {
         <button className="btn btn-ghost" onClick={onClose} disabled={busy}>Cancel</button>
         <button className="btn btn-primary" onClick={save} disabled={busy || pin.length !== 4}>{busy ? 'Saving…' : 'Save PIN'}</button>
       </div>
-    </Modal>
+    </>
   )
+
+  if (embedded) return inner
+  return <Modal onClose={onClose} size="sm">{inner}</Modal>
 }
