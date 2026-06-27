@@ -6,6 +6,7 @@ import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import MentionInput from '@/components/primitives/MentionInput'
 import { resolveMentions } from '@/utils/mentions'
 import { notifyMention, notifyPostFollowers } from '@/firebase/messageNotify'
+import { classIdsOf, annClassIds } from '@/utils/announce'
 
 // Shared comment thread for an announcement, used by BOTH the admin Stream
 // (author = professor) and the student Stream (author = the student). It owns
@@ -19,10 +20,32 @@ import { notifyMention, notifyPostFollowers } from '@/firebase/messageNotify'
 //   role       - 'teacher' | 'student'
 export default function CommentsSection({ ann, authorId, authorName, role, compact = false, previewCount = 0, composerRef = null }) {
   const { addAnnouncementComment, addCommentReply, students = [], db } = useData()
-  const comments = ann.comments || []
+  const allComments = ann.comments || []
+
+  // On a post shared to several classes, a STUDENT only sees comments from their
+  // own classmates (and the professor / their own). The professor sees everything.
+  // Each new comment is stamped with its author's classes; legacy comments (no
+  // stamp) stay visible to avoid hiding old threads.
+  const myClassIds = useMemo(
+    () => (role === 'student' ? new Set(classIdsOf(students.find(x => x.id === authorId))) : null),
+    [students, authorId, role]
+  )
+  const comments = useMemo(() => {
+    if (role !== 'student') return allComments
+    const visible = c =>
+      c.authorId === authorId ||
+      c.role !== 'student' ||
+      !(c.authorClassIds && c.authorClassIds.length) ||
+      c.authorClassIds.some(id => myClassIds.has(id))
+    return allComments
+      .filter(visible)
+      .map(c => ({ ...c, replies: (c.replies || []).filter(visible) }))
+  }, [allComments, role, authorId, myClassIds])
+
   const [showAll, setShowAll] = useState(false)
   const collapsed = previewCount > 0 && !showAll && comments.length > previewCount
   const visibleComments = collapsed ? comments.slice(comments.length - previewCount) : comments
+  const myAuthorClassIds = () => (role === 'student' ? classIdsOf(students.find(x => x.id === authorId)) : [])
 
   // Who can be @mentioned. A STUDENT may only mention their own classmates
   // (students who share at least one class), never students from other classes,
@@ -30,25 +53,21 @@ export default function CommentsSection({ ann, authorId, authorName, role, compa
   // scope (every student the announcement targets).
   const mentionCandidates = useMemo(() => {
     const list = students || []
-    const classIdsOf = x => (x.classIds?.length ? x.classIds : (x.classId ? [x.classId] : []))
+    const targetIds = annClassIds(ann) // [] = broadcast to all classes
+    const inScope = x => !targetIds.length || classIdsOf(x).some(id => targetIds.includes(id))
 
     if (role === 'student') {
-      const me = list.find(x => x.id === authorId)
-      const myClasses = new Set(classIdsOf(me))
+      const myClasses = new Set(classIdsOf(list.find(x => x.id === authorId)))
       if (!myClasses.size) return []
       return list
         .filter(x => x.id !== authorId)
         .filter(x => classIdsOf(x).some(id => myClasses.has(id)))
-        .filter(x => ann.classId === 'all' || classIdsOf(x).includes(ann.classId))
+        .filter(inScope)
         .map(x => ({ id: x.id, name: x.name || x.id }))
     }
 
-    const scoped = list.filter(x => {
-      if (!ann.classId || ann.classId === 'all') return true
-      return classIdsOf(x).includes(ann.classId)
-    })
-    return scoped.map(x => ({ id: x.id, name: x.name || x.id }))
-  }, [students, ann.classId, role, authorId])
+    return list.filter(inScope).map(x => ({ id: x.id, name: x.name || x.id }))
+  }, [students, ann, role, authorId])
 
   function fireMentions(body) {
     const ids = resolveMentions(body, mentionCandidates).filter(id => id && id !== authorId)
@@ -82,7 +101,7 @@ export default function CommentsSection({ ann, authorId, authorName, role, compa
     if (!text.trim()) return
     setPosting(true)
     try {
-      const comment = { id: 'c_' + uuidv4(), authorId, authorName, role, text: text.trim(), createdAt: Date.now(), replies: [] }
+      const comment = { id: 'c_' + uuidv4(), authorId, authorName, role, authorClassIds: myAuthorClassIds(), text: text.trim(), createdAt: Date.now(), replies: [] }
       await addAnnouncementComment(ann.id, comment)
       fireMentions(comment.text)
       notifyFollowers(comment.text)
@@ -96,7 +115,7 @@ export default function CommentsSection({ ann, authorId, authorName, role, compa
     if (!replyText.trim()) return
     setReplyPosting(true)
     try {
-      const reply = { id: 'r_' + uuidv4(), authorId, authorName, role, text: replyText.trim(), createdAt: Date.now() }
+      const reply = { id: 'r_' + uuidv4(), authorId, authorName, role, authorClassIds: myAuthorClassIds(), text: replyText.trim(), createdAt: Date.now() }
       await addCommentReply(ann.id, commentId, reply)
       fireMentions(reply.text)
       notifyFollowers(reply.text)

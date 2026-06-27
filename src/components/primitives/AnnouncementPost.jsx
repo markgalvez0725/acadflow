@@ -68,7 +68,7 @@ function Avatar({ author }) {
 }
 
 export default function AnnouncementPost({
-  ann, author, classObj, pinned = false, statusBadge = null,
+  ann, author, classObj, classLabel: classLabelProp = '', pinned = false, statusBadge = null,
   menuItems = [], viewerId, onToggleLike, commentAuthor,
   domId, highlight = false,
 }) {
@@ -81,7 +81,7 @@ export default function AnnouncementPost({
     return ''
   }, [ann.message, ann.topics, hasMessage])
   const caption = useMemo(() => stripHtml(ann.message), [ann.message])
-  const cls = classLabelOf(classObj)
+  const cls = classLabelProp || classLabelOf(classObj)
   const likes = ann.likes || []
   const liked = !!viewerId && likes.includes(viewerId)
   const likeCount = likes.length

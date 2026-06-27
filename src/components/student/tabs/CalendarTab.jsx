@@ -8,6 +8,7 @@ import {
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 import { buildICS, downloadICS } from '@/utils/ics'
 import { activeClassIds } from '@/utils/active'
+import { annReaches, annClassIds } from '@/utils/announce'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -112,9 +113,9 @@ export default function CalendarTab({ student, viewClassId, classes }) {
     announcements.forEach(a => {
       const ts = a.scheduledAt || a.createdAt
       if (!ts) return
-      const isForStudent = !a.classId || studentClassIds.includes(a.classId)
-      if (!isForStudent) return
-      const cls = a.classId ? classes?.find(c => c.id === a.classId) : null
+      if (!annReaches(a, studentClassIds)) return
+      const myId = annClassIds(a).find(id => studentClassIds.includes(id))
+      const cls = myId ? classes?.find(c => c.id === myId) : null
       add(toDateKey(ts), {
         type: 'announcement', id: a.id,
         title: a.title || 'Announcement',

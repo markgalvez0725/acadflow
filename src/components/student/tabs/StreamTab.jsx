@@ -60,6 +60,7 @@ import CommentsSection from '@/components/primitives/CommentsSection'
 import KebabMenu from '@/components/primitives/KebabMenu'
 import AnnouncementPost from '@/components/primitives/AnnouncementPost'
 import { mediaFromAnnouncement, isPreviewableLink } from '@/utils/streamMedia'
+import { annReaches, annClassIds } from '@/utils/announce'
 
 function timeAgo(ms) {
   if (!ms) return ''
@@ -263,12 +264,15 @@ export default function StreamTab({ student, viewClassId, classes }) {
     if (filterType === 'all' || filterType === 'announcement') {
       const nowTs = Date.now()
       announcements.forEach(ann => {
-        const matchesClass = ann.classId === 'all' || effectiveClassIds.includes(ann.classId)
-        if (!matchesClass) return
+        if (!annReaches(ann, effectiveClassIds)) return
         // Hide scheduled announcements until their publish time.
         if (ann.publishAt && ann.publishAt > nowTs) return
         const annPinned = !!ann.pinned && !(ann.expiresAt && ann.expiresAt < nowTs)
-        items.push({ id: `ann-${ann.id}`, type: 'announcement', ts: ann.createdAt || 0, data: ann, classId: ann.classId, pinned: annPinned })
+        // Show the viewer's OWN matching class in the header (a multi-class post
+        // may list a class the student isn't in as its first target).
+        const targets = annClassIds(ann)
+        const mine = targets.find(id => effectiveClassIds.includes(id)) || ann.classId
+        items.push({ id: `ann-${ann.id}`, type: 'announcement', ts: ann.createdAt || 0, data: ann, classId: mine, pinned: annPinned })
       })
     }
 

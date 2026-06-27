@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { fbWithTimeout } from './firebaseInit'
 import { serializeStudents } from '@/utils/attendance'
 import { setFbWriting } from './listeners'
+import { annClassIds, annIsBroadcast } from '@/utils/announce'
 
 const BATCH = 10;
 
@@ -292,11 +293,12 @@ export async function fbMarkMessageRead(db, msgId, readerId, readAtTs) {
 
 export async function fbPushAnnouncementNotifs(db, announcement, students) {
   if (!db || !announcement || !students?.length) return
-  const enrolled = announcement.classId === 'all'
+  const targetIds = annClassIds(announcement)
+  const enrolled = annIsBroadcast(announcement)
     ? students
     : students.filter(s => {
         const ids = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
-        return ids.includes(announcement.classId)
+        return ids.some(id => targetIds.includes(id))
       })
   if (!enrolled.length) return
   const { doc: fbDoc, getDoc, setDoc } = await import('firebase/firestore')

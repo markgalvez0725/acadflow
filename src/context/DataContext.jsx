@@ -23,6 +23,7 @@ import {
 } from '@/firebase/attendanceExtras'
 import { loadFbConfigFromStorage, readStoredEJS } from '@/utils/crypto'
 import { DEFAULT_EQ_SCALE } from '@/utils/grades'
+import { annClassIds, annIsBroadcast } from '@/utils/announce'
 import { computeSubjectGrade, gradeInputHash, makeHistoryEntry, appendGradeHistory } from '@/utils/gradeEngine'
 import { ADMIN_EMAIL } from '@/constants/auth'
 
@@ -914,9 +915,13 @@ export function DataProvider({ children }) {
   const pushAnnouncementNotifs = useCallback(async (announcement) => {
     await fbPushAnnouncementNotifs(dbRef.current, announcement, students)
     // Best-effort web push (in addition to the existing in-app notification).
-    const targetOwners = announcement?.classId && announcement.classId !== 'all'
-      ? students.filter(s => s.classId === announcement.classId || s.classIds?.includes(announcement.classId)).map(s => s.id)
-      : 'all'
+    const targetClassIds = annClassIds(announcement)
+    const targetOwners = annIsBroadcast(announcement)
+      ? 'all'
+      : students.filter(s => {
+          const ids = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
+          return ids.some(id => targetClassIds.includes(id))
+        }).map(s => s.id)
     sendPushToOwners(dbRef.current, targetOwners, {
       title: announcement?.title || 'New announcement',
       body: 'Open AcadFlow to view the announcement.',

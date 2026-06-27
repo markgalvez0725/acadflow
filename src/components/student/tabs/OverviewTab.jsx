@@ -7,6 +7,7 @@ import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import { BookOpen, Clock, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Sparkles, Bookmark, Library } from 'lucide-react'
 import { courseShort } from '@/constants/courses'
+import { annReaches, annClassIds, annIsBroadcast } from '@/utils/announce'
 import { SkeletonDashboard } from '@/components/primitives/SkeletonLoader'
 import { useUI } from '@/context/UIContext'
 import PageHeader from '@/components/ds/PageHeader'
@@ -63,7 +64,7 @@ function StudentCommentsSection({ ann, student }) {
   // Who can be @mentioned: classmates in this announcement's scope + the professor.
   const mentionCandidates = useMemo(() => {
     const enrolled = student.classIds?.length ? student.classIds : (student.classId ? [student.classId] : [])
-    const scopeIds = ann.classId && ann.classId !== 'all' ? [ann.classId] : enrolled
+    const scopeIds = annClassIds(ann).length ? annClassIds(ann) : enrolled
     const mates = (students || []).filter(x =>
       x.id !== student.id &&
       ((x.classIds || []).some(id => scopeIds.includes(id)) || scopeIds.includes(x.classId))
@@ -383,9 +384,12 @@ function AnnIcon({ type, size = 18 }) {
 }
 
 function annClassLabel(ann, classes) {
-  if (ann.classId === 'all') return 'All Classes'
-  const c = classes.find(x => x.id === ann.classId)
-  return c ? `${courseShort(c.name)}${c.section ? ` ${c.section}` : ''}` : ''
+  if (annIsBroadcast(ann)) return 'All Classes'
+  const names = annClassIds(ann)
+    .map(id => { const c = classes.find(x => x.id === id); return c ? `${courseShort(c.name)}${c.section ? ` ${c.section}` : ''}` : null })
+    .filter(Boolean)
+  if (!names.length) return ''
+  return names.length === 1 ? names[0] : `${names[0]} +${names.length - 1}`
 }
 function annSnippet(ann) {
   if (ann.message) {
@@ -510,7 +514,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
     const now = Date.now()
     return (announcements || []).filter(ann =>
       ann.active &&
-      (ann.classId === 'all' || enrolledIds.includes(ann.classId)) &&
+      annReaches(ann, enrolledIds) &&
       (!ann.publishAt || ann.publishAt <= now) &&
       (!ann.expiresAt || ann.expiresAt > now)
     ).sort((a, b) => b.createdAt - a.createdAt)
@@ -522,7 +526,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
     const ids = new Set(s.savedPosts || [])
     if (!ids.size) return []
     return (announcements || [])
-      .filter(a => ids.has(a.id) && (a.classId === 'all' || enrolledIds.includes(a.classId)))
+      .filter(a => ids.has(a.id) && annReaches(a, enrolledIds))
       .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
   }, [announcements, s.savedPosts, enrolledIds])
   const widgetAnns = savedAnnouncements.length ? savedAnnouncements : activeAnnouncements

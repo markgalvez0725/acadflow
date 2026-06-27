@@ -3,8 +3,9 @@ import { useData } from '@/context/DataContext'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import { useUI } from '@/context/UIContext'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
-import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, Clock, Users, Award, CheckCircle2, XCircle, AlertCircle, Plus, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered, Paperclip, Image as ImageIcon, FileText, Sparkles, Library, FolderOpen, RefreshCw, Check, Loader2 } from 'lucide-react'
+import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, Clock, Users, Award, CheckCircle2, XCircle, AlertCircle, Plus, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered, Paperclip, Image as ImageIcon, FileText, Sparkles, Library, FolderOpen, RefreshCw, Check, Loader2, CheckSquare, Square } from 'lucide-react'
 import { composeAnnouncementMessage } from '@/utils/announceCompose'
+import { annClassIds, annIsBroadcast } from '@/utils/announce'
 import { isConfigured as driveConfigured, getConnection as getDriveConnection, uploadFile as driveUpload, listDriveFiles } from '@/utils/googleDrive'
 import { formatBytes, extOf } from '@/utils/streamMedia'
 import DOMPurify from 'dompurify'
@@ -266,8 +267,17 @@ function AnnouncementFormModal({ ann, onClose }) {
   const isEdit = !!ann
 
   const [type,        setType]        = useState(ann?.type        || 'no_class')
-  const [classId,     setClassId]     = useState(ann?.classId     || '')
-  const [subject,     setSubject]     = useState(ann?.subject     || '')
+  // Multi-class: a post can target several classes at once. We track the selected
+  // class option KEYS (the composite class+subject values built in classOptions);
+  // the classIds + subject saved on the post are derived from them below. 'all' is
+  // an exclusive broadcast to every class.
+  const [selectedKeys, setSelectedKeys] = useState(() => {
+    const ids = Array.isArray(ann?.classIds) && ann.classIds.length
+      ? ann.classIds
+      : (ann?.classId ? [ann.classId] : [])
+    if (ids.includes('all')) return ['all']
+    return ids.map(id => (ann?.subject ? `${id}::${ann.subject}` : id))
+  })
   const [title,       setTitle]       = useState(ann?.title       || '')
   const [message,     setMessage]     = useState(ann?.message     || '')
   const [meetingLink, setMeetingLink] = useState(ann?.meetingLink || '')
@@ -284,6 +294,61 @@ function AnnouncementFormModal({ ann, onClose }) {
   })
   const [err,    setErr]    = useState('')
   const [saving, setSaving] = useState(false)
+
+  // The class picker doubles as a subject picker: each class expands into one
+  // option per subject (e.g. "BSEMC 3A - EMCP 108 Principle of 3D Animation").
+  // The composite value carries both. The picker is multi-select.
+  const classOptions = useMemo(() => {
+    const opts = [{ value: 'all', label: 'All Classes', classId: 'all', subject: '' }]
+    classes.filter(c => !c.archived).forEach(c => {
+      const base = `${courseShort(c.name)}${c.section ? ` - ${c.section}` : ''}`
+      const subs = (c.subjects || []).filter(Boolean)
+      if (!subs.length) {
+        opts.push({ value: c.id, label: base, classId: c.id, subject: '' })
+      } else {
+        subs.forEach(sub => opts.push({ value: `${c.id}::${sub}`, label: `${base} - ${sub}`, classId: c.id, subject: sub }))
+      }
+    })
+    return opts
+  }, [classes])
+
+  // Derive the target classes + subject from the selected option keys. Subject is
+  // only kept when exactly one class option is selected (it is ambiguous across
+  // multiple classes).
+  const { classIds, subject } = useMemo(() => {
+    if (selectedKeys.includes('all')) return { classIds: ['all'], subject: '' }
+    const chosen = selectedKeys.map(k => classOptions.find(o => o.value === k)).filter(Boolean)
+    const ids = [...new Set(chosen.map(o => o.classId))]
+    return { classIds: ids, subject: chosen.length === 1 ? chosen[0].subject : '' }
+  }, [selectedKeys, classOptions])
+  const isBroadcast = classIds.includes('all')
+  const classId = isBroadcast ? 'all' : (classIds[0] || '') // legacy/folder/label anchor
+  const selectedClass = classes.find(c => c.id === classId)
+  const classLabel = isBroadcast
+    ? 'All Classes'
+    : classIds.length > 1
+      ? `${classIds.length} classes`
+      : selectedClass ? `${courseShort(selectedClass.name)}${selectedClass.section ? ` ${selectedClass.section}` : ''}` : ''
+
+  function toggleClassKey(key) {
+    setSelectedKeys(prev => {
+      if (key === 'all') return prev.includes('all') ? [] : ['all']
+      const next = prev.filter(k => k !== 'all')
+      return next.includes(key) ? next.filter(k => k !== key) : [...next, key]
+    })
+    if (!titleTouched) setTitle('')
+  }
+
+  // When editing, a multi-class post dropped its subject, so its saved classIds
+  // are bare ids that don't match the composite class::subject option keys. Once
+  // classOptions is ready, reconcile each bare id to its first matching option.
+  useEffect(() => {
+    setSelectedKeys(prev => prev.map(k => {
+      if (k === 'all' || classOptions.some(o => o.value === k)) return k
+      const opt = classOptions.find(o => o.classId === k)
+      return opt ? opt.value : k
+    }))
+  }, [classOptions])
 
   // Google Drive attachments (browser-only upload to the teacher's own Drive).
   const [attachments, setAttachments] = useState(ann?.attachments || [])
@@ -335,27 +400,6 @@ function AnnouncementFormModal({ ann, onClose }) {
       : [...prev, { driveId: f.driveId, name: f.name, mimeType: f.mimeType, size: f.size }])
   }
 
-  const selectedClass = classes.find(c => c.id === classId)
-
-  // The class picker doubles as a subject picker: each class expands into one
-  // option per subject (e.g. "BSEMC 3A - EMCP 108 Principle of 3D Animation").
-  // The composite value carries both, so picking one sets classId + subject.
-  const classOptions = useMemo(() => {
-    const opts = [{ value: 'all', label: 'All Classes', classId: 'all', subject: '' }]
-    classes.filter(c => !c.archived).forEach(c => {
-      const base = `${courseShort(c.name)}${c.section ? ` - ${c.section}` : ''}`
-      const subs = (c.subjects || []).filter(Boolean)
-      if (!subs.length) {
-        opts.push({ value: c.id, label: base, classId: c.id, subject: '' })
-      } else {
-        subs.forEach(sub => opts.push({ value: `${c.id}::${sub}`, label: `${base} - ${sub}`, classId: c.id, subject: sub }))
-      }
-    })
-    return opts
-  }, [classes])
-  const selectValue = classId ? (subject ? `${classId}::${subject}` : classId) : ''
-  const classLabel = classId === 'all' ? 'All Classes' : selectedClass ? `${courseShort(selectedClass.name)}${selectedClass.section ? ` ${selectedClass.section}` : ''}` : ''
-
   const autoTitle = useMemo(() => {
     if (!classLabel) return ''
     if (type === 'no_class') return `No Class Today - ${classLabel}`
@@ -366,12 +410,6 @@ function AnnouncementFormModal({ ann, onClose }) {
   }, [type, classLabel])
 
   const [titleTouched, setTitleTouched] = useState(isEdit)
-  function handleClassSelect(value) {
-    const opt = classOptions.find(o => o.value === value)
-    setClassId(opt ? opt.classId : '')
-    setSubject(opt ? opt.subject : '')
-    if (!titleTouched) setTitle('')
-  }
   function handleTypeChange(t)   { setType(t);   if (!titleTouched) setTitle('') }
 
   const displayTitle = titleTouched ? title : (autoTitle || title)
@@ -379,7 +417,7 @@ function AnnouncementFormModal({ ann, onClose }) {
   async function handleSave() {
     setErr('')
     const finalTitle = displayTitle.trim()
-    if (!classId)    { setErr('Please select a class.'); return }
+    if (!classIds.length) { setErr('Please select at least one class.'); return }
     if (!finalTitle) { setErr('Title is required.'); return }
     if (type === 'online_class' && meetingLink && !meetingLink.startsWith('http')) { setErr('Meeting link must start with http:// or https://'); return }
     if (moduleLink && !moduleLink.startsWith('http')) { setErr('Module link must start with http:// or https://'); return }
@@ -393,8 +431,9 @@ function AnnouncementFormModal({ ann, onClose }) {
       const announcement = {
         id:          ann?.id || annId(),
         type,
-        classId,
-        subject:     classId === 'all' ? null : (subject || null),
+        classId,                 // legacy single-class field (first target / 'all')
+        classIds:    isBroadcast ? ['all'] : classIds,
+        subject:     isBroadcast ? null : (subject || null),
         title:       finalTitle,
         message:     message.trim(),
         meetingLink: type === 'online_class' ? (meetingLink.trim() || null) : null,
@@ -456,11 +495,44 @@ function AnnouncementFormModal({ ann, onClose }) {
           </div>
         </div>
         <div>
-          <label className="form-label">Class</label>
-          <select className="form-input" value={selectValue} onChange={e => handleClassSelect(e.target.value)}>
-            <option value="">- Select class -</option>
-            {classOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+          <label className="form-label">Classes <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(pick one or more)</span></label>
+          {selectedKeys.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              {selectedKeys.map(k => {
+                const o = classOptions.find(x => x.value === k)
+                return (
+                  <span key={k} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, background: 'var(--accent-l)', color: 'var(--accent)', borderRadius: 999, padding: '3px 10px' }}>
+                    {o ? o.label : k}
+                    <button type="button" onClick={() => toggleClassKey(k)} aria-label={`Remove ${o ? o.label : k}`} style={{ display: 'inline-flex', border: 'none', background: 'transparent', color: 'inherit', cursor: 'pointer', padding: 0 }}><X size={12} /></button>
+                  </span>
+                )
+              })}
+            </div>
+          )}
+          <div style={{ border: '1px solid var(--border)', borderRadius: 10, maxHeight: 184, overflowY: 'auto' }}>
+            {classOptions.map(o => {
+              const checked = selectedKeys.includes(o.value)
+              const disabled = o.value !== 'all' && selectedKeys.includes('all')
+              return (
+                <button
+                  key={o.value}
+                  type="button"
+                  onClick={() => toggleClassKey(o.value)}
+                  disabled={disabled}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
+                    padding: '9px 12px', border: 'none', borderBottom: '1px solid var(--border)', cursor: disabled ? 'not-allowed' : 'pointer',
+                    background: checked ? 'var(--accent-l)' : 'transparent', color: disabled ? 'var(--ink3)' : 'var(--ink)', fontSize: 12.5,
+                  }}
+                >
+                  {checked
+                    ? <CheckSquare size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                    : <Square size={16} style={{ color: 'var(--ink3)', flexShrink: 0 }} />}
+                  <span style={{ flex: 1, minWidth: 0 }}>{o.value === 'all' ? 'All classes (broadcast)' : o.label}</span>
+                </button>
+              )
+            })}
+          </div>
         </div>
         <div>
           <label className="form-label">Message <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(optional)</span></label>
@@ -669,10 +741,21 @@ function adminClassLabel(classObj) {
   return classObj?.name ? `${classObj.name}${classObj.section ? ' · ' + classObj.section : ''}` : ''
 }
 
+// A short header label for an announcement's audience: a single class name, the
+// first class + "+N" for several, or "All classes" for a broadcast.
+function announcementClassLabel(ann, classes) {
+  if (annIsBroadcast(ann)) return 'All classes'
+  const names = annClassIds(ann)
+    .map(id => { const c = classes.find(x => x.id === id); return c ? `${courseShort(c.name)}${c.section ? ' ' + c.section : ''}` : null })
+    .filter(Boolean)
+  if (!names.length) return ''
+  return names.length === 1 ? names[0] : `${names[0]} +${names.length - 1}`
+}
+
 // Thin wrapper: the IG card lives in the shared AnnouncementPost; the teacher
 // side supplies its management kebab (Edit/Pin/Deactivate/Delete) + status badge
 // and posts comments as the professor.
-function AnnouncementCard({ item, classObj, author, viewerId, onToggleLike, onEdit, onToggleActive, onTogglePin, onDelete }) {
+function AnnouncementCard({ item, classObj, classLabel, author, viewerId, onToggleLike, onEdit, onToggleActive, onTogglePin, onDelete }) {
   const ann = item.data
   const pinned = !!item.pinned   // effective (respects expiry), computed by the feed
   const expired = ann.expiresAt && ann.expiresAt < Date.now()
@@ -691,6 +774,7 @@ function AnnouncementCard({ item, classObj, author, viewerId, onToggleLike, onEd
       ann={ann}
       author={author}
       classObj={classObj}
+      classLabel={classLabel}
       pinned={pinned}
       statusBadge={statusBadge}
       menuItems={menuItems}
@@ -831,7 +915,7 @@ export default function StreamTab() {
 
     // Announcements
     announcements.forEach(ann => {
-      if (filterClass !== 'all' && ann.classId !== 'all' && ann.classId !== filterClass) return
+      if (filterClass !== 'all' && !annIsBroadcast(ann) && !annClassIds(ann).includes(filterClass)) return
       if (filterType !== 'all' && filterType !== 'announcement') return
       // Effective pin: a pinned post stops floating once it has expired.
       items.push({ id: `ann-${ann.id}`, type: 'announcement', ts: ann.createdAt || 0, data: ann, classId: ann.classId, pinned: !!ann.pinned && !isExpired(ann) })
@@ -1093,6 +1177,7 @@ export default function StreamTab() {
               <AnnouncementCard
                 item={item}
                 classObj={classObj}
+                classLabel={announcementClassLabel(item.data, classes)}
                 author={author}
                 viewerId={viewerId}
                 onToggleLike={toggleAnnouncementLike}
