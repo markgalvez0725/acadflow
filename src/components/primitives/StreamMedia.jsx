@@ -91,7 +91,7 @@ export default function StreamMedia({ items = [], onOpen }) {
   return (
     <div className="s-media">
       {gallery.length > 0 && (
-        <Gallery items={gallery} baseIndex={indexOf(gallery[0])} onOpen={onOpen} />
+        <Gallery items={gallery} indexOf={indexOf} onOpen={onOpen} />
       )}
       {files.map(f => (
         <FileTile key={f.id} item={f} index={indexOf(f)} onOpen={onOpen} />
