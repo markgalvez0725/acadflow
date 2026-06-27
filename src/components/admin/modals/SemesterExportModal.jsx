@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
-import { Sparkles, AlertTriangle, Bot } from 'lucide-react'
+import { Sparkles, AlertTriangle, Cpu } from 'lucide-react'
 
 /**
  * On-device semester check shown before a student-level export when the
@@ -39,7 +39,7 @@ export default function SemesterExportModal({ student, analysis, kind = 'report 
       />
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: 'var(--accent-l)', borderRadius: 10, padding: '11px 13px', margin: '4px 2px 14px' }}>
-        <Bot size={18} style={{ color: 'var(--accent)', flexShrink: 0, marginTop: 1 }} />
+        <Cpu size={18} style={{ color: 'var(--accent)', flexShrink: 0, marginTop: 1 }} />
         <div style={{ fontSize: 12.5, color: 'var(--accent)', lineHeight: 1.55 }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 600, marginRight: 4 }}>
             <Sparkles size={12} /> On-device check:
