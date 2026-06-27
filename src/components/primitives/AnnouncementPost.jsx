@@ -136,9 +136,8 @@ export default function AnnouncementPost({
         {likeCount > 0 && <div className="ig-likes">{likeCount} like{likeCount !== 1 ? 's' : ''}</div>}
         {hasMedia && (ann.title || caption) && (
           <div className={`ig-caption${expanded ? ' expanded' : ''}`}>
-            <span className="ig-name">{author?.name || 'Professor'}</span>{' '}
             {ann.title && <span className="ig-captitle">{ann.title}</span>}
-            {caption && <span> {caption}</span>}
+            {caption && <span>{ann.title ? ' ' : ''}{caption}</span>}
           </div>
         )}
         {hasMedia && caption && caption.length > 140 && !expanded && (

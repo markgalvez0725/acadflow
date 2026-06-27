@@ -438,10 +438,6 @@ function AnnouncementFormModal({ ann, onClose }) {
           </select>
         </div>
         <div>
-          <label className="form-label">Title</label>
-          <input className="form-input" value={displayTitle} placeholder="e.g. No Class Today - BSIT 2A" onChange={e => { setTitleTouched(true); setTitle(e.target.value) }} />
-        </div>
-        <div>
           <label className="form-label">Message <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(optional)</span></label>
           <RichTextEditor
             value={message}
