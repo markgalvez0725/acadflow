@@ -4,7 +4,7 @@
  *  - Never touches Firestore / Google / cross-origin traffic, so real-time
  *    sync and all existing network calls behave exactly as before.
  */
-const CACHE_VERSION = 'acadflow-v70';
+const CACHE_VERSION = 'acadflow-v71';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -13,7 +13,8 @@ const APP_SHELL = [
   '/logo.png',
   '/icon-192.png',
   '/icon-512.png',
-  '/brand/logo-stacked-white.png',
+  '/brand/logo-mark.svg',
+  '/brand/logo-stacked-white.svg',
 ];
 
 self.addEventListener('install', (event) => {

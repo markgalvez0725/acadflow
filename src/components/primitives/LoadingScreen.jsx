@@ -8,7 +8,7 @@ export default function LoadingScreen() {
   return (
     <div className="app-splash" role="status" aria-live="polite">
       <div className="app-splash-glow" aria-hidden="true" />
-      <img className="app-splash-lockup" src="/brand/logo-stacked-white.png" alt="AcadFlow" />
+      <img className="app-splash-lockup" src="/brand/logo-stacked-white.svg" alt="AcadFlow" />
       <div className="app-splash-bar"><span /></div>
       <div className="app-splash-hint">Connecting your campus…</div>
     </div>
