@@ -57,6 +57,7 @@ import MediaLightbox from '@/components/primitives/MediaLightbox'
 import TextCard from '@/components/primitives/TextCard'
 import CommentsSection from '@/components/primitives/CommentsSection'
 import KebabMenu from '@/components/primitives/KebabMenu'
+import AnnouncementPost from '@/components/primitives/AnnouncementPost'
 import { mediaFromAnnouncement, isPreviewableLink } from '@/utils/streamMedia'
 
 function timeAgo(ms) {
@@ -93,130 +94,30 @@ function classLabel(classObj) {
   return classObj?.name ? `${courseShort(classObj.name)}${classObj.section ? ' · ' + classObj.section : ''}` : ''
 }
 
-// Plain-text version of an announcement's HTML (for the caption + text-card).
-function stripHtml(html) {
-  if (!html) return ''
-  const tmp = document.createElement('div')
-  tmp.innerHTML = sanitizeAnnouncementHtml(html)
-  return (tmp.textContent || tmp.innerText || '').replace(/\s+/g, ' ').trim()
-}
-
-function dateLabelOf(ms) {
-  if (!ms) return ''
-  return new Date(ms).toLocaleDateString('en-PH', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()
-}
-
-function Avatar({ author }) {
-  return (
-    <div className="ig-av">
-      {author?.photo
-        ? <img src={author.photo} alt="" />
-        : <span>{author?.name?.charAt(0)?.toUpperCase() || 'P'}</span>}
-    </div>
-  )
-}
-
-// Minimal HTML escape for building a safe list from plain topic strings.
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]))
-}
-
+// Thin wrapper: the IG card lives in the shared AnnouncementPost; the student
+// side just supplies its kebab (Save / notifications) and comment identity.
 function AnnouncementCard({ item, classObj, student, author }) {
   const { toggleAnnouncementLike, toggleSavedPost, toggleAnnouncementFollow } = useData()
   const ann = item.data
-  const media = useMemo(() => mediaFromAnnouncement(ann), [ann])
-  const hasMessage = ann.message && ann.message !== '<p></p>' && ann.message !== ''
-  // The text-card renders the SAME sanitized rich-editor HTML as the editor.
-  const cardHtml = useMemo(() => {
-    if (hasMessage) return sanitizeAnnouncementHtml(ann.message)
-    if (ann.topics?.length) return sanitizeAnnouncementHtml('<ul>' + ann.topics.map(t => `<li>${escapeHtml(t)}</li>`).join('') + '</ul>')
-    return ''
-  }, [ann.message, ann.topics, hasMessage])
-  const caption = useMemo(() => stripHtml(ann.message), [ann.message])  // media-post caption only
-  const cls = classLabel(classObj)
-  const likes = ann.likes || []
-  const liked = !!student && likes.includes(student.id)
-  const likeCount = likes.length
-  const saved = !!student && (student.savedPosts || []).includes(ann.id)
-  const followed = !!student && (ann.followers || []).includes(student.id)
-
-  const [lightbox, setLightbox] = useState(-1)
-  const [expanded, setExpanded] = useState(false)
-  const composerRef = useRef(null)
-
-  const hasMedia = media.length > 0
-  const showTextCard = !hasMedia && (ann.title || cardHtml)
-
-  function onLike() { if (student) toggleAnnouncementLike(ann.id, student.id, !liked) }
-  function onSave() { if (student) toggleSavedPost(student.id, ann.id, !saved) }
-  function onFollow() { if (student) toggleAnnouncementFollow(ann.id, student.id, !followed) }
-  function focusComposer() { composerRef.current?.focus() }
-
-  const menuItems = student ? [
-    { label: saved ? 'Saved' : 'Save announcement', onClick: onSave },
-    { label: followed ? 'Turn off notifications' : 'Turn on notifications', onClick: onFollow },
-  ] : []
-
+  const menuItems = student ? (() => {
+    const saved = (student.savedPosts || []).includes(ann.id)
+    const followed = (ann.followers || []).includes(student.id)
+    return [
+      { label: saved ? 'Saved' : 'Save announcement', onClick: () => toggleSavedPost(student.id, ann.id, !saved) },
+      { label: followed ? 'Turn off notifications' : 'Turn on notifications', onClick: () => toggleAnnouncementFollow(ann.id, student.id, !followed) },
+    ]
+  })() : []
   return (
-    <article className="ig-post">
-      <header className="ig-head">
-        <Avatar author={author} />
-        <div className="ig-id">
-          <span className="ig-name">{author?.name || 'Professor'}</span>
-          <BadgeCheck size={14} className="ig-check" />
-          <span className="ig-dot">·</span>
-          <span className="ig-time">{timeAgo(ann.createdAt)}</span>
-        </div>
-        {item.pinned && <span className="ig-pin">Pinned</span>}
-        <KebabMenu items={menuItems} icon={<MoreHorizontal size={18} />} label="Post options" />
-      </header>
-
-      {hasMedia && <div className="ig-media"><StreamMedia items={media} onOpen={i => setLightbox(i)} /></div>}
-      {showTextCard && (
-        <div className="ig-media">
-          <TextCard seed={ann.id} dateLabel={dateLabelOf(ann.createdAt)} title={ann.title} html={cardHtml} footer={cls || 'AcadFlow'} />
-        </div>
-      )}
-
-      <div className="ig-actions">
-        <div className="ig-actions-left">
-          <button className={`ig-icon${liked ? ' liked' : ''}`} onClick={onLike} aria-label={liked ? 'Unlike' : 'Like'} title="Like">
-            <Heart size={24} fill={liked ? 'currentColor' : 'none'} />
-          </button>
-          <button className="ig-icon" onClick={focusComposer} aria-label="Comment" title="Comment">
-            <MessageCircle size={24} style={{ transform: 'scaleX(-1)' }} />
-          </button>
-          {ann.meetingLink && (
-            <a className="ig-icon" href={ann.meetingLink} target="_blank" rel="noreferrer" aria-label="Join meeting" title="Join meeting"><Send size={24} /></a>
-          )}
-        </div>
-      </div>
-
-      <div className="ig-meta">
-        {likeCount > 0 && <div className="ig-likes">{likeCount} like{likeCount !== 1 ? 's' : ''}</div>}
-        {hasMedia && (ann.title || caption) && (
-          <div className={`ig-caption${expanded ? ' expanded' : ''}`}>
-            <span className="ig-name">{author?.name || 'Professor'}</span>{' '}
-            {ann.title && <span className="ig-captitle">{ann.title}</span>}
-            {caption && <span> {caption}</span>}
-          </div>
-        )}
-        {hasMedia && caption && caption.length > 140 && !expanded && (
-          <button className="ig-more" onClick={() => setExpanded(true)}>more</button>
-        )}
-        {ann.moduleLink && !isPreviewableLink(ann.moduleLink) && (
-          <a href={ann.moduleLink} target="_blank" rel="noreferrer" className="stream-link-chip" style={{ marginTop: 8, alignSelf: 'flex-start' }}><BookOpen size={12} /> Module link</a>
-        )}
-      </div>
-
-      {student && (
-        <div className="ig-comments">
-          <CommentsSection ann={ann} authorId={student.id} authorName={student.name || 'You'} role="student" compact previewCount={2} composerRef={composerRef} />
-        </div>
-      )}
-
-      {lightbox >= 0 && <MediaLightbox items={media} index={lightbox} onClose={() => setLightbox(-1)} onIndex={setLightbox} />}
-    </article>
+    <AnnouncementPost
+      ann={ann}
+      author={author}
+      classObj={classObj}
+      pinned={item.pinned}
+      menuItems={menuItems}
+      viewerId={student?.id}
+      onToggleLike={toggleAnnouncementLike}
+      commentAuthor={student ? { id: student.id, name: student.name || 'You', role: 'student' } : null}
+    />
   )
 }
 

@@ -11,6 +11,7 @@ import KebabMenu from '@/components/primitives/KebabMenu'
 import MentionInput from '@/components/primitives/MentionInput'
 import PostShell from '@/components/primitives/StreamPost'
 import CommentsSection from '@/components/primitives/CommentsSection'
+import AnnouncementPost from '@/components/primitives/AnnouncementPost'
 import { resolveMentions } from '@/utils/mentions'
 import { notifyMention } from '@/firebase/messageNotify'
 import { streamGroupLabel as getGroupLabel, fmtDateTime as formatDate } from '@/utils/format'
@@ -456,50 +457,35 @@ function adminClassLabel(classObj) {
   return classObj?.name ? `${classObj.name}${classObj.section ? ' · ' + classObj.section : ''}` : ''
 }
 
-function AnnouncementCard({ item, classObj, onEdit, onToggleActive, onTogglePin, onDelete, onOpen }) {
+// Thin wrapper: the IG card lives in the shared AnnouncementPost; the teacher
+// side supplies its management kebab (Edit/Pin/Deactivate/Delete) + status badge
+// and posts comments as the professor.
+function AnnouncementCard({ item, classObj, author, viewerId, onToggleLike, onEdit, onToggleActive, onTogglePin, onDelete }) {
   const ann = item.data
   const pinned = !!item.pinned   // effective (respects expiry), computed by the feed
-  const hasMessage = ann.message && ann.message !== '<p></p>' && ann.message !== ''
-  const commentCount = (ann.comments || []).length
-  const hasActions = onEdit || onToggleActive || onTogglePin || onDelete
   const expired = ann.expiresAt && ann.expiresAt < Date.now()
   const effectivelyActive = ann.active && !expired
-  const cls = adminClassLabel(classObj)
-  const hasBody = hasMessage || ann.meetingLink || ann.moduleLink || (!hasMessage && ann.topics?.length > 0)
+  const menuItems = [
+    onTogglePin    && { label: ann.pinned ? 'Unpin' : 'Pin', onClick: onTogglePin },
+    onToggleActive && { label: ann.active ? 'Deactivate' : 'Activate', onClick: onToggleActive },
+    onEdit         && { label: 'Edit', onClick: onEdit },
+    onDelete       && { label: 'Delete', onClick: onDelete, danger: true },
+  ].filter(Boolean)
+  const statusBadge = !effectivelyActive
+    ? <span className="badge badge-gray" style={{ fontSize: 10, flexShrink: 0 }}>{expired ? 'Expired' : 'Inactive'}</span>
+    : null
   return (
-    <PostShell
-      type="announcement"
-      title={ann.title}
-      meta={<>{cls && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Users size={11} /> {cls}</span>}{cls && <span>·</span>}<span>{timeAgo(ann.createdAt)}</span></>}
-      badges={
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          {pinned && <span className="badge badge-blue" style={{ fontSize: 10 }}>Pinned</span>}
-          {!effectivelyActive && <span className="badge badge-gray" style={{ fontSize: 10 }}>{expired ? 'Expired' : 'Inactive'}</span>}
-        </div>
-      }
-      kebab={hasActions ? (
-        <KebabMenu items={[
-          onTogglePin    && { label: ann.pinned ? 'Unpin' : 'Pin', onClick: onTogglePin },
-          onToggleActive && { label: ann.active ? 'Deactivate' : 'Activate', onClick: onToggleActive },
-          onEdit         && { label: 'Edit', onClick: onEdit },
-          onDelete       && { label: 'Delete', onClick: onDelete, danger: true },
-        ]} />
-      ) : null}
+    <AnnouncementPost
+      ann={ann}
+      author={author}
+      classObj={classObj}
       pinned={pinned}
-      commentCount={commentCount}
-      onComment={onOpen}
-    >
-      {hasBody ? (
-        <>
-          {hasMessage && <ExpandableHtml html={sanitizeHtml(ann.message)} style={{ fontSize: 13.5, color: 'var(--ink2)', lineHeight: 1.55 }} />}
-          {ann.meetingLink && <a href={ann.meetingLink} target="_blank" rel="noreferrer" className="stream-link-chip"><Video size={12} /> Join Meeting</a>}
-          {ann.moduleLink && <a href={ann.moduleLink} target="_blank" rel="noreferrer" className="stream-link-chip"><BookOpen size={12} /> Module Link</a>}
-          {!hasMessage && ann.topics?.length > 0 && (
-            <ul style={{ marginTop: 4, paddingLeft: 20, listStyle: 'disc' }}>{ann.topics.map((t, i) => <li key={i}>{t}</li>)}</ul>
-          )}
-        </>
-      ) : null}
-    </PostShell>
+      statusBadge={statusBadge}
+      menuItems={menuItems}
+      viewerId={viewerId}
+      onToggleLike={onToggleLike}
+      commentAuthor={{ id: viewerId, name: author?.name || 'Professor', role: 'teacher' }}
+    />
   )
 }
 
@@ -605,7 +591,9 @@ function AttendanceCard({ item, classObj }) {
 }
 
 export default function StreamTab() {
-  const { classes, students, activities, quizzes, announcements, saveAnnouncement, deleteAnnouncement, fbReady } = useData()
+  const { classes, students, activities, quizzes, announcements, saveAnnouncement, deleteAnnouncement, fbReady, admin, toggleAnnouncementLike } = useData()
+  const author = useMemo(() => ({ name: admin?.name || admin?.user || 'Professor', photo: admin?.photo || null }), [admin?.name, admin?.user, admin?.photo])
+  const viewerId = admin?.user || 'admin'
   const { toast } = useUI()
   const [filterClass, setFilterClass] = useState('all')
   const [filterSubject, setFilterSubject] = useState('all')
@@ -615,7 +603,6 @@ export default function StreamTab() {
   const [formOpen, setFormOpen] = useState(false)
   const [editAnn,  setEditAnn]  = useState(null)
   const [deleteId, setDeleteId] = useState(null)
-  const [viewAnn,  setViewAnn]  = useState(null)
 
   const activeClasses = useMemo(() => classes.filter(c => !c.archived), [classes])
 
@@ -894,7 +881,9 @@ export default function StreamTab() {
               <AnnouncementCard
                 item={item}
                 classObj={classObj}
-                onOpen={() => setViewAnn(item.data)}
+                author={author}
+                viewerId={viewerId}
+                onToggleLike={toggleAnnouncementLike}
                 onEdit={() => { setEditAnn(item.data); setFormOpen(true) }}
                 onToggleActive={() => handleToggleActive(item.data)}
                 onTogglePin={() => handleTogglePin(item.data)}
@@ -911,14 +900,6 @@ export default function StreamTab() {
       <Pagination page={streamPage} total={streamItems.length} pageSize={PAGE_SIZE} onPrev={() => setStreamPage(p => p - 1)} onNext={() => setStreamPage(p => p + 1)} />
 
       {/* Announcement modals */}
-      {viewAnn && (
-        <AnnouncementDetailModal
-          ann={announcements.find(a => a.id === viewAnn.id) || viewAnn}
-          classes={classes}
-          onClose={() => setViewAnn(null)}
-          onEdit={ann => { setEditAnn(ann); setFormOpen(true) }}
-        />
-      )}
       {formOpen && (
         <AnnouncementFormModal
           ann={editAnn}
