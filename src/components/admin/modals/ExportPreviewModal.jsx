@@ -12,26 +12,34 @@ import {
   buildGradesWorkbook,
   buildAttendanceWorkbook,
   buildStudentWorkbook,
+  buildQuizData,
+  buildActivitiesData,
+  buildQuizPreviewHTML,
+  buildActivitiesPreviewHTML,
+  buildQuizWorkbook,
+  buildActivitiesWorkbook,
 } from '@/export/excelExport'
 import { courseShort } from '@/constants/courses'
 import {
   buildGradesPDFDoc,
   buildAttendancePDFDoc,
   buildStudentPDFDoc,
+  buildQuizPDFDoc,
+  buildActivitiesPDFDoc,
 } from '@/export/pdfExport'
 
 /**
  * Export preview modal - shows an HTML preview before download.
  *
  * Props:
- *  - type       {'grades' | 'attendance' | 'student'}
- *  - classId    {string}   - required for grades / attendance
+ *  - type       {'grades' | 'attendance' | 'student' | 'quiz' | 'activities'}
+ *  - classId    {string}   - required for grades / attendance / quiz / activities
  *  - subject    {string}   - required for grades / attendance
  *  - student    {object}   - required for student report
  *  - onClose    {function}
  */
 export default function ExportPreviewModal({ type, classId, subject, student: studentProp, onClose }) {
-  const { students, classes, eqScale } = useData()
+  const { students, classes, eqScale, quizzes, activities } = useData()
   const { toast } = useUI()
   const [downloading, setDownloading] = useState(false)
 
@@ -49,19 +57,30 @@ export default function ExportPreviewModal({ type, classId, subject, student: st
       if (type === 'student') {
         return buildStudentPreviewHTML(studentProp, classes, students, eqScale)
       }
+      if (type === 'quiz') {
+        return buildQuizPreviewHTML(buildQuizData(classId, students, classes, quizzes))
+      }
+      if (type === 'activities') {
+        return buildActivitiesPreviewHTML(buildActivitiesData(classId, students, classes, activities))
+      }
     } catch (e) {
       return `<p style="color:red;padding:16px">Error building preview: ${e.message}</p>`
     }
     return ''
-  }, [type, classId, subject, studentProp, students, classes, eqScale])
+  }, [type, classId, subject, studentProp, students, classes, eqScale, quizzes, activities])
 
   // ── Derive title / subtitle ─────────────────────────────────────────
   const cls = classId ? classes.find(c => c.id === classId) : null
+  const clsLabel = cls ? `${courseShort(cls.name)} ${cls.section || ''}`.trim() : ''
   const title = type === 'student'
     ? `Student Report - ${studentProp?.name || ''}`
     : type === 'grades'
-      ? `Grades - ${cls ? courseShort(cls.name) + ' ' + cls.section : ''} · ${subject || ''}`
-      : `Attendance - ${cls ? courseShort(cls.name) + ' ' + cls.section : ''} · ${subject || ''}`
+      ? `Grades - ${clsLabel} · ${subject || ''}`
+      : type === 'attendance'
+        ? `Attendance - ${clsLabel} · ${subject || ''}`
+        : type === 'quiz'
+          ? `Quiz Report - ${clsLabel}`
+          : `Activities Report - ${clsLabel}`
 
   // ── Download handlers ───────────────────────────────────────────────
   async function handleExcel() {
@@ -77,14 +96,23 @@ export default function ExportPreviewModal({ type, classId, subject, student: st
         wb = buildAttendanceWorkbook(data, students, classes)
       } else if (type === 'student') {
         wb = buildStudentWorkbook(studentProp, classes, students, eqScale)
+      } else if (type === 'quiz') {
+        wb = buildQuizWorkbook(buildQuizData(classId, students, classes, quizzes))
+      } else if (type === 'activities') {
+        wb = buildActivitiesWorkbook(buildActivitiesData(classId, students, classes, activities))
       }
       if (wb) {
         const today = new Date().toISOString().slice(0, 10)
+        const sec = cls?.section || 'class'
         const base = type === 'student'
           ? `Report_${(studentProp?.name || 'student').replace(/\s+/g, '_')}`
           : type === 'grades'
-            ? `Grades_${(cls?.section || 'class')}_${subject || 'all'}`
-            : `Attendance_${(cls?.section || 'class')}_${subject || 'all'}`
+            ? `Grades_${sec}_${subject || 'all'}`
+            : type === 'attendance'
+              ? `Attendance_${sec}_${subject || 'all'}`
+              : type === 'quiz'
+                ? `QuizReport_${sec}`
+                : `ActivitiesReport_${sec}`
         window.XLSX.writeFile(wb, `${base}_${today}.xlsx`)
       }
     } catch (e) {
@@ -105,6 +133,10 @@ export default function ExportPreviewModal({ type, classId, subject, student: st
         buildAttendancePDFDoc(data, students, classes)
       } else if (type === 'student') {
         buildStudentPDFDoc(studentProp, classes, students, eqScale)
+      } else if (type === 'quiz') {
+        buildQuizPDFDoc(buildQuizData(classId, students, classes, quizzes))
+      } else if (type === 'activities') {
+        buildActivitiesPDFDoc(buildActivitiesData(classId, students, classes, activities))
       }
     } catch (e) {
       toast('PDF failed: ' + e.message, 'error')

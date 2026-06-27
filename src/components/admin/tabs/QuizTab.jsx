@@ -283,7 +283,7 @@ function ImportResponseModal({ onClose, onImported }) {
           value={jsonInput}
           onChange={e => setJsonInput(e.target.value)}
           placeholder={'[\n  {"type":"multiple_choice","question":"...","options":[...],"answer":"..."},\n  ...\n]'}
-          style={{ fontFamily: 'monospace', fontSize: 12 }}
+          style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
           autoFocus
         />
       </div>

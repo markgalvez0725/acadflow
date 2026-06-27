@@ -13,7 +13,8 @@ import {
 } from '@/firebase/persistence'
 import { fbPushReminderNotif } from '@/firebase/reminders'
 import { serializeStudents } from '@/utils/attendance'
-import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase, saveSemesterToFirebase, saveLatePolicyToFirebase, saveGradeFloorToFirebase } from '@/firebase/settings'
+import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase, saveSemesterToFirebase, saveLatePolicyToFirebase, saveGradeFloorToFirebase, saveBrandingToFirebase } from '@/firebase/settings'
+import { setReportBranding } from '@/export/reportTemplate'
 import { DEFAULT_LATE_POLICY, normalizeLatePolicy } from '@/utils/latePenalty'
 import { sendPushToOwners } from '@/firebase/pushTokens'
 import {
@@ -62,6 +63,9 @@ export function DataProvider({ children }) {
   const [latePolicy, setLatePolicy]     = useState(DEFAULT_LATE_POLICY)
   // Minimum-component-grade floor (0 = off). Applies to activities & quizzes.
   const [gradeFloor, setGradeFloor]     = useState(0)
+  // School branding used on every exported report (school name, department,
+  // address, base64 PNG/JPG logo). null = none set; exports fall back to AcadFlow.
+  const [branding, setBranding]         = useState(null)
   const [admin, setAdmin]               = useState({ user: 'admin', pass: 'Admin@1234', email: 'admin@school.edu', resetPin: null })
 
   const _bootstrapping = useRef(false)
@@ -114,6 +118,7 @@ export function DataProvider({ children }) {
         if (settings?.semester) setSemester(settings.semester)
         if (settings?.latePolicy) setLatePolicy(normalizeLatePolicy(settings.latePolicy))
         if (typeof settings?.gradeFloor === 'number') setGradeFloor(settings.gradeFloor)
+        if (settings?.branding) setBranding(settings.branding)
       } catch (e) {}
 
       // Real-time listeners.
@@ -144,6 +149,7 @@ export function DataProvider({ children }) {
           if (data?.semester) setSemester(data.semester)
           if (data?.latePolicy) setLatePolicy(normalizeLatePolicy(data.latePolicy))
           if (typeof data?.gradeFloor === 'number') setGradeFloor(data.gradeFloor)
+          if (data?.branding) setBranding(data.branding)
         },
       })
     }
@@ -201,6 +207,7 @@ export function DataProvider({ children }) {
         if (data?.semester) setSemester(data.semester)
         if (data?.latePolicy) setLatePolicy(normalizeLatePolicy(data.latePolicy))
         if (typeof data?.gradeFloor === 'number') setGradeFloor(data.gradeFloor)
+        if (data?.branding) setBranding(data.branding)
       },
     })
     return true
@@ -439,9 +446,9 @@ export function DataProvider({ children }) {
       excuseRequests,
       adminNotifs,   // included for record; not written back on restore
       auditLog,      // included for record; not written back on restore
-      settings: { equivScale: eqScale, semester, latePolicy, gradeFloor },
+      settings: { equivScale: eqScale, semester, latePolicy, gradeFloor, branding },
     },
-  }), [students, classes, messages, activities, quizzes, announcements, meetings, attendanceSessions, excuseRequests, adminNotifs, auditLog, eqScale, semester, latePolicy, gradeFloor])
+  }), [students, classes, messages, activities, quizzes, announcements, meetings, attendanceSessions, excuseRequests, adminNotifs, auditLog, eqScale, semester, latePolicy, gradeFloor, branding])
 
   const restoreBackup = useCallback(async (backup, onProgress) => {
     await fbRestoreFromBackup(dbRef.current, backup, onProgress)
@@ -468,6 +475,21 @@ export function DataProvider({ children }) {
     setGradeFloor(n)
     try { await saveGradeFloorToFirebase(dbRef.current, n) } catch (e) {
       console.warn('[DataContext] saveGradeFloor Firebase sync failed:', e.message)
+      throw e
+    }
+  }, [])
+
+  // Keep the export engine's branding cache in sync so every PDF/Excel report
+  // (including direct exports that don't pass branding) is branded.
+  useEffect(() => { setReportBranding(branding) }, [branding])
+
+  // Branding for exports (school name, department, address, base64 logo).
+  // Optimistic local set, then persist (strict: rethrow so the UI can surface).
+  const saveBranding = useCallback(async (b) => {
+    const next = b || null
+    setBranding(next)
+    try { await saveBrandingToFirebase(dbRef.current, next) } catch (e) {
+      console.warn('[DataContext] saveBranding Firebase sync failed:', e.message)
       throw e
     }
   }, [])
@@ -1220,6 +1242,7 @@ export function DataProvider({ children }) {
       eqScale, saveEquivScale,
       latePolicy, saveLatePolicy,
       gradeFloor, saveGradeFloor,
+      branding, saveBranding,
       buildBackup, restoreBackup,
       semester, saveSemester,
       admin, setAdmin, saveAdmin,

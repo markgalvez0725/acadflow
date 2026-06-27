@@ -158,7 +158,7 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
       .sset-grp-lbl { font-size:12px; color:var(--ink3); margin:0 0 6px 4px }
       .sset-back { display:inline-flex; align-items:center; gap:4px; background:none; border:none; cursor:pointer; color:var(--ink2); font-size:13px; font-weight:600; padding:0; margin-bottom:8px }
       .sset-back:hover { color:var(--ink) }
-      .sset-h { font-size:18px; font-weight:700; color:var(--ink); font-family:'Cormorant Garamond',Georgia,serif }
+      .sset-h { font-size:18px; font-weight:700; color:var(--ink); font-family:var(--font-display) }
       .sset-search { display:flex; align-items:center; gap:8px; background:var(--surface2); border:1px solid var(--border); border-radius:999px; padding:8px 14px; margin-bottom:18px }
       .sset-search input { border:none; background:none; outline:none; flex:1; font-size:13px; color:var(--ink) }
       .sset-x { position:absolute; top:14px; right:14px; z-index:2; background:none; border:none; cursor:pointer; color:var(--ink3); display:flex; padding:4px; border-radius:8px }

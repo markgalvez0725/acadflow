@@ -1030,7 +1030,7 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="font-semibold text-sm truncate">{st.name}</div>
-                  <div className="text-xs text-ink3 truncate" style={{ fontFamily: 'monospace' }}>{st.id}</div>
+                  <div className="text-xs text-ink3 truncate" style={{ fontFamily: 'var(--font-mono)' }}>{st.id}</div>
                 </div>
                 <span className="font-bold text-sm flex-shrink-0" style={{ color: tier.fg }}>{rateDisplay}</span>
               </div>

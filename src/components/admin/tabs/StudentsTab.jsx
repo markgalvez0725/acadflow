@@ -1524,7 +1524,7 @@ export default function StudentsTab() {
                           <span className="truncate">{s.name}</span>
                           <VerifiedBadge student={s} size={14} />
                         </div>
-                        <div className="stu-year-text truncate" style={{ fontFamily: 'monospace' }}>{s.id}{s.year ? ` · ${s.year}` : ''}</div>
+                        <div className="stu-year-text truncate" style={{ fontFamily: 'var(--font-mono)' }}>{s.id}{s.year ? ` · ${s.year}` : ''}</div>
                       </div>
                     </button>
                     <div className="flex items-center gap-1 shrink-0">

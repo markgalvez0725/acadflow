@@ -294,7 +294,7 @@ function RecordRow({ rec, expanded, onToggle, onSync, busy }) {
                     <div style={{ fontSize: 11.5, color: 'var(--ink2)' }}>
                       Final {r1(h.final)}{h.midterm != null ? ` · MT ${r1(h.midterm)}` : ''}{h.finals != null ? ` · FT ${r1(h.finals)}` : ''}{h.seeded ? ' · from snapshot' : ''}
                     </div>
-                    {h.hash && <div style={{ fontSize: 10.5, color: 'var(--ink3)', fontFamily: 'monospace' }}>{h.hash}</div>}
+                    {h.hash && <div style={{ fontSize: 10.5, color: 'var(--ink3)', fontFamily: 'var(--font-mono)' }}>{h.hash}</div>}
                   </div>
                 ))}
               </div>

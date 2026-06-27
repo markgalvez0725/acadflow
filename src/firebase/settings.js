@@ -20,6 +20,7 @@ export async function syncSettingsFromFirebase(db) {
     if (d?.semester) result.semester = d.semester;
     if (d?.latePolicy && typeof d.latePolicy === 'object') result.latePolicy = d.latePolicy;
     if (typeof d?.gradeFloor === 'number') result.gradeFloor = d.gradeFloor;
+    if (d?.branding && typeof d.branding === 'object') result.branding = d.branding;
     return result;
   } catch (e) {
     if (!e.message?.includes('offline')) console.warn('[Firebase] Settings sync failed:', e.message);
@@ -40,6 +41,13 @@ export async function saveLatePolicyToFirebase(db, latePolicy) {
 export async function saveGradeFloorToFirebase(db, gradeFloor) {
   if (!db) return;
   await fbWithTimeout(setDoc(doc(db, 'portal', 'settings'), { gradeFloor }, { merge: true }));
+}
+
+// Branding for report exports: { schoolName, department, address, logo } where
+// `logo` is a base64 PNG/JPG data URL (kept well under Firestore's 1 MB doc cap).
+export async function saveBrandingToFirebase(db, branding) {
+  if (!db) return;
+  await fbWithTimeout(setDoc(doc(db, 'portal', 'settings'), { branding: branding || null }, { merge: true }));
 }
 
 export async function saveSettingsToFirebase(db, equivScale) {

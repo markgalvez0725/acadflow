@@ -1036,7 +1036,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
           </div>
           <textarea
             className="input"
-            style={{ width: '100%', minHeight: 120, fontFamily: 'monospace', fontSize: 12 }}
+            style={{ width: '100%', minHeight: 120, fontFamily: 'var(--font-mono)', fontSize: 12 }}
             placeholder={'20241234\t85\n20241235, 90\nDela Cruz   78'}
             value={pasteText}
             onChange={e => setPasteText(e.target.value)}

@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 @keyframes loadbar-shimmer {
   0%   { background-position: 200% center; }
@@ -73,9 +73,9 @@
   --color-gold-var:  var(--gold-var);
   --color-gold-l:    var(--gold-l);
 
-  --font-display: 'DM Serif Display', Georgia, serif;
-  --font-body:    'Outfit', 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
-  --font-mono:    'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-body:    'Lexend', system-ui, sans-serif;
+  --font-mono:    'Lexend', system-ui, sans-serif;
 
   --radius:    13px;
   --radius-lg: 18px;
@@ -147,9 +147,9 @@
   --shadow-lg: 0 14px 44px rgba(24,27,48,.12), 0 3px 10px rgba(24,27,48,.05);
   --shadow-xl: 0 28px 70px rgba(24,27,48,.16), 0 6px 18px rgba(24,27,48,.08);
   --shadow-colored: 0 10px 30px rgba(80,70,228,.20);
-  --font-display: 'DM Serif Display', Georgia, serif;
-  --font-body:    'Outfit', 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
-  --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
+  --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-body:    'Lexend', system-ui, sans-serif;
+  --font-mono:    'Lexend', system-ui, sans-serif;
   --theme-icon: '☀️';
   --surface-rgb: 255,255,255;
   --ease-spring: cubic-bezier(.34,1.56,.64,1);
@@ -2181,7 +2181,7 @@ textarea.input { resize: vertical; }
   color: var(--ink2);
   font-size: 0.7813rem;
   font-weight: 600;
-  font-family: monospace;
+  font-family: var(--font-mono);
   letter-spacing: .02em;
 }
 .stu-course-cell { font-size: 0.8438rem; color: var(--ink2); }
@@ -3944,8 +3944,8 @@ body::before { display: none !important; }
 .card { box-shadow: var(--shadow); }
 .card:hover { transform: none; box-shadow: var(--shadow-lg); }
 
-/* Crisp sans headings (drop the editorial serif) + navy brand wordmark */
-h1, h2, h3 { font-family: var(--font-body); letter-spacing: -.02em; }
+/* Headings use the display sans (Plus Jakarta Sans); body uses Lexend */
+h1, h2, h3 { font-family: var(--font-display); letter-spacing: -.02em; }
 .acadflow-wordmark { color: var(--accent); }
 
 /* Flat, solid navy primary buttons */
@@ -5335,7 +5335,7 @@ html[data-glass="on"][data-theme="dark"] body::before {
   display: flex; align-items: center; justify-content: center;
   font-size: 13px; font-weight: 700;
 }
-.ds-stud-id { font-size: 12px; color: var(--ink3); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.ds-stud-id { font-size: 12px; color: var(--ink3); font-family: var(--font-mono); }
 .ds-glance { display: flex; justify-content: center; padding: 10px 0 4px; }
 .ds-glance svg { width: clamp(150px, 42vw, 190px); height: auto; }
 @media (max-width: 420px) {

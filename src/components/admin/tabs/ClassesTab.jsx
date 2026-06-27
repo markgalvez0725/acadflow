@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, lazy, Suspense } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Badge from '@/components/primitives/Badge'
@@ -9,6 +9,8 @@ import { Plus, Pencil, School, Archive, ArchiveRestore, CalendarDays, Users, Loc
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { buildClassReportCards } from '@/export/reportCard'
 import { courseOptions, courseShort } from '@/constants/courses'
+
+const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
 
 const PER_PAGE = 12
 
@@ -368,6 +370,8 @@ export default function ClassesTab() {
   const [togglingId, setTogglingId] = useState(null)
   const [search, setSearch] = useState('')
   const [reportingId, setReportingId] = useState(null)
+  // { type: 'quiz' | 'activities', classId } for the per-class export preview.
+  const [exportReport, setExportReport] = useState(null)
 
   // Unique subjects across the visible (active/archived) classes - for the filter.
   const allSubjects = useMemo(() => {
@@ -631,6 +635,8 @@ export default function ClassesTab() {
                         !cls.archived && { label: <><Pencil size={13} className="inline-block mr-2 align-text-bottom" />Edit</>, onClick: () => setEditClass(cls) },
                         !cls.archived && { label: <><Copy size={13} className="inline-block mr-2 align-text-bottom" />Duplicate</>, onClick: () => duplicateClass(cls) },
                         { label: <><FileText size={13} className="inline-block mr-2 align-text-bottom" />Report cards</>, onClick: () => handleReportCards(cls) },
+                        { label: <><FileText size={13} className="inline-block mr-2 align-text-bottom" />Quiz report</>, onClick: () => setExportReport({ type: 'quiz', classId: cls.id }) },
+                        { label: <><FileText size={13} className="inline-block mr-2 align-text-bottom" />Activities report</>, onClick: () => setExportReport({ type: 'activities', classId: cls.id }) },
                         {
                           label: cls.archived
                             ? <><ArchiveRestore size={13} className="inline-block mr-2 align-text-bottom" />Unarchive</>
@@ -704,6 +710,15 @@ export default function ClassesTab() {
         />
       )}
       {editClass && <EditClassModal cls={editClass} onClose={() => setEditClass(null)} />}
+      {exportReport && (
+        <Suspense fallback={null}>
+          <ExportPreviewModal
+            type={exportReport.type}
+            classId={exportReport.classId}
+            onClose={() => setExportReport(null)}
+          />
+        </Suspense>
+      )}
     </div>
   )
 }

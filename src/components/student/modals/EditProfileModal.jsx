@@ -362,7 +362,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
             <ChevronLeft size={16} /> Back
           </button>
         )}
-        {!embedded && <h3 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: 20, marginBottom: forced ? 6 : 20 }}>{forced ? 'Complete your profile' : 'Edit Profile'}</h3>}
+        {!embedded && <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 20, marginBottom: forced ? 6 : 20 }}>{forced ? 'Complete your profile' : 'Edit Profile'}</h3>}
         {forced && (
           <p style={{ fontSize: 12.5, color: 'var(--ink2)', marginBottom: 18, lineHeight: 1.5 }}>
             Review your details and add a photo to finish setting up your account. You can update these again later.

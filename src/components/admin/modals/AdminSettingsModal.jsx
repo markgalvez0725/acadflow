@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
-import { Lightbulb, Download, Upload, ShieldCheck, CalendarDays, KeyRound, Bell, Scale, Clock, DatabaseBackup, Flame, Palette } from 'lucide-react'
+import { Lightbulb, Download, Upload, ShieldCheck, CalendarDays, KeyRound, Bell, Scale, Clock, DatabaseBackup, Flame, Palette, Building2, Trash2 } from 'lucide-react'
 import SettingsShell from '@/components/primitives/SettingsShell'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 import FieldCheck, { SaveStatus, SmartCheckTag } from '@/components/primitives/FieldCheck'
@@ -577,7 +577,7 @@ function FirebaseTab() {
             {FB_FIELDS.map(({ key, label }) => (
               <div key={key} className="flex gap-2" style={{ alignItems: 'center' }}>
                 <span style={{ fontSize: 12, color: 'var(--ink3)', width: 140, flexShrink: 0 }}>{label}</span>
-                <span style={{ fontSize: 12, color: 'var(--ink)', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                <span style={{ fontSize: 12, color: 'var(--ink)', fontFamily: 'var(--font-mono)', wordBreak: 'break-all' }}>
                   {key === 'apiKey' ? '••••••••••••••••' : (envConfig[key] || '-')}
                 </span>
               </div>
@@ -717,6 +717,130 @@ function LatePolicyTab() {
   )
 }
 
+// ── Branding Tab (report exports) ───────────────────────────────────────────
+// Downscale + re-encode an uploaded image entirely on-device so the stored
+// base64 logo stays small (Firestore docs cap at 1 MB). Returns the data URL
+// plus the scaled width/height (used only for PDF aspect-ratio sizing).
+function downscaleImage(file, maxDim = 480) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('read'))
+    reader.onload = () => {
+      const img = new window.Image()
+      img.onerror = () => reject(new Error('decode'))
+      img.onload = () => {
+        let w = img.naturalWidth || img.width
+        let h = img.naturalHeight || img.height
+        const scale = Math.min(1, maxDim / Math.max(w, h || 1))
+        w = Math.max(1, Math.round(w * scale))
+        h = Math.max(1, Math.round(h * scale))
+        const canvas = document.createElement('canvas')
+        canvas.width = w; canvas.height = h
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+        const isPng = /png/i.test(file.type)
+        const dataUrl = canvas.toDataURL(isPng ? 'image/png' : 'image/jpeg', isPng ? undefined : 0.85)
+        resolve({ dataUrl, w, h })
+      }
+      img.src = reader.result
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
+function BrandingTab() {
+  const { branding, saveBranding } = useData()
+  const { toast } = useUI()
+  const [schoolName, setSchoolName] = useState(branding?.schoolName || '')
+  const [department, setDepartment] = useState(branding?.department || '')
+  const [address, setAddress]       = useState(branding?.address || '')
+  const [logo, setLogo]             = useState(branding?.logo || null)
+  const [dims, setDims]             = useState({ w: branding?.logoW || 0, h: branding?.logoH || 0 })
+  const [saving, setSaving]         = useState(false)
+  const fileRef = useRef(null)
+
+  async function handleFile(e) {
+    const f = e.target.files?.[0]
+    if (fileRef.current) fileRef.current.value = ''
+    if (!f) return
+    if (!/^image\/(png|jpe?g)$/i.test(f.type)) { toast('Logo must be a PNG or JPG image.', 'red'); return }
+    try {
+      const { dataUrl, w, h } = await downscaleImage(f, 480)
+      setLogo(dataUrl); setDims({ w, h })
+    } catch { toast('Could not read that image. Try another file.', 'red') }
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      const has = schoolName.trim() || department.trim() || address.trim() || logo
+      const payload = has ? {
+        schoolName: schoolName.trim(),
+        department: department.trim(),
+        address: address.trim(),
+        logo: logo || null,
+        logoW: dims.w, logoH: dims.h,
+      } : null
+      await saveBranding(payload)
+      toast('Branding saved. New exports will use it.', 'green')
+    } catch (e) {
+      toast('Saved locally - sync failed: ' + e.message, 'red')
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div>
+      <p className="modal-sub" style={{ marginBottom: 14 }}>
+        Shown on the header of every exported report (grades, attendance, quiz, activities,
+        and student profile). Leave blank to fall back to the AcadFlow header.
+      </p>
+
+      <div className="field">
+        <label>School / university name</label>
+        <input type="text" value={schoolName} onChange={e => setSchoolName(e.target.value)} placeholder="Saint Bernadette College of Valenzuela" maxLength={120} />
+      </div>
+      <div className="field">
+        <label>Department / office</label>
+        <input type="text" value={department} onChange={e => setDepartment(e.target.value)} placeholder="Office of the Registrar" maxLength={120} />
+      </div>
+      <div className="field">
+        <label>Address</label>
+        <input type="text" value={address} onChange={e => setAddress(e.target.value)} placeholder="123 Maria Clara St, Valenzuela City" maxLength={160} />
+      </div>
+
+      <div className="field">
+        <label>University logo</label>
+        <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+          <div style={{ width: 64, height: 64, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+            {logo
+              ? <img src={logo} alt="Logo preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+              : <span style={{ fontSize: 10, color: 'var(--ink3)' }}>none</span>}
+          </div>
+          <div style={{ flex: 1 }}>
+            <input ref={fileRef} type="file" accept="image/png,image/jpeg" onChange={handleFile} style={{ display: 'none' }} />
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => fileRef.current?.click()}>
+                <Upload size={13} className="inline-block mr-1" />{logo ? 'Replace logo' : 'Upload logo'}
+              </button>
+              {logo && (
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setLogo(null); setDims({ w: 0, h: 0 }) }}>
+                  <Trash2 size={13} className="inline-block mr-1" />Remove
+                </button>
+              )}
+            </div>
+            <div className="text-xs text-ink3 mt-1">PNG or JPG only. Square works best; resized on-device for a crisp header.</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="modal-footer">
+        <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving}>
+          {saving ? 'Saving…' : 'Save branding'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Backup / Restore Tab ───────────────────────────────────────────────────
 function DataTab() {
   const { buildBackup, restoreBackup, fbReady } = useData()
@@ -843,6 +967,9 @@ export default function AdminSettingsModal({ onClose, push }) {
       { id: 'semester', Icon: CalendarDays, label: 'Semester and enrollment', sub: 'Term, year, open or close classes', panel: () => <SemesterTab /> },
       { id: 'eq',       Icon: Scale,        label: 'Grade equivalency scale', sub: 'Score to equivalent mapping',       panel: () => <EquivScaleTab /> },
       { id: 'late',     Icon: Clock,        label: 'Grading rules',           sub: 'Late penalty, minimum grade floor', panel: () => <LatePolicyTab /> },
+    ] },
+    { title: 'Reports and branding', rows: [
+      { id: 'branding', Icon: Building2, label: 'Report branding', sub: 'Logo, school name, department, address', panel: () => <BrandingTab /> },
     ] },
     { title: 'Notifications', rows: [
       { id: 'notifs', Icon: Bell, label: 'Push notifications', sub: 'Browser alerts on this device', panel: () => <NotificationsTab push={push} /> },

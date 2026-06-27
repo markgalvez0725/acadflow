@@ -16,6 +16,7 @@ import { splitStudentName, buildStudentName } from '@/utils/studentName.js'
 import { courseShort } from '@/utils/groupChat.js'
 import { courseFromShort, COURSES } from '@/constants/courses.js'
 import { isClassCurrent, activeSubjects } from '@/utils/active.js'
+import { brandingTitleRows } from '@/export/reportTemplate.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -1271,4 +1272,139 @@ export function buildStudentPreviewHTML(s, classes, students, eqScale = DEFAULT_
       </div>
     </div>
   `
+}
+
+// ── Quiz & Activities reports (per class) ──────────────────────────────────
+// A score matrix: one row per student, one column per quiz / activity in the
+// class, plus an Average (%). Shares the same { cls, headers, rows, summaryRow }
+// shape as grades/attendance so the PDF engine and preview can reuse it.
+
+function scoreMatrixData(cls, roster, items, scoreOf, maxOf, labelOf) {
+  const headers = ['Student Name', 'Student No.', 'Course', 'Year',
+    ...items.map(labelOf), 'Average (%)']
+
+  const rows = roster.map(s => {
+    const cells = items.map(it => {
+      const sc = scoreOf(it, s)
+      return (typeof sc === 'number') ? sc : '-'
+    })
+    const pcts = items.map((it, i) => {
+      const sc = cells[i], max = maxOf(it)
+      return (typeof sc === 'number' && max > 0) ? (sc / max) * 100 : null
+    }).filter(n => n != null)
+    const avg = pcts.length ? pcts.reduce((a, b) => a + b, 0) / pcts.length : null
+    return [s.name, s.id, courseShort(s.course) || '', s.year || '', ...cells, avg != null ? avg.toFixed(1) : '-']
+  })
+
+  const itemAvgs = items.map((it, qi) => {
+    const vals = rows.map(r => parseFloat(r[4 + qi])).filter(n => !isNaN(n))
+    return vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : '-'
+  })
+  const overallPcts = rows.map(r => parseFloat(r[r.length - 1])).filter(n => !isNaN(n))
+  const overall = overallPcts.length ? (overallPcts.reduce((a, b) => a + b, 0) / overallPcts.length).toFixed(1) : '-'
+  const summaryRow = ['CLASS AVERAGE', '', '', '', ...itemAvgs, overall]
+
+  return { cls, headers, rows, summaryRow, items }
+}
+
+const quizTotal = q => (typeof q.totalPoints === 'number' && q.totalPoints > 0) ? q.totalPoints : (q.questions?.length || 0)
+const actMax    = a => (typeof a.maxScore === 'number' && a.maxScore > 0) ? a.maxScore : 100
+
+export function buildQuizData(classId, students, classes, quizzes = []) {
+  const cls = classes.find(c => c.id === classId)
+  if (!cls) return null
+  const roster = sortByLastName(getClassStudents(classId, students))
+  const items = (quizzes || [])
+    .filter(q => (q.classIds || []).includes(classId))
+    .sort((a, b) => (a.openAt || 0) - (b.openAt || 0) || String(a.title || '').localeCompare(String(b.title || '')))
+  return scoreMatrixData(
+    cls, roster, items,
+    (q, s) => (q.submissions || {})[s.id]?.score,
+    quizTotal,
+    q => `${q.title || 'Quiz'} (/${quizTotal(q)})`,
+  )
+}
+
+export function buildActivitiesData(classId, students, classes, activities = []) {
+  const cls = classes.find(c => c.id === classId)
+  if (!cls) return null
+  const roster = sortByLastName(getClassStudents(classId, students))
+  const items = (activities || [])
+    .filter(a => a.classId === classId)
+    .sort((a, b) => (a.deadline || 0) - (b.deadline || 0) || String(a.title || '').localeCompare(String(b.title || '')))
+  return scoreMatrixData(
+    cls, roster, items,
+    (a, s) => (a.submissions || {})[s.id]?.score,
+    actMax,
+    a => `${a.title || 'Activity'}${a.subject ? ' [' + a.subject + ']' : ''} (/${actMax(a)})`,
+  )
+}
+
+// Shared preview HTML for a score matrix (Average (%) column is color-coded).
+function scoreMatrixPreviewHTML(data, { title, headBg, headBorder }) {
+  const { cls, headers, rows, summaryRow } = data
+  if (!rows.length) return `<p style="padding:16px;font-family:sans-serif">No students enrolled in this class.</p>`
+  if (headers.length <= 5) return `<p style="padding:16px;font-family:sans-serif">No ${title.toLowerCase()} found for ${cls.name || cls.id} yet.</p>`
+
+  const pctColor = val => {
+    const n = parseFloat(val)
+    if (isNaN(n)) return ''
+    if (n >= 75) return ';background:#dcfce7;color:#166534'
+    if (n >= 50) return ';background:#fef9c3;color:#854d0e'
+    return ';background:#fee2e2;color:#991b1b'
+  }
+  const thStyle = `padding:6px 10px;background:${headBg};color:#fff;font-size:11px;white-space:nowrap;border:1px solid ${headBorder}`
+  const tdStyle = 'padding:5px 8px;font-size:11px;border:1px solid #e5e7eb;white-space:nowrap'
+  const lastIdx = headers.length - 1
+
+  const ths = headers.map(h => `<th style="${thStyle}">${h}</th>`).join('')
+  const trs = rows.map(row => {
+    const tds = row.map((cell, i) => `<td style="${tdStyle}${i === lastIdx ? pctColor(cell) : ''}">${cell ?? ''}</td>`).join('')
+    return `<tr>${tds}</tr>`
+  }).join('')
+  const sumTds = summaryRow.map((cell, i) => `<td style="${tdStyle};font-weight:700${i === lastIdx ? pctColor(cell) : ''}">${cell ?? ''}</td>`).join('')
+
+  return `
+    <h3 style="font-size:13px;margin:0 0 8px;font-weight:700;font-family:sans-serif">${cls.name || cls.id} - ${title}</h3>
+    <div style="overflow-x:auto">
+      <table style="border-collapse:collapse;min-width:600px;font-family:sans-serif">
+        <thead><tr>${ths}</tr></thead>
+        <tbody>${trs}<tr>${sumTds}</tr></tbody>
+      </table>
+    </div>
+  `
+}
+
+export function buildQuizPreviewHTML(data) {
+  return scoreMatrixPreviewHTML(data, { title: 'Quiz Report', headBg: '#5046e4', headBorder: '#4338ca' })
+}
+export function buildActivitiesPreviewHTML(data) {
+  return scoreMatrixPreviewHTML(data, { title: 'Activities Report', headBg: '#b45309', headBorder: '#92400e' })
+}
+
+// Workbooks (SheetJS) with branded title rows prepended.
+function scoreMatrixWorkbook(data, sheetName, reportTitle) {
+  const XLSX = window.XLSX
+  if (!XLSX || !data) return null
+  const { cls, headers, rows, summaryRow } = data
+  const subtitle = `${cls.name || cls.id}${cls.section ? ' - ' + cls.section : ''}`
+  const aoa = [
+    ...brandingTitleRows(reportTitle, subtitle),
+    [],
+    headers,
+    ...rows,
+    summaryRow,
+  ]
+  const ws = XLSX.utils.aoa_to_sheet(aoa)
+  ws['!cols'] = headers.map((h, i) => ({ wch: i === 0 ? 26 : Math.max(10, String(h).length + 2) }))
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, sheetName)
+  return wb
+}
+
+export function buildQuizWorkbook(data) {
+  return scoreMatrixWorkbook(data, 'Quiz Report', 'Quiz Report')
+}
+export function buildActivitiesWorkbook(data) {
+  return scoreMatrixWorkbook(data, 'Activities Report', 'Activities Report')
 }
