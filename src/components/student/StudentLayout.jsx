@@ -123,7 +123,6 @@ const EditProfileModal         = lazy(() => import('./modals/EditProfileModal'))
 const AccountVerifiedModal     = lazy(() => import('./modals/AccountVerifiedModal'))
 const ForceChangePasswordModal = lazy(() => import('./modals/ForceChangePasswordModal'))
 const StudentActionSheet       = lazy(() => import('./modals/StudentActionSheet'))
-const NotifPrefsModal          = lazy(() => import('./modals/NotifPrefsModal'))
 const SetQuickPinModal         = lazy(() => import('./modals/SetQuickPinModal'))
 const BiometricSetupModal      = lazy(() => import('./modals/BiometricSetupModal'))
 const FaceEnrollModal          = lazy(() => import('./modals/FaceEnrollModal'))
@@ -285,7 +284,6 @@ export default function StudentLayout() {
   }, [student?.account?.needsProfileSetup, student?.account?._tempPass])
 
   const [actionSheetOpen, setActionSheetOpen] = useState(false)
-  const [notifPrefsOpen, setNotifPrefsOpen] = useState(false)
   const [pinModalOpen, setPinModalOpen] = useState(false)
   const [bioModalOpen, setBioModalOpen] = useState(false)
   const [faceModalOpen, setFaceModalOpen] = useState(false)
@@ -716,9 +714,7 @@ export default function StudentLayout() {
         <StudentActionSheet
           open={actionSheetOpen}
           onClose={() => setActionSheetOpen(false)}
-          onEditProfile={() => setProfileOpen(true)}
           onChangePassword={() => { setForcePassIsForced(false); setForcePassOpen(true) }}
-          onNotifPrefs={() => setNotifPrefsOpen(true)}
           onSetPin={() => setPinModalOpen(true)}
           onBiometric={() => setBioModalOpen(true)}
           onFaceReset={() => setFaceModalOpen(true)}
@@ -728,12 +724,6 @@ export default function StudentLayout() {
           push={push}
         />
       </Suspense>
-
-      {notifPrefsOpen && (
-        <Suspense fallback={null}>
-          <NotifPrefsModal student={student} onClose={() => setNotifPrefsOpen(false)} />
-        </Suspense>
-      )}
 
       {notifyPromptOpen && (
         <Suspense fallback={null}>

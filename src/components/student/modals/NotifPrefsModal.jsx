@@ -12,7 +12,7 @@ import { ChevronLeft } from 'lucide-react'
  * effect immediately because notifications are filtered by these prefs at
  * display time. A Back button returns to the settings sheet.
  */
-export default function NotifPrefsModal({ student: s, onClose }) {
+export default function NotifPrefsModal({ student: s, onClose, embedded = false }) {
   const { students, saveStudents, db, fbReady } = useData()
   const { setCurrentStudent } = useAuth()
 
@@ -42,19 +42,27 @@ export default function NotifPrefsModal({ student: s, onClose }) {
     return () => clearTimeout(t)
   }, [prefs]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  return (
-    <Modal size="sm" onClose={onClose}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <button type="button" onClick={onClose} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink2)', fontSize: 13, fontWeight: 600, padding: 0 }}>
-          <ChevronLeft size={16} /> Back
-        </button>
-        <SaveStatus status={status} />
-      </div>
-
-      <ModalHeader
-        title="Notification preferences"
-        subtitle="Choose what you'd like to be notified about. Changes save automatically."
-      />
+  const inner = (
+    <>
+      {embedded ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <span style={{ fontSize: 13, color: 'var(--ink3)' }}>Changes save automatically.</span>
+          <SaveStatus status={status} />
+        </div>
+      ) : (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <button type="button" onClick={onClose} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink2)', fontSize: 13, fontWeight: 600, padding: 0 }}>
+              <ChevronLeft size={16} /> Back
+            </button>
+            <SaveStatus status={status} />
+          </div>
+          <ModalHeader
+            title="Notification preferences"
+            subtitle="Choose what you'd like to be notified about. Changes save automatically."
+          />
+        </>
+      )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {NOTIF_CATEGORIES.map(cat => {
@@ -84,6 +92,9 @@ export default function NotifPrefsModal({ student: s, onClose }) {
           )
         })}
       </div>
-    </Modal>
+    </>
   )
+
+  if (embedded) return inner
+  return <Modal size="sm" onClose={onClose}>{inner}</Modal>
 }

@@ -46,7 +46,7 @@ function buildStudentName(surname, first, middle) {
   return (sur ? `${sur}, ${fm}`.replace(/,\s*$/, '') : fm).toUpperCase()
 }
 
-export default function EditProfileModal({ student: s, onClose, forced = false }) {
+export default function EditProfileModal({ student: s, onClose, forced = false, embedded = false }) {
   const { students, saveStudents, db } = useData()
   const { setCurrentStudent, logout } = useAuth()
   const { toast } = useUI()
@@ -330,16 +330,16 @@ export default function EditProfileModal({ student: s, onClose, forced = false }
     }
   }
 
-  return (
-    <Modal onClose={forced ? undefined : onClose}>
+  const inner = (
+    <>
       <style>{`@keyframes epfSlideIn{from{transform:translateX(22px);opacity:.35}to{transform:translateX(0);opacity:1}} .epf-slide{animation:epfSlideIn .22s ease both}`}</style>
-      <div className="epf-slide">
-        {!forced && (
+      <div className={embedded ? '' : 'epf-slide'}>
+        {!forced && !embedded && (
           <button type="button" onClick={onClose} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink2)', fontSize: 13, fontWeight: 600, padding: 0, marginBottom: 8 }}>
             <ChevronLeft size={16} /> Back
           </button>
         )}
-        <h3 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: 20, marginBottom: forced ? 6 : 20 }}>{forced ? 'Complete your profile' : 'Edit Profile'}</h3>
+        {!embedded && <h3 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: 20, marginBottom: forced ? 6 : 20 }}>{forced ? 'Complete your profile' : 'Edit Profile'}</h3>}
         {forced && (
           <p style={{ fontSize: 12.5, color: 'var(--ink2)', marginBottom: 18, lineHeight: 1.5 }}>
             Review your details and add a photo to finish setting up your account. You can update these again later.
@@ -548,6 +548,10 @@ export default function EditProfileModal({ student: s, onClose, forced = false }
           </button>
         </div>
       </div>
-    </Modal>
+    </>
   )
+
+  // Embedded: the shared SettingsShell provides the sheet/back/title chrome.
+  if (embedded) return inner
+  return <Modal onClose={forced ? undefined : onClose}>{inner}</Modal>
 }
