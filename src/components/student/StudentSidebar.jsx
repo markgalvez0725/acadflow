@@ -2,6 +2,7 @@ import React from 'react'
 import { useUI } from '@/context/UIContext'
 import { useData } from '@/context/DataContext'
 import { studentStanding } from '@/utils/groupChat'
+import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Settings, LogOut, Library, ListChecks, MessageSquarePlus, MessageSquare } from 'lucide-react'
 
 // Flat, Instagram-style nav list (no section headers).
@@ -21,7 +22,7 @@ const NAV_ITEMS = [
   { id: 'feedback',      label: 'Feedback',       Icon: MessageSquarePlus },
 ]
 
-export default function StudentSidebar({ student, badges = {}, onSettings, onLogout }) {
+export default function StudentSidebar({ student, badges = {}, onSettings, onLogout, onCompleteSetup }) {
   const { studentTab, setStudentTab } = useUI()
   const { classes = [] } = useData()
 
@@ -91,7 +92,10 @@ export default function StudentSidebar({ student, badges = {}, onSettings, onLog
               : initial}
           </div>
           <div className="sb-user-info">
-            <strong>{name}</strong>
+            <strong style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+              <VerifiedBadge student={student} size={14} onPendingClick={onCompleteSetup} />
+            </strong>
             <span>{subText}</span>
           </div>
         </div>

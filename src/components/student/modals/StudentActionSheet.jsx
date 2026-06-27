@@ -5,6 +5,7 @@ import { isBiometricSupported } from '@/utils/biometric'
 import { useUI } from '@/context/UIContext'
 import { useData } from '@/context/DataContext'
 import { studentStanding } from '@/utils/groupChat'
+import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 
 /**
  * Slide-up settings sheet for the student portal — grouped (Facebook/Instagram
@@ -29,6 +30,7 @@ export default function StudentActionSheet({
   onSetPin,
   onBiometric,
   onFaceReset,
+  onCompleteSetup,
   onLogout,
   student,
   push,
@@ -134,8 +136,11 @@ export default function StudentActionSheet({
                 : <span style={{ fontSize: 18, color: 'var(--c-gold)', lineHeight: 1 }}>{(student.name || '?')[0].toUpperCase()}</span>}
             </div>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {student.name || 'Student'}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {student.name || 'Student'}
+                </span>
+                <VerifiedBadge student={student} size={15} showPendingLabel onPendingClick={() => { onClose(); onCompleteSetup?.() }} />
               </div>
               <div style={{ fontSize: 12, color: 'var(--ink3)' }}>{idLine}</div>
             </div>

@@ -519,6 +519,7 @@ export default function StudentLayout() {
           student={student}
           badges={badges}
           onSettings={() => setActionSheetOpen(true)}
+          onCompleteSetup={() => setSetupModalOpen(true)}
           onLogout={() => logout('manual')}
         />
       </div>
@@ -721,6 +722,7 @@ export default function StudentLayout() {
           onSetPin={() => setPinModalOpen(true)}
           onBiometric={() => setBioModalOpen(true)}
           onFaceReset={() => setFaceModalOpen(true)}
+          onCompleteSetup={() => setSetupModalOpen(true)}
           onLogout={() => logout('manual')}
           student={student}
           push={push}
