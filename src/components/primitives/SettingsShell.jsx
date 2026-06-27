@@ -94,28 +94,38 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
   // "Done with this panel" → mobile pops to the list, wide closes the shell.
   const onDone = isMobile ? () => setView('home') : () => onClose?.()
 
-  // Mobile sheet drag-to-dismiss (grabber only). Pointer events unify touch +
-  // mouse; the handle owns `touch-action:none` so list scroll never triggers it.
+  // Mobile sheet drag-to-dismiss. Listeners live on `window` (not the handle) so
+  // the gesture keeps tracking even after the finger leaves the small grabber and
+  // regardless of pointer-capture support (capture is flaky on iOS/touch). Pointer
+  // events unify mouse + touch; the handle owns `touch-action:none` so the first
+  // touchmove drags instead of scrolling.
   const startDrag = e => {
     const h = sheetRef.current?.offsetHeight || (typeof window !== 'undefined' ? window.innerHeight : 800)
-    dragRef.current = { startY: e.clientY, h, dy: 0, active: true }
+    const startY = e.clientY
+    dragRef.current = { startY, h, dy: 0, active: true }
     setDragging(true)
-    try { e.currentTarget.setPointerCapture?.(e.pointerId) } catch { /* ignore */ }
-  }
-  const moveDrag = e => {
-    if (!dragRef.current.active) return
-    const dy = Math.max(0, e.clientY - dragRef.current.startY)
-    dragRef.current.dy = dy
-    setDragY(dy)
-  }
-  const endDrag = () => {
-    if (!dragRef.current.active) return
-    const { h, dy } = dragRef.current
-    dragRef.current.active = false
-    setDragging(false)
-    // Past ~⅓ of the sheet (capped) → fling it the rest of the way out, then close.
-    if (dy > Math.min(h * 0.32, 220)) { setDragY(h); setTimeout(() => onClose?.(), 200) }
-    else setDragY(0)
+
+    const onMove = ev => {
+      if (!dragRef.current.active) return
+      const dy = Math.max(0, ev.clientY - startY)
+      dragRef.current.dy = dy
+      setDragY(dy)
+      if (ev.cancelable) ev.preventDefault()
+    }
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+      const { h: sheetH, dy } = dragRef.current
+      dragRef.current.active = false
+      setDragging(false)
+      // Past ~⅓ of the sheet (capped) → fling it the rest of the way out, then close.
+      if (dy > Math.min(sheetH * 0.32, 220)) { setDragY(sheetH); setTimeout(() => onClose?.(), 200) }
+      else setDragY(0)
+    }
+    window.addEventListener('pointermove', onMove, { passive: false })
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
   }
 
   function activate(r) {
@@ -233,10 +243,9 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
           role="dialog"
           aria-modal="true"
           style={{
-            position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 801,
-            background: 'var(--surface)', borderRadius: '18px 18px 0 0',
+            position: 'fixed', top: 0, left: 0, right: 0, height: '100dvh', zIndex: 801,
+            background: 'var(--surface)',
             display: 'flex', flexDirection: 'column',
-            boxShadow: '0 -4px 24px rgba(0,0,0,.18)',
             transform: `translateY(${dragY}px)`,
             transition: dragging ? 'none' : 'transform .26s cubic-bezier(.22,.8,.38,1)',
             animation: 'ssetSheet .24s cubic-bezier(.22,.8,.38,1) both',
@@ -244,14 +253,11 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
         >
           <div
             onPointerDown={startDrag}
-            onPointerMove={moveDrag}
-            onPointerUp={endDrag}
-            onPointerCancel={endDrag}
             role="button"
             tabIndex={0}
             aria-label="Drag down or press Enter to close settings"
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onClose?.() }}
-            style={{ flexShrink: 0, padding: '10px 0 6px', display: 'flex', justifyContent: 'center', cursor: dragging ? 'grabbing' : 'grab', touchAction: 'none' }}
+            style={{ flexShrink: 0, padding: '12px 0 8px', display: 'flex', justifyContent: 'center', cursor: dragging ? 'grabbing' : 'grab', touchAction: 'none' }}
           >
             <div style={{ width: 40, height: 5, borderRadius: 3, background: 'var(--border)' }} />
           </div>
