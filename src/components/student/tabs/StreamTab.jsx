@@ -100,6 +100,7 @@ function classLabel(classObj) {
 // side just supplies its kebab (Save / notifications) and comment identity.
 function AnnouncementCard({ item, classObj, classPills, student, author, highlight }) {
   const { toggleAnnouncementLike, toggleSavedPost, toggleAnnouncementFollow } = useData()
+  const { messageProfessorAboutPost } = useUI()
   const ann = item.data
   const menuItems = student ? (() => {
     const saved = (student.savedPosts || []).includes(ann.id)
@@ -120,6 +121,7 @@ function AnnouncementCard({ item, classObj, classPills, student, author, highlig
       viewerId={student?.id}
       onToggleLike={toggleAnnouncementLike}
       commentAuthor={student ? { id: student.id, name: student.name || 'You', role: 'student' } : null}
+      onAskProfessor={student ? () => messageProfessorAboutPost(ann.title) : null}
       domId={`annpost-${ann.id}`}
       highlight={highlight}
     />
@@ -351,24 +353,33 @@ export default function StreamTab({ student, viewClassId, classes }) {
     return classes.find(c => c.id === item.classId) || null
   }
 
-  // Deep-link from the dashboard's saved-announcements widget: page to the post,
-  // scroll it into view, and let it glow briefly like a highlighted bulb.
+  // Deep-link from the dashboard's saved-announcements widget: page to the post
+  // and mark it for highlight. Clearing the pending id here is safe because the
+  // scroll/glow run in a separate effect keyed on highlightId (so clearing the
+  // pending id can't cancel them).
   useEffect(() => {
     if (!pendingStreamAnnId) return
     // Announcements only appear in the list when the type filter includes them.
     if (filterType !== 'all' && filterType !== 'announcement') { setFilterType('all'); return }
     const idx = streamItems.findIndex(it => it.type === 'announcement' && it.data.id === pendingStreamAnnId)
-    if (idx < 0) return
+    if (idx < 0) return // wait for the class switch / data to land
     setStreamPage(Math.floor(idx / PAGE_SIZE))
     setHighlightId(pendingStreamAnnId)
     clearPendingStreamAnn()
-    const targetId = `annpost-${pendingStreamAnnId}`
+  }, [pendingStreamAnnId, streamItems, filterType, clearPendingStreamAnn])
+
+  // Once a post is highlighted, scroll it into view after the page renders, and
+  // clear the glow after a moment. Keyed on highlightId so it isn't torn down by
+  // unrelated re-renders.
+  useEffect(() => {
+    if (!highlightId) return
+    const targetId = `annpost-${highlightId}`
     const scrollT = setTimeout(() => {
       document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }, 90)
+    }, 160)
     const glowT = setTimeout(() => setHighlightId(null), 2600)
     return () => { clearTimeout(scrollT); clearTimeout(glowT) }
-  }, [pendingStreamAnnId, streamItems, filterType, clearPendingStreamAnn])
+  }, [highlightId])
 
   if (!fbReady) {
     return (

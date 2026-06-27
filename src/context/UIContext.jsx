@@ -129,12 +129,27 @@ export function UIProvider({ children }) {
   // ── Deep-link a student into a specific Stream announcement (e.g. from the
   // saved-announcements widget on the dashboard) so it scrolls into view and
   // glows briefly. ──
+  // The Stream feed is scoped to one class at a time, so the deep-link also
+  // carries the class to switch to (the student's matching class for the post),
+  // otherwise a saved post from a non-active class can't be found.
   const [pendingStreamAnnId, setPendingStreamAnnId] = useState(null)
-  const openStreamAnnouncement = useCallback(id => {
+  const [pendingStreamClassId, setPendingStreamClassId] = useState(null)
+  const openStreamAnnouncement = useCallback((id, classId = null) => {
     setPendingStreamAnnId(id || null)
+    setPendingStreamClassId(classId || null)
     setStudentTab('stream')
   }, [])
   const clearPendingStreamAnn = useCallback(() => setPendingStreamAnnId(null), [])
+  const clearPendingStreamClass = useCallback(() => setPendingStreamClassId(null), [])
+
+  // ── "Ask the professor about this post": open the student's direct thread with
+  // the professor, pre-filling a draft that references the post. ──
+  const [pendingMessageDraft, setPendingMessageDraft] = useState(null)
+  const messageProfessorAboutPost = useCallback((postTitle) => {
+    setPendingMessageDraft(postTitle ? `Re: ${postTitle}\n` : '')
+    setStudentTab('messages')
+  }, [])
+  const clearPendingMessageDraft = useCallback(() => setPendingMessageDraft(null), [])
 
   return (
     <UIContext.Provider value={{
@@ -148,6 +163,8 @@ export function UIProvider({ children }) {
       editGradesStudentId, openEditGradesForStudent, closeEditGrades,
       pendingMessageId, openStudentMessageThread, clearPendingMessage,
       pendingStreamAnnId, openStreamAnnouncement, clearPendingStreamAnn,
+      pendingStreamClassId, clearPendingStreamClass,
+      pendingMessageDraft, messageProfessorAboutPost, clearPendingMessageDraft,
     }}>
       {children}
     </UIContext.Provider>

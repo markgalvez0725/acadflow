@@ -110,7 +110,7 @@ const MORE_NAV = [
 ]
 
 export default function StudentLayout() {
-  const { studentTab, setStudentTab, toastQueue, dismissToast, dialog, resolveDialog, toast, toastAction, openStudentMessageThread } = useUI()
+  const { studentTab, setStudentTab, toastQueue, dismissToast, dialog, resolveDialog, toast, toastAction, openStudentMessageThread, pendingStreamClassId, clearPendingStreamClass } = useUI()
   const { students, classes, messages, activities, quizzes, db, fbReady, semester, studentCheckIn, attendanceSessions, eqScale } = useData()
   const { currentStudent, setCurrentStudent, logout, loginTime, lastLogin } = useAuth()
 
@@ -148,6 +148,14 @@ export default function StudentLayout() {
       setViewClassId(null)
     }
   }, [enrolledClasses])
+
+  // A Stream deep-link (saved-announcements widget) may target a post in a class
+  // other than the one being viewed; switch to it so the post is in the feed.
+  useEffect(() => {
+    if (!pendingStreamClassId) return
+    if (enrolledClasses.find(c => c.id === pendingStreamClassId)) setViewClassId(pendingStreamClassId)
+    clearPendingStreamClass()
+  }, [pendingStreamClassId, enrolledClasses, clearPendingStreamClass])
 
   // Student notifications - subscribe to notifications/{studentId}
   const [studentNotifs, setStudentNotifs] = useState([])

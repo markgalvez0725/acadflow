@@ -78,7 +78,7 @@ function Avatar({ author }) {
 
 export default function AnnouncementPost({
   ann, author, classObj, classPills = [], pinned = false, statusBadge = null,
-  menuItems = [], viewerId, onToggleLike, commentAuthor,
+  menuItems = [], viewerId, onToggleLike, commentAuthor, onAskProfessor = null,
   domId, highlight = false,
 }) {
   const media = useMemo(() => mediaFromAnnouncement(ann), [ann])
@@ -138,8 +138,11 @@ export default function AnnouncementPost({
           <button className="ig-icon" onClick={focusComposer} aria-label="Comment" title="Comment">
             <MessageCircle size={24} style={{ transform: 'scaleX(-1)' }} />
           </button>
+          {onAskProfessor && (
+            <button className="ig-icon" onClick={onAskProfessor} aria-label="Message professor about this post" title="Message professor"><Send size={24} /></button>
+          )}
           {ann.meetingLink && (
-            <a className="ig-icon" href={ann.meetingLink} target="_blank" rel="noreferrer" aria-label="Join meeting" title="Join meeting"><Send size={24} /></a>
+            <a className="ig-icon" href={ann.meetingLink} target="_blank" rel="noreferrer" aria-label="Join meeting" title="Join meeting"><Video size={24} /></a>
           )}
         </div>
       </div>

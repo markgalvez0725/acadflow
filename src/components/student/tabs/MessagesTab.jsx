@@ -44,7 +44,7 @@ function saveHidden(sid, h) { try { localStorage.setItem(hiddenKey(sid), JSON.st
 
 export default function MessagesTab({ student: s, messages }) {
   const { db, fbReady, classes, semester, students, reportScreenshot } = useData()
-  const { toast, openDialog, pendingMessageId, clearPendingMessage } = useUI()
+  const { toast, openDialog, pendingMessageId, clearPendingMessage, pendingMessageDraft, clearPendingMessageDraft } = useUI()
 
   // A group chat is "open" only while at least one of its classes is still in the
   // current semester. Once the semester/class ends, students can no longer reply.
@@ -275,6 +275,19 @@ export default function MessagesTab({ student: s, messages }) {
     const m = messages.find(x => x.id === pendingMessageId)
     if (m) { openMessage(pendingMessageId); clearPendingMessage() }
   }, [pendingMessageId, messages]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // "Ask the professor about this post" from the Stream: open the direct thread
+  // with the professor and pre-fill the post reference. The draft is applied on a
+  // macrotask so the activeKey reset effect (which clears the composer when the
+  // thread changes) runs first instead of wiping it.
+  useEffect(() => {
+    if (pendingMessageDraft == null) return
+    const draft = pendingMessageDraft
+    clearPendingMessageDraft()
+    openConversation()
+    const t = setTimeout(() => setReplyText(draft), 0)
+    return () => clearTimeout(t)
+  }, [pendingMessageDraft]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function sendReply() {
     const text = replyText.trim()

@@ -224,7 +224,11 @@ export default function CommentsSection({ ann, authorId, authorName, role, compa
                   {c.text}{c.editedAt && <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 5 }}>(edited)</span>}
                 </div>
               )}
-              <button className="btn btn-ghost btn-sm" style={{ fontSize: 11, padding: '2px 6px', marginTop: 4, color: 'var(--ink2)' }} onClick={() => setReplyTo(replyTo === c.id ? null : c.id)}>
+              <button className="btn btn-ghost btn-sm" style={{ fontSize: 11, padding: '2px 6px', marginTop: 4, color: 'var(--ink2)' }} onClick={() => {
+                if (replyTo === c.id) { setReplyTo(null); setReplyText('') }
+                // Pre-mention the comment's author so the reply is addressed to them.
+                else { setReplyTo(c.id); setReplyText(c.authorId === authorId ? '' : `@${c.authorName} `) }
+              }}>
                 <CornerDownRight size={11} style={{ marginRight: 3 }} /> Reply
               </button>
             </div>

@@ -416,7 +416,7 @@ function annTimeAgo(ms) {
 // Dashboard widget: a carousel of the student's SAVED announcements (falls back
 // to the latest active ones when nothing is saved yet). Tapping a card jumps to
 // the post in the Stream tab, where it glows briefly.
-function SavedAnnouncementsWidget({ anns, isFallback, classes, onOpen }) {
+function SavedAnnouncementsWidget({ anns, isFallback, classes, enrolledIds = [], onOpen }) {
   const [idx, setIdx] = useState(0)
   const safeIdx = anns.length ? Math.min(idx, anns.length - 1) : 0
   const ann = anns[safeIdx]
@@ -424,7 +424,8 @@ function SavedAnnouncementsWidget({ anns, isFallback, classes, onOpen }) {
   const color = annIconColor(ann.type)
   const cls = annClassLabel(ann, classes)
   const snippet = annSnippet(ann)
-  const open = () => onOpen(ann.id)
+  // Switch the (class-scoped) Stream to the student's matching class for this post.
+  const open = () => onOpen(ann.id, annClassIds(ann).find(id => enrolledIds.includes(id)) || null)
   const go = step => setIdx(i => ((i + step) % anns.length + anns.length) % anns.length)
   const navBtn = {
     width: 30, flexShrink: 0, borderRadius: 8, border: '1px solid var(--border)',
@@ -694,7 +695,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
     <div className="student-overview">
       {/* Saved-announcement widget (falls back to latest active announcements) */}
       {widgetAnns.length > 0 && (
-        <SavedAnnouncementsWidget anns={widgetAnns} isFallback={widgetFallback} classes={classes} onOpen={openStreamAnnouncement} />
+        <SavedAnnouncementsWidget anns={widgetAnns} isFallback={widgetFallback} classes={classes} enrolledIds={enrolledIds} onOpen={openStreamAnnouncement} />
       )}
 
       {/* Page header */}
