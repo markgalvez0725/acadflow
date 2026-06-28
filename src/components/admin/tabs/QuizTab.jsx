@@ -1407,6 +1407,9 @@ export default function QuizTab() {
   const [viewQuiz, setViewQuiz] = useState(null)
   const [editQuiz, setEditQuiz] = useState(null)
 
+  // O(1) class lookups by id, instead of classes.find() per quiz/card.
+  const classMap = useMemo(() => new Map(classes.map(c => [c.id, c])), [classes])
+
   const sorted = useMemo(
     () => [...quizzes].sort((a, b) => b.createdAt - a.createdAt),
     [quizzes]
@@ -1415,12 +1418,12 @@ export default function QuizTab() {
   const activeQuizzes = useMemo(
     // A quiz is active if it has any non-archived class - OR no class assignment
     // at all (orphaned quizzes must stay visible/deletable, not vanish).
-    () => sorted.filter(q => !(q.classIds || []).length || (q.classIds || []).some(id => !classes.find(c => c.id === id)?.archived)),
-    [sorted, classes]
+    () => sorted.filter(q => !(q.classIds || []).length || (q.classIds || []).some(id => !classMap.get(id)?.archived)),
+    [sorted, classMap]
   )
   const archivedQuizzes = useMemo(
-    () => sorted.filter(q => (q.classIds || []).length > 0 && (q.classIds || []).every(id => classes.find(c => c.id === id)?.archived)),
-    [sorted, classes]
+    () => sorted.filter(q => (q.classIds || []).length > 0 && (q.classIds || []).every(id => classMap.get(id)?.archived)),
+    [sorted, classMap]
   )
 
   const slice = useMemo(
@@ -1479,7 +1482,7 @@ export default function QuizTab() {
             {slice.map(q => {
               const { label, variant } = statusInfo(q)
               const clsNames = (q.classIds || []).map(id => {
-                const c = classes.find(x => x.id === id)
+                const c = classMap.get(id)
                 return c ? `${courseShort(c.name)} ${c.section}` : id
               }).join(', ')
               const attempted = Object.keys(q.submissions || {}).length
@@ -1540,7 +1543,7 @@ export default function QuizTab() {
                 {archivedSlice.map(q => {
                   const { label, variant } = statusInfo(q)
                   const clsNames = (q.classIds || []).map(id => {
-                    const c = classes.find(x => x.id === id)
+                    const c = classMap.get(id)
                     return c ? `${courseShort(c.name)} ${c.section}` : id
                   }).join(', ')
                   const attempted = Object.keys(q.submissions || {}).length

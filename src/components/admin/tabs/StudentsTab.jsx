@@ -1074,6 +1074,9 @@ export default function StudentsTab() {
   const { toast, toastAction, openDialog, openStudentProfile } = useUI()
   const [exportReportCard, reportCardModal] = useStudentReportCardExport()
 
+  // O(1) class lookups by id, instead of classes.find() per student/row.
+  const classMap = useMemo(() => new Map(classes.map(c => [c.id, c])), [classes])
+
   const [search, setSearch]       = useState('')
   const [perPage, setPerPage]     = useState(50)
   const [page, setPage]           = useState(1)
@@ -1092,7 +1095,7 @@ export default function StudentsTab() {
   // A student is "assigned" when they're enrolled in at least one existing class.
   const isAssigned = (s) => {
     const ids = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
-    return ids.some(id => classes.some(c => c.id === id))
+    return ids.some(id => classMap.has(id))
   }
 
   const counts = useMemo(() => {
@@ -1133,7 +1136,7 @@ export default function StudentsTab() {
         case 'id':     va = a.id.toLowerCase(); vb = b.id.toLowerCase(); break
         case 'course': va = ((a.course || '') + (a.year || '')).toLowerCase(); vb = ((b.course || '') + (b.year || '')).toLowerCase(); break
         case 'class': {
-          const ca = classes.find(c => c.id === a.classId); const cb = classes.find(c => c.id === b.classId)
+          const ca = classMap.get(a.classId); const cb = classMap.get(b.classId)
           va = ca ? (ca.name + ca.section).toLowerCase() : 'zzz'; vb = cb ? (cb.name + cb.section).toLowerCase() : 'zzz'; break
         }
         case 'email':   va = (a.account?.email || '').toLowerCase(); vb = (b.account?.email || '').toLowerCase(); break
@@ -1416,7 +1419,7 @@ export default function StudentsTab() {
               <tbody>
                 {slice.map(s => {
                   const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
-                  const enrolledClasses = enrolledIds.map(id => classes.find(c => c.id === id)).filter(Boolean)
+                  const enrolledClasses = enrolledIds.map(id => classMap.get(id)).filter(Boolean)
                   const initial = (s.name || '?').charAt(0).toUpperCase()
                   return (
                     <tr key={s.id} style={selected.has(s.id) ? { background: 'var(--accent-l)' } : undefined}>
@@ -1503,7 +1506,7 @@ export default function StudentsTab() {
             </label>
             {slice.map(s => {
               const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
-              const enrolledClasses = enrolledIds.map(id => classes.find(c => c.id === id)).filter(Boolean)
+              const enrolledClasses = enrolledIds.map(id => classMap.get(id)).filter(Boolean)
               const primaryCls = enrolledClasses.find(c => c.id === s.classId) || enrolledClasses[0]
               const extras = enrolledClasses.filter(c => c.id !== (primaryCls?.id)).length
               const initial = (s.name || '?').charAt(0).toUpperCase()
@@ -1581,7 +1584,7 @@ export default function StudentsTab() {
       {showImport   && <ImportStudentsModal onClose={() => setShowImport(false)} />}
       {showAudit    && <AccountAuditModal onClose={() => setShowAudit(false)} onOpenStudent={(id) => { const s = students.find(x => x.id === id); if (s) setEditStudent(s) }} />}
       {showMessage  && <MessageSelectedModal recipients={students.filter(s => selected.has(s.id))} onClose={() => setShowMessage(false)} />}
-      {editStudent  && <EditStudentModal student={editStudent} onClose={() => setEditStudent(null)} />}
+      {editStudent  && <EditStudentModal key={editStudent.id} student={editStudent} onClose={() => setEditStudent(null)} />}
       {resetStudent && <ResetPasswordModal student={resetStudent} onClose={() => setResetStudent(null)} />}
       {exportStudent && (
         <Suspense fallback={null}>

@@ -37,7 +37,7 @@ export default function AppRouter() {
   if (!fbReady) return <LoadingScreen />
 
   return (
-    <React.Suspense fallback={null}>
+    <React.Suspense fallback={<LoadingScreen />}>
       {sessionRole === 'admin'   && <AdminLayout />}
       {sessionRole === 'student' && <StudentLayout />}
       {!sessionRole && (isAdminPath ? <AdminLoginScreen /> : <LoginScreen onRevealFaculty={() => setFacultyReveal(true)} />)}

@@ -1235,13 +1235,24 @@ export default function ActivitiesTab() {
   const [editAct,         setEditAct]        = useState(null)
   const [showArchivedActs, setShowArchivedActs] = useState(false)
 
+  // O(1) lookups instead of classes.find()/students.filter() per activity card.
+  const classMap = useMemo(() => new Map(classes.map(c => [c.id, c])), [classes])
+  const studsByClass = useMemo(() => {
+    const m = new Map()
+    students.forEach(s => {
+      if (!s.account?.registered) return
+      const arr = m.get(s.classId); if (arr) arr.push(s); else m.set(s.classId, [s])
+    })
+    return m
+  }, [students])
+
   const sorted = useMemo(
     () => [...activities].sort((a, b) => b.createdAt - a.createdAt),
     [activities]
   )
 
-  const activeActs   = useMemo(() => sorted.filter(a => !classes.find(c => c.id === a.classId)?.archived), [sorted, classes])
-  const archivedActs = useMemo(() => sorted.filter(a =>  classes.find(c => c.id === a.classId)?.archived), [sorted, classes])
+  const activeActs   = useMemo(() => sorted.filter(a => !classMap.get(a.classId)?.archived), [sorted, classMap])
+  const archivedActs = useMemo(() => sorted.filter(a =>  classMap.get(a.classId)?.archived), [sorted, classMap])
 
   const slice = useMemo(
     () => activeActs.slice((page - 1) * PER_PAGE, page * PER_PAGE),
@@ -1258,8 +1269,8 @@ export default function ActivitiesTab() {
   const now = Date.now()
 
   function ActivityCard({ act, readOnly }) {
-    const cls       = classes.find(c => c.id === act.classId)
-    const subs      = students.filter(s => s.classId === act.classId && s.account?.registered)
+    const cls       = classMap.get(act.classId)
+    const subs      = studsByClass.get(act.classId) || []
     const isPast    = act.deadline < now
     const submitted = Object.values(act.submissions || {}).filter(s => s.link).length
     const graded    = Object.values(act.submissions || {}).filter(s => s.score != null).length
