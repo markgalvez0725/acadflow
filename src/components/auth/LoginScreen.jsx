@@ -15,7 +15,7 @@ import { hashPassword, verifyPassword } from '@/utils/crypto'
 import { validateSnum, sanitizeSnum } from '@/utils/validate'
 import { SECURITY_QUESTIONS } from '@/utils/securityQuestions'
 import { scoreIdentity, describeFields } from '@/utils/identityVerify'
-import { courseOptions } from '@/constants/courses'
+import { courseOptions, courseShort } from '@/constants/courses'
 import LoadingButton from '@/components/primitives/LoadingButton'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 
