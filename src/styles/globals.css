@@ -3545,6 +3545,24 @@ textarea.input { resize: vertical; }
 /* Day / group label between feed posts */
 .s-feed-day { font-size: 0.7813rem; font-weight: 700; color: var(--ink3); text-transform: uppercase; letter-spacing: .08em; padding: 4px 2px 0; }
 
+/* Infinite-scroll feed: reveal-on-scroll card + auto-load spinner.
+   `.feed-reveal` wraps each card with the entrance animation. The feed renders an
+   incrementally growing window (see useInfiniteFeed), so only cards the user has
+   scrolled to are ever mounted - that, not a fixed page, is what keeps a massive
+   feed cheap. Note: deliberately NO content-visibility here - its paint containment
+   would clip in-card popovers (the @mention dropdown opens upward inside the card). */
+.feed-reveal { animation: feedReveal .5s var(--ease-out, cubic-bezier(.4,0,.2,1)) both; }
+@keyframes feedReveal { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+.feed-sentinel { display: flex; align-items: center; justify-content: center; gap: 9px; padding: 18px 0; color: var(--ink3); font-size: 0.8438rem; }
+.feed-spinner { width: 22px; height: 22px; flex-shrink: 0; border: 2.5px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+.feed-end { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 18px 0 6px; color: var(--ink3); font-size: 0.8125rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .feed-reveal { animation: none; }
+  .feed-spinner { animation-duration: 1.4s; }
+}
+
 /* Edge-to-edge cards on phones */
 @media (max-width: 640px) {
   .s-feed { gap: 8px; }

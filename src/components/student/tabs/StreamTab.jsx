@@ -6,8 +6,7 @@ import ExpandableHtml from '@/components/primitives/ExpandableHtml'
 import { sanitizeAnnouncementHtml } from '@/utils/sanitizeHtml'
 import { streamGroupLabel as getGroupLabel, fmtDateTime as formatDate } from '@/utils/format'
 import { courseShort } from '@/constants/courses'
-
-const PAGE_SIZE = 10
+import useInfiniteFeed from '@/hooks/useInfiniteFeed'
 
 const shimmerStyle = {
   background: 'linear-gradient(90deg, var(--border) 25%, var(--surface) 50%, var(--border) 75%)',
@@ -38,18 +37,6 @@ function StreamSkeleton() {
   )
 }
 
-function Pagination({ page, total, pageSize, onPrev, onNext }) {
-  if (total === 0) return null
-  const from = page * pageSize + 1
-  const to = Math.min((page + 1) * pageSize, total)
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 12, fontSize: 13, color: 'var(--ink2)' }}>
-      <button className="btn btn-ghost btn-sm" onClick={onPrev} disabled={page === 0}>← Prev</button>
-      <span>Showing {from}-{to} of {total}</span>
-      <button className="btn btn-ghost btn-sm" onClick={onNext} disabled={to >= total}>Next →</button>
-    </div>
-  )
-}
 import { BookOpen, Clock, CheckCircle2, XCircle, AlertCircle, Award, Video, Link, Heart, MessageCircle, Send, Bookmark, BadgeCheck, MoreHorizontal } from 'lucide-react'
 import PostShell from '@/components/primitives/StreamPost'
 import Modal from '@/components/primitives/Modal'
@@ -319,7 +306,6 @@ export default function StreamTab({ student, viewClassId, classes }) {
   const author = useMemo(() => ({ name: admin?.name || 'Professor', photo: admin?.photo || null }), [admin?.name, admin?.photo])
   const [filterType, setFilterType] = useState('all')
   const [filterSubject, setFilterSubject] = useState('all')
-  const [streamPage, setStreamPage] = useState(0)
   const [highlightId, setHighlightId] = useState(null)
 
   // Only current-semester, non-archived classes feed the stream.
@@ -428,6 +414,13 @@ export default function StreamTab({ student, viewClassId, classes }) {
     return items.sort((a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || (b.ts - a.ts))
   }, [student, effectiveClassIds, activities, quizzes, announcements, filterType, filterSubject, classes])
 
+  // Infinite scroll: render a growing window instead of a fixed page. Resets to
+  // the top whenever the filters change.
+  const { visibleCount, sentinelRef, hasMore, ensureVisible } = useInfiniteFeed(
+    streamItems.length,
+    { resetKey: `${filterType}|${filterSubject}|${effectiveClassIds.join(',')}` }
+  )
+
   function getClassObj(item) {
     return classes.find(c => c.id === item.classId) || null
   }
@@ -442,10 +435,10 @@ export default function StreamTab({ student, viewClassId, classes }) {
     if (filterType !== 'all' && filterType !== 'announcement') { setFilterType('all'); return }
     const idx = streamItems.findIndex(it => it.type === 'announcement' && it.data.id === pendingStreamAnnId)
     if (idx < 0) return // wait for the class switch / data to land
-    setStreamPage(Math.floor(idx / PAGE_SIZE))
+    ensureVisible(idx) // grow the window so the target post is rendered
     setHighlightId(pendingStreamAnnId)
     clearPendingStreamAnn()
-  }, [pendingStreamAnnId, streamItems, filterType, clearPendingStreamAnn])
+  }, [pendingStreamAnnId, streamItems, filterType, clearPendingStreamAnn, ensureVisible])
 
   // Once a post is highlighted, scroll it into view after the page renders, and
   // clear the glow after a moment. Keyed on highlightId so it isn't torn down by
@@ -482,7 +475,7 @@ export default function StreamTab({ student, viewClassId, classes }) {
       {/* Filter pills + optional subject dropdown */}
       <div className="s-filter-pills">
         {TYPE_FILTERS.map(([k, label]) => (
-          <button key={k} className={`s-pill${filterType === k ? ' active' : ''}`} onClick={() => { setFilterType(k); setStreamPage(0) }}>{label}</button>
+          <button key={k} className={`s-pill${filterType === k ? ' active' : ''}`} onClick={() => setFilterType(k)}>{label}</button>
         ))}
       </div>
       {subjectOptions.length > 1 && (
@@ -490,7 +483,7 @@ export default function StreamTab({ student, viewClassId, classes }) {
           className="form-input"
           style={{ fontSize: 13, maxWidth: 220 }}
           value={filterSubject}
-          onChange={e => { setFilterSubject(e.target.value); setStreamPage(0) }}
+          onChange={e => setFilterSubject(e.target.value)}
           title="Filter by subject"
         >
           <option value="all">All Subjects</option>
@@ -504,7 +497,7 @@ export default function StreamTab({ student, viewClassId, classes }) {
         </div>
       )}
 
-      {streamItems.slice(streamPage * PAGE_SIZE, (streamPage + 1) * PAGE_SIZE).map((item, idx, arr) => {
+      {streamItems.slice(0, visibleCount).map((item, idx, arr) => {
         const classObj = getClassObj(item)
         const label = item.pinned ? 'Pinned' : getGroupLabel(item.ts)
         const prevLabel = idx > 0 ? (arr[idx - 1].pinned ? 'Pinned' : getGroupLabel(arr[idx - 1].ts)) : null
@@ -512,15 +505,26 @@ export default function StreamTab({ student, viewClassId, classes }) {
         return (
           <React.Fragment key={item.id}>
             {showGroup && <div className="s-feed-day">{label}</div>}
-            {item.type === 'announcement' && <AnnouncementCard item={item} classObj={classObj} classPills={announcementClassPills(item.data, classes, effectiveClassIds)} student={student} author={author} highlight={highlightId === item.data.id} />}
-            {item.type === 'activity' && <ActivityCard item={item} classObj={classObj} student={student} />}
-            {item.type === 'quiz' && <QuizCard item={item} classObj={classObj} student={student} />}
-            {item.type === 'grade' && <GradeCard item={item} classObj={classObj} student={student} />}
-            {item.type === 'attendance' && <AttendanceCard item={item} classObj={classObj} student={student} />}
+            <div className="feed-reveal">
+              {item.type === 'announcement' && <AnnouncementCard item={item} classObj={classObj} classPills={announcementClassPills(item.data, classes, effectiveClassIds)} student={student} author={author} highlight={highlightId === item.data.id} />}
+              {item.type === 'activity' && <ActivityCard item={item} classObj={classObj} student={student} />}
+              {item.type === 'quiz' && <QuizCard item={item} classObj={classObj} student={student} />}
+              {item.type === 'grade' && <GradeCard item={item} classObj={classObj} student={student} />}
+              {item.type === 'attendance' && <AttendanceCard item={item} classObj={classObj} student={student} />}
+            </div>
           </React.Fragment>
         )
       })}
-      <Pagination page={streamPage} total={streamItems.length} pageSize={PAGE_SIZE} onPrev={() => setStreamPage(p => p - 1)} onNext={() => setStreamPage(p => p + 1)} />
+
+      {hasMore && (
+        <div ref={sentinelRef} className="feed-sentinel">
+          <span className="feed-spinner" aria-hidden="true" />
+          <span>Loading more posts…</span>
+        </div>
+      )}
+      {!hasMore && streamItems.length > 0 && (
+        <div className="feed-end"><CheckCircle2 size={14} /> You’re all caught up</div>
+      )}
     </div>
   )
 }
