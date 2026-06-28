@@ -774,6 +774,26 @@ function adminClassLabel(classObj) {
   return classObj?.name ? `${classObj.name}${classObj.section ? ' · ' + classObj.section : ''}` : ''
 }
 
+// Uppercase long-date kicker for the body panel, matching the announcement
+// TextCard's date label (e.g. "JUNE 28, 2026").
+function dateKicker(ms) {
+  if (!ms) return ''
+  const d = new Date(ms)
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('en-PH', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()
+}
+
+// Class + subject pills shared by the non-announcement cards.
+function StreamPills({ cls, subject }) {
+  if (!cls && !subject) return null
+  return (
+    <>
+      {cls && <span className="ig-pill ig-pill-class">{cls}</span>}
+      {subject && <span className="ig-pill ig-pill-subject">{subject}</span>}
+    </>
+  )
+}
+
 // Thin wrapper: the IG card lives in the shared AnnouncementPost; the teacher
 // side supplies its management kebab (Edit/Pin/Deactivate/Delete) + status badge
 // and posts comments as the professor.
@@ -821,8 +841,10 @@ function ActivityCard({ item, classObj, students }) {
   return (
     <PostShell
       type="activity"
+      time={timeAgo(act.createdAt)}
+      dateLabel={dateKicker(act.createdAt)}
       title={act.title}
-      meta={<><span>Activity{act.subject ? ` · ${act.subject}` : ''}{cls ? ` · ${cls}` : ''}</span><span>·</span><span>{timeAgo(act.createdAt)}</span></>}
+      pills={<StreamPills cls={cls} subject={act.subject} />}
     >
       {act.deadline && (
         <div style={{ fontSize: 12, color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -853,8 +875,10 @@ function QuizCard({ item, classObj, students }) {
   return (
     <PostShell
       type="quiz"
+      time={timeAgo(quiz.openAt)}
+      dateLabel={`${dateKicker(quiz.openAt)}${totalQ ? ` · ${totalQ} QUESTION${totalQ !== 1 ? 'S' : ''}` : ''}`}
       title={quiz.title}
-      meta={<><span>Quiz{quiz.subject ? ` · ${quiz.subject}` : ''}{cls ? ` · ${cls}` : ''}</span><span>·</span><span>{timeAgo(quiz.openAt)}</span></>}
+      pills={<StreamPills cls={cls} subject={quiz.subject} />}
       badges={isOpen
         ? <span style={{ fontSize: 10, background: '#dcfce7', color: '#166534', fontWeight: 700, padding: '1px 7px', borderRadius: 20, flexShrink: 0 }}>OPEN</span>
         : isClosed ? <span style={{ fontSize: 10, background: '#fee2e2', color: '#991b1b', fontWeight: 700, padding: '1px 7px', borderRadius: 20, flexShrink: 0 }}>CLOSED</span> : null}
@@ -878,8 +902,11 @@ function GradeCard({ item, classObj }) {
   return (
     <PostShell
       type="grade"
+      name="Grade update"
+      time={timeAgo(uploadedAt)}
+      dateLabel={subject ? `GRADE · ${subject.toUpperCase()}` : 'GRADE POSTED'}
       title={studentName}
-      meta={<><span>Grade{subject ? ` · ${subject}` : ''}{cls ? ` · ${cls}` : ''}</span><span>·</span><span>{timeAgo(uploadedAt)}</span></>}
+      pills={<StreamPills cls={cls} subject={subject} />}
     >
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
         {gradeData.midterm != null && <span style={{ fontSize: 13, color: 'var(--ink2)' }}>Midterm: <strong>{gradeData.midterm?.toFixed(1)}</strong></span>}
@@ -896,8 +923,11 @@ function AttendanceCard({ item, classObj }) {
   return (
     <PostShell
       type="attendance"
-      title={`Attendance - ${date}`}
-      meta={<span>{subject || 'Attendance'}{cls ? ` · ${cls}` : ''}</span>}
+      name="Attendance"
+      time={timeAgo(item.ts)}
+      dateLabel={dateKicker(item.ts) || (date ? String(date).toUpperCase() : '')}
+      title={`${subject || 'Attendance'}${cls ? ` · ${cls}` : ''}`}
+      pills={<StreamPills cls={null} subject={subject} />}
     >
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
         <div className="stream-stat"><CheckCircle2 size={14} style={{ color: '#10b981' }} /><span>{presentCount} present</span></div>

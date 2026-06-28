@@ -142,6 +142,20 @@ export function UIProvider({ children }) {
   const clearPendingStreamAnn = useCallback(() => setPendingStreamAnnId(null), [])
   const clearPendingStreamClass = useCallback(() => setPendingStreamClassId(null), [])
 
+  // Open the Stream post referenced by a shared message preview (PostRefCard).
+  // Announcements deep-link into the Stream (scroll + glow); the other feed
+  // types (activity/quiz/grade/attendance) live on their own student tab, so we
+  // route there instead of hunting for a non-existent announcement.
+  const STREAM_POST_TAB = { activity: 'activities', quiz: 'quizzes', grade: 'grades', attendance: 'attendance' }
+  const openStreamPost = useCallback((postRef) => {
+    if (!postRef) return
+    const tab = STREAM_POST_TAB[postRef.type]
+    if (tab) { setStudentTab(tab); return }
+    setPendingStreamAnnId(postRef.id || null)
+    setPendingStreamClassId(postRef.classId || null)
+    setStudentTab('stream')
+  }, [])
+
   // ── "Ask the professor about this post": open the student's direct thread with
   // the professor, pre-filling a draft AND attaching a preview of the post so the
   // professor sees (and can open) exactly which post it's about. Accepts either a
@@ -170,7 +184,7 @@ export function UIProvider({ children }) {
       editGradesStudentId, openEditGradesForStudent, closeEditGrades,
       pendingMessageId, openStudentMessageThread, clearPendingMessage,
       pendingStreamAnnId, openStreamAnnouncement, clearPendingStreamAnn,
-      pendingStreamClassId, clearPendingStreamClass,
+      pendingStreamClassId, clearPendingStreamClass, openStreamPost,
       pendingMessageDraft, pendingMessagePostRef, messageProfessorAboutPost, clearPendingMessageDraft,
     }}>
       {children}

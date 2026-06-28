@@ -96,6 +96,27 @@ function classLabel(classObj) {
   return classObj?.name ? `${courseShort(classObj.name)}${classObj.section ? ' · ' + classObj.section : ''}` : ''
 }
 
+// Uppercase long-date kicker for the body panel, matching the announcement
+// TextCard's date label (e.g. "JUNE 28, 2026").
+function dateKicker(ms) {
+  if (!ms) return ''
+  const d = new Date(ms)
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('en-PH', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()
+}
+
+// Class + subject pills shared by the non-announcement cards, reusing the same
+// pill styling as the announcement card.
+function StreamPills({ cls, subject }) {
+  if (!cls && !subject) return null
+  return (
+    <>
+      {cls && <span className="ig-pill ig-pill-class">{cls}</span>}
+      {subject && <span className="ig-pill ig-pill-subject">{subject}</span>}
+    </>
+  )
+}
+
 // A short, plain-text summary of an announcement for the "message professor"
 // post preview (title field is gone, so fall back to the message / topics).
 function announcementSummary(ann) {
@@ -152,6 +173,7 @@ function AnnouncementCard({ item, classObj, classPills, student, author, highlig
 }
 
 function ActivityCard({ item, classObj, student }) {
+  const { messageProfessorAboutPost } = useUI()
   const act = item.data
   const now = Date.now()
   const sub = (act.submissions || {})[student?.id]
@@ -159,11 +181,19 @@ function ActivityCard({ item, classObj, student }) {
   const graded = sub?.score != null
   const overdue = act.deadline && now > act.deadline && !submitted
   const totalRubric = (act.rubric || []).reduce((s, r) => s + (r.points || 0), 0)
+  const cls = classLabel(classObj)
+  const onAsk = student ? () => messageProfessorAboutPost({
+    id: act.id, type: 'activity', title: (act.title || 'Activity').slice(0, 80),
+    classLabel: cls || 'Class', classId: classObj?.id || act.classId || null, thumb: null,
+  }) : null
   return (
     <PostShell
       type="activity"
+      time={timeAgo(act.createdAt)}
+      dateLabel={dateKicker(act.createdAt)}
       title={act.title}
-      meta={<><span>Activity{act.subject ? ` · ${act.subject}` : ''}</span><span>·</span><span>{timeAgo(act.createdAt)}</span></>}
+      onAskProfessor={onAsk}
+      pills={<StreamPills cls={cls} subject={act.subject} />}
     >
       {act.deadline && (
         <div style={{ fontSize: 12, color: overdue ? '#ef4444' : 'var(--ink3)', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -184,6 +214,7 @@ function ActivityCard({ item, classObj, student }) {
 }
 
 function QuizCard({ item, classObj, student }) {
+  const { messageProfessorAboutPost } = useUI()
   const quiz = item.data
   const now = Date.now()
   const isOpen = now >= quiz.openAt && now <= quiz.closeAt
@@ -192,11 +223,19 @@ function QuizCard({ item, classObj, student }) {
   const sub = quiz.submissions?.[student?.id]
   const taken = !!sub
   const subTotal = sub ? (sub.total ?? quiz.totalPoints ?? totalQ) : 0
+  const cls = classLabel(classObj)
+  const onAsk = student ? () => messageProfessorAboutPost({
+    id: quiz.id, type: 'quiz', title: (quiz.title || 'Quiz').slice(0, 80),
+    classLabel: cls || 'Class', classId: classObj?.id || quiz.classIds?.[0] || null, thumb: null,
+  }) : null
   return (
     <PostShell
       type="quiz"
+      time={timeAgo(quiz.openAt)}
+      dateLabel={`${dateKicker(quiz.openAt)}${totalQ ? ` · ${totalQ} QUESTION${totalQ !== 1 ? 'S' : ''}` : ''}`}
       title={quiz.title}
-      meta={<><span>Quiz{quiz.subject ? ` · ${quiz.subject}` : ''}</span><span>·</span><span>{timeAgo(quiz.openAt)}</span></>}
+      onAskProfessor={onAsk}
+      pills={<StreamPills cls={cls} subject={quiz.subject} />}
       badges={isOpen
         ? <span style={{ fontSize: 10, background: '#dcfce7', color: '#166534', fontWeight: 700, padding: '1px 7px', borderRadius: 20, flexShrink: 0 }}>OPEN</span>
         : isClosed ? <span style={{ fontSize: 10, background: '#fee2e2', color: '#991b1b', fontWeight: 700, padding: '1px 7px', borderRadius: 20, flexShrink: 0 }}>CLOSED</span> : null}
@@ -206,7 +245,6 @@ function QuizCard({ item, classObj, student }) {
         {quiz.closeAt && <span style={{ marginLeft: 12 }}>Closes: {formatDate(quiz.closeAt)}</span>}
       </div>
       <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ fontSize: 12, color: 'var(--ink3)' }}>{totalQ} question{totalQ !== 1 ? 's' : ''}</div>
         {taken ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#10b981', fontWeight: 600 }}><CheckCircle2 size={14} /> Completed{sub.score != null && <span> · {sub.score}/{subTotal}</span>}</div>
         ) : isOpen ? (
@@ -221,14 +259,23 @@ function QuizCard({ item, classObj, student }) {
   )
 }
 
-function GradeCard({ item, classObj }) {
+function GradeCard({ item, classObj, student }) {
+  const { messageProfessorAboutPost } = useUI()
   const { subject, gradeData, uploadedAt } = item.data
   const cls = classLabel(classObj)
+  const onAsk = student ? () => messageProfessorAboutPost({
+    id: `grade-${subject}`, type: 'grade', title: `Grade · ${subject}`,
+    classLabel: cls || 'Class', classId: classObj?.id || null, thumb: null,
+  }) : null
   return (
     <PostShell
       type="grade"
-      title={`Grade posted for ${subject}`}
-      meta={<>{cls && <span>{cls}</span>}{cls && <span>·</span>}<span>{timeAgo(uploadedAt)}</span></>}
+      name="Grade update"
+      time={timeAgo(uploadedAt)}
+      dateLabel="GRADE POSTED"
+      title={subject}
+      onAskProfessor={onAsk}
+      pills={<StreamPills cls={cls} subject={null} />}
     >
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
         {gradeData.midterm != null && <span style={{ fontSize: 13 }}>Midterm: <strong>{gradeData.midterm?.toFixed(1)}</strong></span>}
@@ -239,14 +286,23 @@ function GradeCard({ item, classObj }) {
   )
 }
 
-function AttendanceCard({ item, classObj }) {
+function AttendanceCard({ item, classObj, student }) {
+  const { messageProfessorAboutPost } = useUI()
   const { subject, date, present } = item.data
   const cls = classLabel(classObj)
+  const onAsk = student ? () => messageProfessorAboutPost({
+    id: `att-${subject}-${date}`, type: 'attendance', title: `Attendance · ${date}`,
+    classLabel: cls || 'Class', classId: classObj?.id || null, thumb: null,
+  }) : null
   return (
     <PostShell
       type="attendance"
-      title={`Attendance - ${date}`}
-      meta={<span>{subject || 'Attendance'}{cls ? ` · ${cls}` : ''}</span>}
+      name="Attendance"
+      time={timeAgo(item.ts)}
+      dateLabel={dateKicker(item.ts)}
+      title={`${subject || 'Attendance'}${cls ? ` · ${cls}` : ''}`}
+      onAskProfessor={onAsk}
+      pills={<StreamPills cls={null} subject={subject} />}
     >
       {present ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#10b981', fontWeight: 600 }}><CheckCircle2 size={14} /> Present</div>
@@ -459,8 +515,8 @@ export default function StreamTab({ student, viewClassId, classes }) {
             {item.type === 'announcement' && <AnnouncementCard item={item} classObj={classObj} classPills={announcementClassPills(item.data, classes, effectiveClassIds)} student={student} author={author} highlight={highlightId === item.data.id} />}
             {item.type === 'activity' && <ActivityCard item={item} classObj={classObj} student={student} />}
             {item.type === 'quiz' && <QuizCard item={item} classObj={classObj} student={student} />}
-            {item.type === 'grade' && <GradeCard item={item} classObj={classObj} />}
-            {item.type === 'attendance' && <AttendanceCard item={item} classObj={classObj} />}
+            {item.type === 'grade' && <GradeCard item={item} classObj={classObj} student={student} />}
+            {item.type === 'attendance' && <AttendanceCard item={item} classObj={classObj} student={student} />}
           </React.Fragment>
         )
       })}

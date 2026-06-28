@@ -1,12 +1,18 @@
 import React from 'react'
-import { CalendarOff, Video, BookOpen, Library, FileText } from 'lucide-react'
+import { CalendarOff, Video, BookOpen, Library, FileText, ClipboardList, FileQuestion, CalendarCheck } from 'lucide-react'
 
 // A compact preview of a Stream post, embedded inside a message bubble. Sent
 // when a student taps "Message professor about this post": the professor (and
 // the student) see what post the conversation is about, and tapping it opens
 // the post. postRef = { id, type, title, classLabel, classId, thumb }.
-const TYPE_ICON = { no_class: CalendarOff, online_class: Video, meeting_topics: BookOpen, resource_hub: Library }
-const TYPE_LABEL = { no_class: 'No Class Today', online_class: 'Online Class', meeting_topics: 'Lesson topics', resource_hub: 'Resource Hub' }
+const TYPE_ICON = {
+  no_class: CalendarOff, online_class: Video, meeting_topics: BookOpen, resource_hub: Library,
+  activity: ClipboardList, quiz: FileQuestion, grade: BookOpen, attendance: CalendarCheck,
+}
+const TYPE_LABEL = {
+  no_class: 'No Class Today', online_class: 'Online Class', meeting_topics: 'Lesson topics', resource_hub: 'Resource Hub',
+  activity: 'Activity', quiz: 'Quiz', grade: 'Grade', attendance: 'Attendance',
+}
 
 export default function PostRefCard({ postRef, onOpen }) {
   if (!postRef) return null

@@ -49,7 +49,7 @@ function saveHidden(sid, h) { try { localStorage.setItem(hiddenKey(sid), JSON.st
 
 export default function MessagesTab({ student: s, messages }) {
   const { db, fbReady, classes, semester, students, reportScreenshot, admin } = useData()
-  const { toast, openDialog, pendingMessageId, clearPendingMessage, pendingMessageDraft, pendingMessagePostRef, clearPendingMessageDraft, openStreamAnnouncement } = useUI()
+  const { toast, openDialog, pendingMessageId, clearPendingMessage, pendingMessageDraft, pendingMessagePostRef, clearPendingMessageDraft, openStreamPost } = useUI()
 
   // The professor's display identity (shown to the student in place of a generic
   // "Professor"/"T"). Falls back to "Professor" until the admin sets a name.
@@ -120,6 +120,10 @@ export default function MessagesTab({ student: s, messages }) {
   // A Stream post attached to the next message (from "Message professor about
   // this post"); rendered as a preview chip above the composer and on the bubble.
   const [attachedPost, setAttachedPost] = useState(null)
+  // Draft + post handed off from "Message professor about this post". Held in a
+  // ref so the composer-reset effect (keyed on activeKey) APPLIES it instead of
+  // wiping it - deterministic, with no setTimeout ordering race.
+  const pendingDraftRef = useRef(null)
   // Smart-lock: send the draft as a private (blurred) message. The on-device
   // classifier auto-suggests it for sensitive drafts; the student can override.
   const [secureOn, setSecureOn]       = useState(false)
@@ -131,8 +135,19 @@ export default function MessagesTab({ student: s, messages }) {
   }, [draftFlag, secureTouched])
   // Reset the composer when the open thread changes so a half-typed draft, a
   // pending reply target, or a primed lock never leaks into a different thread.
+  // Exception: a draft/post handed off from the Stream ("Message professor about
+  // this post") is APPLIED here rather than cleared, so it survives the thread
+  // switch deterministically (no timing race).
   useEffect(() => {
-    setReplyingTo(null); setReplyText(''); setSecureOn(false); setSecureTouched(false); setAttachedPost(null)
+    setReplyingTo(null); setSecureOn(false); setSecureTouched(false)
+    const pend = pendingDraftRef.current
+    if (pend) {
+      setReplyText(pend.draft || '')
+      setAttachedPost(pend.postRef || null)
+      pendingDraftRef.current = null
+    } else {
+      setReplyText(''); setAttachedPost(null)
+    }
   }, [activeKey])
   const threadRef = useRef(null)
 
@@ -290,18 +305,23 @@ export default function MessagesTab({ student: s, messages }) {
   }, [pendingMessageId, messages]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // "Ask the professor about this post" from the Stream: open the direct thread
-  // with the professor and pre-fill the post reference. The draft is applied on a
-  // macrotask so the activeKey reset effect (which clears the composer when the
-  // thread changes) runs first instead of wiping it.
+  // with the professor and pre-fill the post reference. The draft + post are
+  // stashed in pendingDraftRef and applied by the composer-reset effect when
+  // openConversation() flips activeKey - deterministic, no setTimeout race. If
+  // the direct thread is already open (activeKey unchanged), apply immediately.
   useEffect(() => {
     if (pendingMessageDraft == null) return
     const draft = pendingMessageDraft
     const postRef = pendingMessagePostRef
     clearPendingMessageDraft()
+    const alreadyOpen = view === 'thread' && activeKey === 'direct'
+    pendingDraftRef.current = { draft, postRef }
     openConversation()
-    // After openConversation's composer reset (keyed on activeKey) runs.
-    const t = setTimeout(() => { setReplyText(draft); if (postRef) setAttachedPost(postRef) }, 0)
-    return () => clearTimeout(t)
+    if (alreadyOpen) {
+      setReplyText(draft)
+      setAttachedPost(postRef || null)
+      pendingDraftRef.current = null
+    }
   }, [pendingMessageDraft]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Ping each @mentioned member (in-app notif + best-effort push). Secure drafts
@@ -615,7 +635,7 @@ export default function MessagesTab({ student: s, messages }) {
                               </span>
                             )}
                             {entry.postRef && (
-                              <PostRefCard postRef={entry.postRef} onOpen={() => openStreamAnnouncement(entry.postRef.id, entry.postRef.classId)} />
+                              <PostRefCard postRef={entry.postRef} onOpen={() => openStreamPost(entry.postRef)} />
                             )}
                             {entry.secure
                               ? (isSelf
@@ -659,7 +679,7 @@ export default function MessagesTab({ student: s, messages }) {
                   )}
                   {attachedPost && (
                     <div className="msg-attach-banner">
-                      <div className="msg-attach-grow"><PostRefCard postRef={attachedPost} onOpen={() => openStreamAnnouncement(attachedPost.id, attachedPost.classId)} /></div>
+                      <div className="msg-attach-grow"><PostRefCard postRef={attachedPost} onOpen={() => openStreamPost(attachedPost)} /></div>
                       <button className="rb-x" onClick={() => setAttachedPost(null)} aria-label="Remove attached post"><X size={14} /></button>
                     </div>
                   )}
