@@ -858,7 +858,7 @@ export default function AnnouncementsTab() {
                       {getClassName(ann.classId)}
                     </div>
                     {ann.message && (
-                      <div className="ann-message ann-message--preview" style={{ fontSize: 13, marginTop: 4 }} dangerouslySetInnerHTML={{ __html: ann.message }} />
+                      <div className="ann-message ann-message--preview" style={{ fontSize: 13, marginTop: 4 }} dangerouslySetInnerHTML={{ __html: sanitizeHtml(ann.message) }} />
                     )}
                     {ann.type === 'meeting_topics' && ann.topics?.length > 0 && (
                       <ol style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 12, color: 'var(--ink2)', lineHeight: 1.7 }}>

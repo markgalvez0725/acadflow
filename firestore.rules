@@ -62,6 +62,17 @@ service cloud.firestore {
              .affectedKeys().hasAny(['grades', 'gradeComponents']);
     }
 
+    // True when an UPDATE changes ONLY the given top-level keys (a subset of
+    // `keys`). Used to let students touch the collaborative fields of a
+    // teacher-owned doc (e.g. add a comment / like) WITHOUT being able to edit
+    // its content (the announcement body, the quiz answer key, etc.). On create
+    // `resource` is null, so this returns false there - creates are gated
+    // separately to teacher-only.
+    function onlyAffects(keys) {
+      return resource != null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
     // Identity verification is server/teacher authority only — a student's own
     // device must never be able to FORGE itself to "verified" (that gate guards
     // portal access). We block only the upgrade to verified=true when it wasn't
@@ -96,6 +107,15 @@ service cloud.firestore {
     // Update: teacher freely; students may update their own-facing fields
     //         (profile, attendance check-in, quizResults cache, …) but never
     //         grades / gradeComponents.
+    //
+    // ⚠ KNOWN GAP (C1, cannot be fixed by rules alone): Firestore rules are
+    // document-level, not field-level, for READS. Because every signed-in user
+    // can read this whole collection, any student can read EVERY student record,
+    // including the password hash (account.pass) and security-answer hashes. The
+    // real fix is to MOVE those secret fields OUT of the student doc into a
+    // server-only collection (like faceSignatures/* already is) so the client
+    // never sees them - then this broad read is harmless (only non-secret roster
+    // data is exposed). Until then, treat account.pass as readable by all users.
     match /students/{sid} {
       allow read:   if signedIn();
       allow create: if isAdmin();
@@ -117,22 +137,65 @@ service cloud.firestore {
     // tab. The cron uses the service account, which bypasses these rules.
     match /auditLog/{docId}           { allow read, write: if isAdmin(); }
 
+    // ── Teacher-owned content with student collaboration ─────────────────
+    // PRINCIPLE: the teacher OWNS the content (creates/deletes it and edits its
+    // body); students may only touch the collaborative side-fields. Previously
+    // every one of these was `read, write: if signedIn()`, which let ANY student
+    // forge or delete announcements/quizzes/activities and (for announcements)
+    // inject HTML into the `message` field that renders in the teacher's admin
+    // view. The `onlyAffects(...)` allow-lists below are derived from the actual
+    // client write helpers; VERIFY them in the Rules Playground / emulator before
+    // publishing, and extend a list if a feature writes a new collaborative field.
+
+    // Announcements: teacher posts; students may only add comments / likes / follows.
+    // Student writers (persistence.js): fbAddAnnouncementComment -> {comments},
+    // toggle like -> {likes}, toggle follow -> {followers}.
+    match /announcements/{docId} {
+      allow read:           if signedIn();
+      allow create, delete: if isAdmin();
+      allow update:         if isAdmin() || (signedIn() && onlyAffects(['comments', 'likes', 'followers']));
+    }
+
+    // Quizzes: teacher authors the quiz (questions + answer keys); a student may
+    // only write their own attempt under the `submissions` map (QuizTab writes
+    // `submissions.<studentId>`), never `questions`/`answer`. NOTE residual: the
+    // map-level rule can't pin the sub-key to the caller, so a student could in
+    // theory overwrite another student's submission - acceptable vs. the prior
+    // "edit the answer key" exposure; tighten server-side later if needed.
+    match /quizzes/{docId} {
+      allow read:           if signedIn();
+      allow create, delete: if isAdmin();
+      allow update:         if isAdmin() || (signedIn() && onlyAffects(['submissions']));
+    }
+
+    // Activities + attendance sessions: only the teacher creates or deletes them;
+    // students update them in place (activity submissions, attendance check-in).
+    // Leaving student UPDATE broad keeps every submission/check-in flow working;
+    // create/delete is now teacher-only so students can't forge or wipe them.
+    match /activities/{docId} {
+      allow read:           if signedIn();
+      allow create, delete: if isAdmin();
+      allow update:         if signedIn();
+    }
+    match /attendanceSessions/{docId} {
+      allow read:           if signedIn();
+      allow create, delete: if isAdmin();
+      allow update:         if signedIn();
+    }
+
     // ── Shared collections students legitimately write to ────────────────
-    // (Submissions, quiz attempts, group submissions, comments, check-ins,
-    // excuse requests, push tokens — all require login but no field gating, so
-    // legitimate student writes are never blocked.)
+    // These are genuinely collaborative (DMs/groups, cross-user notifications,
+    // excuse requests, feedback, device tokens). They stay login-only because a
+    // correct ownership gate needs per-document author checks; the proper fix is
+    // to route these writes through the server (service account) so the client
+    // never writes another user's doc. Tracked as follow-up, not a quick win.
     match /messages/{docId}           { allow read, write: if signedIn(); }
     // Ephemeral "X is typing" presence per chat (direct_/group_ keys).
     match /typing/{docId}             { allow read, write: if signedIn(); }
-    match /activities/{docId}         { allow read, write: if signedIn(); }
     match /notifications/{docId}      { allow read, write: if signedIn(); }
-    match /quizzes/{docId}            { allow read, write: if signedIn(); }
-    match /announcements/{docId}      { allow read, write: if signedIn(); }
-    match /attendanceSessions/{docId} { allow read, write: if signedIn(); }
     match /excuseRequests/{docId}     { allow read, write: if signedIn(); }
     // Student feedback (enhancements / bug reports / requests): students create &
-    // read; the teacher updates the status from the Feedback Hub. Same login-only
-    // gate as the other shared collections so a legitimate write is never blocked.
+    // read; the teacher updates the status from the Feedback Hub.
     match /studentFeedback/{docId}    { allow read, write: if signedIn(); }
     match /pushTokens/{docId}         { allow read, write: if signedIn(); }
 
