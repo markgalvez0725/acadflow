@@ -191,6 +191,7 @@ export function DataProvider({ children }) {
       onMeetingsUpdate: setMeetings,
       onAttendanceSessionsUpdate: setAttendanceSessions,
       onExcuseRequestsUpdate: setExcuseRequests,
+      onStudentFeedbackUpdate: setStudentFeedback,
       onAuditLogUpdate: isAdminUser() ? setAuditLog : undefined,
       onRubricLibraryUpdate: setRubricLibrary,
       onConfigUpdate: ({ ejsConfig }) => {
