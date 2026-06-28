@@ -19,7 +19,7 @@ AcadFlow is a web-based school portal that provides a unified platform to manage
 - **Attendance** - calendar-based daily attendance tracking (Present / Absent / Excuse); excuse-request triage; import from file
 - **Activities** - post assignments with deadlines, rubric builder + reusable rubric library, and grade submissions; students are notified when graded
 - **Quiz** - create and manage quizzes; AI-generated questions; answer-key manager with fuzzy text auto-scoring and partial credit; quiz→gradebook auto-post; suspicious-submission flagging; distractor-quality auditor; clone quiz
-- **Stream** - class activity feed (announcements, grades, activities, quizzes, attendance) with rich-text announcements, comments, replies, and @mentions
+- **Stream** - Instagram-style feed (announcements, grades, activities, quizzes, attendance) that auto-loads on scroll (no pagination) with a reveal animation. Rich-text announcements with media, inline comments, replies, and @mentions; optional Google Drive attachments (photos/files) uploaded browser-side and previewed in-feed
 - **Calendar** - monthly calendar view of activities, quizzes, and announcements
 - **Online Classes** - schedule and manage Google Meet sessions; start/end/cancel meetings
 - **Resources** - share lesson files and links per class
@@ -35,7 +35,7 @@ AcadFlow is a web-based school portal that provides a unified platform to manage
 - **Attendance** - personal attendance calendar and summary; submit excuse requests
 - **Activities / Assignments** - view and submit assignments; edit submission link before deadline
 - **Quiz** - take quizzes with auto-grading
-- **Stream** - class activity feed with announcement comments, replies, and @mentions
+- **Stream** - Instagram-style feed that auto-loads on scroll (no pagination); like and save posts, full-screen media lightbox, inline announcement comments, replies, and @mentions
 - **Calendar** - personal calendar view of upcoming events; export to `.ics`
 - **Online Classes** - view and join scheduled Google Meet sessions
 - **Resources** - browse class lesson files and links
@@ -162,7 +162,7 @@ src/
     persistence.js   # Firestore write helpers
     settings.js      # Settings and EJS config sync
     attendanceExtras.js / pushTokens.js  # Attendance/excuse writes, web-push tokens
-  hooks/             # usePushNotifications, useReminders, useScreenshotGuard, useInstallPrompt, …
+  hooks/             # usePushNotifications, useReminders, useScreenshotGuard, useInstallPrompt, useInfiniteFeed, …
   pwa/               # Service-worker registration + web push client
   utils/             # grades, gradeEngine, attendance, crypto, mentions, biometric, on-device AI helpers, …
   App.jsx            # Context provider tree
