@@ -11,6 +11,7 @@ import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import QRCode from '@/components/primitives/QRCode'
 import KebabMenu from '@/components/primitives/KebabMenu'
+import EmptyState from '@/components/ds/EmptyState'
 import { Download, Upload, AlertTriangle, Shuffle, RefreshCw, CalendarDays, Check, ClipboardList, X, ClipboardCheck, Archive, ArchiveRestore, UserCheck, UserX, Radio, Copy, ListFilter, Radar, TrendingDown, Star } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
@@ -1014,7 +1015,7 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
 
       {/* Roster - one responsive card grid for every screen size */}
       <div className="att-card-grid">
-        {slice.length === 0 && <div className="empty" style={{ gridColumn: '1 / -1' }}>No students.</div>}
+        {slice.length === 0 && <div style={{ gridColumn: '1 / -1' }}><EmptyState compact title="No students." /></div>}
         {slice.map(st => {
           const flag = monitor.flags[st.id]
           const tier = tierColor(st.rate)
@@ -1241,9 +1242,9 @@ export default function AttendanceTab() {
       )}
 
       {!subjectOptions.length ? (
-        <div className="empty"><div className="empty-icon"><ClipboardCheck size={32} /></div>{showArchived ? 'No archived classes.' : 'No classes yet.'}</div>
+        <EmptyState Icon={ClipboardCheck} title={showArchived ? 'No archived classes.' : 'No classes yet.'} />
       ) : !selSub ? (
-        <div className="empty">Select a subject to view attendance.</div>
+        <EmptyState title="Select a subject to view attendance." />
       ) : (
         <SubjectAttCard
           key={selected.key}

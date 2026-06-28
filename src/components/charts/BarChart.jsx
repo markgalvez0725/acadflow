@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import EmptyState from '@/components/ds/EmptyState'
 
 const CHART_COLORS = ['#0d2f6e','#3b7dd8','#c8a84b','#1a7a4a','#5b21b6','#b93232','#0891b2','#d97706']
 
@@ -10,7 +11,11 @@ export default function BarChart({ data = [], height = 160, maxVal = 100 }) {
   const [tooltip, setTooltip] = useState(null)
 
   if (!data.length) {
-    return <div className="empty text-sm py-4">No data</div>
+    return (
+      <div style={{ minHeight: height, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <EmptyState text="No data yet" tone="muted" compact />
+      </div>
+    )
   }
 
   const svgPad   = { top: 10, right: 8, bottom: 36, left: 36 }

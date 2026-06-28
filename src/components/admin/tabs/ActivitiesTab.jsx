@@ -8,6 +8,7 @@ import { getHeldDays, computeTerms, scoredPercent, round2 } from '@/utils/grades
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
+import EmptyState from '@/components/ds/EmptyState'
 import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil, ClipboardList, AlarmClock, CircleDot, BarChart3, CheckCircle2, Check, Save, Plus, Copy, Users } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { deviceRubric, smartInstructions, smartRubric, smartGrade, smartGradeGroups, autoFormGroups, prewarmActivitySmart } from '@/utils/activitySmart'
@@ -1011,7 +1012,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
 
       {/* Submissions table */}
       {!enrolledStudents.length ? (
-        <div className="empty">No registered students in this class yet.</div>
+        <EmptyState compact title="No registered students in this class yet." />
       ) : (
         <div className="tbl-wrap mb-3">
           <table className="tbl">
@@ -1306,10 +1307,11 @@ export default function ActivitiesTab() {
 
       {/* Active Activities */}
       {activeActs.length === 0 ? (
-        <div className="empty">
-          <div className="empty-icon" style={{ fontSize: '2rem' }}>-</div>
-          No activities posted yet. Click "New Activity" to get started.
-        </div>
+        <EmptyState
+          Icon={ClipboardList}
+          title="No activities posted yet"
+          text='Click "New Activity" to get started.'
+        />
       ) : (
         <>
           <div className="flex flex-col gap-3 mb-3">

@@ -3,6 +3,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio } from 'lucide-react'
 import { courseShort } from '@/constants/courses'
+import EmptyState from '@/components/ds/EmptyState'
 
 export default function OnlineClassesTab() {
   const { classes, meetings, saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting } = useData()
@@ -181,7 +182,7 @@ export default function OnlineClassesTab() {
           </div>
         </div>
         {activeClasses.length === 0 && (
-          <div className="empty"><div className="empty-icon"><Video size={36} /></div>No classes found. Add classes first.</div>
+          <EmptyState Icon={Video} title="No classes found." text="Add classes first." />
         )}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))', gap: 14 }}>
           {activeClasses.map(cls => {
@@ -359,7 +360,7 @@ export default function OnlineClassesTab() {
 
         {listTab === 'upcoming' && (
           upcoming.length === 0
-            ? <div className="empty"><div className="empty-icon"><CalendarPlus size={36} /></div>No upcoming meetings.</div>
+            ? <EmptyState Icon={CalendarPlus} title="No upcoming meetings." />
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {upcoming.map(m => <MeetingRow key={m.id} m={m} onStart={handleStart} onEnd={handleEnd} onCancel={handleCancel} />)}
               </div>
@@ -367,7 +368,7 @@ export default function OnlineClassesTab() {
 
         {listTab === 'past' && (
           past.length === 0
-            ? <div className="empty"><div className="empty-icon"><CheckCircle size={36} /></div>No past meetings.</div>
+            ? <EmptyState Icon={CheckCircle} title="No past meetings." />
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {past.map(m => <MeetingRow key={m.id} m={m} />)}
               </div>

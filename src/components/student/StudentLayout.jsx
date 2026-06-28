@@ -8,6 +8,7 @@ import Dialog from '@/components/primitives/Dialog'
 import StudentSidebar from './StudentSidebar'
 import { SkeletonRows, SkeletonDashboard, TabErrorBoundary } from '@/components/primitives/SkeletonLoader'
 import SemesterCalendarChip from '@/components/primitives/SemesterCalendarChip'
+import EmptyState from '@/components/ds/EmptyState'
 import CommandPaletteButton from '@/components/primitives/CommandPaletteButton'
 import InstallPrompt from '@/components/primitives/InstallPrompt'
 import ConnectionStatus from '@/components/primitives/ConnectionStatus'
@@ -34,22 +35,21 @@ const PENDING_GATED_TABS = new Set(['overview', 'grades', 'quizzes', 'activities
 // via onVerify) owns all the step-specific detail, so this stays simple.
 function VerificationGate({ onVerify, onContact }) {
   return (
-    <div className="empty" style={{ padding: '40px 16px', textAlign: 'center', maxWidth: 460, margin: '0 auto' }}>
-      <div className="empty-icon" style={{ color: 'var(--accent)' }}><ShieldCheck size={40} /></div>
-      <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--ink)', marginTop: 4 }}>Get verified to unlock</div>
-      <p style={{ fontSize: 13.5, color: 'var(--ink2)', lineHeight: 1.6, marginTop: 8 }}>
-        Your grades, quizzes, and activities unlock once your account is verified.
-        It only takes a minute - I'll guide you through each step.
-      </p>
-      <button className="btn btn-primary btn-sm" style={{ marginTop: 16 }} onClick={onVerify}>
-        <ShieldCheck size={14} style={{ marginRight: 6 }} /> Get verified
-      </button>
-      <div>
-        <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={onContact}>
-          <MessageSquare size={14} /> Message your professor
+    <EmptyState
+      Icon={ShieldCheck}
+      title="Get verified to unlock"
+      text="Your grades, quizzes, and activities unlock once your account is verified. It only takes a minute, I'll guide you through each step."
+      action={<>
+        <button className="btn btn-primary btn-sm" style={{ marginTop: 16 }} onClick={onVerify}>
+          <ShieldCheck size={14} style={{ marginRight: 6 }} /> Get verified
         </button>
-      </div>
-    </div>
+        <div>
+          <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={onContact}>
+            <MessageSquare size={14} /> Message your professor
+          </button>
+        </div>
+      </>}
+    />
   )
 }
 

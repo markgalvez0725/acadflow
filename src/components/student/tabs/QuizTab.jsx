@@ -9,6 +9,7 @@ import { useUI } from '@/context/UIContext'
 import Modal from '@/components/primitives/Modal'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 import StandingRing from '@/components/primitives/StandingRing'
+import EmptyState from '@/components/ds/EmptyState'
 import { activeClassIds } from '@/utils/active'
 import { subjectColor } from '@/utils/subjectColor'
 import { computeQuizScore } from '@/utils/quizScore'
@@ -702,11 +703,11 @@ export default function StudentQuizTab({ student, viewClassId }) {
 
   if (!myQuizzes.length) {
     return (
-      <div className="empty">
-        <div className="empty-icon" style={{ fontSize: '2rem' }}><FileText size={32} /></div>
-        <p>No quizzes assigned yet.</p>
-        <p className="text-xs text-ink3 mt-1">Your professor will share quizzes here.</p>
-      </div>
+      <EmptyState
+        Icon={FileText}
+        title="No quizzes assigned yet."
+        text="Your professor will share quizzes here."
+      />
     )
   }
 
@@ -762,10 +763,11 @@ export default function StudentQuizTab({ student, viewClassId }) {
       </div>
 
       {!visible.length ? (
-        <div className="empty" style={{ padding: '32px 16px' }}>
-          <div className="empty-icon"><FileText size={34} /></div>
-          No quizzes under “{PILLS.find(p => p.key === filter)?.label}”.
-        </div>
+        <EmptyState
+          Icon={FileText}
+          title={`No quizzes under “${PILLS.find(p => p.key === filter)?.label}”.`}
+          tone="muted"
+        />
       ) : (
       <div className="sact-grid">
         {visible.map(({ q, sub, group, scorePct, scoreText }) => {

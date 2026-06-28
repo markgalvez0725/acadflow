@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
 import Pagination from '@/components/primitives/Pagination'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
+import EmptyState from '@/components/ds/EmptyState'
 import { History, Search, GraduationCap, ClipboardList, Trash2, RefreshCw, ShieldCheck } from 'lucide-react'
 
 const PER_PAGE = 12
@@ -50,11 +51,12 @@ export default function AuditLogTab() {
       </div>
 
       {!filtered.length ? (
-        <div className="empty">
-          <div className="empty-icon"><History size={40} /></div>
-          {q ? 'No matching audit entries.' : 'No audit entries yet.'}<br />
-          <span style={{ fontSize: 12 }}>Grade edits, deletions, and regrade decisions are recorded here.</span>
-        </div>
+        <EmptyState
+          Icon={History}
+          tone={q ? 'muted' : 'accent'}
+          title={q ? 'No matching audit entries.' : 'No audit entries yet.'}
+          text="Grade edits, deletions, and regrade decisions are recorded here."
+        />
       ) : (
         <>
           <div className="notif-list">

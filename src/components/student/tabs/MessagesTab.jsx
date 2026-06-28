@@ -22,6 +22,7 @@ import Pagination from '@/components/primitives/Pagination'
 import KebabMenu from '@/components/primitives/KebabMenu'
 import SecureBubble from '@/components/primitives/SecureBubble'
 import SwipeReply from '@/components/primitives/SwipeReply'
+import EmptyState from '@/components/ds/EmptyState'
 import { useScreenshotGuard } from '@/hooks/useScreenshotGuard'
 import { classifySensitivity, sensitivityLabel } from '@/utils/sensitiveContent'
 import { MessageSquare, GraduationCap, CheckCheck, Trash2, Check, Lock, Send, ChevronLeft, Megaphone, Search, SquarePen, Camera, Reply, X } from 'lucide-react'
@@ -460,11 +461,20 @@ export default function MessagesTab({ student: s, messages }) {
   // One conversation-list row (shared by both panes' list).
   function renderListItems() {
     if (!items.length) {
-      return (
-        <div className="empty" style={{ padding: '28px 18px' }}>
-          <div className="empty-icon"><MessageSquare size={36} /></div>
-          {search ? 'No messages match your search.' : <>No messages yet.<br /><span style={{ fontSize: 12 }}>Messages from your professor will appear here.</span></>}
-        </div>
+      return search ? (
+        <EmptyState
+          Icon={MessageSquare}
+          title="No messages match your search."
+          tone="muted"
+          compact
+        />
+      ) : (
+        <EmptyState
+          Icon={MessageSquare}
+          title="No messages yet."
+          text="Messages from your professor will appear here."
+          compact
+        />
       )
     }
     return slice.map(item => {
@@ -595,7 +605,7 @@ export default function MessagesTab({ student: s, messages }) {
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-4 flex flex-col" ref={threadRef}>
                 {threadEntries.length === 0 && (
-                  <div className="empty" style={{ padding: 32 }}><div className="empty-icon"><MessageSquare size={40} /></div>No messages yet. Send the first one!</div>
+                  <EmptyState Icon={MessageSquare} title="No messages yet. Send the first one!" compact />
                 )}
                 {threadEntries.map((entry, i) => {
                   const info = senderInfo(entry)

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
+import EmptyState from '@/components/ds/EmptyState'
 import {
   Sparkles, Bug, Lightbulb, MessageSquare, Send, CheckCircle2, Clock, Archive,
   ShieldCheck, Wand2, AlertTriangle,
@@ -234,10 +235,12 @@ export default function FeedbackTab({ student }) {
           <div className="sec-title">Your feedback</div>
         </div>
         {mine.length === 0 ? (
-          <div className="empty">
-            <div className="empty-icon"><MessageSquare size={36} /></div>
-            You haven't sent any feedback yet.
-          </div>
+          <EmptyState
+            Icon={MessageSquare}
+            title="No feedback sent yet"
+            text="Your submissions to your professor will show up here."
+            compact
+          />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {mine.map(f => {

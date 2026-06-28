@@ -5,6 +5,7 @@ import { useUI } from '@/context/UIContext'
 import Modal from '@/components/primitives/Modal'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
+import EmptyState from '@/components/ds/EmptyState'
 import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList, Pencil, Save, Rocket, FileText, X, Lock, Circle, Archive, ArchiveRestore, Sparkles, Wand2, FileUp, Copy, Lightbulb, ScanSearch, Fingerprint } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { extractTextFromFile } from '@/utils/lessonExtract'
@@ -1461,15 +1462,17 @@ export default function QuizTab() {
       </div>
 
       {!activeQuizzes.length && !archivedQuizzes.length ? (
-        <div className="empty">
-          <div className="empty-icon"><FileText size={32} /></div>
-          No quizzes yet. Export a template, generate with a chat assistant, then import the response.
-        </div>
+        <EmptyState
+          Icon={FileText}
+          title="No quizzes yet"
+          text="Export a template, generate with a chat assistant, then import the response."
+        />
       ) : activeQuizzes.length === 0 ? (
-        <div className="empty">
-          <div className="empty-icon"><FileText size={32} /></div>
-          No active quizzes. All quizzes belong to archived classes.
-        </div>
+        <EmptyState
+          Icon={FileText}
+          title="No active quizzes"
+          text="All quizzes belong to archived classes."
+        />
       ) : (
         <>
           <div className="flex flex-col gap-3 mb-3">

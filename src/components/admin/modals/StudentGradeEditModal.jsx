@@ -7,6 +7,7 @@ import { activeClassIds, activeSubjects } from '@/utils/active'
 import { subjectColor } from '@/utils/subjectColor'
 import { pushStudentNotif } from '@/firebase/studentNotif'
 import { GraduationCap } from 'lucide-react'
+import EmptyState from '@/components/ds/EmptyState'
 
 function toNum(v) {
   if (v === '' || v === null || v === undefined) return null
@@ -310,7 +311,11 @@ export default function StudentGradeEditModal() {
       </p>
 
       {!subjects.length ? (
-        <div className="empty" style={{ padding: 32 }}>No current-semester subjects to edit. Previous grades are finalized.</div>
+        <EmptyState
+          Icon={GraduationCap}
+          title="No current-semester subjects to edit."
+          text="Previous grades are finalized."
+        />
       ) : (
         <>
           <div className="hidden sm:grid" style={{ gridTemplateColumns: '1.4fr 84px 84px 56px 64px auto', gap: 8, padding: '0 0 6px', borderBottom: '2px solid var(--border)' }}>

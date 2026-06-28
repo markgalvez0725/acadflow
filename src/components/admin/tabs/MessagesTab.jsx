@@ -8,6 +8,7 @@ import { isClassCurrent } from '@/utils/active'
 import { isGroupMessage, autoGroupName, groupName, studentTag, groupMembers, courseShort } from '@/utils/groupChat'
 import GroupMembers from '@/components/primitives/GroupMembers'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
+import EmptyState from '@/components/ds/EmptyState'
 import TypingIndicator from '@/components/primitives/TypingIndicator'
 import { useTyping } from '@/hooks/useTyping'
 import { notifyStudentMessage, notifyStudentsBroadcast, notifyMention } from '@/firebase/messageNotify'
@@ -990,7 +991,13 @@ export default function MessagesTab() {
   // ── Render the unified list (direct conversations + group chats) ──────
   function renderListItems() {
     if (!filteredList.length) {
-      return <div className="empty" style={{ padding: '32px 20px' }}>{search ? 'No messages match your search.' : 'No messages yet.'}</div>
+      return (
+        <EmptyState
+          compact
+          tone={search ? 'muted' : 'accent'}
+          title={search ? 'No messages match your search.' : 'No messages yet.'}
+        />
+      )
     }
     return pageSlice.map(item => {
       if (item.kind === 'conversation') {

@@ -5,6 +5,7 @@ import { useUI } from '@/context/UIContext'
 import { CalendarCheck, Calendar, CheckCircle2, FileCheck, XCircle, Award, UserCheck, Radio, ClipboardList, Send, ShieldCheck, AlertTriangle, Flame, PartyPopper } from 'lucide-react'
 import TakeAttendanceModal from '@/components/student/modals/TakeAttendanceModal'
 import StandingRing from '@/components/primitives/StandingRing'
+import EmptyState from '@/components/ds/EmptyState'
 import { activeClassIds, activeSubjects } from '@/utils/active'
 import { courseShort } from '@/constants/courses'
 
@@ -197,7 +198,11 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
 
   if (!subs.length) {
     return (
-      <div className="empty"><div className="empty-icon"><CalendarCheck size={40} /></div>No attendance records yet.</div>
+      <EmptyState
+        Icon={CalendarCheck}
+        title="No attendance records yet"
+        text="Your standing shows here once your professor starts taking attendance."
+      />
     )
   }
 
@@ -530,9 +535,9 @@ const DATE_ICONS = {
   absent:  <XCircle size={14} style={{ verticalAlign: 'middle', color: 'var(--red)' }} />,
 }
 const EMPTY_ICONS = {
-  present: <CheckCircle2 size={36} />,
-  excuse:  <FileCheck size={36} />,
-  absent:  <Award size={36} />,
+  present: CheckCircle2,
+  excuse:  FileCheck,
+  absent:  Award,
 }
 
 function DateList({ dates, type }) {
@@ -545,7 +550,7 @@ function DateList({ dates, type }) {
   }
   if (!dates.length) {
     const e = empties[type]
-    return <div className="empty"><div className="empty-icon">{e.icon}</div>{e.msg}</div>
+    return <EmptyState Icon={e.icon} text={e.msg} compact />
   }
   return (
     <div className="sa-record-list">

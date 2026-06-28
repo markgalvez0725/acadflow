@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
+import EmptyState from '@/components/ds/EmptyState'
 import { useUI } from '@/context/UIContext'
 import { Sparkles, Bug, Lightbulb, MessageSquare, Search, CheckCircle2, Clock, Archive, RotateCcw } from 'lucide-react'
 
@@ -90,11 +91,12 @@ export default function FeedbackHubTab() {
       </div>
 
       {list.length === 0 ? (
-        <div className="empty">
-          <div className="empty-icon"><MessageSquare size={40} /></div>
-          {q ? 'No matching feedback.' : filter === 'new' ? 'No new feedback. You\'re all caught up.' : 'No feedback here.'}
-          <br /><span style={{ fontSize: 12 }}>Student bug reports, ideas, and requests land here.</span>
-        </div>
+        <EmptyState
+          Icon={MessageSquare}
+          tone={q ? 'muted' : 'accent'}
+          title={q ? 'No matching feedback.' : filter === 'new' ? 'No new feedback. You\'re all caught up.' : 'No feedback here.'}
+          text="Student bug reports, ideas, and requests land here."
+        />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {list.map(f => {

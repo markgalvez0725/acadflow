@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { activeClassIds } from '@/utils/active'
 import { courseShort } from '@/constants/courses'
+import EmptyState from '@/components/ds/EmptyState'
 
 const IMMINENT_MS = 15 * 60 * 1000 // a class "starting soon" - show one-tap join
 
@@ -97,10 +98,11 @@ export default function OnlineClassesTab({ student }) {
 
   if (!myMeetings.length) {
     return (
-      <div className="empty">
-        <div className="empty-icon"><Video size={40} /></div>
-        No online classes yet. Your professor's scheduled and live sessions will appear here.
-      </div>
+      <EmptyState
+        Icon={Video}
+        title="No online classes yet"
+        text="Your professor's scheduled and live sessions will appear here."
+      />
     )
   }
 
@@ -197,10 +199,7 @@ export default function OnlineClassesTab({ student }) {
       {/* Upcoming */}
       <div className={`oc-sec-h ${liveMeetings.length ? '' : 'first'}`}><Video size={13} /> Upcoming · {upcoming.length}</div>
       {upcoming.length === 0 ? (
-        <div className="empty" style={{ padding: '24px 16px' }}>
-          <div className="empty-icon"><Video size={32} /></div>
-          No upcoming online classes scheduled.
-        </div>
+        <EmptyState Icon={Video} title="No upcoming online classes scheduled." compact />
       ) : (
         <div className="sact-card">
           {upcoming.map(m => {
@@ -252,9 +251,8 @@ export default function OnlineClassesTab({ student }) {
         </div>
       )}
       {pastOpen && past.length === 0 && (
-        <div className="empty" style={{ marginTop: 10, padding: '24px 16px' }}>
-          <div className="empty-icon"><Clock size={32} /></div>
-          No past sessions yet.
+        <div style={{ marginTop: 10 }}>
+          <EmptyState Icon={Clock} title="No past sessions yet." compact />
         </div>
       )}
     </div>

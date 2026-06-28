@@ -3,6 +3,7 @@ import { doc, updateDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Pagination from '@/components/primitives/Pagination'
+import EmptyState from '@/components/ds/EmptyState'
 import { ClipboardList, Check, Circle, Users, ShieldCheck, AlertTriangle, Clock, Hourglass, Trophy, CheckCircle2 } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import StandingRing from '@/components/primitives/StandingRing'
@@ -187,10 +188,11 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
 
   if (!items.length) {
     return (
-      <div className="empty">
-        <div className="empty-icon"><ClipboardList size={40} /></div>
-        No activities yet. Check back later.
-      </div>
+      <EmptyState
+        Icon={ClipboardList}
+        title="No activities yet"
+        text="Check back later."
+      />
     )
   }
 
@@ -252,10 +254,11 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="empty" style={{ padding: '32px 16px' }}>
-          <div className="empty-icon"><ClipboardList size={34} /></div>
-          Nothing here under “{PILLS.find(p => p.key === filter)?.label}”.
-        </div>
+        <EmptyState
+          Icon={ClipboardList}
+          title={`Nothing here under “${PILLS.find(p => p.key === filter)?.label}”.`}
+          tone="muted"
+        />
       ) : (
       <div className="sact-grid">
         {slice.map(d => {

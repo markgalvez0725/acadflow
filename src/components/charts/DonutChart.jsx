@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import EmptyState from '@/components/ds/EmptyState'
 
 /**
  * SVG arc donut chart.
@@ -11,7 +12,11 @@ export default function DonutChart({ data = [], size = 130, total, unit = 'stude
   const sum = total ?? filteredData.reduce((a, b) => a + b.value, 0)
 
   if (!sum) {
-    return <div className="empty text-sm py-4">No data</div>
+    return (
+      <div style={{ minHeight: size, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <EmptyState text="No data yet" tone="muted" compact />
+      </div>
+    )
   }
 
   const cx = size / 2

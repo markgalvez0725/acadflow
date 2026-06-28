@@ -14,6 +14,7 @@ import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
 import AccountAuditModal from '@/components/admin/modals/AccountAuditModal'
 import KebabMenu from '@/components/primitives/KebabMenu'
+import EmptyState from '@/components/ds/EmptyState'
 import { Download, Upload, KeyRound, GraduationCap, CheckCircle2, Pencil, Plus, Save, BookOpen, Check, Users, ClipboardList, Hourglass, Send, AlertTriangle, ShieldCheck, XCircle, Search, Sparkles } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { useStudentReportCardExport } from '@/hooks/useStudentReportCardExport'
@@ -1389,7 +1390,11 @@ export default function StudentsTab() {
 
       {/* Table */}
       {!sorted.length ? (
-        <div className="empty"><div className="empty-icon"><Users size={40} /></div>{search ? 'No students match your search.' : 'No students yet.'}</div>
+        <EmptyState
+          Icon={Users}
+          tone={search ? 'muted' : 'accent'}
+          title={search ? 'No students match your search.' : 'No students yet.'}
+        />
       ) : (
         <>
           <div className="tbl-wrap hidden sm:block">

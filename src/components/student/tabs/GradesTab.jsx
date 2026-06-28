@@ -4,6 +4,7 @@ import { computeSubjectGrade, auditSubjectGrade, explainGradeText } from '@/util
 import { useData } from '@/context/DataContext'
 import { BookOpen, Clock, ChevronDown, ChevronUp, Award, Check, RefreshCw, Target } from 'lucide-react'
 import { activeClassIds, activeSubjects } from '@/utils/active'
+import EmptyState from '@/components/ds/EmptyState'
 import { neededFinalsForRemarks } from '@/utils/whatIf'
 import RegradeRequestModal from '@/components/student/modals/RegradeRequestModal'
 
@@ -37,7 +38,11 @@ export default function GradesTab({ student: s, viewClassId, classes }) {
 
   if (!subs.length) {
     return (
-      <div className="empty"><div className="empty-icon"><BookOpen size={40} /></div>No subjects enrolled yet.</div>
+      <EmptyState
+        Icon={BookOpen}
+        title="No subjects enrolled yet"
+        text="Your grades by subject appear here once you're enrolled."
+      />
     )
   }
 

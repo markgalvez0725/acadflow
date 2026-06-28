@@ -15,6 +15,7 @@ import { pushStudentNotif } from '@/firebase/studentNotif'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import KebabMenu from '@/components/primitives/KebabMenu'
+import EmptyState from '@/components/ds/EmptyState'
 import { Clock, Pencil, BarChart2, Upload, Download, Trash2, BarChart, RefreshCw, Archive, ArchiveRestore, FileSpreadsheet, Plus, ChevronDown, Sparkles, Undo2, Redo2, Check, Maximize2, AlertTriangle, Search } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
@@ -1368,7 +1369,7 @@ function SubjectCard({ cls, sub, studs, allStuds = [], eqScale, readOnly, onEdit
           </thead>
           <tbody>
             {rowsData.length === 0 && (
-              <tr><td colSpan={11}><div className="empty">No students.</div></td></tr>
+              <tr><td colSpan={11}><EmptyState compact title="No students." /></td></tr>
             )}
             {rowsData.map(r => (
                 <tr key={r.s.id}>
@@ -1403,7 +1404,7 @@ function SubjectCard({ cls, sub, studs, allStuds = [], eqScale, readOnly, onEdit
 
       {/* Phone (<640px) - one card per student instead of a sideways-scrolling table */}
       <div className="sm:hidden flex flex-col gap-2">
-        {rowsData.length === 0 && <div className="empty">No students.</div>}
+        {rowsData.length === 0 && <EmptyState compact title="No students." />}
         {rowsData.map(r => (
           <div key={r.s.id} className="rounded-lg p-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
             <div className="flex items-start justify-between gap-2 mb-2">
@@ -1930,12 +1931,13 @@ export default function GradesTab() {
       </div>
 
       {!subjectOptions.length ? (
-        <div className="empty">
-          <div className="empty-icon"><BarChart size={32} /></div>
-          {showArchived ? 'No archived classes with subjects.' : 'No subjects yet - add subjects to a class first.'}
-        </div>
+        <EmptyState
+          Icon={BarChart}
+          title={showArchived ? 'No archived classes with subjects.' : 'No subjects yet'}
+          text={showArchived ? undefined : 'Add subjects to a class first.'}
+        />
       ) : !selected ? (
-        <div className="empty">Select a subject above to view its grades.</div>
+        <EmptyState title="Select a subject above to view its grades." />
       ) : (
         <SubjectCard
           key={selected.key}

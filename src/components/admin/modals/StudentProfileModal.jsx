@@ -11,6 +11,7 @@ import { activeClassIds, activeSubjects } from '@/utils/active'
 import { accountStatus } from '@/utils/accountStatus'
 import { useStudentReportCardExport } from '@/hooks/useStudentReportCardExport'
 import { courseShort } from '@/constants/courses'
+import EmptyState from '@/components/ds/EmptyState'
 import {
   BarChart3, CalendarCheck, BookOpen, ClipboardList, FileDown,
   ChevronDown, ChevronRight, GraduationCap, Clock,
@@ -168,7 +169,7 @@ export default function StudentProfileModal() {
         <div className="sec-title sec-title-ic"><BookOpen /> Subjects, grades, activities & quizzes</div>
       </div>
       {!subjects.length ? (
-        <div className="empty"><div className="empty-icon"><BookOpen size={36} /></div>No subjects this semester.</div>
+        <EmptyState Icon={BookOpen} title="No subjects this semester." compact />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {subjects.map(sub => (

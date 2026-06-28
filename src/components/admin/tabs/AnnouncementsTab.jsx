@@ -3,6 +3,7 @@ import DOMPurify from 'dompurify'
 import { v4 as uuidv4 } from 'uuid'
 import { useData } from '@/context/DataContext'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
+import EmptyState from '@/components/ds/EmptyState'
 import { useUI } from '@/context/UIContext'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import MentionInput from '@/components/primitives/MentionInput'
@@ -807,11 +808,11 @@ export default function AnnouncementsTab() {
 
       {/* Empty state */}
       {!sorted.length && (
-        <div className="empty">
-          <div className="empty-icon"><Megaphone size={40} /></div>
-          No announcements yet.<br />
-          <span style={{ fontSize: 12 }}>Post a "No Class" or "Online Class" notice to notify students instantly.</span>
-        </div>
+        <EmptyState
+          Icon={Megaphone}
+          title="No announcements yet."
+          text='Post a "No Class" or "Online Class" notice to notify students instantly.'
+        />
       )}
 
       {/* List */}

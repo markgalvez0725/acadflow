@@ -1,4 +1,6 @@
 import React from 'react'
+import { AlertTriangle } from 'lucide-react'
+import ErrorState from '@/components/ds/ErrorState'
 
 export class TabErrorBoundary extends React.Component {
   constructor(props) {
@@ -14,20 +16,19 @@ export class TabErrorBoundary extends React.Component {
   render() {
     if (this.state.error) {
       const isDev = !!(import.meta.env && import.meta.env.DEV)
+      // A tab-level render crash: the design-system stylesheet is intact here
+      // (only the app-level ErrorBoundary must avoid CSS classes), so reuse the
+      // shared ErrorState for a consistent framed-icon look + retry.
       return (
-        <div style={{ padding: 24, color: 'var(--red)', background: 'var(--red-l)', borderRadius: 'var(--radius)', margin: 8 }}>
-          <strong>Something went wrong loading this tab.</strong>
-          <div style={{ marginTop: 10 }}>
-            <button
-              type="button"
-              onClick={() => this.setState({ error: null })}
-              style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid var(--red)', background: 'transparent', color: 'var(--red)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-            >
-              Try again
-            </button>
-          </div>
+        <div>
+          <ErrorState
+            Icon={AlertTriangle}
+            title="Something went wrong loading this tab"
+            text="An unexpected error occurred. Try again, or switch tabs and come back."
+            onRetry={() => this.setState({ error: null })}
+          />
           {isDev && (
-            <pre style={{ marginTop: 10, fontSize: 11, whiteSpace: 'pre-wrap', color: 'inherit', opacity: .8 }}>
+            <pre style={{ margin: '0 16px', fontSize: 11, whiteSpace: 'pre-wrap', color: 'var(--ink3)', opacity: .8 }}>
               {this.state.error?.message}
             </pre>
           )}
@@ -40,7 +41,7 @@ export class TabErrorBoundary extends React.Component {
 
 export function SkeletonRows({ count = 5 }) {
   return (
-    <div className="sk-wrap">
+    <div className="sk-wrap" role="status" aria-busy="true" aria-label="Loading">
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="sk sk-row" />
       ))}
@@ -50,7 +51,7 @@ export function SkeletonRows({ count = 5 }) {
 
 export function SkeletonTable({ rows = 5, cols = 4 }) {
   return (
-    <div style={{ padding: '8px 0' }}>
+    <div style={{ padding: '8px 0' }} role="status" aria-busy="true" aria-label="Loading">
       {/* thead placeholder */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
         {Array.from({ length: cols }).map((_, i) => (
@@ -71,7 +72,7 @@ export function SkeletonTable({ rows = 5, cols = 4 }) {
 
 export function SkeletonDashboard() {
   return (
-    <div style={{ padding: '8px 0' }}>
+    <div style={{ padding: '8px 0' }} role="status" aria-busy="true" aria-label="Loading">
       {/* Stat grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12, marginBottom: 20 }}>
         {Array.from({ length: 4 }).map((_, i) => (

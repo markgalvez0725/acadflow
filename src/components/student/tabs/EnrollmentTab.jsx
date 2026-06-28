@@ -3,6 +3,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { findScheduleConflicts } from '@/utils/schedule'
 import { eligibleForClass } from '@/utils/enrollment'
+import EmptyState from '@/components/ds/EmptyState'
 import {
   BookOpen, CheckCircle2, XCircle, LockOpen, Lock,
   CalendarDays, Clock, MapPin, AlertTriangle, TimerOff, Bell,
@@ -490,10 +491,12 @@ export default function EnrollmentTab({ student }) {
 
       {/* Class grid */}
       {allVisible.length === 0 ? (
-        <div className="empty py-12">
-          <div className="empty-icon"><BookOpen size={32} /></div>
-          <div className="text-sm text-[var(--ink3)] mt-2">
-            {filter === 'enrolled'
+        <EmptyState
+          Icon={BookOpen}
+          tone="muted"
+          title="No classes to show"
+          text={
+            filter === 'enrolled'
               ? 'You are not enrolled in any classes yet.'
               : filter === 'available'
               ? semester?.status === 'upcoming'
@@ -502,9 +505,8 @@ export default function EnrollmentTab({ student }) {
                 ? 'Enrollment for this semester has ended.'
                 : 'No classes are currently open for enrollment.'
               : 'No active classes found.'
-            }
-          </div>
-        </div>
+          }
+        />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {allVisible.map(cls => (

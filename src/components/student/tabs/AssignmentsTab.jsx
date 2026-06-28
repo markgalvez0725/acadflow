@@ -5,6 +5,7 @@ import { activeClassIds } from '@/utils/active'
 import { deadlineLabel, deadlineColor } from '@/utils/deadlines'
 import { subjectColor } from '@/utils/subjectColor'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
+import EmptyState from '@/components/ds/EmptyState'
 import StandingRing from '@/components/primitives/StandingRing'
 import {
   ClipboardList, ChevronRight, ListChecks, AlertTriangle, ArrowRightCircle,
@@ -212,10 +213,11 @@ export default function AssignmentsTab({ student: s, classes }) {
       </div>
 
       {!visible.length ? (
-        <div className="empty">
-          <div className="empty-icon"><ClipboardList size={40} /></div>
-          {filter === 'todo' ? 'Nothing to do - you’re all caught up.' : 'No assignments here yet.'}
-        </div>
+        <EmptyState
+          Icon={ClipboardList}
+          title={filter === 'todo' ? "You're all caught up" : 'No assignments here yet'}
+          text={filter === 'todo' ? 'Nothing to do across your subjects right now.' : 'Assignments appear here as your professors post them.'}
+        />
       ) : (
         grouped.map((b, bi) => (
           <div key={b.key}>

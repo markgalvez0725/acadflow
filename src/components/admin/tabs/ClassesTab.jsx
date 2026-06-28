@@ -5,6 +5,7 @@ import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
 import KebabMenu from '@/components/primitives/KebabMenu'
+import EmptyState from '@/components/ds/EmptyState'
 import { Plus, Pencil, School, Archive, ArchiveRestore, CalendarDays, Users, LockOpen, Lock, CheckCircle2, Copy, FileText, Trash2, Clock, MapPin, Search } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { buildClassReportCards } from '@/export/reportCard'
@@ -606,7 +607,11 @@ export default function ClassesTab() {
 
       {/* Table */}
       {!filtered.length ? (
-        <div className="empty"><div className="empty-icon"><School size={32} /></div>{(search || subjectFilter) ? 'No classes match your search.' : showArchived ? 'No archived classes.' : 'No classes yet.'}</div>
+        <EmptyState
+          Icon={School}
+          tone={(search || subjectFilter) ? 'muted' : 'accent'}
+          title={(search || subjectFilter) ? 'No classes match your search.' : showArchived ? 'No archived classes.' : 'No classes yet.'}
+        />
       ) : (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(228px, 1fr))', gap: 12 }}>

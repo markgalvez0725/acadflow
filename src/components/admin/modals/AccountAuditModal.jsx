@@ -4,6 +4,7 @@ import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { auditAccounts, legacyActiveIds, nudgeTargets, incompleteProfiles, demoteCandidates } from '@/utils/accountAudit'
+import EmptyState from '@/components/ds/EmptyState'
 
 // Professor-side analyzer for EXISTING accounts (the Smart identity check only runs at
 // registration). Shows verification coverage + flags integrity anomalies, with a
@@ -160,10 +161,11 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
       </div>
 
       {flags.length === 0 ? (
-        <div className="empty" style={{ padding: '24px 0' }}>
-          <div className="empty-icon"><CheckCircle2 size={36} /></div>
-          No integrity issues across {registeredCount} account{registeredCount !== 1 ? 's' : ''}.
-        </div>
+        <EmptyState
+          Icon={CheckCircle2}
+          title="All clear"
+          text={`No integrity issues across ${registeredCount} account${registeredCount !== 1 ? 's' : ''}.`}
+        />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 380, overflowY: 'auto' }}>
           {flags.map(f => (

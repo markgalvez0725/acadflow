@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
+import EmptyState from '@/components/ds/EmptyState'
 import { verifyPublishedGrade } from '@/utils/gradeEngine'
 import { courseShort } from '@/constants/courses'
 
@@ -163,12 +164,13 @@ export default function GradeIntegrityTab() {
       </div>
 
       {records.length === 0 ? (
-        <div className="empty" style={{ padding: '40px 0' }}>
-          <div className="empty-icon"><CheckCircle2 size={40} /></div>
-          No grades are published yet. Once you upload grades in the Grades tab, every one shows here with its history and an Smart verification.
-        </div>
+        <EmptyState
+          Icon={CheckCircle2}
+          title="No grades published yet"
+          text="Once you upload grades in the Grades tab, every one shows here with its history and a Smart verification."
+        />
       ) : filtered.length === 0 ? (
-        <div className="empty" style={{ padding: '32px 0' }}>Nothing matches this filter.</div>
+        <EmptyState tone="muted" title="Nothing matches this filter." />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {filtered.map(rec => (

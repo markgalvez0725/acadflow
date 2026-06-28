@@ -1825,21 +1825,9 @@ textarea.input { resize: vertical; }
   font-weight: 700;
   color: var(--ink);
 }
-/* ══════════════════════════════════════════
-   EMPTY STATE
-══════════════════════════════════════════ */
-.empty {
-  text-align: center;
-  padding: 40px 20px;
-  color: var(--ink3);
-  font-size: 0.9063rem;
-  line-height: 1.6;
-}
-.empty-icon {
-  font-size: 2.1875rem;
-  line-height: 1;
-  margin-bottom: 10px;
-}
+/* Empty states are owned by the canonical `.empty-cta` component
+   (src/components/ds/EmptyState.jsx + design-system.css). The old `.empty` /
+   `.empty-icon` classes were removed after every tab migrated to EmptyState. */
 
 /* ══════════════════════════════════════════
    TABLE
@@ -3711,24 +3699,6 @@ textarea.input { resize: vertical; }
 
 
 
-/* ── Empty state (upgraded) ──────────────────────────────────────────── */
-.empty {
-  text-align: center;
-  padding: 48px 20px;
-  color: var(--ink3);
-  font-size: 0.9063rem;
-  line-height: 1.6;
-}
-.empty-icon {
-  font-size: 2.625rem;
-  line-height: 1;
-  margin-bottom: 12px;
-  opacity: .55;
-  display: block;
-}
-
-
-
 /* ── Trend / delta chip ──────────────────────────────────────────────── */
 
 
@@ -4939,15 +4909,6 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: -.02em; }
 /* - Pill badges - */
 #student-portal .badge {
   border-radius: 999px; padding: 3px 10px; font-weight: 600; font-size: 0.7813rem;
-}
-
-/* - Friendlier empty states - */
-#student-portal .empty { padding: 38px 20px; color: var(--ink3); }
-#student-portal .empty-icon {
-  width: 64px; height: 64px; border-radius: 50%;
-  background: var(--accent-l); color: var(--accent);
-  display: flex; align-items: center; justify-content: center;
-  margin: 0 auto 14px;
 }
 
 /* - List rows (notifications, messages) - */

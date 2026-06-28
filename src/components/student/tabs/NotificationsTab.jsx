@@ -5,6 +5,7 @@ import { useUI } from '@/context/UIContext'
 import Pagination from '@/components/primitives/Pagination'
 import { Mail, Upload, CheckCircle, BookOpen, MessageSquare, Bell, Trash2, Megaphone, Video, UserCircle } from 'lucide-react'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
+import EmptyState from '@/components/ds/EmptyState'
 import { applyNotifPrefs, isNotifAllowed } from '@/utils/notifPrefs'
 
 const PER_PAGE = 10
@@ -98,11 +99,11 @@ export default function NotificationsTab({ student, notifs, setNotifs, onOpenPro
 
   if (!visible.length) {
     return (
-      <div className="empty">
-        <div className="empty-icon"><Bell size={40} /></div>
-        No notifications yet.<br />
-        <span style={{ fontSize: 12 }}>Alerts appear here when grades or activities are updated.</span>
-      </div>
+      <EmptyState
+        Icon={Bell}
+        title="No notifications yet"
+        text="Alerts appear here when grades or activities are updated."
+      />
     )
   }
 

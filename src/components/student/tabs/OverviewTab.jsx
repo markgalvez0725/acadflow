@@ -12,6 +12,7 @@ import { SkeletonDashboard } from '@/components/primitives/SkeletonLoader'
 import { useUI } from '@/context/UIContext'
 import PageHeader from '@/components/ds/PageHeader'
 import MetricCard from '@/components/ds/MetricCard'
+import EmptyState from '@/components/ds/EmptyState'
 import { Home, CalendarCheck, Award, ClipboardList, FileQuestion, Radio, CheckCircle2, AlertTriangle, PieChart } from 'lucide-react'
 import { pendingItems, humanLeft } from '@/utils/reminders'
 import BarChart from '@/components/charts/BarChart'
@@ -842,7 +843,7 @@ export default function OverviewTab({ student: s, viewClassId, classes }) {
       </div>
 
       {!subs.length ? (
-        <div className="empty"><div className="empty-icon"><BookOpen size={40} /></div>No active subjects this semester.</div>
+        <EmptyState Icon={BookOpen} title="No active subjects this semester" text="Your subjects appear here once you're enrolled and the semester is active." />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
           {subs.map(sub => (
