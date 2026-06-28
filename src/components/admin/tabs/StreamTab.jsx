@@ -1093,13 +1093,16 @@ export default function StreamTab() {
     return items.sort((a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || (b.ts - a.ts))
   }, [classes, students, activities, quizzes, announcements, filterClass, filterSubject, filterType])
 
+  // O(1) class lookups by id, instead of classes.find() per feed item per render.
+  const classMap = useMemo(() => new Map(classes.map(c => [c.id, c])), [classes])
+
   function getClassObj(item) {
-    return classes.find(c => c.id === item.classId) || null
+    return classMap.get(item.classId) || null
   }
 
   function getClassName(classId) {
     if (classId === 'all') return 'All Classes'
-    const c = classes.find(x => x.id === classId)
+    const c = classMap.get(classId)
     return c ? c.name + (c.section ? ` - ${c.section}` : '') : classId
   }
 
