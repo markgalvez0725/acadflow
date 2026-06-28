@@ -16,7 +16,7 @@ import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import KebabMenu from '@/components/primitives/KebabMenu'
 import EmptyState from '@/components/ds/EmptyState'
-import { Clock, Pencil, BarChart2, Upload, Download, Trash2, BarChart, RefreshCw, Archive, ArchiveRestore, FileSpreadsheet, Plus, ChevronDown, Sparkles, Undo2, Redo2, Check, Maximize2, AlertTriangle, Search } from 'lucide-react'
+import { Clock, Pencil, BarChart2, Upload, Download, Trash2, BarChart, RefreshCw, Archive, ArchiveRestore, FileSpreadsheet, Plus, ChevronDown, Sparkles, Undo2, Redo2, Check, Maximize2, AlertTriangle, Search, MessageSquare } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const GRADE_PER_PAGE = 10
@@ -52,7 +52,7 @@ function BigField({ label, value, onChange, accent }) {
 
 // ── GradeEntryModal ───────────────────────────────────────────────────────────
 function GradeEntryModal({ classId, subject, onClose }) {
-  const { students, classes, activities, quizzes, saveStudents, eqScale, db, fbReady, logAudit } = useData()
+  const { students, classes, activities, quizzes, saveStudents, saveGradeNote, admin, eqScale, db, fbReady, logAudit } = useData()
   const { toast, openDialog } = useUI()
 
   const cls   = classes.find(c => c.id === classId)
@@ -210,6 +210,20 @@ function GradeEntryModal({ classId, subject, onClose }) {
   const [pasteOpen, setPasteOpen]   = useState(false)
   const [pasteField, setPasteField] = useState('midtermExam')
   const [pasteText, setPasteText]   = useState('')
+
+  // Per-student grade note editor. `noteFor` holds the student being annotated
+  // (or null when closed); the note rides its own write path (saveGradeNote),
+  // independent of the rows/grades pipeline, so it never perturbs grade saves.
+  const [noteFor, setNoteFor]   = useState(null)
+  const [noteDraft, setNoteDraft] = useState('')
+  const [noteSaving, setNoteSaving] = useState(false)
+  const openNote = (stu) => { setNoteFor(stu); setNoteDraft(stu.gradeNotes?.[subject]?.text || '') }
+  const saveNote = async () => {
+    if (!noteFor) return
+    setNoteSaving(true)
+    try { await saveGradeNote(noteFor.id, subject, noteDraft, admin?.name) }
+    finally { setNoteSaving(false); setNoteFor(null) }
+  }
 
   // Undo/redo history + debounced auto-save. undoRef/redoRef hold rows snapshots;
   // travelRef suppresses history capture while applying an undo/redo; the rows
@@ -858,6 +872,9 @@ function GradeEntryModal({ classId, subject, onClose }) {
                 Final Grade<br /><small className="font-normal" style={{ color: 'var(--accent)' }}>auto/manual</small>
               </th>
               <th rowSpan={2}>Equiv.</th>
+              <th rowSpan={2} title="Leave a private note for this student about their grade">
+                Note<br /><small className="font-normal text-ink3">to student</small>
+              </th>
             </tr>
             {/* Row 2: individual activity and quiz columns */}
             <tr>
@@ -970,6 +987,21 @@ function GradeEntryModal({ classId, subject, onClose }) {
                   <td style={{ fontSize: 12, color: 'var(--ink2)', minWidth: 48 }}>
                     {r.equivPreview}
                   </td>
+                  {/* Per-student grade note */}
+                  <td style={{ textAlign: 'center' }}>
+                    {(() => {
+                      const hasNote = !!s.gradeNotes?.[subject]?.text
+                      return (
+                        <button type="button"
+                          onClick={() => openNote(s)}
+                          title={hasNote ? 'Edit note to student' : 'Add a note for this student'}
+                          aria-label={hasNote ? `Edit note for ${s.name}` : `Add note for ${s.name}`}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, lineHeight: 0, color: hasNote ? 'var(--accent)' : 'var(--ink3)' }}>
+                          <MessageSquare size={16} fill={hasNote ? 'currentColor' : 'none'} />
+                        </button>
+                      )
+                    })()}
+                  </td>
                 </tr>
               )
             })}
@@ -1054,6 +1086,32 @@ function GradeEntryModal({ classId, subject, onClose }) {
           <button className="btn btn-ghost" onClick={() => setPasteOpen(false)}>Cancel</button>
           <button className="btn btn-primary" onClick={applyPaste} disabled={pastePreview.matched === 0}>
             Apply {pastePreview.matched > 0 ? pastePreview.matched : ''} score{pastePreview.matched === 1 ? '' : 's'}
+          </button>
+        </div>
+      </Modal>
+    )}
+
+    {noteFor && (
+      <Modal onClose={() => setNoteFor(null)} size="sm">
+        <h3 className="mb-1"><MessageSquare size={16} className="inline-block mr-1 align-text-bottom" />Note to {noteFor.name}</h3>
+        <p className="modal-sub mb-3">About their <strong>{subject}</strong> grade. The student sees this on their Grades tab.</p>
+        <textarea
+          className="input"
+          style={{ width: '100%', minHeight: 110, fontSize: 13 }}
+          maxLength={600}
+          placeholder="e.g. See me before finals week, your Finals slipped. We can set up a recovery plan."
+          value={noteDraft}
+          onChange={e => setNoteDraft(e.target.value)}
+        />
+        <div className="text-xs text-ink3 mt-1">
+          {noteDraft.trim()
+            ? 'Saving notifies the student.'
+            : 'Saving an empty note removes any existing one (no notification).'}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={() => setNoteFor(null)} disabled={noteSaving}>Cancel</button>
+          <button className="btn btn-primary" onClick={saveNote} disabled={noteSaving}>
+            {noteSaving ? 'Saving…' : (noteDraft.trim() ? 'Save note' : 'Remove note')}
           </button>
         </div>
       </Modal>
@@ -1369,7 +1427,7 @@ function SubjectCard({ cls, sub, studs, allStuds = [], eqScale, readOnly, onEdit
           </thead>
           <tbody>
             {rowsData.length === 0 && (
-              <tr><td colSpan={11}><EmptyState compact title="No students." /></td></tr>
+              <tr><td colSpan={12}><EmptyState compact title="No students." /></td></tr>
             )}
             {rowsData.map(r => (
                 <tr key={r.s.id}>

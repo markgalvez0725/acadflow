@@ -1274,9 +1274,40 @@ export function DataProvider({ children }) {
     }, { url: '/', tag: 'excuse' })
   }, [students])
 
+  // Save (or clear) a professor's private note on one student's subject grade.
+  // The note is an additive sibling field (`gradeNotes[subject]`) written only
+  // through this admin path - never by students - so it stays clear of the
+  // Firestore gradeFieldsUntouched() rule. Persists on the same students write
+  // path, then notifies the student (in-app + best-effort push).
+  const saveGradeNote = useCallback(async (studentId, subject, text, byName) => {
+    const clean = String(text || '').trim().slice(0, 600)
+    const by = String(byName || '').trim() || 'Your professor'
+    let found = false
+    const updated = students.map(s => {
+      if (s.id !== studentId) return s
+      found = true
+      const notes = { ...(s.gradeNotes || {}) }
+      if (clean) notes[subject] = { text: clean, by, at: Date.now() }
+      else delete notes[subject]
+      return { ...s, gradeNotes: notes }
+    })
+    if (!found) return
+    await saveStudents(updated, [studentId])
+    if (!clean) return // clearing a note is silent
+    fbNotifyStudent(dbRef.current, studentId, {
+      title: 'Note from your professor',
+      body: `${by} left a note on your ${subject} grade.`,
+      link: 'grades', type: 'grade_note',
+    })
+    sendPushToOwners(dbRef.current, [studentId], {
+      title: 'Note on your grade',
+      body: `${by} left a note on your ${subject} grade.`,
+    }, { url: '/', tag: 'grade_note' })
+  }, [students, saveStudents])
+
   return (
     <DataContext.Provider value={{
-      students, setStudents, saveStudents, markAccountActive, deleteStudent, restoreStudents,
+      students, setStudents, saveStudents, saveGradeNote, markAccountActive, deleteStudent, restoreStudents,
       classes, setClasses, saveClasses, setSubjectRep, archiveClassWithStudents, unarchiveClassWithStudents, deleteClass,
       enrollInClass, unenrollFromClass,
       messages, setMessages,

@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { gradeInfo, combineEquiv } from '@/utils/grades'
 import { computeSubjectGrade, auditSubjectGrade, explainGradeText } from '@/utils/gradeEngine'
 import { useData } from '@/context/DataContext'
-import { BookOpen, Clock, ChevronDown, ChevronUp, Award, Check, RefreshCw, Target } from 'lucide-react'
+import { BookOpen, Clock, ChevronDown, ChevronUp, Award, Check, RefreshCw, Target, MessageSquare } from 'lucide-react'
 import { activeClassIds, activeSubjects } from '@/utils/active'
 import EmptyState from '@/components/ds/EmptyState'
 import { neededFinalsForRemarks } from '@/utils/whatIf'
@@ -259,6 +259,16 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
           }
         </div>
       </div>
+
+      {/* ── Note from professor (plain text, React-escaped) ── */}
+      {s.gradeNotes?.[sub]?.text && (
+        <div style={{ margin: '0 0 14px', padding: '9px 12px', borderLeft: '3px solid var(--accent)', background: 'var(--accent-l)', borderRadius: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--accent)', marginBottom: 3 }}>
+            <MessageSquare size={13} /> Note from {s.gradeNotes[sub].by || 'your professor'}
+          </div>
+          <div style={{ fontSize: 13, lineHeight: 1.55, color: 'var(--ink)', whiteSpace: 'pre-wrap' }}>{s.gradeNotes[sub].text}</div>
+        </div>
+      )}
 
       {/* ── Term Summary Grid ── */}
       {(midG != null || finG != null) && (
