@@ -8,12 +8,16 @@
 //
 // Mirrors the established on-device-Smart pattern (importVerifySmart,
 // gradeImportVerifySmart): pure, deterministic, nothing leaves the device, $0.
-// Warnings are advisory - a row is APPLIED when it matches a student in this class
-// and carries a valid group number; only hard problems (no match, not in this
-// class, blank/invalid group, duplicate) are skipped.
+//
+// Enrollment is a HARD block: a row is applied only when the student is currently
+// enrolled in THIS activity's subject (class roster narrowed by activeSubjects, so
+// archived/past-semester classes and removed subjects drop off). A student who
+// isn't enrolled in the subject, isn't found, has a blank/invalid group, or is a
+// duplicate is skipped. Course / Section / Year mismatches stay advisory warnings.
 
 import { splitStudentName, buildStudentName } from '@/utils/studentName.js'
 import { courseShort } from '@/constants/courses.js'
+import { activeSubjects } from '@/utils/active.js'
 
 const norm = v => String(v ?? '').trim().toLowerCase()
 const yearDigit = v => parseInt(String(v ?? '').match(/(\d)/)?.[1] || '', 10) || null
@@ -94,12 +98,11 @@ export function parseGroupPaste(text) {
   return rows
 }
 
-function findStudent(row, roster, allStudents) {
+// A reusable matcher for one pasted row: find that person inside any student list,
+// by Student ID first, then by reconstructed canonical name (ignoring a missing
+// middle initial). Returns { student, by } or { student: null }.
+function rowMatcher(row) {
   const id = norm(row.id)
-  if (id) {
-    const byId = roster.find(s => norm(s.id) === id)
-    if (byId) return { student: byId, by: 'id', inClass: true }
-  }
   const canonical = norm(buildStudentName(row.surname, row.first, row.mi))
   const sf = norm(row.surname) + '|' + norm(row.first)
   const nameEq = s => {
@@ -107,13 +110,12 @@ function findStudent(row, roster, allStudents) {
     const n = splitStudentName(s.name)
     return !!row.surname && !!row.first && norm(n.last) + '|' + norm(n.first) === sf
   }
-  const byName = roster.find(nameEq)
-  if (byName) return { student: byName, by: 'name', inClass: true }
-
-  // Not in this class - is it a real student from elsewhere, or unknown entirely?
-  const elsewhere = (allStudents || []).find(s => (id && norm(s.id) === id) || nameEq(s))
-  if (elsewhere) return { student: elsewhere, by: id ? 'id' : 'name', inClass: false }
-  return { student: null, by: null, inClass: false }
+  return list => {
+    if (id) { const byId = (list || []).find(s => norm(s.id) === id); if (byId) return { student: byId, by: 'id' } }
+    const byName = (list || []).find(nameEq)
+    if (byName) return { student: byName, by: 'name' }
+    return { student: null, by: null }
+  }
 }
 
 // Normalize a group cell to a stable key + display label. Pulls a number out of
@@ -130,22 +132,38 @@ function groupKey(raw) {
 /**
  * Verify pasted group rows against the class roster and assemble groups[].
  * @param {object[]} rows  output of parseGroupPaste()
- * @param {{ roster: object[], allStudents?: object[], classMeta?: object }} ctx
- *        roster = registered students of the SELECTED class
+ * @param {{ roster: object[], allStudents?: object[], classes?: object[], semester?: object, classMeta?: object }} ctx
+ *        roster    = registered students of the SELECTED class
+ *        classes   = all classes (for activeSubjects enrollment lookup)
+ *        semester  = active semester config (for activeSubjects)
  *        classMeta = { courseName, subject, section } expected for this activity
  * @returns {{ rows: object[], groups: object[], summary: object }}
  */
-export function verifyGroupRows(rows, { roster = [], allStudents = [], classMeta = {} } = {}) {
+export function verifyGroupRows(rows, { roster = [], allStudents = [], classes = [], semester = null, classMeta = {} } = {}) {
+  const subj = classMeta.subject
   const expCourse = norm(courseShort(classMeta.courseName) || classMeta.courseName)
-  const expSubject = norm(classMeta.subject)
+  const expSubject = norm(subj)
   const expSection = norm(classMeta.section)
+
+  // The students CURRENTLY enrolled in this activity's subject: the class roster
+  // narrowed to those whose active subjects include it (archived / past-semester
+  // classes and removed subjects fall away). With no subject picked yet, fall back
+  // to the whole roster so the panel still works mid-setup.
+  const enrolledHere = subj
+    ? roster.filter(s => activeSubjects(s, classes, semester).includes(subj))
+    : roster
 
   const assigned = new Set()           // student ids already placed in a group
   const out = []
 
   rows.forEach((row, i) => {
     const warnings = []
-    const { student, by, inClass } = findStudent(row, roster, allStudents)
+    const match = rowMatcher(row)
+    const hit = match(enrolledHere)               // enrolled in THIS subject?
+    const elsewhere = hit.student ? null : match(allStudents)  // exists at all?
+    const student = hit.student || elsewhere?.student || null
+    const by = hit.by || elsewhere?.by || null
+    const enrolled = !!hit.student
     const gk = groupKey(row.group)
 
     let status = 'ok'
@@ -153,10 +171,12 @@ export function verifyGroupRows(rows, { roster = [], allStudents = [], classMeta
 
     if (!student) {
       status = 'error'
-      warnings.push('Student not found in the roster - check the ID or name.')
-    } else if (!inClass) {
+      warnings.push('Student not found in the records - check the ID or name.')
+    } else if (!enrolled) {
       status = 'error'
-      warnings.push('Not enrolled in this class - will be skipped.')
+      warnings.push(subj
+        ? `Not currently enrolled in ${classMeta.subject} this semester - blocked.`
+        : 'Not enrolled in this class - blocked.')
     } else if (!gk) {
       status = 'warn'
       warnings.push('No group number - this student stays unassigned.')
@@ -168,9 +188,13 @@ export function verifyGroupRows(rows, { roster = [], allStudents = [], classMeta
       assigned.add(student.id)
     }
 
-    // Soft reference-column checks (only meaningful once a student is matched).
-    if (student && inClass) {
-      if (by === 'name' && !norm(row.id)) warnings.push('Matched by name (no Student ID given).')
+    // Soft reference-column checks (only meaningful for an enrolled match).
+    if (enrolled) {
+      if (by === 'name') {
+        warnings.push(norm(row.id)
+          ? 'Student ID does not match this name - matched by name instead.'
+          : 'Matched by name (no Student ID given).')
+      }
       if (row.course && expCourse) {
         const rc = norm(courseShort(row.course) || row.course)
         if (rc !== expCourse && rc !== norm(courseShort(student.course) || student.course)) {
@@ -204,6 +228,7 @@ export function verifyGroupRows(rows, { roster = [], allStudents = [], classMeta
       year: row.year || '',
       student: student || null,
       matchedBy: by,
+      enrolled,
       groupLabel: gk ? gk.label : '',
       groupKey: gk ? gk.key : null,
       groupNum: gk ? gk.num : null,
@@ -233,7 +258,7 @@ export function verifyGroupRows(rows, { roster = [], allStudents = [], classMeta
     assigned: out.filter(r => r.applied).length,
     review: out.filter(r => r.applied && r.warnings.length).length,
     skipped: out.filter(r => !r.applied).length,
-    notInClass: out.filter(r => r.student && r.matchedBy && !r.applied && r.warnings.some(w => /not enrolled/.test(w))).length,
+    notEnrolled: out.filter(r => r.student && !r.enrolled).length,
     unmatched: out.filter(r => !r.student).length,
     groupCount: groups.length,
   }

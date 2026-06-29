@@ -98,13 +98,13 @@ function newCriterion() {
 // puts the clipboard on the board as TSV, so we parse it, smart-verify each row
 // against the class roster, and hand back ready-to-apply groups[]. Pure UI on top
 // of parseGroupPaste / verifyGroupRows.
-function CustomGroupsPanel({ roster, allStudents, classMeta, onApply, onClose }) {
+function CustomGroupsPanel({ roster, allStudents, classes, semester, classMeta, onApply, onClose }) {
   const { toast } = useUI()
   const [rawRows, setRawRows] = useState([])
 
   const verify = useMemo(
-    () => verifyGroupRows(rawRows, { roster, allStudents, classMeta }),
-    [rawRows, roster, allStudents, classMeta]
+    () => verifyGroupRows(rawRows, { roster, allStudents, classes, semester, classMeta }),
+    [rawRows, roster, allStudents, classes, semester, classMeta]
   )
   const s = verify.summary
 
@@ -171,6 +171,7 @@ function CustomGroupsPanel({ roster, allStudents, classMeta, onApply, onClose })
             <div className="flex flex-wrap gap-1.5 mb-2">
               <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--green-l, #EAF3DE)', color: 'var(--green, #3B6D11)' }}><Check size={12} className="inline-block mr-1" style={{ verticalAlign: -2 }} />{s.assigned} assigned</span>
               {s.review > 0 && <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'rgba(181,113,13,.12)', color: C_WARN }}>{s.review} need review</span>}
+              {s.notEnrolled > 0 && <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'rgba(163,45,45,.1)', color: C_ERR }}>{s.notEnrolled} not enrolled</span>}
               {s.skipped > 0 && <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'rgba(163,45,45,.1)', color: C_ERR }}>{s.skipped} skipped</span>}
               <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--surface2)', color: 'var(--ink2)', border: '1px solid var(--border)' }}>{s.groupCount} group{s.groupCount === 1 ? '' : 's'}</span>
             </div>
@@ -246,7 +247,7 @@ function CustomGroupsPanel({ roster, allStudents, classMeta, onApply, onClose })
 
 // ── Create / Edit Modal ───────────────────────────────────────────────
 function ActivityFormModal({ act, onClose }) {
-  const { classes, students, db, fbReady, rubricLibrary, saveRubricToLibrary, deleteLibraryRubric } = useData()
+  const { classes, students, db, fbReady, semester, rubricLibrary, saveRubricToLibrary, deleteLibraryRubric } = useData()
   const { toast } = useUI()
   const isEdit = !!act
   const [showLib, setShowLib] = useState(false)
@@ -704,6 +705,8 @@ function ActivityFormModal({ act, onClose }) {
         <CustomGroupsPanel
           roster={roster}
           allStudents={students}
+          classes={classes}
+          semester={semester}
           classMeta={{ courseName: selectedClass?.name, subject, section: selectedClass?.section }}
           onApply={g => { setGroups(g); setPasteOpen(false) }}
           onClose={() => setPasteOpen(false)}
