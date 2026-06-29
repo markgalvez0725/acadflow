@@ -1,5 +1,5 @@
 // ── Firestore persistence helpers ─────────────────────────────────────────
-import { doc, setDoc, deleteDoc, arrayUnion, runTransaction } from 'firebase/firestore'
+import { doc, setDoc, deleteDoc, arrayUnion, runTransaction, collection, getDocs, query, where, updateDoc, deleteField } from 'firebase/firestore'
 import { v4 as uuidv4 } from 'uuid'
 import { fbWithTimeout } from './firebaseInit'
 import { serializeStudents } from '@/utils/attendance'
@@ -33,6 +33,93 @@ export async function fbDeleteStudent(db, id) {
   } catch (e) {
     console.warn('[FB] delete student:', e.message);
   }
+}
+
+// ── Cascade purge of EVERY trace of a student across Firestore ──────────────
+// The student's own grades/attendance/account live on students/{id} (already
+// removed by fbDeleteStudent). This wipes the references that survive in OTHER
+// collections, so re-enrolling the same student number can never inherit stale
+// data. Runs with the professor's (admin) privileges. Server-only bits (the
+// Firebase Auth account, faceSignatures, resetSessions) are NOT reachable here -
+// the api/delete-student endpoint handles those. Each collection is independent
+// and best-effort; one failure never aborts the rest. Returns { ok[], failed[] }.
+export async function fbPurgeStudentData(db, id) {
+  if (!db || !id) return { ok: [], failed: ['no-db'] };
+  const ok = [], failed = [];
+  const step = async (label, fn) => {
+    try { await fn(); ok.push(label); }
+    catch (e) { failed.push(label); console.warn('[FB] purge ' + label + ':', e.message); }
+  };
+
+  setFbWriting(true);
+  try {
+    // Per-student feed doc (notifications/{studentId}).
+    await step('notifications', () => deleteDoc(doc(db, 'notifications', id)));
+
+    // Maps keyed by studentId: drop just that key, keep everyone else's data.
+    const dropMapKey = (coll, mapField) => async () => {
+      const snap = await getDocs(collection(db, coll));
+      await Promise.all(snap.docs
+        .filter(d => d.data()?.[mapField] && Object.prototype.hasOwnProperty.call(d.data()[mapField], id))
+        .map(d => updateDoc(d.ref, { [mapField + '.' + id]: deleteField() })));
+    };
+    await step('quizzes', dropMapKey('quizzes', 'submissions'));
+    await step('activities', dropMapKey('activities', 'submissions'));
+    await step('attendanceSessions', dropMapKey('attendanceSessions', 'checkedIn'));
+
+    // Announcements: pull the student out of read/likes/followers and drop the
+    // comments (and nested replies) they authored.
+    await step('announcements', async () => {
+      const snap = await getDocs(collection(db, 'announcements'));
+      await Promise.all(snap.docs.map(async d => {
+        const a = d.data() || {};
+        const patch = {};
+        for (const f of ['read', 'likes', 'followers']) {
+          if (Array.isArray(a[f]) && a[f].includes(id)) patch[f] = a[f].filter(x => x !== id);
+        }
+        if (Array.isArray(a.comments)) {
+          const cleaned = a.comments
+            .filter(c => c.author !== id)
+            .map(c => Array.isArray(c.replies) ? { ...c, replies: c.replies.filter(r => r.author !== id) } : c);
+          if (JSON.stringify(cleaned) !== JSON.stringify(a.comments)) patch.comments = cleaned;
+        }
+        if (Object.keys(patch).length) await updateDoc(d.ref, patch);
+      }));
+    });
+
+    // Whole docs owned by the student.
+    const deleteWhere = (coll, field) => async () => {
+      const snap = await getDocs(query(collection(db, coll), where(field, '==', id)));
+      await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+    };
+    await step('excuseRequests', deleteWhere('excuseRequests', 'studentId'));
+    await step('studentFeedback', deleteWhere('studentFeedback', 'studentId'));
+    await step('pushTokens', deleteWhere('pushTokens', 'ownerId'));
+
+    // Messages: delete direct threads to/from the student outright; for group
+    // chats, pull them out of read/readAt/hiddenFor and drop their replies.
+    await step('messages', async () => {
+      const snap = await getDocs(collection(db, 'messages'));
+      await Promise.all(snap.docs.map(async d => {
+        const m = d.data() || {};
+        if (m.to === id || m.from === id) { await deleteDoc(d.ref); return; }
+        const patch = {};
+        if (Array.isArray(m.read) && m.read.includes(id)) patch.read = m.read.filter(x => x !== id);
+        if (Array.isArray(m.hiddenFor) && m.hiddenFor.includes(id)) patch.hiddenFor = m.hiddenFor.filter(x => x !== id);
+        if (m.readAt && Object.prototype.hasOwnProperty.call(m.readAt, id)) {
+          const next = { ...m.readAt }; delete next[id]; patch.readAt = next;
+        }
+        if (Array.isArray(m.replies) && m.replies.some(r => r.from === id)) {
+          patch.replies = m.replies.filter(r => r.from !== id);
+        }
+        if (Object.keys(patch).length) await updateDoc(d.ref, patch);
+      }));
+    });
+  } finally {
+    setFbWriting(false);
+  }
+
+  return { ok, failed };
 }
 
 // ── Batch student sync ────────────────────────────────────────────────────

@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react'
 import { onAuthStateChanged } from 'firebase/auth'
-import { fbInit, getFbConfigFromEnv, getFbAuth } from '@/firebase/firebaseInit'
+import { fbInit, getFbConfigFromEnv, getFbAuth, getIdToken } from '@/firebase/firebaseInit'
 import { fbStartListening, stopListening } from '@/firebase/listeners'
 import {
   persistStudentsSync, persistClassesSync, persistAdmin, loadAdminFromStorage,
-  fbDeleteStudent, fbSaveAnnouncement, fbDeleteAnnouncement, fbPushAnnouncementNotifs,
+  fbDeleteStudent, fbPurgeStudentData, fbSaveAnnouncement, fbDeleteAnnouncement, fbPushAnnouncementNotifs,
   fbAddAnnouncementComment, fbAddCommentReply, fbEditAnnouncementComment, fbDeleteAnnouncementComment, fbEditCommentReply, fbDeleteCommentReply, fbToggleAnnouncementLike, fbToggleSavedPost, fbToggleAnnouncementFollow,
   fbSaveRubricLibrary,
   fbSaveMeetLink, fbScheduleMeeting, fbStartMeeting, fbEndMeeting, fbCancelMeeting, fbPushMeetingNotifs,
@@ -390,6 +390,42 @@ export function DataProvider({ children }) {
     })
     return removed
   }, [logAudit])
+
+  // Permanent cascade purge of a student's ENTIRE footprint. Called only AFTER the
+  // Undo window closes (the student doc was already removed by deleteStudent). The
+  // client wipes every Firestore collection it can reach; the server endpoint then
+  // frees the sign-in account + Face ID data (the parts the browser cannot touch).
+  // Returns { client, server } so the caller can warn precisely when the server
+  // side is unavailable. Never throws - deletion must always feel complete.
+  const purgeStudentEverywhere = useCallback(async (id) => {
+    let client = null;
+    try { client = await fbPurgeStudentData(dbRef.current, id); } catch (e) { /* best-effort */ }
+
+    let server = { ok: false, reason: 'unavailable' };
+    try {
+      const idToken = await getIdToken();
+      if (!idToken) {
+        server = { ok: false, reason: 'auth' };
+      } else {
+        const r = await fetch('/api/delete-student', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken, studentNumber: id }),
+        });
+        if (r.status === 501) server = { ok: false, reason: 'not-configured' };
+        else if (r.ok) { const d = await r.json().catch(() => ({})); server = { ok: true, ...d }; }
+        else server = { ok: false, reason: 'error' };
+      }
+    } catch (e) { server = { ok: false, reason: 'network' }; }
+
+    logAudit({
+      action: 'student.purge',
+      target: id,
+      summary: `Permanently purged all data for student ${id}`,
+      meta: { studentId: id, serverOk: server.ok },
+    });
+    return { client, server };
+  }, [logAudit]);
 
   // Undo support: re-create previously deleted student record(s). The caller
   // keeps the full in-memory student object(s) (with attendance/excuse Sets),
@@ -1314,7 +1350,7 @@ export function DataProvider({ children }) {
 
   return (
     <DataContext.Provider value={{
-      students, setStudents, saveStudents, saveGradeNote, markAccountActive, deleteStudent, restoreStudents,
+      students, setStudents, saveStudents, saveGradeNote, markAccountActive, deleteStudent, purgeStudentEverywhere, restoreStudents,
       classes, setClasses, saveClasses, setSubjectRep, archiveClassWithStudents, unarchiveClassWithStudents, deleteClass,
       enrollInClass, unenrollFromClass,
       messages, setMessages,

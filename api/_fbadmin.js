@@ -199,6 +199,25 @@ export async function setPassword(projectId, accessToken, localId, password) {
   return true
 }
 
+// Permanently delete a Firebase Auth account by its localId. This is what frees
+// the synthetic email ({snum}@acadflow.app) so the same student number can be
+// re-enrolled from scratch without an "email already in use" collision or the
+// old password still working. Idempotent-ish: a missing account is treated as
+// already gone (Identity Toolkit returns the deleted ids, never 404 by uid).
+export async function deleteAuthUser(projectId, accessToken, localId) {
+  const r = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/projects/${projectId}/accounts:delete`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ localId }),
+    }
+  )
+  const data = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(data?.error?.message || 'Auth account delete failed')
+  return true
+}
+
 // ── Firestore REST (server-side, bypasses security rules) ─────────────────
 function fsBase(projectId) {
   return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`
@@ -343,6 +362,20 @@ export async function getLegacyFaceDescriptor(projectId, accessToken, docId) {
   const vals = acct.face?.mapValue?.fields?.descriptor?.arrayValue?.values
   if (!Array.isArray(vals)) return null
   return vals.map(v => Number(v.doubleValue ?? v.integerValue ?? 0))
+}
+
+// Permanently delete the server-only face signature for a student. Used by the
+// cascade delete so a re-enrolled student number starts with no enrolled face.
+export async function deleteFaceSignature(projectId, accessToken, docId) {
+  const r = await fetch(`${fsBase(projectId)}/faceSignatures/${encodeURIComponent(docId)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!r.ok && r.status !== 404) {
+    const data = await r.json().catch(() => ({}))
+    throw new Error(data?.error?.message || 'Face signature delete failed')
+  }
+  return true
 }
 
 // Write/replace the signature doc (resets the throttle window on re-enroll).

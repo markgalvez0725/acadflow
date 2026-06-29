@@ -1098,8 +1098,13 @@ function MessageSelectedModal({ recipients, onClose }) {
 }
 
 // ── Students Tab ──────────────────────────────────────────────────────
+// Undo window for student deletion. The toast stays this long; the irreversible
+// cascade fires just after, so Undo is always clickable while the toast shows.
+const DELETE_UNDO_MS = 6000
+const DELETE_UNDO_SECS = 6
+
 export default function StudentsTab() {
-  const { classes, students, saveStudents, deleteStudent, restoreStudents, eqScale, semester, fbReady, bulkVerifyActivate } = useData()
+  const { classes, students, saveStudents, deleteStudent, purgeStudentEverywhere, restoreStudents, eqScale, semester, fbReady, bulkVerifyActivate } = useData()
   const { toast, toastAction, openDialog, openStudentProfile } = useUI()
   const [exportReportCard, reportCardModal] = useStudentReportCardExport()
 
@@ -1236,22 +1241,55 @@ export default function StudentsTab() {
   // All registered students not yet Active (pending activation/verification).
   const pendingIds = useMemo(() => students.filter(s => s.account?.registered && accountStatusKey(s) !== 'active').map(s => s.id), [students])
 
+  // Deferred permanent purge. Deleting removes the student instantly and arms a
+  // short Undo; only when that window closes do we run the irreversible cascade
+  // (all other collections + the sign-in account + Face ID), so Undo can fully
+  // restore from the in-memory snapshot without anything having been destroyed.
+  const pendingPurge = useRef(new Map()) // id -> { timer, student }
+
+  const commitPurge = async (id) => {
+    pendingPurge.current.delete(id)
+    const res = await purgeStudentEverywhere(id)
+    if (res?.server && !res.server.ok && (res.server.reason === 'not-configured' || res.server.reason === 'network')) {
+      toast('Student data removed. The sign-in account and Face ID need the server to finish clearing.', 'yellow')
+    }
+  }
+  const schedulePurge = (student) => {
+    const id = student.id
+    const timer = setTimeout(() => commitPurge(id), DELETE_UNDO_MS + 500)
+    pendingPurge.current.set(id, { timer, student })
+  }
+  const cancelPurge = (id) => {
+    const p = pendingPurge.current.get(id)
+    if (p) { clearTimeout(p.timer); pendingPurge.current.delete(id); return p.student }
+    return null
+  }
+
+  // If the professor leaves the tab mid-window, the delete was already confirmed -
+  // finish it rather than silently abandoning the purge.
+  useEffect(() => () => {
+    pendingPurge.current.forEach(({ timer }, id) => { clearTimeout(timer); purgeStudentEverywhere(id) })
+    pendingPurge.current.clear()
+  }, [])
+
   async function handleBulkDelete() {
     const ids = [...selected]
     if (!ids.length) return
+    const many = ids.length !== 1
     const ok = await openDialog({
-      title: `Delete ${ids.length} student${ids.length === 1 ? '' : 's'}?`,
-      msg: 'All grades and attendance records for the selected students will be permanently deleted. This cannot be undone.',
+      title: `Delete ${ids.length} student${many ? 's' : ''}?`,
+      msg: `This permanently erases everything tied to the selected student${many ? 's' : ''} across AcadFlow - profile and sign-in, grades, attendance, quizzes, activities, messages, comments, and notifications. You'll have ${DELETE_UNDO_SECS} seconds to undo; after that it can't be recovered and the student number${many ? 's' : ''} free up for a clean re-enroll.`,
       type: 'danger',
       confirmLabel: `Delete ${ids.length}`,
       showCancel: true,
     })
     if (!ok) return
-    // Snapshot the full records before deletion so Undo can restore them.
+    // Snapshot the full records so Undo restores them; the irreversible cascade
+    // is deferred until the Undo window closes (see schedulePurge).
     const removed = students.filter(s => selected.has(s.id))
     let done = 0
-    for (const id of ids) {
-      try { await deleteStudent(id); done++ } catch (e) {}
+    for (const s of removed) {
+      try { await deleteStudent(s.id); schedulePurge(s); done++ } catch (e) {}
     }
     clearSelection()
     setPage(1)
@@ -1259,7 +1297,8 @@ export default function StudentsTab() {
       toastAction(`Deleted ${done} student${done === 1 ? '' : 's'}.`, {
         label: 'Undo',
         type: 'green',
-        onAction: () => restoreStudents(removed),
+        duration: DELETE_UNDO_MS,
+        onAction: () => { removed.forEach(s => cancelPurge(s.id)); restoreStudents(removed) },
       })
     } else {
       toast('Could not delete the selected students.', 'red')
@@ -1268,20 +1307,22 @@ export default function StudentsTab() {
 
   async function handleDelete(s) {
     const ok = await openDialog({
-      title: `Remove ${s.name}?`,
-      msg: 'All grades and attendance records will be permanently deleted. This cannot be undone.',
+      title: `Delete ${s.name}?`,
+      msg: `This permanently erases everything tied to ${s.name} across AcadFlow - profile and sign-in, grades, attendance, quizzes, activities, messages, comments, and notifications. You'll have ${DELETE_UNDO_SECS} seconds to undo; after that it can't be recovered and the student number frees up for a clean re-enroll.`,
       type: 'danger',
-      confirmLabel: 'Delete Student',
+      confirmLabel: 'Delete student',
       showCancel: true,
     })
     if (!ok) return
     try {
-      await deleteStudent(s.id)
+      const removed = await deleteStudent(s.id)
       if (safePage > 1 && slice.length === 1) setPage(p => p - 1)
+      schedulePurge(removed || s)
       toastAction(`Deleted ${s.name || s.id}.`, {
         label: 'Undo',
         type: 'green',
-        onAction: () => restoreStudents([s]),
+        duration: DELETE_UNDO_MS,
+        onAction: () => { cancelPurge(s.id); restoreStudents([removed || s]) },
       })
     } catch (e) {
       toast('Could not delete student: ' + e.message, 'red')
