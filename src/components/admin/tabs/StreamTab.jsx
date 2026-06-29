@@ -1056,7 +1056,9 @@ export default function StreamTab() {
       })
 
       Object.entries(attMap).forEach(([key, val]) => {
-        const dateMs = new Date(val.date).getTime()
+        // Parse the YYYY-MM-DD attendance date as LOCAL midnight, not UTC, so the
+        // stream timestamp lands on the correct day in the viewer's timezone.
+        const dateMs = new Date(val.date + 'T00:00:00').getTime()
         items.push({
           id: `att-${key}`,
           type: 'attendance',

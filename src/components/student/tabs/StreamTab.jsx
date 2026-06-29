@@ -397,7 +397,9 @@ export default function StreamTab({ student, viewClassId, classes }) {
           if (!attDates) return
           const datesArr = attDates instanceof Set ? [...attDates] : (Array.isArray(attDates) ? attDates : [])
           datesArr.forEach(date => {
-            const dateMs = new Date(date).getTime()
+            // Parse the YYYY-MM-DD attendance date as LOCAL midnight, not UTC, so
+            // the stream timestamp lands on the correct day in the viewer's zone.
+            const dateMs = new Date(date + 'T00:00:00').getTime()
             items.push({
               id: `att-${cid}-${subj}-${date}`,
               type: 'attendance',
