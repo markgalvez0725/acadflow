@@ -113,6 +113,52 @@ export async function describeFaceInImage(imgEl) {
   return det ? Array.from(det.descriptor) : null
 }
 
+// Read a STILL profile photo with the SAME engine that anchors Face ID, in ONE
+// pass, so face count, framing, and identity can never disagree (the old flow
+// ran a separate detector for count and face-api only for the match, which is
+// how "no face on this browser" could sit next to "matches your Face ID"). The
+// descriptor returned here is fed straight to the server identity check, so the
+// photo is read exactly once. Returns:
+//   { models:false }                                        engine couldn't load
+//   { models:true, faces, faceFrac, faceCx, frontalScore, descriptor }
+// `descriptor` is the 128-d signature of the single largest face (null if none).
+export async function readPhotoFace(imgEl) {
+  let f
+  try { f = await loadFaceModels() }
+  catch { return { models: false } }
+  if (!imgEl) return { models: true, faces: 0, descriptor: null }
+
+  const opts = new f.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.4 })
+  const dets = await f.detectAllFaces(imgEl, opts).withFaceLandmarks().withFaceDescriptors()
+  const w = imgEl.naturalWidth || imgEl.width
+  const h = imgEl.naturalHeight || imgEl.height
+
+  if (!dets || dets.length === 0) return { models: true, faces: 0, descriptor: null }
+
+  // The single largest face is the subject; smaller stray detections only feed
+  // the count (so a second person still trips the "only you" rule).
+  let best = dets[0]
+  for (const det of dets) {
+    if ((det.detection?.box?.area || 0) > (best.detection?.box?.area || 0)) best = det
+  }
+  const box = best.detection?.box
+  const faceFrac = box && h ? box.height / h : null
+  const faceCx   = box && w ? (box.x + box.width / 2) / w : null
+  // headYaw ≈ 0 looking straight; map to a 0..1 frontal score (a turned head warns).
+  let frontalScore = null
+  try { frontalScore = Math.max(0, Math.min(1, 1 - Math.abs(headYaw(best.landmarks)) * 3)) }
+  catch { frontalScore = null }
+
+  return {
+    models: true,
+    faces: dets.length,
+    faceFrac,
+    faceCx,
+    frontalScore,
+    descriptor: best.descriptor ? Array.from(best.descriptor) : null,
+  }
+}
+
 // ── Liveness signals from the 68-point landmarks ──────────────────────────
 function d(a, b) { return Math.hypot(a.x - b.x, a.y - b.y) }
 function earOf(eye) {

@@ -14,11 +14,11 @@
 import { getIdToken } from '@/firebase/firebaseInit'
 import { describeFaceInImage } from '@/utils/faceId'
 
-export async function matchPhotoToEnrolledFace(imgEl) {
-  let descriptor = null
-  try { descriptor = await describeFaceInImage(imgEl) }
-  catch { return { error: 'models' } }
-  if (!descriptor) return { noFace: true }
+// Server identity decision for an ALREADY-computed 128-d descriptor. The photo's
+// face is read once upstream (readPhotoFace) and the descriptor flows here, so we
+// never detect the same photo twice. Same verdict shape as the wrapper below.
+export async function matchDescriptorToEnrolledFace(descriptor) {
+  if (!Array.isArray(descriptor) || descriptor.length !== 128) return { noFace: true }
 
   let idToken = null
   try { idToken = await getIdToken() } catch { /* ignore */ }
@@ -36,4 +36,14 @@ export async function matchPhotoToEnrolledFace(imgEl) {
 
   if (!r.ok) return { error: data?.error || 'server' }
   return { enrolled: !!data.enrolled, match: !!data.match, distance: data.distance }
+}
+
+// Back-compat convenience: detect the photo here, then match. Prefer passing a
+// descriptor from readPhotoFace so the photo is read only once.
+export async function matchPhotoToEnrolledFace(imgEl) {
+  let descriptor = null
+  try { descriptor = await describeFaceInImage(imgEl) }
+  catch { return { error: 'models' } }
+  if (!descriptor) return { noFace: true }
+  return matchDescriptorToEnrolledFace(descriptor)
 }

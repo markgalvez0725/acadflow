@@ -9,11 +9,11 @@ import { dataGapReasons } from '@/utils/accountAudit'
 import { validateSnum } from '@/utils/validate'
 import { validateProfilePhoto } from '@/utils/photoValidate'
 import { prewarmOnDeviceSmart } from '@/utils/photoVerifySmart'
-import { matchPhotoToEnrolledFace } from '@/utils/faceMatch'
+import { loadFaceModels } from '@/utils/faceId'
 import Modal from '@/components/primitives/Modal'
 import FieldCheck, { SaveStatus } from '@/components/primitives/FieldCheck'
 import { checkRequiredName, checkMiddleInitial, checkEmail } from '@/utils/settingsVerify'
-import { Camera, Lock, Timer, CheckCircle2, Save, Eye, EyeOff, ShieldCheck, AlertTriangle, XCircle, Loader2, ChevronLeft } from 'lucide-react'
+import { Camera, Lock, Timer, CheckCircle2, Save, Eye, EyeOff, ShieldCheck, AlertTriangle, XCircle, Loader2, RefreshCw, ChevronLeft } from 'lucide-react'
 
 const SNUM_CHANGE_DAYS = 30
 const YEAR_OPTIONS = ['1st Year', '2nd Year', '3rd Year', '4th Year']
@@ -102,10 +102,18 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
   // null = no new photo checked; { status:'checking'|'done', result } otherwise.
   const [photoCheck, setPhotoCheck] = useState(null)
   const photoBlocked = photoCheck?.status === 'done' && photoCheck.result && !photoCheck.result.ok
+  // Retryable = couldn't verify (engine/connection), distinct from a photo that
+  // failed a check. Shows "Try again" instead of "replace the photo".
+  const photoRetryable = photoCheck?.status === 'done' && !!photoCheck.result?.retryable
 
-  // Warm the on-device Smart models the moment the modal opens, so the first photo
-  // check isn't a cold download-and-compile (the cause of the loading lag).
-  useEffect(() => { prewarmOnDeviceSmart() }, [])
+  // Warm BOTH engines the moment the modal opens, so the first photo check isn't a
+  // cold download-and-compile: face-api (face count + identity, the gate) and the
+  // segmentation models (background + attire). Errors are swallowed - warming is
+  // best-effort and the check loads them on demand anyway.
+  useEffect(() => {
+    prewarmOnDeviceSmart()
+    loadFaceModels().catch(() => {})
+  }, [])
 
   // Email password-confirm flow
   const [emailStep,     setEmailStep]     = useState('idle') // 'idle' | 'confirm' | 'verified'
@@ -155,6 +163,37 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
     snumInfo  = `You have ${SNUM_CHANGE_DAYS} days from your first save to update this. After that it locks permanently.`
   }
 
+  // Run the full photo check on a loaded <img>. Shared by a new pick and by the
+  // "Try again" button (which re-checks the SAME photo when the engine couldn't
+  // run the first time, e.g. a flaky connection). Face count + identity + white
+  // background all come from one verdict (validateProfilePhoto), so the panel can
+  // never contradict itself.
+  async function runPhotoCheck(img, dataUrl) {
+    setPhotoCheck({ status: 'checking', result: null })
+    try {
+      const result = await validateProfilePhoto(img, dataUrl)
+      setPhotoCheck({ status: 'done', result })
+      if (result.retryable) toast('Couldn’t verify your photo. Check your connection and tap Try again.', 'warn', 6000)
+      else if (!result.ok) toast('This photo needs changes before it can be saved.', 'warn', 5000)
+      else if (result.warnings.length) toast('Photo accepted, see the notes below.', 'info', 4000)
+      else toast('Photo verified!', 'success')
+    } catch (err) {
+      // An unexpected validator crash is treated as "couldn't verify" - block and
+      // let the student retry rather than silently saving an unverified photo.
+      setPhotoCheck({ status: 'done', result: { ok: false, hardFails: ['Couldn’t verify your photo on this device. Tap Try again.'], warnings: [], passes: [], smartUsed: false, retryable: true } })
+    }
+  }
+
+  // Re-check the already-chosen photo (after a flaky-connection failure). The
+  // resized dataUrl in `photo` is reloaded into an <img> and run through the gate.
+  async function retryPhotoCheck() {
+    if (!photo) return
+    const img = new Image()
+    img.onload = () => runPhotoCheck(img, photo)
+    img.onerror = () => toast('Could not read that image.', 'warn')
+    img.src = photo
+  }
+
   function handlePhotoChange(e) {
     const file = e.target.files[0]
     if (!file) return
@@ -177,43 +216,8 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
         ctx.drawImage(img, 0, 0, w, h)
         const dataUrl = canvas.toDataURL('image/jpeg', 0.82)
         setPhoto(dataUrl)
-
-        // Validate: on-device (white bg, face, framing) + optional Smart (attire).
-        // The full-resolution `img` gives the best on-device read; the small
-        // dataUrl is what gets sent to the Smart endpoint.
-        setPhotoCheck({ status: 'checking', result: null })
-        try {
-          const result = await validateProfilePhoto(img, dataUrl)
-
-          // Identity gate: the photo must be the SAME face the student enrolled
-          // for Face ID. The server holds the enrolled signature and decides the
-          // match; we only fold the verdict into the existing photo check. When
-          // the account has no enrollment yet (or matching isn't configured) the
-          // gate is skipped, so it never dead-ends - it only ever adds safety.
-          let mismatch = false
-          try {
-            const id = await matchPhotoToEnrolledFace(img)
-            if (id.noFace && !result.hardFails.length) {
-              result.hardFails = [...result.hardFails, 'No face was detected in this photo. Use a clear, front-facing headshot.']
-              result.ok = false
-            } else if (id.enrolled && id.match === false) {
-              result.hardFails = [...result.hardFails, "This photo doesn't look like the face you enrolled for Face ID. Please use a clear, front-facing photo of yourself."]
-              result.ok = false
-              mismatch = true
-            } else if (id.enrolled && id.match === true) {
-              result.passes = [...result.passes, 'Matches the face you enrolled for Face ID.']
-            }
-          } catch { /* identity check unavailable - keep the on-device verdict */ }
-
-          setPhotoCheck({ status: 'done', result })
-          if (mismatch) toast("This photo doesn't match your Face ID. Use a photo of yourself.", 'warn', 6000)
-          else if (!result.ok) toast('This photo needs changes before it can be saved.', 'warn', 5000)
-          else if (result.warnings.length) toast('Photo accepted, see the notes below.', 'info', 4000)
-          else toast('Photo looks professional!', 'success')
-        } catch (err) {
-          // Never hard-block on an unexpected validator error - just advise.
-          setPhotoCheck({ status: 'done', result: { ok: true, hardFails: [], warnings: ['Could not fully verify the photo on this device.'], passes: [], smartUsed: false } })
-        }
+        // Run the gate on the full-resolution `img` for the best read.
+        runPhotoCheck(img, dataUrl)
       }
       img.onerror = () => toast('Could not read that image.', 'warn')
       img.src = ev.target.result
@@ -231,7 +235,9 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
     if (!firstName.trim()) { setError('First name is required.'); return }
 
     if (photoBlocked) {
-      setError('Your profile photo does not meet the requirements. Please replace it (see the photo check below).')
+      setError(photoRetryable
+        ? 'We couldn’t verify your photo yet. Check your connection and tap Try again in the photo check below.'
+        : 'Your profile photo does not meet the requirements. Please replace it (see the photo check below).')
       return
     }
 
@@ -402,11 +408,13 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 700, fontSize: 13, marginBottom: photoCheck.status === 'checking' ? 0 : 8 }}>
               {photoCheck.status === 'checking'
                 ? <><Loader2 size={15} className="spin" /> Checking your photo…</>
-                : photoBlocked
-                  ? <><XCircle size={15} style={{ color: 'var(--red)' }} /> Photo can’t be used yet</>
-                  : (photoCheck.result?.warnings?.length
-                      ? <><AlertTriangle size={15} style={{ color: 'var(--yellow)' }} /> Photo accepted - please review</>
-                      : <><ShieldCheck size={15} style={{ color: 'var(--green)' }} /> Looks professional</>)}
+                : photoRetryable
+                  ? <><AlertTriangle size={15} style={{ color: 'var(--red)' }} /> Couldn’t verify - try again</>
+                  : photoBlocked
+                    ? <><XCircle size={15} style={{ color: 'var(--red)' }} /> Photo can’t be used yet</>
+                    : (photoCheck.result?.warnings?.length
+                        ? <><AlertTriangle size={15} style={{ color: 'var(--yellow)' }} /> Photo accepted - please review</>
+                        : <><ShieldCheck size={15} style={{ color: 'var(--green)' }} /> Photo verified</>)}
             </div>
             {photoCheck.status === 'checking' && (
               <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>Analyzing face, background, and attire on your device - the first check may take a moment.</div>
@@ -423,9 +431,21 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
                   <div key={'p' + i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, color: 'var(--ink3)' }}><CheckCircle2 size={13} style={{ flexShrink: 0, marginTop: 1, color: 'var(--green)' }} /> {m}</div>
                 ))}
                 <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 4 }}>
-                  {photoCheck.result.smartUsed ? 'Verified privately on your device - your photo never leaves this device.' : 'Verified on-device. Tip: business attire on a plain white wall works best.'}
-                  {photoBlocked && ' Replace the photo or Remove it to continue.'}
+                  {photoCheck.result.smartUsed ? 'Checked privately on your device - your photo never leaves it.' : 'Checked on your device. Tip: business attire on a plain white wall works best.'}
+                  {photoRetryable
+                    ? ' This is usually a slow connection, not your photo.'
+                    : photoBlocked && ' Replace the photo or Remove it to continue.'}
                 </div>
+                {photoRetryable && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={retryPhotoCheck}
+                    style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--accent)' }}
+                  >
+                    <RefreshCw size={13} /> Try again
+                  </button>
+                )}
               </div>
             )}
           </div>

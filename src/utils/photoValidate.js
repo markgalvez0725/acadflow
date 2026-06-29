@@ -1,23 +1,29 @@
 // ── Profile-photo validation ──────────────────────────────────────────────
-// Layered check that a student profile photo is a professional headshot in
-// business attire on a plain white background.
+// One coherent verdict that a student profile photo is a professional headshot:
+// the SAME person who enrolled Face ID, alone, in business attire, on a plain
+// white background.
 //
-//   1. On-device Smart (primary): a custom in-browser pipeline - BlazeFace +
-//      MediaPipe Selfie Segmentation - judges face/count/pose, the TRUE
-//      background, and an attire proxy. The photo never leaves the device.
-//      (src/utils/photoVerifySmart.js). Replaces the former Gemini vision call.
-//   2. Legacy heuristics (fallback only): when the models can't load on this
-//      device, fall back to the pixel white-background score + the browser's
-//      native FaceDetector where present.
+// A single face engine decides everything about the FACE. face-api.js (the exact
+// engine + 0.6 threshold that anchors Face ID enrollment, password reset, and the
+// identity match) reads the photo ONCE via readPhotoFace -> count, framing, and a
+// descriptor. That descriptor is matched server-side. Because count and identity
+// come from one read, the panel can never show "no face on this browser" next to
+// "matches your Face ID" (the old bug, caused by a separate native FaceDetector
+// running alongside face-api). MediaPipe Selfie Segmentation is kept ONLY for
+// what it is genuinely good at - the true background and an attire proxy.
 //
-// Enforcement model (decided with the product owner):
-//   • HARD FAIL (block save): non-white background, no clear face, more than
-//     one person, image too small.
-//   • WARNING (allow "use anyway"): borderline attire, loose framing, slightly
-//     off-white background, can't verify face on this browser.
+// Enforcement model (strict, decided with the product owner):
+//   • HARD FAIL (block save): no clear face, more than one person, a photo that
+//     does NOT match the enrolled Face ID, a non-white background, image too small.
+//   • RETRYABLE (block save, offer "Try again"): the face engine or the identity
+//     server couldn't run (usually a flaky connection). We NEVER fabricate a match
+//     we didn't make - the photo simply can't be saved until it verifies.
+//   • WARNING (allow save): borderline attire, loose framing, slightly off-white.
 //
 // Returns a single verdict object the UI can render directly.
 
+import { readPhotoFace } from '@/utils/faceId'
+import { matchDescriptorToEnrolledFace } from '@/utils/faceMatch'
 import { runOnDeviceSmart } from '@/utils/photoVerifySmart'
 
 /** Draw an image onto an offscreen canvas no larger than `max` px. */
@@ -35,7 +41,7 @@ function toCanvas(imgEl, max = 256) {
 }
 
 /**
- * Fraction of backdrop pixels that are near-white and uniform (LEGACY fallback).
+ * Fraction of backdrop pixels that are near-white and uniform (FALLBACK only).
  * Only samples where a backdrop is actually visible behind a headshot - the
  * full-width TOP strip and the UPPER portion of the left/right sides. The
  * bottom is intentionally skipped: it's filled by the subject's shoulders and
@@ -72,60 +78,58 @@ function whiteBackgroundScore(imgEl) {
   return { score: total ? white / total : 0, supported: true }
 }
 
-/** Detect faces with the browser FaceDetector API when available (LEGACY). */
-async function detectFaces(imgEl) {
-  if (typeof window === 'undefined' || !('FaceDetector' in window)) {
-    return { supported: false, faces: [] }
-  }
-  try {
-    // eslint-disable-next-line no-undef
-    const fd = new window.FaceDetector({ fastMode: true, maxDetectedFaces: 5 })
-    const faces = await fd.detect(imgEl)
-    return { supported: true, faces: faces || [] }
-  } catch {
-    return { supported: false, faces: [] }
-  }
-}
+/** Background + attire from the segmentation model, with a pixel fallback. */
+async function checkBackgroundAndAttire(imgEl, hardFails, warnings, passes) {
+  let smartUsed = false
+  let ai = null
+  try { ai = await runOnDeviceSmart(imgEl) } catch { ai = null }
 
-/** Legacy on-device checks (no ML models) - used only when Smart is unavailable. */
-async function legacyChecks(imgEl, w, h, hardFails, warnings, passes) {
-  const bg = whiteBackgroundScore(imgEl)
-  if (bg.supported && bg.score != null) {
-    if (bg.score >= 0.82) passes.push('Background looks plain white.')
-    else if (bg.score >= 0.5) warnings.push('Background may not be fully white - a clean white wall is best.')
-    else warnings.push('Background doesn’t look plain white on-device - make sure you’re against a white wall.')
-  }
-  const fdRes = await detectFaces(imgEl)
-  if (fdRes.supported) {
-    const n = fdRes.faces.length
-    if (n === 0) hardFails.push('No face detected. Use a clear, front-facing headshot.')
-    else if (n > 1) hardFails.push('More than one person detected. Photo must show only you.')
-    else {
-      passes.push('One face detected.')
-      const box = fdRes.faces[0].boundingBox
-      const faceFrac = box && h ? box.height / h : 0
-      const cx = box ? (box.x + box.width / 2) / w : 0.5
-      if (faceFrac && faceFrac < 0.18) warnings.push('Face is small - move closer for a head-and-shoulders shot.')
-      if (cx < 0.25 || cx > 0.75) warnings.push('Face is off-center - center yourself in the frame.')
-    }
+  // ── Background (the mask makes this reliable, so it can hard-fail) ─────────
+  if (ai && ai.bgSupported && ai.bgWhiteFrac != null) {
+    smartUsed = true
+    if (ai.bgWhiteFrac >= 0.85) passes.push('Plain white background.')
+    else if (ai.bgWhiteFrac < 0.5) hardFails.push('Background is not plain white. Remove objects behind you and use a white wall.')
+    else warnings.push('Background may not be fully white - a clean white wall is best.')
   } else {
-    warnings.push("This browser can't verify a face on-device - make sure your face is clear and front-facing.")
+    // Segmentation unavailable - pixel heuristic. A clearly non-white reading
+    // still blocks; a borderline one only warns (the heuristic is less precise).
+    const bg = whiteBackgroundScore(imgEl)
+    if (bg.supported && bg.score != null) {
+      if (bg.score >= 0.82) passes.push('Background looks plain white.')
+      else if (bg.score >= 0.5) warnings.push('Background may not be fully white - a clean white wall is best.')
+      else hardFails.push('Background doesn’t look plain white. Use a white wall with nothing behind you.')
+    }
   }
+
+  // ── Attire proxy (warnings only) ──────────────────────────────────────────
+  if (ai) {
+    smartUsed = true
+    if (ai.skinFrac != null) {
+      if (ai.skinFrac > 0.45) warnings.push('Attire looks casual or too revealing for an ID photo - wear professional attire.')
+      else passes.push('Professional attire detected.')
+    }
+    if (ai.busyness != null && ai.busyness > 0.6) {
+      warnings.push('Outfit has busy patterns - plain professional attire is best.')
+    }
+  }
+
+  return smartUsed
 }
 
 /**
- * Run the full layered validation.
+ * Run the full validation and return ONE coherent verdict.
  * @param {HTMLImageElement} imgEl  a fully-loaded image element
  * @param {string} [dataUrl]        unused (kept for call-site compatibility)
- * @param {{ useSmart?: boolean }} [opts]
  * @returns {Promise<{ ok:boolean, hardFails:string[], warnings:string[],
- *   passes:string[], smartUsed:boolean, smartError:?string }>}
+ *   passes:string[], smartUsed:boolean, retryable:boolean }>}
+ *   retryable=true means we couldn't verify (engine/connection), not that the
+ *   photo failed - the UI should offer "Try again", never let it save.
  */
-export async function validateProfilePhoto(imgEl, dataUrl, opts = {}) {
-  const useSmart = opts.useSmart !== false
+export async function validateProfilePhoto(imgEl, dataUrl) {
   const hardFails = []
   const warnings = []
   const passes = []
+  let retryable = false
 
   // ── Resolution / framing ────────────────────────────────────────────────
   const w = imgEl.naturalWidth || imgEl.width
@@ -135,68 +139,48 @@ export async function validateProfilePhoto(imgEl, dataUrl, opts = {}) {
   else if (minDim < 240) warnings.push('Low resolution - a sharper photo is recommended.')
   else passes.push('Resolution is sufficient.')
 
-  // ── On-device Smart (primary) ──────────────────────────────────────────────
-  let smartUsed = false
-  let smartError = null
-  let ai = null
-  if (useSmart) {
-    try { ai = await runOnDeviceSmart(imgEl) } catch { ai = null }
+  // ── Face + identity: ONE face-api pass (the Face ID engine) ───────────────
+  const face = await readPhotoFace(imgEl)
+  if (!face.models) {
+    // The engine couldn't load - we cannot confirm a face OR identity. Block,
+    // but mark it retryable so the student can try again on a better connection.
+    retryable = true
+    hardFails.push("Couldn’t load the verification models - check your connection and tap Try again.")
+    return { ok: false, hardFails, warnings, passes, smartUsed: false, retryable }
   }
 
-  if (ai) {
-    smartUsed = true
-
-    // Stage A - face & pose
-    if (ai.faces == null) {
-      // Model couldn't read faces - fall back to the native detector for count.
-      const fdRes = await detectFaces(imgEl)
-      if (fdRes.supported) {
-        const n = fdRes.faces.length
-        if (n === 0) hardFails.push('No face detected. Use a clear, front-facing headshot.')
-        else if (n > 1) hardFails.push('More than one person detected. Photo must show only you.')
-        else passes.push('One face detected.')
-      } else {
-        warnings.push("Couldn't verify your face automatically - make sure it's clear and front-facing.")
-      }
-    } else if (ai.faces === 0) {
-      hardFails.push('No face detected. Use a clear, front-facing headshot.')
-    } else if (ai.faces > 1) {
-      hardFails.push('More than one person detected. Photo must show only you.')
-    } else {
-      passes.push('One face detected.')
-      if (ai.faceFrac != null && ai.faceFrac < 0.18) warnings.push('Face is small - move closer for a head-and-shoulders shot.')
-      if (ai.faceCx != null && (ai.faceCx < 0.25 || ai.faceCx > 0.75)) warnings.push('Face is off-center - center yourself in the frame.')
-      if (ai.frontalScore != null && ai.frontalScore < 0.5) warnings.push('Face looks turned - look straight at the camera.')
-    }
-
-    // Stage B - true background (can hard-fail; the mask makes this reliable)
-    if (ai.bgSupported && ai.bgWhiteFrac != null) {
-      if (ai.bgWhiteFrac >= 0.85) passes.push('Background is plain white.')
-      else if (ai.bgWhiteFrac < 0.5) hardFails.push('Background is not plain white. Use a clean white wall behind you.')
-      else warnings.push('Background may not be fully white - a clean white wall is best.')
-    } else {
-      // Segmentation unavailable - fall back to the pixel heuristic (warn-only).
-      const bg = whiteBackgroundScore(imgEl)
-      if (bg.supported && bg.score != null) {
-        if (bg.score >= 0.82) passes.push('Background looks plain white.')
-        else if (bg.score >= 0.5) warnings.push('Background may not be fully white - a clean white wall is best.')
-        else warnings.push('Background doesn’t look plain white on-device - make sure you’re against a white wall.')
-      }
-    }
-
-    // Stage C - attire proxy (warnings only)
-    if (ai.skinFrac != null) {
-      if (ai.skinFrac > 0.45) warnings.push('Attire looks casual or too revealing for an ID photo - wear professional attire.')
-      else passes.push('Professional attire detected.')
-    }
-    if (ai.busyness != null && ai.busyness > 0.6) {
-      warnings.push('Outfit has busy patterns - plain professional attire is best.')
-    }
+  if (face.faces === 0) {
+    hardFails.push('No face detected. Use a clear, front-facing headshot.')
+  } else if (face.faces > 1) {
+    hardFails.push('More than one person detected. Photo must show only you.')
   } else {
-    // ── Legacy fallback (no ML models available on this device) ─────────────
-    await legacyChecks(imgEl, w, h, hardFails, warnings, passes)
-    if (useSmart) smartError = 'on-device-unavailable'
+    passes.push('One clear face detected.')
+    if (face.faceFrac != null && face.faceFrac < 0.18) warnings.push('Face is small - move closer for a head-and-shoulders shot.')
+    if (face.faceCx != null && (face.faceCx < 0.25 || face.faceCx > 0.75)) warnings.push('Face is off-center - center yourself in the frame.')
+    if (face.frontalScore != null && face.frontalScore < 0.5) warnings.push('Face looks turned - look straight at the camera.')
+
+    // Identity: match the photo's descriptor to the enrolled Face ID, decided
+    // server-side. The descriptor was just read above, so the photo is read once.
+    const id = await matchDescriptorToEnrolledFace(face.descriptor)
+    if (id.error) {
+      // Couldn't reach the identity check (flaky connection / auth). Don't claim
+      // a match we didn't make - block, retryable.
+      retryable = true
+      hardFails.push("Couldn’t confirm it’s you - check your connection and tap Try again.")
+    } else if (id.enrolled === false) {
+      // No enrolled signature. In the guided flow Face ID is set up BEFORE the
+      // photo, so this is only legacy/edge accounts - the on-device face check
+      // stands so they're never dead-ended, but we don't fabricate a match.
+      passes.push('Face verified on your device.')
+    } else if (id.match === false) {
+      hardFails.push('This doesn’t match the face you enrolled for Face ID. Use a clear, front-facing photo of yourself.')
+    } else if (id.match === true) {
+      passes.push('Matches the face you enrolled for Face ID.')
+    }
   }
 
-  return { ok: hardFails.length === 0, hardFails, warnings, passes, smartUsed, smartError }
+  // ── Background + attire (segmentation, with pixel fallback) ───────────────
+  const smartUsed = await checkBackgroundAndAttire(imgEl, hardFails, warnings, passes)
+
+  return { ok: hardFails.length === 0, hardFails, warnings, passes, smartUsed, retryable }
 }
