@@ -1165,10 +1165,7 @@ export default function StudentsTab() {
         case 'id':     va = a.id.toLowerCase(); vb = b.id.toLowerCase(); break
         case 'course': va = ((a.course || '') + (a.year || '')).toLowerCase(); vb = ((b.course || '') + (b.year || '')).toLowerCase(); break
         case 'class': {
-          const subsOf = s => {
-            const ids = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
-            return [...new Set(ids.flatMap(id => classMap.get(id)?.subjects || []))].sort()
-          }
+          const subsOf = s => [...activeSubjects(s, classes, semester)].sort()
           const sa = subsOf(a); const sb = subsOf(b)
           va = sa.length ? sa.join(',').toLowerCase() : 'zzz'; vb = sb.length ? sb.join(',').toLowerCase() : 'zzz'; break
         }
@@ -1181,7 +1178,7 @@ export default function StudentsTab() {
       }
       return va < vb ? -dir : va > vb ? dir : 0
     })
-  }, [filtered, sortCol, sortDir, classes])
+  }, [filtered, sortCol, sortDir, classes, semester])
 
   const totalPages = perPage >= 9999 ? 1 : Math.max(1, Math.ceil(sorted.length / perPage))
   const safePage   = Math.min(page, totalPages)
@@ -1453,7 +1450,7 @@ export default function StudentsTab() {
                 {slice.map(s => {
                   const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
                   const enrolledClasses = enrolledIds.map(id => classMap.get(id)).filter(Boolean)
-                  const subjects = [...new Set(enrolledClasses.flatMap(c => c.subjects || []))]
+                  const subjects = activeSubjects(s, classes, semester)
                   const initial = (s.name || '?').charAt(0).toUpperCase()
                   return (
                     <tr key={s.id} style={selected.has(s.id) ? { background: 'var(--accent-l)' } : undefined}>
@@ -1541,7 +1538,7 @@ export default function StudentsTab() {
             {slice.map(s => {
               const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
               const enrolledClasses = enrolledIds.map(id => classMap.get(id)).filter(Boolean)
-              const subjects = [...new Set(enrolledClasses.flatMap(c => c.subjects || []))]
+              const subjects = activeSubjects(s, classes, semester)
               const initial = (s.name || '?').charAt(0).toUpperCase()
               const st = accountStatus(s)
               const isSel = selected.has(s.id)
