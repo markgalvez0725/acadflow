@@ -13,13 +13,13 @@ import TypingIndicator from '@/components/primitives/TypingIndicator'
 import { useTyping } from '@/hooks/useTyping'
 import { notifyStudentMessage, notifyStudentsBroadcast, notifyMention } from '@/firebase/messageNotify'
 import { resolveMentions } from '@/utils/mentions'
-import { fbAddMessageReply, fbDeleteMessage } from '@/firebase/persistence'
+import { fbAddMessageReply, fbDeleteMessage, fbEditMessageEntry, fbDeleteMessageEntry } from '@/firebase/persistence'
 import Modal from '@/components/primitives/Modal'
 import MentionInput from '@/components/primitives/MentionInput'
 import MessageText from '@/components/primitives/MessageText'
 import PostRefCard from '@/components/primitives/PostRefCard'
 import KebabMenu from '@/components/primitives/KebabMenu'
-import { X, Pencil, Send, CheckCheck, Megaphone, Trash2, Search, ChevronDown, ChevronLeft, Check, BookOpen, SquarePen, MoreHorizontal, Camera, Lock } from 'lucide-react'
+import { X, Pencil, Send, CheckCheck, Megaphone, Trash2, Search, ChevronDown, ChevronLeft, Check, BookOpen, SquarePen, MoreHorizontal, Camera, Lock, Ban } from 'lucide-react'
 import SecureBubble from '@/components/primitives/SecureBubble'
 import SwipeReply from '@/components/primitives/SwipeReply'
 import { classifySensitivity, sensitivityLabel } from '@/utils/sensitiveContent'
@@ -379,18 +379,21 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
 }
 
 // ── Thread Panel ──────────────────────────────────────────────────────
-function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename }) {
+function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, onEditEntry, onDeleteEntry }) {
   const { setAdminTab } = useUI()
+  const myId = 'admin'
   const messagesEndRef = useRef(null)
   const chatKey = thread ? (thread.type === 'conversation' ? 'direct_' + thread.studentId : 'group_' + thread.msgId) : null
   const { typers, notifyTyping, stopTyping } = useTyping(chatKey, { id: 'admin', name: 'Professor' })
   const [replyingTo, setReplyingTo] = useState(null) // { author, text } | null
+  const [editing, setEditing] = useState(null)   // entry key being edited
+  const [editDraft, setEditDraft] = useState('')
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [thread])
-  // Drop any pending reply target when the open thread changes.
-  useEffect(() => { setReplyingTo(null) }, [chatKey])
+  // Drop any pending reply target / open editor when the thread changes.
+  useEffect(() => { setReplyingTo(null); setEditing(null) }, [chatKey])
 
   function startReplyTo(entry) {
     const author = entry.from === 'admin' ? 'You' : (entry.senderLabel || 'Student')
@@ -415,8 +418,15 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename })
   const mentionCandidates = isGroup ? (thread.members || []).map(m => ({ id: m.id, name: m.name, photo: m.photo })) : []
   const memberCount = (thread.members || []).length
   const subtitle = isGroup ? `Group · ${memberCount} member${memberCount === 1 ? '' : 's'}` : thread.headerSub
+  // Hide bubbles this professor deleted "for me" only; everyone-deletes stay as a
+  // tombstone (they carry deleted:true, not a hiddenFor entry).
+  const entries = (thread.entries || []).filter(e => !(e.hiddenFor || []).includes(myId))
+  // The 1:1 peer (for the Messenger-style "seen" avatar under the last message).
+  const peer = !isGroup ? students.find(x => x.id === thread.studentId) : null
+  function entryKey(e) { return (e.isMain ? 'm:' : 'r:') + e.msgId + ':' + e.ts + ':' + e.from }
+  function saveEdit(entry) { const t = editDraft.trim(); setEditing(null); if (t && t !== entry.body) onEditEntry?.(entry, t) }
   let lastSelfIdx = -1
-  thread.entries.forEach((e, i) => { if (e.from === 'admin') lastSelfIdx = i })
+  entries.forEach((e, i) => { if (e.from === 'admin') lastSelfIdx = i })
 
   return (
     <div className="flex flex-col flex-1 min-h-0 min-w-0">
@@ -449,7 +459,7 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename })
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 flex flex-col">
-        {thread.entries.map((entry, i) => {
+        {entries.map((entry, i) => {
           const isAdmin = entry.from === 'admin'
           if (entry.kind === 'screenshot') {
             const who = isAdmin ? 'You' : (entry.senderLabel || 'Student')
@@ -459,7 +469,21 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename })
               </div>
             )
           }
-          const { sameAsPrev, sameAsNext, firstOfGroup, lastOfGroup, showDay } = groupFlags(thread.entries, i)
+          const { sameAsPrev, sameAsNext, firstOfGroup, lastOfGroup, showDay } = groupFlags(entries, i)
+          const eKey = entryKey(entry)
+          const isEditing = editing === eKey
+          // Own, still-present text bubbles can be edited; anyone can hide a bubble
+          // for themselves; only the author can delete it for everyone.
+          const editable = isAdmin && !entry.deleted && !entry.postRef && entry.kind !== 'screenshot'
+          const menuItems = entry.deleted ? [] : [
+            editable && { label: 'Edit', onClick: () => { setEditing(eKey); setEditDraft(entry.body || '') } },
+            entry.body && !entry.secure && { label: 'Copy', onClick: () => navigator.clipboard?.writeText(entry.body).catch(() => {}) },
+            { label: 'Delete for you', onClick: () => onDeleteEntry?.(entry, 'me') },
+            isAdmin && { label: 'Delete for everyone', danger: true, onClick: () => onDeleteEntry?.(entry, 'everyone') },
+          ].filter(Boolean)
+          const Menu = menuItems.length > 0 && !isEditing && (
+            <span className="msg-bubble-menu"><KebabMenu items={menuItems} icon={<MoreHorizontal size={15} />} size={15} label="Message actions" /></span>
+          )
           return (
             <React.Fragment key={i}>
               {showDay && <div className="msg-day-sep"><span>{dayLabel(entry.ts)}</span></div>}
@@ -471,33 +495,59 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename })
                       {lastOfGroup && <div className="msg-avatar-sm">{getInitials(entry.senderLabel)}</div>}
                     </div>
                   )}
-                  <div className={`msg-bubble ${isAdmin ? 'sent' : 'received'} ${lastOfGroup ? 'tail' : ''}`}>
-                    {entry.isMain && entry.subject && (
-                      <div style={{ fontSize: 10, fontWeight: 700, color: isAdmin ? 'rgba(255,255,255,.7)' : 'var(--c-accent)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>
-                        {entry.subject}
+                  {isAdmin && Menu}
+                  {isEditing ? (
+                    <div className="msg-edit-box">
+                      <textarea
+                        autoFocus
+                        value={editDraft}
+                        maxLength={3000}
+                        onChange={e => setEditDraft(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Escape') { e.preventDefault(); setEditing(null) }
+                          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveEdit(entry) }
+                        }}
+                      />
+                      <div className="msg-edit-actions">
+                        <button type="button" onClick={() => setEditing(null)}>Cancel</button>
+                        <button type="button" className="primary" onClick={() => saveEdit(entry)}>Save</button>
                       </div>
-                    )}
-                    {entry.quote && (
-                      <span className="msg-quote">
-                        <span className="msg-quote-author">{entry.quote.author}</span>
-                        <span className="msg-quote-text">{entry.quote.text}</span>
-                      </span>
-                    )}
-                    {entry.postRef && (
-                      <PostRefCard postRef={entry.postRef} onOpen={() => setAdminTab('stream')} />
-                    )}
-                    {entry.secure
-                      ? (isAdmin
-                          ? <><span className="msg-own-private"><Lock size={10} /> Private</span><div style={{ whiteSpace: 'pre-wrap' }}>{entry.body}</div></>
-                          : <SecureBubble text={entry.body} />)
-                      : <MessageText text={entry.body} mentions={entry.mentions} />}
-                  </div>
+                    </div>
+                  ) : entry.deleted ? (
+                    <div className={`msg-bubble ${isAdmin ? 'sent' : 'received'} deleted ${lastOfGroup ? 'tail' : ''}`}>
+                      <span className="msg-deleted-text"><Ban size={12} /> {entry.deletedBy === myId ? 'You deleted this message' : 'This message was deleted'}</span>
+                    </div>
+                  ) : (
+                    <div className={`msg-bubble ${isAdmin ? 'sent' : 'received'} ${lastOfGroup ? 'tail' : ''}`}>
+                      {entry.isMain && entry.subject && (
+                        <div style={{ fontSize: 10, fontWeight: 700, color: isAdmin ? 'rgba(255,255,255,.7)' : 'var(--c-accent)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                          {entry.subject}
+                        </div>
+                      )}
+                      {entry.quote && (
+                        <span className="msg-quote">
+                          <span className="msg-quote-author">{entry.quote.author}</span>
+                          <span className="msg-quote-text">{entry.quote.text}</span>
+                        </span>
+                      )}
+                      {entry.postRef && (
+                        <PostRefCard postRef={entry.postRef} onOpen={() => setAdminTab('stream')} />
+                      )}
+                      {entry.secure
+                        ? (isAdmin
+                            ? <><span className="msg-own-private"><Lock size={10} /> Private</span><div style={{ whiteSpace: 'pre-wrap' }}>{entry.body}</div></>
+                            : <SecureBubble text={entry.body} />)
+                        : <MessageText text={entry.body} mentions={entry.mentions} />}
+                      {entry.editedAt && !entry.secure && <span className="msg-edited">edited</span>}
+                    </div>
+                  )}
+                  {!isAdmin && Menu}
                 </div>
               </SwipeReply>
-              {isAdmin && i === lastSelfIdx && (
-                <div className={`msg-seen ${entry.studentRead ? 'read' : ''}`} title={entry.readTitle}>
-                  {entry.studentRead ? 'Seen' : 'Sent'} <CheckCheck size={13} />
-                </div>
+              {isAdmin && i === lastSelfIdx && !isGroup && !entry.deleted && (
+                entry.studentRead
+                  ? <div className="msg-seen-ava" title={entry.readTitle}>{peer?.photo ? <img src={peer.photo} alt="" /> : <span className="av-fallback">{getInitials(thread.headerName)}</span>}</div>
+                  : <div className="msg-seen" title={entry.readTitle}>Sent <CheckCheck size={12} /></div>
               )}
             </React.Fragment>
           )
@@ -532,11 +582,13 @@ function ReplyBox({ onSend, onType, onStop, replyingTo, onCancelReply, candidate
     const t = text.trim()
     if (!t) return
     const secure = secureOn
-    setSending(true)
     onStop?.()
-    await onSend(t, secure)
+    // Optimistic clear: empty the composer immediately so the professor can fire
+    // off the next message without waiting on the Firestore round-trip (group
+    // sends felt slow because the input stayed disabled until the write landed).
     setText(''); setSecureOn(false); setSecureTouched(false)
-    setSending(false)
+    try { await onSend(t, secure) }
+    catch (e) { setText(t) } // restore the draft if the send threw
   }
 
   return (
@@ -814,6 +866,7 @@ export default function MessagesTab() {
           quote: m.quote,
           kind: m.kind,
           postRef: m.postRef,
+          deleted: m.deleted, deletedBy: m.deletedBy, editedAt: m.editedAt, hiddenFor: m.hiddenFor,
           isMain: true,
           senderLabel: m.from === 'admin' ? 'You' : name,
           studentRead,
@@ -829,6 +882,7 @@ export default function MessagesTab() {
           secure: r.secure,
           quote: r.quote,
           postRef: r.postRef,
+          deleted: r.deleted, deletedBy: r.deletedBy, editedAt: r.editedAt, hiddenFor: r.hiddenFor,
           isMain: false,
           senderLabel: r.from === 'admin' ? 'You' : name,
           studentRead: false,
@@ -866,6 +920,8 @@ export default function MessagesTab() {
           quote: m.quote,
           kind: m.kind,
           mentions: m.mentions,
+          msgId: m.id,
+          deleted: m.deleted, deletedBy: m.deletedBy, editedAt: m.editedAt, hiddenFor: m.hiddenFor,
           isMain: true,
           senderLabel: 'You',
           studentRead: anyRead,
@@ -880,6 +936,8 @@ export default function MessagesTab() {
           secure: r.secure,
           quote: r.quote,
           mentions: r.mentions,
+          msgId: m.id,
+          deleted: r.deleted, deletedBy: r.deletedBy, editedAt: r.editedAt, hiddenFor: r.hiddenFor,
           isMain: false,
           senderLabel: r.from === 'admin' ? 'You' : peerName(students, r.from),
           studentRead: false,
@@ -988,6 +1046,27 @@ export default function MessagesTab() {
     }
   }
 
+  // ── Edit / delete a single bubble ─────────────────────────────────
+  function entryTarget(entry) { return entry.isMain ? { main: true } : { ts: entry.ts, from: entry.from } }
+  async function handleEditEntry(entry, newText) {
+    if (!entry?.msgId || !fbReady || !db.current) { toast('Firebase not connected.', 'red'); return }
+    try { await fbEditMessageEntry(db.current, entry.msgId, entryTarget(entry), newText.trim()) }
+    catch (e) { toast('Edit failed: ' + e.message, 'red') }
+  }
+  async function handleDeleteEntry(entry, mode) {
+    if (!entry?.msgId || !fbReady || !db.current) { toast('Firebase not connected.', 'red'); return }
+    if (mode === 'everyone') {
+      const ok = await openDialog({
+        title: 'Delete for everyone?',
+        msg: 'This replaces the message with a "deleted" note for everyone in this chat. This cannot be undone.',
+        type: 'danger', confirmLabel: 'Delete', showCancel: true,
+      })
+      if (!ok) return
+    }
+    try { await fbDeleteMessageEntry(db.current, entry.msgId, entryTarget(entry), mode, 'admin') }
+    catch (e) { toast('Delete failed: ' + e.message, 'red') }
+  }
+
   // ── Render the unified list (direct conversations + group chats) ──────
   function renderListItems() {
     if (!filteredList.length) {
@@ -1004,10 +1083,10 @@ export default function MessagesTab() {
         const s = students.find(x => x.id === item.sid)
         const name = s?.name || item.sid
         const lastEntry = (item.allMsgs || []).flatMap(m => [
-          { body: m.body || '', ts: m.ts || 0, secure: m.secure },
-          ...(m.replies || []).map(r => ({ body: r.body || '', ts: r.ts || 0, secure: r.secure })),
-        ]).filter(e => e.body).sort((a, b) => b.ts - a.ts)[0] || item.latestMsg
-        const preview = previewText(lastEntry.body, { secure: lastEntry.secure })
+          { body: m.body || '', ts: m.ts || 0, secure: m.secure, from: m.from, deleted: m.deleted, hiddenFor: m.hiddenFor },
+          ...(m.replies || []).map(r => ({ body: r.body || '', ts: r.ts || 0, secure: r.secure, from: r.from, deleted: r.deleted, hiddenFor: r.hiddenFor })),
+        ]).filter(e => (e.body || e.deleted) && !(e.hiddenFor || []).includes('admin')).sort((a, b) => b.ts - a.ts)[0] || item.latestMsg
+        const preview = (lastEntry.from === 'admin' ? 'You: ' : '') + (lastEntry.deleted ? 'Message deleted' : previewText(lastEntry.body, { secure: lastEntry.secure }))
         const isActive = activeConv?.type === 'conversation' && activeConv.studentId === item.sid
         return (
           <ConvItem
@@ -1034,7 +1113,12 @@ export default function MessagesTab() {
       const isSubject = typeof m.to === 'string' && m.to.startsWith('subject:')
       const lastRep = (m.replies || []).reduce((mx, r) => ((r.ts || 0) > (mx?.ts || 0) ? r : mx), null)
       const newestEntry = (lastRep && (lastRep.ts || 0) > (m.ts || 0)) ? lastRep : m
-      const preview = (m.subject ? m.subject + ' - ' : '') + previewText(m.body, { secure: newestEntry.secure })
+      const newestIsReply = newestEntry !== m
+      const preview = newestEntry.deleted
+        ? 'Message deleted'
+        : newestIsReply
+          ? (newestEntry.from === 'admin' ? 'You: ' : ((peerName(students, newestEntry.from).split(',')[0]) + ': ')) + previewText(newestEntry.body, { secure: newestEntry.secure })
+          : (m.subject ? m.subject + ' - ' : '') + previewText(m.body, { secure: m.secure })
       const isActive = activeConv?.type === 'message' && activeConv.msgId === m.id
       return (
         <ConvItem
@@ -1132,6 +1216,8 @@ export default function MessagesTab() {
               onClose={() => setActiveConv(null)}
               onDelete={() => deleteTokens([thread.type === 'conversation' ? 'conv:' + thread.studentId : 'msg:' + thread.msgId])}
               onRename={thread.isGroup ? () => setRenameTargetId(thread.msgId) : null}
+              onEditEntry={handleEditEntry}
+              onDeleteEntry={handleDeleteEntry}
             />
           ) : (
             <div id="admin-conv-empty" className="flex-1 flex items-center justify-center text-ink3 text-sm">

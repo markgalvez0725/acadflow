@@ -17,7 +17,7 @@ import MentionInput from '@/components/primitives/MentionInput'
 import MessageText from '@/components/primitives/MessageText'
 import ProfessorBadge from '@/components/primitives/ProfessorBadge'
 import PostRefCard from '@/components/primitives/PostRefCard'
-import { fbAddMessageReply, fbMarkMessageRead } from '@/firebase/persistence'
+import { fbAddMessageReply, fbMarkMessageRead, fbEditMessageEntry, fbDeleteMessageEntry } from '@/firebase/persistence'
 import Pagination from '@/components/primitives/Pagination'
 import KebabMenu from '@/components/primitives/KebabMenu'
 import SecureBubble from '@/components/primitives/SecureBubble'
@@ -25,7 +25,7 @@ import SwipeReply from '@/components/primitives/SwipeReply'
 import EmptyState from '@/components/ds/EmptyState'
 import { useScreenshotGuard } from '@/hooks/useScreenshotGuard'
 import { classifySensitivity, sensitivityLabel } from '@/utils/sensitiveContent'
-import { MessageSquare, GraduationCap, CheckCheck, Trash2, Check, Lock, Send, ChevronLeft, Megaphone, Search, SquarePen, Camera, Reply, X } from 'lucide-react'
+import { MessageSquare, GraduationCap, CheckCheck, Trash2, Check, Lock, Send, ChevronLeft, Megaphone, Search, SquarePen, Camera, Reply, X, MoreHorizontal, Ban } from 'lucide-react'
 
 const PER_PAGE = 10
 
@@ -39,6 +39,18 @@ function isGroupChat(m) {
 // professor too). Stored per student: { announce: [msgId…], directUpTo: ts }.
 // The direct conversation is hidden only up to a timestamp, so any newer message
 // or reply brings it back automatically.
+// Flatten messages + their replies into ts-sorted bubble entries. Every entry
+// carries msgId and the edit/delete fields (deleted/editedAt/hiddenFor) so the
+// per-bubble edit + delete actions can locate and render their state.
+function toEntries(msgs) {
+  const out = []
+  ;(msgs || []).forEach(m => {
+    out.push({ from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, kind: m.kind, mentions: m.mentions, postRef: m.postRef, isMain: true, msgId: m.id, deleted: m.deleted, deletedBy: m.deletedBy, editedAt: m.editedAt, hiddenFor: m.hiddenFor })
+    ;(m.replies || []).forEach(r => out.push({ ...r, isMain: false, msgId: m.id }))
+  })
+  return out.sort((a, b) => a.ts - b.ts)
+}
+
 function hiddenKey(sid) { return `acadflow_hidden_msgs_${sid}` }
 function loadHidden(sid) {
   try {
@@ -116,6 +128,8 @@ export default function MessagesTab({ student: s, messages }) {
   })
   const [replyText, setReplyText] = useState('')
   const [sending, setSending]    = useState(false)
+  const [editing, setEditing]    = useState(null) // entry key being edited
+  const [editDraft, setEditDraft] = useState('')
   // Quoted reply: the bubble the student swiped / clicked the reply icon on.
   const [replyingTo, setReplyingTo] = useState(null) // { author, text } | null
   // A Stream post attached to the next message (from "Message professor about
@@ -140,7 +154,7 @@ export default function MessagesTab({ student: s, messages }) {
   // this post") is APPLIED here rather than cleared, so it survives the thread
   // switch deterministically (no timing race).
   useEffect(() => {
-    setReplyingTo(null); setSecureOn(false); setSecureTouched(false)
+    setReplyingTo(null); setSecureOn(false); setSecureTouched(false); setEditing(null)
     const pend = pendingDraftRef.current
     if (pend) {
       setReplyText(pend.draft || '')
@@ -179,9 +193,9 @@ export default function MessagesTab({ student: s, messages }) {
       // the most recent line of the conversation (not just the last top-level
       // message). Without this a professor's latest reply never shows in the list.
       const allEntries = directMsgs.flatMap(m => [
-        { body: m.body || '', from: m.from, ts: m.ts || 0, secure: m.secure },
-        ...(m.replies || []).map(r => ({ body: r.body || '', from: r.from, ts: r.ts || 0, secure: r.secure })),
-      ]).filter(e => e.body).sort((a, b) => b.ts - a.ts)
+        { body: m.body || '', from: m.from, ts: m.ts || 0, secure: m.secure, deleted: m.deleted, hiddenFor: m.hiddenFor },
+        ...(m.replies || []).map(r => ({ body: r.body || '', from: r.from, ts: r.ts || 0, secure: r.secure, deleted: r.deleted, hiddenFor: r.hiddenFor })),
+      ]).filter(e => (e.body || e.deleted) && !(e.hiddenFor || []).includes(s.id)).sort((a, b) => b.ts - a.ts)
       const lastEntry = allEntries[0] || latest
       const hasUnread = directMsgs.some(m => {
         if (m.from === s.id) return false
@@ -219,13 +233,7 @@ export default function MessagesTab({ student: s, messages }) {
     const src = activeKey === 'direct'
       ? allMsgs.filter(m => m.type !== 'announcement').sort((a, b) => a.ts - b.ts)
       : (messages.find(x => x.id === activeKey) ? [messages.find(x => x.id === activeKey)] : [])
-    const entries = []
-    src.forEach(m => {
-      entries.push({ from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, kind: m.kind, mentions: m.mentions, postRef: m.postRef, isMain: true })
-      ;(m.replies || []).forEach(r => entries.push({ ...r, isMain: false }))
-    })
-    entries.sort((a, b) => a.ts - b.ts)
-    setThreadEntries(entries)
+    setThreadEntries(toEntries(src))
   }, [messages, allMsgs, view, activeKey])
 
   // Scroll thread to bottom when opened
@@ -266,14 +274,8 @@ export default function MessagesTab({ student: s, messages }) {
     markRead(teacherMsgIds)
     const lastMsg = directMsgs[directMsgs.length - 1]
     setReplyMsgId(lastMsg.id)
-    const allEntries = []
-    directMsgs.forEach(m => {
-      allEntries.push({ from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, kind: m.kind, mentions: m.mentions, postRef: m.postRef, isMain: true })
-      ;(m.replies || []).forEach(r => allEntries.push({ ...r, isMain: false }))
-    })
-    allEntries.sort((a, b) => a.ts - b.ts)
     setThreadTitle('Professor')
-    setThreadEntries(allEntries)
+    setThreadEntries(toEntries(directMsgs))
     setCanReply(true)
     setActiveKey('direct')
     setView('thread')
@@ -284,12 +286,8 @@ export default function MessagesTab({ student: s, messages }) {
     if (!m) return
     markRead([msgId])
     setReplyMsgId(msgId)
-    const allEntries = [
-      { from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, kind: m.kind, mentions: m.mentions, postRef: m.postRef, isMain: true },
-      ...(m.replies || []).map(r => ({ ...r, isMain: false })),
-    ].sort((a, b) => a.ts - b.ts)
     setThreadTitle(groupName(m, classes))
-    setThreadEntries(allEntries)
+    setThreadEntries(toEntries([m]))
     const active = groupChatActive(m)
     setCanReply(active)
     setEndedNotice(active ? '' : 'This class has ended - you can no longer send messages to this group chat.')
@@ -364,7 +362,7 @@ export default function MessagesTab({ student: s, messages }) {
     try {
       if (targetMsgId) {
         const newReply = { from: s.id, body: text, ts: Date.now(), ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}), ...mentionObj, ...postObj }
-        setThreadEntries(prev => [...prev, { ...newReply, isMain: false }])
+        setThreadEntries(prev => [...prev, { ...newReply, isMain: false, msgId: targetMsgId }])
         // Atomic append - won't clobber a professor reply sent at the same time.
         await fbAddMessageReply(db.current, targetMsgId, newReply, { readerId: s.id, adminRead: false })
         // Notify teacher: in-app badge + best-effort web push.
@@ -414,6 +412,32 @@ export default function MessagesTab({ student: s, messages }) {
     } catch (e) { /* best-effort - the professor was still notified above */ }
   }
 
+  // ── Edit / delete a single bubble (own bubbles editable; anyone can hide a
+  // bubble for themselves; only the author can delete it for everyone) ──────
+  function entryTarget(entry) { return entry.isMain ? { main: true } : { ts: entry.ts, from: entry.from } }
+  function entryKey(e) { return (e.isMain ? 'm:' : 'r:') + e.msgId + ':' + e.ts + ':' + e.from }
+  async function handleEditEntry(entry, newText) {
+    const t = (newText || '').trim()
+    if (!t || !entry?.msgId || !fbReady || !db.current) return
+    setThreadEntries(prev => prev.map(e => (entryKey(e) === entryKey(entry) ? { ...e, body: t, editedAt: Date.now() } : e)))
+    try { await fbEditMessageEntry(db.current, entry.msgId, entryTarget(entry), t) }
+    catch (e) { toast('Edit failed: ' + e.message, 'error') }
+  }
+  async function handleDeleteEntry(entry, mode) {
+    if (!entry?.msgId || !fbReady || !db.current) { toast('Messages require Firebase.', 'warn'); return }
+    if (mode === 'everyone') {
+      const ok = await openDialog({
+        title: 'Delete for everyone?',
+        msg: 'This replaces your message with a "deleted" note for everyone in this chat. This cannot be undone.',
+        type: 'danger', confirmLabel: 'Delete', showCancel: true,
+      })
+      if (!ok) return
+    }
+    try { await fbDeleteMessageEntry(db.current, entry.msgId, entryTarget(entry), mode, s.id) }
+    catch (e) { toast('Delete failed: ' + e.message, 'error') }
+  }
+  function saveEdit(entry) { const t = editDraft.trim(); setEditing(null); if (t && t !== entry.body) handleEditEntry(entry, t) }
+
   // Live typing presence for the open thread (group_ for a group chat, else direct_).
   const openTypingMsg = (view === 'thread' && replyMsgId) ? messages.find(x => x.id === replyMsgId) : null
   const typingKey = view === 'thread'
@@ -440,8 +464,10 @@ export default function MessagesTab({ student: s, messages }) {
     : (threadEntries[0] ? '' : 'New conversation')
   const adminSeen = messages.filter(x => x.from === 'admin' && x.to === s.id).some(x => x.replies?.some(r => r.from === 'admin')) ||
     messages.filter(x => x.from === s.id).some(x => x.adminRead)
+  // Hide bubbles this student deleted "for me"; everyone-deletes stay as tombstones.
+  const visibleEntries = useMemo(() => threadEntries.filter(e => !(e.hiddenFor || []).includes(s.id)), [threadEntries, s.id])
   let lastSelfIdx = -1
-  threadEntries.forEach((e, i) => { if (e.from === s.id) lastSelfIdx = i })
+  visibleEntries.forEach((e, i) => { if (e.from === s.id) lastSelfIdx = i })
 
   function senderInfo(entry) {
     if (entry.from === s.id)    return { self: true,  name: 'You' }
@@ -481,7 +507,7 @@ export default function MessagesTab({ student: s, messages }) {
       if (item.type === 'direct') {
         const m = item.lastEntry || item.latest
         const isOwn = m.from === s.id
-        const preview = (isOwn ? 'You: ' : '') + previewText(m.body, { secure: m.secure })
+        const preview = (isOwn ? 'You: ' : '') + (m.deleted ? 'Message deleted' : previewText(m.body, { secure: m.secure }))
         const replyHint = item.msgCount > 1
           ? `${item.msgCount} messages · ${item.replyCount} repl${item.replyCount === 1 ? 'y' : 'ies'}`
           : item.replyCount ? `${item.replyCount} repl${item.replyCount === 1 ? 'y' : 'ies'}` : ''
@@ -507,7 +533,12 @@ export default function MessagesTab({ student: s, messages }) {
       const m = item.msg
       const lastRep = (m.replies || []).reduce((mx, r) => ((r.ts || 0) > (mx?.ts || 0) ? r : mx), null)
       const newestEntry = (lastRep && (lastRep.ts || 0) > (m.ts || 0)) ? lastRep : m
-      const preview = previewText(m.body, { secure: newestEntry.secure })
+      const newestIsReply = newestEntry !== m
+      const preview = newestEntry.deleted
+        ? 'Message deleted'
+        : newestIsReply
+          ? (newestEntry.from === s.id ? 'You: ' : '') + previewText(newestEntry.body, { secure: newestEntry.secure })
+          : previewText(m.body, { secure: m.secure })
       const replyCount = (m.replies || []).length
       // Class/subject group chats are professor-owned: students can't delete them.
       const locked = isGroupChat(m)
@@ -604,10 +635,10 @@ export default function MessagesTab({ student: s, messages }) {
 
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-4 flex flex-col" ref={threadRef}>
-                {threadEntries.length === 0 && (
+                {visibleEntries.length === 0 && (
                   <EmptyState Icon={MessageSquare} title="No messages yet. Send the first one!" compact />
                 )}
-                {threadEntries.map((entry, i) => {
+                {visibleEntries.map((entry, i) => {
                   const info = senderInfo(entry)
                   if (entry.kind === 'screenshot') {
                     const who = entry.from === s.id ? 'You' : (info.name || 'Someone')
@@ -618,7 +649,19 @@ export default function MessagesTab({ student: s, messages }) {
                     )
                   }
                   const isSelf = info.self
-                  const { sameAsPrev, sameAsNext, firstOfGroup, lastOfGroup, showDay } = groupFlags(threadEntries, i)
+                  const { sameAsPrev, sameAsNext, firstOfGroup, lastOfGroup, showDay } = groupFlags(visibleEntries, i)
+                  const eKey = entryKey(entry)
+                  const isEditing = editing === eKey
+                  const editable = isSelf && !entry.deleted && !entry.postRef && entry.kind !== 'screenshot'
+                  const menuItems = entry.deleted ? [] : [
+                    editable && { label: 'Edit', onClick: () => { setEditing(eKey); setEditDraft(entry.body || '') } },
+                    entry.body && !entry.secure && { label: 'Copy', onClick: () => navigator.clipboard?.writeText(entry.body).catch(() => {}) },
+                    { label: 'Delete for you', onClick: () => handleDeleteEntry(entry, 'me') },
+                    isSelf && { label: 'Delete for everyone', danger: true, onClick: () => handleDeleteEntry(entry, 'everyone') },
+                  ].filter(Boolean)
+                  const Menu = menuItems.length > 0 && !isEditing && (
+                    <span className="msg-bubble-menu"><KebabMenu items={menuItems} icon={<MoreHorizontal size={15} />} size={15} label="Message actions" /></span>
+                  )
                   return (
                     <React.Fragment key={i}>
                       {showDay && <div className="msg-day-sep"><span>{dayLabel(entry.ts)}</span></div>}
@@ -634,31 +677,57 @@ export default function MessagesTab({ student: s, messages }) {
                               {lastOfGroup && <div className="msg-avatar-sm">{info.teacher ? (info.photo ? <img src={info.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} /> : <GraduationCap size={13} />) : getInitials(info.name)}</div>}
                             </div>
                           )}
-                          <div className={`msg-bubble ${isSelf ? 'sent' : 'received'} ${lastOfGroup ? 'tail' : ''}`}>
-                            {entry.isMain && entry.subject && !isSelf && (
-                              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>{entry.subject}</div>
-                            )}
-                            {entry.quote && (
-                              <span className="msg-quote">
-                                <span className="msg-quote-author">{entry.quote.author}</span>
-                                <span className="msg-quote-text">{entry.quote.text}</span>
-                              </span>
-                            )}
-                            {entry.postRef && (
-                              <PostRefCard postRef={entry.postRef} onOpen={() => openStreamPost(entry.postRef)} />
-                            )}
-                            {entry.secure
-                              ? (isSelf
-                                  ? <><span className="msg-own-private"><Lock size={10} /> Private</span><div style={{ whiteSpace: 'pre-wrap' }}>{entry.body}</div></>
-                                  : <SecureBubble text={entry.body} />)
-                              : <MessageText text={entry.body} mentions={entry.mentions} />}
-                          </div>
+                          {isSelf && Menu}
+                          {isEditing ? (
+                            <div className="msg-edit-box">
+                              <textarea
+                                autoFocus
+                                value={editDraft}
+                                maxLength={2000}
+                                onChange={e => setEditDraft(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Escape') { e.preventDefault(); setEditing(null) }
+                                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveEdit(entry) }
+                                }}
+                              />
+                              <div className="msg-edit-actions">
+                                <button type="button" onClick={() => setEditing(null)}>Cancel</button>
+                                <button type="button" className="primary" onClick={() => saveEdit(entry)}>Save</button>
+                              </div>
+                            </div>
+                          ) : entry.deleted ? (
+                            <div className={`msg-bubble ${isSelf ? 'sent' : 'received'} deleted ${lastOfGroup ? 'tail' : ''}`}>
+                              <span className="msg-deleted-text"><Ban size={12} /> {entry.deletedBy === s.id ? 'You deleted this message' : 'This message was deleted'}</span>
+                            </div>
+                          ) : (
+                            <div className={`msg-bubble ${isSelf ? 'sent' : 'received'} ${lastOfGroup ? 'tail' : ''}`}>
+                              {entry.isMain && entry.subject && !isSelf && (
+                                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' }}>{entry.subject}</div>
+                              )}
+                              {entry.quote && (
+                                <span className="msg-quote">
+                                  <span className="msg-quote-author">{entry.quote.author}</span>
+                                  <span className="msg-quote-text">{entry.quote.text}</span>
+                                </span>
+                              )}
+                              {entry.postRef && (
+                                <PostRefCard postRef={entry.postRef} onOpen={() => openStreamPost(entry.postRef)} />
+                              )}
+                              {entry.secure
+                                ? (isSelf
+                                    ? <><span className="msg-own-private"><Lock size={10} /> Private</span><div style={{ whiteSpace: 'pre-wrap' }}>{entry.body}</div></>
+                                    : <SecureBubble text={entry.body} />)
+                                : <MessageText text={entry.body} mentions={entry.mentions} />}
+                              {entry.editedAt && !entry.secure && <span className="msg-edited">edited</span>}
+                            </div>
+                          )}
+                          {!isSelf && Menu}
                         </div>
                       </SwipeReply>
-                      {isSelf && i === lastSelfIdx && (
-                        <div className={`msg-seen ${adminSeen ? 'read' : ''}`} title={adminSeen ? 'Read by professor' : 'Delivered'}>
-                          {adminSeen ? 'Seen' : 'Sent'} <CheckCheck size={13} />
-                        </div>
+                      {isSelf && i === lastSelfIdx && !showGroup && !entry.deleted && (
+                        adminSeen
+                          ? <div className="msg-seen-ava" title="Seen by professor">{profPhoto ? <img src={profPhoto} alt="" /> : <span className="av-fallback"><GraduationCap size={10} /></span>}</div>
+                          : <div className="msg-seen" title="Delivered">Sent <CheckCheck size={12} /></div>
                       )}
                     </React.Fragment>
                   )

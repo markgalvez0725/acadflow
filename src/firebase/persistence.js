@@ -315,6 +315,65 @@ export async function fbAddMessageReply(db, msgId, reply, opts = {}) {
   }))
 }
 
+// Patch exactly the first reply that matches {ts, from}. Replies have no stable
+// id, but ts (ms) + sender uniquely identifies a bubble in practice; the `done`
+// guard makes sure an identical-ts collision never double-patches.
+function patchReplyOnce(replies, target, patchFn) {
+  let done = false
+  return (Array.isArray(replies) ? replies : []).map(r => {
+    if (!done && r.ts === target.ts && r.from === target.from) { done = true; return patchFn(r) }
+    return r
+  })
+}
+
+// Edit a single message entry's text. `target` selects which entry:
+//   { main: true } → the top-level message body
+//   { ts, from }   → the matching reply inside replies[]
+// Stamps editedAt so the UI can show an "edited" tag. Messages are plain text
+// (rendered via MessageText, never as raw HTML), so no HTML sanitizing is needed
+// here - the caller trims; length is bounded at the composer.
+export async function fbEditMessageEntry(db, msgId, target, newBody) {
+  if (!db || !msgId || !target || newBody == null) return
+  const ref = doc(db, 'messages', msgId)
+  return fbWithTimeout(runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref)
+    if (!snap.exists()) throw new Error('Message not found')
+    const now = Date.now()
+    if (target.main) {
+      transaction.update(ref, { body: newBody, editedAt: now })
+    } else {
+      const replies = snap.data().replies
+      transaction.update(ref, { replies: patchReplyOnce(replies, target, r => ({ ...r, body: newBody, editedAt: now })) })
+    }
+  }))
+}
+
+// Delete a single message entry. `mode`:
+//   'everyone' → soft tombstone for everyone (deleted:true, deletedAt/By, body
+//                and secure cleared so the text no longer lives in Firestore)
+//   'me'       → hide the bubble only for actorId (append to hiddenFor[]); the
+//                other party keeps seeing it
+// Both are transactional so concurrent replies are never clobbered.
+export async function fbDeleteMessageEntry(db, msgId, target, mode, actorId) {
+  if (!db || !msgId || !target) return
+  const ref = doc(db, 'messages', msgId)
+  return fbWithTimeout(runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref)
+    if (!snap.exists()) throw new Error('Message not found')
+    const m = snap.data()
+    const now = Date.now()
+    const tombstone = obj => ({ ...obj, deleted: true, deletedAt: now, deletedBy: actorId || null, body: '', subject: '', secure: false })
+    const hideForMe = obj => ({ ...obj, hiddenFor: [...new Set([...(Array.isArray(obj.hiddenFor) ? obj.hiddenFor : []), actorId].filter(Boolean))] })
+    const apply = mode === 'everyone' ? tombstone : hideForMe
+    if (target.main) {
+      if (mode === 'everyone') transaction.update(ref, { deleted: true, deletedAt: now, deletedBy: actorId || null, body: '', subject: '', secure: false })
+      else transaction.update(ref, { hiddenFor: [...new Set([...(Array.isArray(m.hiddenFor) ? m.hiddenFor : []), actorId].filter(Boolean))] })
+    } else {
+      transaction.update(ref, { replies: patchReplyOnce(m.replies, target, apply) })
+    }
+  }))
+}
+
 // Atomically mark a message read for one reader without clobbering other
 // readers' entries (important for broadcast messages shared by many students).
 export async function fbMarkMessageRead(db, msgId, readerId, readAtTs) {
