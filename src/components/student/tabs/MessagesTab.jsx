@@ -92,11 +92,21 @@ export default function MessagesTab({ student: s, messages }) {
 
   async function deleteSelected(tokens) {
     if (!tokens.length) return
-    const ok = await openDialog({
-      title: `Remove ${tokens.length} item${tokens.length > 1 ? 's' : ''}?`,
-      msg: 'This hides the selected message(s) from your inbox on this device. Your professor keeps their copy, and any new reply brings the conversation back.',
-      type: 'danger', confirmLabel: 'Delete', showCancel: true,
-    })
+    // Conversation-specific wording for a single delete; generic for bulk.
+    let title, msg
+    if (tokens.length === 1) {
+      if (tokens[0] === 'direct') {
+        title = 'Delete this conversation?'
+        msg = `This hides your conversation with ${profName} from your inbox on this device. Your professor keeps their copy, and any new reply brings it back.`
+      } else {
+        title = 'Delete this chat?'
+        msg = 'This hides this chat from your inbox on this device. Any new reply brings it back.'
+      }
+    } else {
+      title = `Delete ${tokens.length} conversations?`
+      msg = 'This hides the selected conversations from your inbox on this device. Your professor keeps their copies, and any new reply brings a conversation back.'
+    }
+    const ok = await openDialog({ title, msg, type: 'danger', confirmLabel: 'Delete', showCancel: true })
     if (!ok) return
     const next = { announce: [...hidden.announce], directUpTo: hidden.directUpTo }
     tokens.forEach(tok => {

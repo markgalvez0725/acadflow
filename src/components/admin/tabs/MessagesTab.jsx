@@ -758,11 +758,25 @@ export default function MessagesTab() {
     const ids = new Set()
     tokens.forEach(t => resolveDocIds(t).forEach(id => ids.add(id)))
     if (!ids.size) return
-    const ok = await openDialog({
-      title: `Delete ${tokens.length} ${tokens.length > 1 ? 'items' : 'item'}?`,
-      msg: `This permanently removes the selected message${tokens.length > 1 ? 's' : ''} for everyone - they are also removed from the students' inboxes. This cannot be undone.`,
-      type: 'danger', confirmLabel: 'Delete', showCancel: true,
-    })
+    // Conversation/group-specific wording for a single delete; generic for bulk.
+    let title, msg
+    if (tokens.length === 1) {
+      const tok = tokens[0]
+      if (tok.startsWith('conv:')) {
+        const who = (students.find(x => x.id === tok.slice(5))?.name) || 'this student'
+        title = 'Delete this conversation?'
+        msg = `This permanently deletes your conversation with ${who} for everyone, and removes it from their inbox. This cannot be undone.`
+      } else {
+        const gm = messages.find(x => x.id === tok.slice(4))
+        const gname = gm ? groupName(gm, classes) : 'this group chat'
+        title = 'Delete this group chat?'
+        msg = `This permanently deletes "${gname}" for everyone in it, and removes it from their inboxes. This cannot be undone.`
+      }
+    } else {
+      title = `Delete ${tokens.length} conversations?`
+      msg = `This permanently removes the selected conversations for everyone, and removes them from the students' inboxes. This cannot be undone.`
+    }
+    const ok = await openDialog({ title, msg, type: 'danger', confirmLabel: 'Delete', showCancel: true })
     if (!ok) return
     try {
       await Promise.all([...ids].map(id => fbDeleteMessage(db.current, id).catch(() => {})))
