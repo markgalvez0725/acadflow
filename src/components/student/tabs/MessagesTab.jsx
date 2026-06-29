@@ -19,7 +19,7 @@ import MessageText from '@/components/primitives/MessageText'
 import ProfessorBadge from '@/components/primitives/ProfessorBadge'
 import PostRefCard from '@/components/primitives/PostRefCard'
 import { fbAddMessageReply, fbMarkMessageRead, fbEditMessageEntry, fbDeleteMessageEntry } from '@/firebase/persistence'
-import Pagination from '@/components/primitives/Pagination'
+import useInfiniteFeed from '@/hooks/useInfiniteFeed'
 import KebabMenu from '@/components/primitives/KebabMenu'
 import SecureBubble from '@/components/primitives/SecureBubble'
 import SwipeReply from '@/components/primitives/SwipeReply'
@@ -27,8 +27,6 @@ import EmptyState from '@/components/ds/EmptyState'
 import { useScreenshotGuard } from '@/hooks/useScreenshotGuard'
 import { classifySensitivity, sensitivityLabel } from '@/utils/sensitiveContent'
 import { MessageSquare, GraduationCap, CheckCheck, Trash2, Check, Lock, Send, ChevronLeft, Megaphone, Search, SquarePen, Camera, Reply, X, MoreHorizontal, Ban } from 'lucide-react'
-
-const PER_PAGE = 10
 
 // A class/section or subject group chat - professor-owned, students may not delete it.
 function isGroupChat(m) {
@@ -79,7 +77,6 @@ export default function MessagesTab({ student: s, messages }) {
   }
 
   const [search, setSearch]     = useState('')
-  const [page, setPage]         = useState(1)
   const [hidden, setHidden]     = useState(() => loadHidden(s.id))
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState(() => new Set()) // tokens: 'direct' or announcement msgId
@@ -224,7 +221,9 @@ export default function MessagesTab({ student: s, messages }) {
       .sort((a, b) => b.lastActivity - a.lastActivity)
   }, [filtered, s.id, hidden])
 
-  const slice = items.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+  // Infinite scroll: render a growing window of the inbox as the bottom sentinel
+  // scrolls into view (same hook as the Stream feed), replacing pagination.
+  const { visibleCount, sentinelRef, hasMore } = useInfiniteFeed(items.length, { resetKey: search })
 
   // Keep the OPEN thread live: rebuild its entries from the latest messages so a
   // professor's reply (or another group member's) shows without reopening. The
@@ -513,7 +512,7 @@ export default function MessagesTab({ student: s, messages }) {
         />
       )
     }
-    return slice.map(item => {
+    return items.slice(0, visibleCount).map(item => {
       if (item.type === 'direct') {
         const m = item.lastEntry || item.latest
         const isOwn = m.from === s.id
@@ -528,7 +527,7 @@ export default function MessagesTab({ student: s, messages }) {
             {selectMode && <span className={`msg-checkbox ${sel ? 'checked' : ''}`} aria-hidden="true">{sel && <Check size={13} />}</span>}
             <div className="s-conv-avatar">{profPhoto ? <img src={profPhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} /> : getInitials(profName)}</div>
             <div className="s-conv-body">
-              <div className="s-conv-name">{item.hasUnread && <span className="unread-dot" />}{profName}<ProfessorBadge size={12} /></div>
+              <div className="s-conv-name">{item.hasUnread && <span className="unread-dot" />}<span className="s-conv-name-text">{profName}</span><ProfessorBadge size={12} /></div>
               <div className="s-conv-preview">{preview}</div>
               {replyHint && <div style={{ fontSize: 10, color: 'var(--green)', marginTop: 2 }}>{replyHint}</div>}
             </div>
@@ -560,7 +559,7 @@ export default function MessagesTab({ student: s, messages }) {
           {selectMode && !locked && <span className={`msg-checkbox ${sel ? 'checked' : ''}`} aria-hidden="true">{sel && <Check size={13} />}</span>}
           <div className="s-conv-avatar announce">A</div>
           <div className="s-conv-body">
-            <div className="s-conv-name">{item.hasUnread && <span className="unread-dot" />}{groupName(m, classes)}</div>
+            <div className="s-conv-name">{item.hasUnread && <span className="unread-dot" />}<span className="s-conv-name-text">{groupName(m, classes)}</span></div>
             <div className="s-conv-preview">{preview}</div>
             {replyCount > 0 && <div style={{ fontSize: 10, color: 'var(--green)', marginTop: 2 }}>{replyCount} repl{replyCount === 1 ? 'y' : 'ies'}</div>}
           </div>
@@ -589,7 +588,7 @@ export default function MessagesTab({ student: s, messages }) {
           {/* Search pill */}
           <div className="msg-search-pill">
             <Search size={15} />
-            <input aria-label="Search messages" placeholder="Search" value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} />
+            <input aria-label="Search messages" placeholder="Search" value={search} onChange={e => setSearch(e.target.value)} />
           </div>
 
           {items.length > 0 && (
@@ -612,13 +611,13 @@ export default function MessagesTab({ student: s, messages }) {
 
           <div className="flex-1 overflow-y-auto">
             {renderListItems()}
+            {hasMore && (
+              <div ref={sentinelRef} className="feed-sentinel">
+                <span className="feed-spinner" aria-hidden="true" />
+                <span>Loading more…</span>
+              </div>
+            )}
           </div>
-
-          {items.length > PER_PAGE && (
-            <div className="flex-shrink-0 border-t border-border">
-              <Pagination total={items.length} perPage={PER_PAGE} page={page} onChange={setPage} />
-            </div>
-          )}
         </div>
 
         {/* Right: thread pane */}

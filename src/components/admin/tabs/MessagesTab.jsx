@@ -25,6 +25,7 @@ import SecureBubble from '@/components/primitives/SecureBubble'
 import SwipeReply from '@/components/primitives/SwipeReply'
 import { classifySensitivity, sensitivityLabel } from '@/utils/sensitiveContent'
 import { Reply } from 'lucide-react'
+import useInfiniteFeed from '@/hooks/useInfiniteFeed'
 
 // Human-readable recipient label for a message's `to` field.
 function recipientDisplay(to, students) {
@@ -717,14 +718,12 @@ function RenameGroupModal({ current, autoName, onClose, onSave }) {
 }
 
 // ── Main Tab ──────────────────────────────────────────────────────────
-const PER_PAGE = 10
 
 export default function MessagesTab() {
   const { students, classes, messages, db, fbReady } = useData()
   const { toast, openDialog } = useUI()
 
   const [search, setSearch]             = useState('')
-  const [page, setPage]                 = useState(1)
   const [activeConv, setActiveConv]     = useState(null) // { type, studentId?, msgId? }
   const [showCompose, setShowCompose]   = useState(false)
   const [replyTo, setReplyTo]           = useState(null)
@@ -840,16 +839,12 @@ export default function MessagesTab() {
     })
   }, [directConvs, groupItems, search, students, classes])
 
-  // Pagination
-  const totalPages = Math.max(1, Math.ceil(filteredList.length / PER_PAGE))
-  const pageSlice  = useMemo(
-    () => filteredList.slice((page - 1) * PER_PAGE, page * PER_PAGE),
-    [filteredList, page]
-  )
+  // Infinite scroll: render a growing window of the inbox as the bottom sentinel
+  // scrolls into view (same hook as the Stream feed), replacing pagination.
+  const { visibleCount, sentinelRef, hasMore } = useInfiniteFeed(filteredList.length, { resetKey: search })
 
   function handleSearch(v) {
     setSearch(v)
-    setPage(1)
   }
 
   // ── Build thread data for panel ───────────────────────────────────
@@ -1092,7 +1087,7 @@ export default function MessagesTab() {
         />
       )
     }
-    return pageSlice.map(item => {
+    return filteredList.slice(0, visibleCount).map(item => {
       if (item.kind === 'conversation') {
         const s = students.find(x => x.id === item.sid)
         const name = s?.name || item.sid
@@ -1200,24 +1195,13 @@ export default function MessagesTab() {
           {/* List */}
           <div id="admin-conv-list" className="flex-1 overflow-y-auto">
             {renderListItems()}
+            {hasMore && (
+              <div ref={sentinelRef} className="feed-sentinel">
+                <span className="feed-spinner" aria-hidden="true" />
+                <span>Loading more…</span>
+              </div>
+            )}
           </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-1 px-2 py-2 border-t border-border flex-shrink-0">
-              <button
-                className="btn btn-ghost btn-sm"
-                disabled={page <= 1}
-                onClick={() => setPage(p => p - 1)}
-              >‹</button>
-              <span className="text-xs text-ink2">{page} / {totalPages}</span>
-              <button
-                className="btn btn-ghost btn-sm"
-                disabled={page >= totalPages}
-                onClick={() => setPage(p => p + 1)}
-              >›</button>
-            </div>
-          )}
         </div>
 
         {/* Right: thread panel */}
