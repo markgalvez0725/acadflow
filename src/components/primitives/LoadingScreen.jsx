@@ -1,13 +1,13 @@
 import React from 'react'
 import markWhite from '@/assets/brand/logo-mark-white.svg?raw'
 
-// Branded full-screen splash shown while Firebase initializes (before the app
-// shell can render). Pure presentational - no data, no hooks - so it can mount
-// instantly during bootstrap. Matches the instant boot splash baked into
-// index.html (same navy field + lockup) so the hand-off is seamless: the inline
-// HTML splash paints on first byte, then React swaps in this identical screen
-// until fbReady. The cap mark is the all-white inline SVG; "acadflow" is the
-// Bricolage wordmark.
+// Branded full-screen splash. Pure presentational - no data, no hooks. The
+// initial cold boot is NOT covered by this component: the instant #boot-splash
+// baked into index.html (same navy field + lockup) stays up and animates
+// continuously until the first real screen commits, so the splash never re-fires.
+// This component is the React-side equivalent used as the Suspense fallback for
+// lazy screen chunks that load AFTER boot (e.g. switching login -> layout). The
+// cap mark is the all-white inline SVG; "acadflow" is the Bricolage wordmark.
 export default function LoadingScreen() {
   return (
     <div className="app-splash" role="status" aria-live="polite" aria-label="Loading AcadFlow">

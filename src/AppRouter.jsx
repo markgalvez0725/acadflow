@@ -12,6 +12,28 @@ const StudentLayout    = React.lazy(() => import('@/components/student/StudentLa
 const CommandPalette   = React.lazy(() => import('@/components/primitives/CommandPalette'))
 const QuickUnlock      = React.lazy(() => import('@/components/auth/QuickUnlock'))
 
+// Fades out and removes the instant boot splash baked into index.html. It is
+// rendered INSIDE the Suspense boundary alongside the real screen, so its effect
+// only runs once that screen has actually committed (while the lazy chunk is
+// still loading the whole subtree, including this, is replaced by the Suspense
+// fallback). Until then the boot splash stays up and keeps its single, continuous
+// animation - so the splash never visibly re-fires when React takes over.
+function BootSplashHider() {
+  useEffect(() => {
+    const el = document.getElementById('boot-splash')
+    if (!el) return
+    const remove = () => {
+      el.removeEventListener('transitionend', remove)
+      if (el.parentNode) el.parentNode.removeChild(el)
+    }
+    el.classList.add('is-hiding')
+    el.addEventListener('transitionend', remove)
+    const t = setTimeout(remove, 600) // fallback if transitionend never fires
+    return () => clearTimeout(t)
+  }, [])
+  return null
+}
+
 export default function AppRouter() {
   const { sessionRole, pinLocked } = useAuth()
   const { fbReady }     = useData()
@@ -23,7 +45,7 @@ export default function AppRouter() {
   const [facultyReveal, setFacultyReveal] = useState(false)
   const isAdminPath = window.location.pathname.startsWith('/faculty') || facultyReveal
 
-  // Show loading bar while Firebase is initializing
+  // Drive the thin top loading bar while Firebase initializes.
   useEffect(() => {
     if (!fbReady) {
       startLoading()
@@ -32,12 +54,18 @@ export default function AppRouter() {
     }
   }, [fbReady])
 
-  // Branded splash while Firebase boots, so the login screen never flashes in
-  // half-initialized and the app has a proper loading screen.
-  if (!fbReady) return <LoadingScreen />
+  // While Firebase boots we render nothing here: the instant #boot-splash overlay
+  // (index.html, outside #root) is already covering the screen and keeps animating
+  // continuously. The old code swapped in a React <LoadingScreen> at this point,
+  // which remounted an identical splash and made its animation visibly restart
+  // ("double firing"). BootSplashHider below removes the overlay once the first
+  // real screen commits.
+  if (!fbReady) return null
 
   return (
     <React.Suspense fallback={<LoadingScreen />}>
+      {/* Removes the persistent boot splash once this subtree actually commits. */}
+      <BootSplashHider />
       {sessionRole === 'admin'   && <AdminLayout />}
       {sessionRole === 'student' && <StudentLayout />}
       {!sessionRole && (isAdminPath ? <AdminLoginScreen /> : <LoginScreen onRevealFaculty={() => setFacultyReveal(true)} />)}
