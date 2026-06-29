@@ -4,9 +4,20 @@
 // features ships, so the "What's new" modal always reflects the current build.
 // User-facing copy: keep it plain, no em-dashes.
 
-export const APP_VERSION = '2.0'
+export const APP_VERSION = '2.0.1'
 
 export const CHANGELOG = [
+  {
+    version: '2.0.1',
+    date: 'June 2026',
+    title: 'Messaging and startup fixes',
+    changes: [
+      'Read receipts now reflect what was actually seen: the "seen" avatar only sits under a message once it has really been opened, and drops down live as new messages are read.',
+      'Smoother startup: the loading screen no longer flashes twice before the app opens.',
+      'Cleaner inbox: long names wrap neatly, conversations load as you scroll, and deleting a chat asks you to confirm.',
+      'More reliable profile photo verification.',
+    ],
+  },
   {
     version: '2.0',
     date: 'June 2026',
