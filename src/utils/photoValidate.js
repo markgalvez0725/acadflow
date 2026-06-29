@@ -3,28 +3,30 @@
 // the SAME person who enrolled Face ID, alone, in business attire, on a plain
 // white background.
 //
-// A single face engine decides everything about the FACE. face-api.js (the exact
-// engine + 0.6 threshold that anchors Face ID enrollment, password reset, and the
-// identity match) reads the photo ONCE via readPhotoFace -> count, framing, and a
-// descriptor. That descriptor is matched server-side. Because count and identity
-// come from one read, the panel can never show "no face on this browser" next to
-// "matches your Face ID" (the old bug, caused by a separate native FaceDetector
-// running alongside face-api). MediaPipe Selfie Segmentation is kept ONLY for
-// what it is genuinely good at - the true background and an attire proxy.
+// EXACTLY ONE model stack runs: face-api.js (the same engine + 0.6 threshold that
+// anchors Face ID enrollment, password reset, and the identity match), loaded
+// from jsdelivr. readPhotoFace reads the photo ONCE -> face count, framing, the
+// face box, and a descriptor; the descriptor is matched server-side. Background
+// and attire are then derived from plain pixels using that face box - no second
+// model, no external model host, nothing for the CSP to block (the old MediaPipe
+// path fetched from tfhub.dev, which the CSP blocks and Google is sunsetting, and
+// it spammed the console with TensorFlow.js kernel warnings).
+//
+// Because count, framing, identity, background, and attire all come from one read
+// of one engine, the panel can never contradict itself (the old bug: "no face on
+// this browser" next to "matches your Face ID", caused by a separate detector).
 //
 // Enforcement model (strict, decided with the product owner):
 //   • HARD FAIL (block save): no clear face, more than one person, a photo that
-//     does NOT match the enrolled Face ID, a non-white background, image too small.
+//     does NOT match the enrolled Face ID, a clearly non-white background, image
+//     too small.
 //   • RETRYABLE (block save, offer "Try again"): the face engine or the identity
 //     server couldn't run (usually a flaky connection). We NEVER fabricate a match
 //     we didn't make - the photo simply can't be saved until it verifies.
 //   • WARNING (allow save): borderline attire, loose framing, slightly off-white.
-//
-// Returns a single verdict object the UI can render directly.
 
 import { readPhotoFace } from '@/utils/faceId'
 import { matchDescriptorToEnrolledFace } from '@/utils/faceMatch'
-import { runOnDeviceSmart } from '@/utils/photoVerifySmart'
 
 /** Draw an image onto an offscreen canvas no larger than `max` px. */
 function toCanvas(imgEl, max = 256) {
@@ -40,80 +42,74 @@ function toCanvas(imgEl, max = 256) {
   return { canvas, ctx, cw, ch }
 }
 
+/** Approximate, lighting-tolerant RGB skin-tone test. */
+function isSkin(r, g, b) {
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b)
+  return r > 95 && g > 40 && b > 20 && (mx - mn) > 15 && Math.abs(r - g) > 15 && r > g && r > b
+}
+
 /**
- * Fraction of backdrop pixels that are near-white and uniform (FALLBACK only).
- * Only samples where a backdrop is actually visible behind a headshot - the
- * full-width TOP strip and the UPPER portion of the left/right sides. The
- * bottom is intentionally skipped: it's filled by the subject's shoulders and
- * clothing, so sampling it falsely tanks the score for a correct photo. Used
- * only when the on-device segmentation model is unavailable.
+ * Read background whiteness and an attire skin proxy from ONE canvas, using the
+ * face box to know where the backdrop and torso are - so no segmentation model
+ * is needed. Returns { bgScore, bgSupported, skinFrac }.
+ *
+ * Background is sampled only where a backdrop actually shows behind a headshot:
+ * the full-width strip ABOVE the head plus the columns to the LEFT and RIGHT of
+ * the face, down to roughly the shoulders. The subject's own pixels are skipped,
+ * so an object behind the person (non-white) drags the score down while the
+ * person never does. Attire samples the torso band just below the chin.
  */
-function whiteBackgroundScore(imgEl) {
+function pixelChecks(imgEl, faceBox) {
   let data, cw, ch
   try {
     const c = toCanvas(imgEl, 256)
     cw = c.cw; ch = c.ch
     data = c.ctx.getImageData(0, 0, cw, ch).data
   } catch {
-    return { score: null, supported: false } // tainted/cross-origin - skip
+    return { bgScore: null, bgSupported: false, skinFrac: null } // tainted/cross-origin
   }
-  const bandX  = Math.max(2, Math.round(cw * 0.12))
-  const topY   = Math.max(2, Math.round(ch * 0.16)) // full-width top strip
-  const sideY  = Math.round(ch * 0.55)              // sides only above the torso
-  let total = 0, white = 0
+
+  const isWhite = (r, g, b) => r > 220 && g > 220 && b > 220 && (Math.max(r, g, b) - Math.min(r, g, b)) < 30
+
+  // Face box in canvas pixels (fall back to a centered guess when we have none).
+  const fb = faceBox || { x: 0.3, y: 0.18, w: 0.4, h: 0.45 }
+  const fx0 = fb.x * cw, fx1 = (fb.x + fb.w) * cw
+  const fy0 = fb.y * ch, fy1 = (fb.y + fb.h) * ch
+  // Backdrop region: above the head, and beside the head/shoulders down to ~1.6×
+  // the face height below the chin (where shoulders end for a headshot).
+  const sideBottom = Math.min(ch, fy1 + fb.h * ch * 1.6)
+  // A small margin around the face so stray hair/ears don't count as backdrop.
+  const mx = fb.w * cw * 0.12
+
+  let bgTotal = 0, bgWhite = 0
   for (let y = 0; y < ch; y++) {
     for (let x = 0; x < cw; x++) {
-      const inTop  = y < topY
-      const inSide = y < sideY && (x < bandX || x >= cw - bandX)
-      if (!inTop && !inSide) continue
+      const aboveHead = y < fy0 - 2
+      const besideHead = y >= fy0 && y < sideBottom && (x < fx0 - mx || x > fx1 + mx)
+      if (!aboveHead && !besideHead) continue
       const i = (y * cw + x) * 4
-      const r = data[i], g = data[i + 1], b = data[i + 2]
-      total++
-      // Slightly tolerant of lighting/JPEG so a real white wall still counts.
-      const bright = r > 220 && g > 220 && b > 220
-      const uniform = Math.max(r, g, b) - Math.min(r, g, b) < 30
-      if (bright && uniform) white++
+      bgTotal++
+      if (isWhite(data[i], data[i + 1], data[i + 2])) bgWhite++
     }
   }
-  return { score: total ? white / total : 0, supported: true }
-}
+  const bgScore = bgTotal > (cw * ch * 0.02) ? bgWhite / bgTotal : null
 
-/** Background + attire from the segmentation model, with a pixel fallback. */
-async function checkBackgroundAndAttire(imgEl, hardFails, warnings, passes) {
-  let smartUsed = false
-  let ai = null
-  try { ai = await runOnDeviceSmart(imgEl) } catch { ai = null }
-
-  // ── Background (the mask makes this reliable, so it can hard-fail) ─────────
-  if (ai && ai.bgSupported && ai.bgWhiteFrac != null) {
-    smartUsed = true
-    if (ai.bgWhiteFrac >= 0.85) passes.push('Plain white background.')
-    else if (ai.bgWhiteFrac < 0.5) hardFails.push('Background is not plain white. Remove objects behind you and use a white wall.')
-    else warnings.push('Background may not be fully white - a clean white wall is best.')
-  } else {
-    // Segmentation unavailable - pixel heuristic. A clearly non-white reading
-    // still blocks; a borderline one only warns (the heuristic is less precise).
-    const bg = whiteBackgroundScore(imgEl)
-    if (bg.supported && bg.score != null) {
-      if (bg.score >= 0.82) passes.push('Background looks plain white.')
-      else if (bg.score >= 0.5) warnings.push('Background may not be fully white - a clean white wall is best.')
-      else hardFails.push('Background doesn’t look plain white. Use a white wall with nothing behind you.')
+  // Attire: torso band just below the chin, center columns (under the face).
+  const bandTop = Math.min(ch - 1, Math.round(fy1 + fb.h * ch * 0.15))
+  const bandBot = Math.min(ch, Math.round(fy1 + fb.h * ch * 1.4))
+  const tx0 = Math.max(0, Math.round(fx0 - fb.w * cw * 0.25))
+  const tx1 = Math.min(cw, Math.round(fx1 + fb.w * cw * 0.25))
+  let tTotal = 0, tSkin = 0
+  for (let y = bandTop; y < bandBot; y++) {
+    for (let x = tx0; x < tx1; x++) {
+      const i = (y * cw + x) * 4
+      tTotal++
+      if (isSkin(data[i], data[i + 1], data[i + 2])) tSkin++
     }
   }
+  const skinFrac = tTotal > 30 ? tSkin / tTotal : null
 
-  // ── Attire proxy (warnings only) ──────────────────────────────────────────
-  if (ai) {
-    smartUsed = true
-    if (ai.skinFrac != null) {
-      if (ai.skinFrac > 0.45) warnings.push('Attire looks casual or too revealing for an ID photo - wear professional attire.')
-      else passes.push('Professional attire detected.')
-    }
-    if (ai.busyness != null && ai.busyness > 0.6) {
-      warnings.push('Outfit has busy patterns - plain professional attire is best.')
-    }
-  }
-
-  return smartUsed
+  return { bgScore, bgSupported: bgScore != null, skinFrac }
 }
 
 /**
@@ -179,8 +175,20 @@ export async function validateProfilePhoto(imgEl, dataUrl) {
     }
   }
 
-  // ── Background + attire (segmentation, with pixel fallback) ───────────────
-  const smartUsed = await checkBackgroundAndAttire(imgEl, hardFails, warnings, passes)
+  // ── Background + attire: model-free pixel read off the face box ────────────
+  // Only meaningful when we actually found the single subject's face.
+  if (face.models && face.faces === 1) {
+    const px = pixelChecks(imgEl, face.faceBox)
+    if (px.bgSupported && px.bgScore != null) {
+      if (px.bgScore >= 0.85) passes.push('Plain white background.')
+      else if (px.bgScore < 0.55) hardFails.push('Background is not plain white. Remove objects behind you and use a white wall.')
+      else warnings.push('Background may not be fully white - a clean white wall with nothing behind you is best.')
+    }
+    if (px.skinFrac != null) {
+      if (px.skinFrac > 0.5) warnings.push('Attire looks casual or too revealing for an ID photo - wear professional attire.')
+      else passes.push('Professional attire detected.')
+    }
+  }
 
-  return { ok: hardFails.length === 0, hardFails, warnings, passes, smartUsed, retryable }
+  return { ok: hardFails.length === 0, hardFails, warnings, passes, smartUsed: true, retryable }
 }

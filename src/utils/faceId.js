@@ -144,6 +144,11 @@ export async function readPhotoFace(imgEl) {
   const box = best.detection?.box
   const faceFrac = box && h ? box.height / h : null
   const faceCx   = box && w ? (box.x + box.width / 2) / w : null
+  // Normalized face box (0..1) so callers can locate the backdrop and torso band
+  // without a second segmentation model.
+  const faceBox = (box && w && h)
+    ? { x: box.x / w, y: box.y / h, w: box.width / w, h: box.height / h }
+    : null
   // headYaw ≈ 0 looking straight; map to a 0..1 frontal score (a turned head warns).
   let frontalScore = null
   try { frontalScore = Math.max(0, Math.min(1, 1 - Math.abs(headYaw(best.landmarks)) * 3)) }
@@ -154,6 +159,7 @@ export async function readPhotoFace(imgEl) {
     faces: dets.length,
     faceFrac,
     faceCx,
+    faceBox,
     frontalScore,
     descriptor: best.descriptor ? Array.from(best.descriptor) : null,
   }

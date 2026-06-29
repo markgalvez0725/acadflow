@@ -8,7 +8,6 @@ import { isPendingVerification } from '@/utils/accountStatus'
 import { dataGapReasons } from '@/utils/accountAudit'
 import { validateSnum } from '@/utils/validate'
 import { validateProfilePhoto } from '@/utils/photoValidate'
-import { prewarmOnDeviceSmart } from '@/utils/photoVerifySmart'
 import { loadFaceModels } from '@/utils/faceId'
 import Modal from '@/components/primitives/Modal'
 import FieldCheck, { SaveStatus } from '@/components/primitives/FieldCheck'
@@ -106,14 +105,10 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
   // failed a check. Shows "Try again" instead of "replace the photo".
   const photoRetryable = photoCheck?.status === 'done' && !!photoCheck.result?.retryable
 
-  // Warm BOTH engines the moment the modal opens, so the first photo check isn't a
-  // cold download-and-compile: face-api (face count + identity, the gate) and the
-  // segmentation models (background + attire). Errors are swallowed - warming is
-  // best-effort and the check loads them on demand anyway.
-  useEffect(() => {
-    prewarmOnDeviceSmart()
-    loadFaceModels().catch(() => {})
-  }, [])
+  // Warm the one engine the photo check uses (face-api: face count + identity, plus
+  // the face box that drives the pixel-based background/attire read) the moment the
+  // modal opens, so the first check isn't a cold model download. Best-effort.
+  useEffect(() => { loadFaceModels().catch(() => {}) }, [])
 
   // Email password-confirm flow
   const [emailStep,     setEmailStep]     = useState('idle') // 'idle' | 'confirm' | 'verified'
