@@ -213,7 +213,26 @@ export function DataProvider({ children }) {
   }, [])
 
   // ── Persistence helpers exposed to components ──────────────────────────
+  // Deferred-purge bookkeeping. A deleted student's full cascade is scheduled to
+  // run after the Undo window (in DataContext so it survives leaving the Students
+  // tab). If the SAME id is written again before then (a re-enroll of the same
+  // student number), we must finish that purge FIRST - otherwise the timer would
+  // later clobber the brand-new record, and the new student would inherit the old
+  // footprint (quiz scores, messages) and a stale sign-in account that blocks the
+  // default Welcome@2026 password.
+  const pendingPurges = useRef(new Map()) // id -> { timer, onResult }
+  const purgeFnRef = useRef(null)         // latest purgeStudentEverywhere (set below)
+
   const saveStudents = useCallback(async (updatedStudents, changedIds) => {
+    if (changedIds?.length) {
+      for (const id of changedIds) {
+        const p = pendingPurges.current.get(id)
+        if (!p) continue
+        clearTimeout(p.timer); pendingPurges.current.delete(id)
+        const res = purgeFnRef.current ? await purgeFnRef.current(id).catch(() => null) : null
+        try { p.onResult?.(res) } catch (e) {}
+      }
+    }
     setStudents(updatedStudents)
     await persistStudentsSync(dbRef.current, updatedStudents, changedIds)
   }, [])
@@ -426,6 +445,31 @@ export function DataProvider({ children }) {
     });
     return { client, server };
   }, [logAudit]);
+
+  // Keep a stable ref to the latest purge fn so saveStudents (defined earlier) and
+  // the deferred timer can reach it without a declaration-order / TDZ dependency.
+  purgeFnRef.current = purgeStudentEverywhere;
+
+  // Schedule a student's permanent purge to run after `delayMs` (the Undo window).
+  // cancelPurge aborts it (Undo pressed); saveStudents flushes it early when the
+  // same student number is re-enrolled. `onResult` receives the purge outcome so
+  // the caller can warn if the server side was unreachable.
+  const schedulePurge = useCallback((id, delayMs, onResult) => {
+    const ex = pendingPurges.current.get(id);
+    if (ex) clearTimeout(ex.timer);
+    const timer = setTimeout(async () => {
+      pendingPurges.current.delete(id);
+      const res = purgeFnRef.current ? await purgeFnRef.current(id) : null;
+      try { onResult?.(res); } catch (e) {}
+    }, delayMs);
+    pendingPurges.current.set(id, { timer, onResult });
+  }, []);
+
+  const cancelPurge = useCallback((id) => {
+    const p = pendingPurges.current.get(id);
+    if (p) { clearTimeout(p.timer); pendingPurges.current.delete(id); return true; }
+    return false;
+  }, []);
 
   // Undo support: re-create previously deleted student record(s). The caller
   // keeps the full in-memory student object(s) (with attendance/excuse Sets),
@@ -1350,7 +1394,7 @@ export function DataProvider({ children }) {
 
   return (
     <DataContext.Provider value={{
-      students, setStudents, saveStudents, saveGradeNote, markAccountActive, deleteStudent, purgeStudentEverywhere, restoreStudents,
+      students, setStudents, saveStudents, saveGradeNote, markAccountActive, deleteStudent, purgeStudentEverywhere, schedulePurge, cancelPurge, restoreStudents,
       classes, setClasses, saveClasses, setSubjectRep, archiveClassWithStudents, unarchiveClassWithStudents, deleteClass,
       enrollInClass, unenrollFromClass,
       messages, setMessages,

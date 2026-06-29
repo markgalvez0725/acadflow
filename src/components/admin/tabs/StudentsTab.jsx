@@ -1104,7 +1104,7 @@ const DELETE_UNDO_MS = 6000
 const DELETE_UNDO_SECS = 6
 
 export default function StudentsTab() {
-  const { classes, students, saveStudents, deleteStudent, purgeStudentEverywhere, restoreStudents, eqScale, semester, fbReady, bulkVerifyActivate } = useData()
+  const { classes, students, saveStudents, deleteStudent, schedulePurge, cancelPurge, restoreStudents, eqScale, semester, fbReady, bulkVerifyActivate } = useData()
   const { toast, toastAction, openDialog, openStudentProfile } = useUI()
   const [exportReportCard, reportCardModal] = useStudentReportCardExport()
 
@@ -1241,36 +1241,15 @@ export default function StudentsTab() {
   // All registered students not yet Active (pending activation/verification).
   const pendingIds = useMemo(() => students.filter(s => s.account?.registered && accountStatusKey(s) !== 'active').map(s => s.id), [students])
 
-  // Deferred permanent purge. Deleting removes the student instantly and arms a
-  // short Undo; only when that window closes do we run the irreversible cascade
-  // (all other collections + the sign-in account + Face ID), so Undo can fully
-  // restore from the in-memory snapshot without anything having been destroyed.
-  const pendingPurge = useRef(new Map()) // id -> { timer, student }
-
-  const commitPurge = async (id) => {
-    pendingPurge.current.delete(id)
-    const res = await purgeStudentEverywhere(id)
+  // The deferred cascade is scheduled in DataContext (so it survives leaving this
+  // tab and is flushed early if the same number is re-enrolled). We only supply the
+  // window length + a warning to show if the server side couldn't be reached.
+  const purgeWindowMs = DELETE_UNDO_MS + 500
+  const warnIfServerIncomplete = (res) => {
     if (res?.server && !res.server.ok && (res.server.reason === 'not-configured' || res.server.reason === 'network')) {
       toast('Student data removed. The sign-in account and Face ID need the server to finish clearing.', 'yellow')
     }
   }
-  const schedulePurge = (student) => {
-    const id = student.id
-    const timer = setTimeout(() => commitPurge(id), DELETE_UNDO_MS + 500)
-    pendingPurge.current.set(id, { timer, student })
-  }
-  const cancelPurge = (id) => {
-    const p = pendingPurge.current.get(id)
-    if (p) { clearTimeout(p.timer); pendingPurge.current.delete(id); return p.student }
-    return null
-  }
-
-  // If the professor leaves the tab mid-window, the delete was already confirmed -
-  // finish it rather than silently abandoning the purge.
-  useEffect(() => () => {
-    pendingPurge.current.forEach(({ timer }, id) => { clearTimeout(timer); purgeStudentEverywhere(id) })
-    pendingPurge.current.clear()
-  }, [])
 
   async function handleBulkDelete() {
     const ids = [...selected]
@@ -1289,7 +1268,7 @@ export default function StudentsTab() {
     const removed = students.filter(s => selected.has(s.id))
     let done = 0
     for (const s of removed) {
-      try { await deleteStudent(s.id); schedulePurge(s); done++ } catch (e) {}
+      try { await deleteStudent(s.id); schedulePurge(s.id, purgeWindowMs, warnIfServerIncomplete); done++ } catch (e) {}
     }
     clearSelection()
     setPage(1)
@@ -1317,7 +1296,7 @@ export default function StudentsTab() {
     try {
       const removed = await deleteStudent(s.id)
       if (safePage > 1 && slice.length === 1) setPage(p => p - 1)
-      schedulePurge(removed || s)
+      schedulePurge(s.id, purgeWindowMs, warnIfServerIncomplete)
       toastAction(`Deleted ${s.name || s.id}.`, {
         label: 'Undo',
         type: 'green',
