@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
-import { Lightbulb, Download, Upload, ShieldCheck, CalendarDays, KeyRound, Bell, Scale, Clock, DatabaseBackup, Flame, Palette, Building2, Trash2, HardDrive } from 'lucide-react'
+import { Lightbulb, Download, Upload, ShieldCheck, CalendarDays, KeyRound, Bell, Scale, Clock, DatabaseBackup, Flame, Palette, Building2, Trash2, HardDrive, Info } from 'lucide-react'
 import SettingsShell from '@/components/primitives/SettingsShell'
+import AboutPanel from '@/components/primitives/AboutPanel'
+import { APP_VERSION } from '@/constants/changelog'
 import GoogleDriveTab from '@/components/admin/settings/GoogleDriveTab'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 import FieldCheck, { SaveStatus, SmartCheckTag } from '@/components/primitives/FieldCheck'
@@ -1064,6 +1066,9 @@ export default function AdminSettingsModal({ onClose, push }) {
     ] },
     { title: 'Appearance', rows: [
       { id: 'theme', Icon: Palette, label: 'Theme', sub: 'Light or dark mode', control: <ThemeToggle style={{ position: 'static', width: 36, height: 36, fontSize: 15, flexShrink: 0 }} /> },
+    ] },
+    { title: 'About', rows: [
+      { id: 'about', Icon: Info, label: 'About AcadFlow', sub: `Version ${APP_VERSION} · what's new`, panel: () => <AboutPanel /> },
     ] },
   ]
 

@@ -6,7 +6,8 @@ import { sortByLastName, dayLabel, getInitials, fmtTime as timeLabel, relativeTi
 import { groupFlags, previewText } from '@/utils/messageThread'
 import { isClassCurrent } from '@/utils/active'
 import { isGroupMessage, autoGroupName, groupName, studentTag, groupMembers, courseShort } from '@/utils/groupChat'
-import GroupMembers from '@/components/primitives/GroupMembers'
+import ChatMembersModal from '@/components/primitives/ChatMembersModal'
+import SeenAvatars from '@/components/primitives/SeenAvatars'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import EmptyState from '@/components/ds/EmptyState'
 import TypingIndicator from '@/components/primitives/TypingIndicator'
@@ -388,12 +389,13 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, o
   const [replyingTo, setReplyingTo] = useState(null) // { author, text } | null
   const [editing, setEditing] = useState(null)   // entry key being edited
   const [editDraft, setEditDraft] = useState('')
+  const [showMembers, setShowMembers] = useState(false)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [thread])
-  // Drop any pending reply target / open editor when the thread changes.
-  useEffect(() => { setReplyingTo(null); setEditing(null) }, [chatKey])
+  // Drop any pending reply target / open editor / members modal when the thread changes.
+  useEffect(() => { setReplyingTo(null); setEditing(null); setShowMembers(false) }, [chatKey])
 
   function startReplyTo(entry) {
     const author = entry.from === 'admin' ? 'You' : (entry.senderLabel || 'Student')
@@ -423,6 +425,8 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, o
   const entries = (thread.entries || []).filter(e => !(e.hiddenFor || []).includes(myId))
   // The 1:1 peer (for the Messenger-style "seen" avatar under the last message).
   const peer = !isGroup ? students.find(x => x.id === thread.studentId) : null
+  // Group "seen by": members who have read (avatars stack under the last message).
+  const groupSeenBy = isGroup ? (thread.members || []).filter(m => (thread.readerIds || []).includes(m.id)) : []
   function entryKey(e) { return (e.isMain ? 'm:' : 'r:') + e.msgId + ':' + e.ts + ':' + e.from }
   function saveEdit(entry) { const t = editDraft.trim(); setEditing(null); if (t && t !== entry.body) onEditEntry?.(entry, t) }
   let lastSelfIdx = -1
@@ -449,8 +453,9 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, o
           </div>
           <div className="text-xs text-ink2 truncate">{subtitle}</div>
         </div>
-        {(onRename || onDelete) && (
+        {(isGroup || onRename || onDelete) && (
           <KebabMenu icon={<MoreHorizontal size={18} />} label="Conversation actions" items={[
+            isGroup && { label: 'See chat members', onClick: () => setShowMembers(true) },
             onRename && { label: 'Rename group chat', onClick: onRename },
             onDelete && { label: 'Delete conversation', onClick: onDelete, danger: true },
           ]} />
@@ -476,6 +481,7 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, o
           // for themselves; only the author can delete it for everyone.
           const editable = isAdmin && !entry.deleted && !entry.postRef && entry.kind !== 'screenshot'
           const menuItems = entry.deleted ? [] : [
+            { label: 'Reply', onClick: () => startReplyTo(entry) },
             editable && { label: 'Edit', onClick: () => { setEditing(eKey); setEditDraft(entry.body || '') } },
             entry.body && !entry.secure && { label: 'Copy', onClick: () => navigator.clipboard?.writeText(entry.body).catch(() => {}) },
             { label: 'Delete for you', onClick: () => onDeleteEntry?.(entry, 'me') },
@@ -547,10 +553,14 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, o
                   {!isAdmin && Menu}
                 </div>
               </SwipeReply>
-              {isAdmin && i === lastSelfIdx && !isGroup && !entry.deleted && (
-                entry.studentRead
-                  ? <div className="msg-seen-ava" title={entry.readTitle}>{peer?.photo ? <img src={peer.photo} alt="" /> : <span className="av-fallback">{getInitials(thread.headerName)}</span>}</div>
-                  : <div className="msg-seen" title={entry.readTitle}>Sent <CheckCheck size={12} /></div>
+              {isAdmin && i === lastSelfIdx && !entry.deleted && (
+                isGroup
+                  ? (groupSeenBy.length
+                      ? <SeenAvatars people={groupSeenBy.map(m => ({ id: m.id, name: m.name, photo: m.photo }))} label="Seen by" onClick={() => setShowMembers(true)} />
+                      : <div className="msg-seen" title="Delivered">Sent · seen by 0</div>)
+                  : (entry.studentRead
+                      ? <SeenAvatars people={[{ id: thread.studentId, name: thread.headerName, photo: peer?.photo }]} label={entry.readAtTs ? 'Seen ' + timeLabel(entry.readAtTs) : 'Seen'} />
+                      : <div className="msg-seen" title={entry.readTitle}>Sent <CheckCheck size={12} /></div>)
               )}
             </React.Fragment>
           )
@@ -558,16 +568,16 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, o
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Group members + read receipts */}
-      {thread.isGroup && (
-        <GroupMembers members={thread.members} readerIds={thread.readerIds} readAt={thread.readAt} />
-      )}
-
       {/* Live typing indicator */}
       <TypingIndicator typers={typers} />
 
       {/* Reply box */}
       <ReplyBox key={chatKey} onSend={doReply} onType={notifyTyping} onStop={stopTyping} replyingTo={replyingTo} onCancelReply={() => setReplyingTo(null)} candidates={mentionCandidates} />
+
+      {/* Members + read receipts (opened from the header "See chat members") */}
+      {showMembers && isGroup && (
+        <ChatMembersModal members={thread.members} readerIds={thread.readerIds} readAt={thread.readAt} onClose={() => setShowMembers(false)} />
+      )}
     </div>
   )
 }
@@ -873,6 +883,7 @@ export default function MessagesTab() {
           isMain: true,
           senderLabel: m.from === 'admin' ? 'You' : name,
           studentRead,
+          readAtTs: readTime,
           readTitle: studentRead ? 'Read ' + (readTime ? relativeTime(readTime) : '') : 'Delivered',
         })
         ;(m.replies || []).forEach(r => entries.push({

@@ -1,10 +1,10 @@
 import React, { useRef, useState } from 'react'
 import { Reply } from 'lucide-react'
 
-// Wraps a single message bubble row and adds two ways to start a quoted reply:
-//   • Touch: swipe the bubble sideways past a threshold (Messenger-style).
-//   • Desktop: hover the row → a reply icon appears in the gutter.
-// `side` ('sent' | 'received') sets the swipe direction and icon placement.
+// Wraps a single message bubble row for the touch swipe-to-reply gesture
+// (Messenger-style): swipe the bubble sideways past a threshold to start a quoted
+// reply. On desktop, Reply now lives in the per-bubble kebab menu instead of a
+// hover button. `side` ('sent' | 'received') sets the swipe direction.
 const THRESHOLD = 52
 const MAX = 78
 
@@ -56,9 +56,6 @@ export default function SwipeReply({ side = 'received', onReply, children }) {
       <div style={{ transform: `translateX(${dx}px)`, transition: animate ? 'transform .18s ease' : 'none' }}>
         {children}
       </div>
-      <button type="button" className={`swipe-reply-btn ${side}`} onClick={onReply} title="Reply" aria-label="Reply to this message">
-        <Reply size={14} />
-      </button>
     </div>
   )
 }

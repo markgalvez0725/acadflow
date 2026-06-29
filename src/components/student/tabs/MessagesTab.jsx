@@ -5,7 +5,8 @@ import { useUI } from '@/context/UIContext'
 import { relativeTime, dayLabel, getInitials, fmtTime as timeLabel } from '@/utils/format'
 import { getStudentMessages } from '@/utils/studentMessages'
 import { groupName, isGroupMessage, groupMembers } from '@/utils/groupChat'
-import GroupMembers from '@/components/primitives/GroupMembers'
+import ChatMembersModal from '@/components/primitives/ChatMembersModal'
+import SeenAvatars from '@/components/primitives/SeenAvatars'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import { groupFlags, previewText } from '@/utils/messageThread'
 import TypingIndicator from '@/components/primitives/TypingIndicator'
@@ -130,6 +131,7 @@ export default function MessagesTab({ student: s, messages }) {
   const [sending, setSending]    = useState(false)
   const [editing, setEditing]    = useState(null) // entry key being edited
   const [editDraft, setEditDraft] = useState('')
+  const [showMembers, setShowMembers] = useState(false)
   // Quoted reply: the bubble the student swiped / clicked the reply icon on.
   const [replyingTo, setReplyingTo] = useState(null) // { author, text } | null
   // A Stream post attached to the next message (from "Message professor about
@@ -154,7 +156,7 @@ export default function MessagesTab({ student: s, messages }) {
   // this post") is APPLIED here rather than cleared, so it survives the thread
   // switch deterministically (no timing race).
   useEffect(() => {
-    setReplyingTo(null); setSecureOn(false); setSecureTouched(false); setEditing(null)
+    setReplyingTo(null); setSecureOn(false); setSecureTouched(false); setEditing(null); setShowMembers(false)
     const pend = pendingDraftRef.current
     if (pend) {
       setReplyText(pend.draft || '')
@@ -464,6 +466,14 @@ export default function MessagesTab({ student: s, messages }) {
     : (threadEntries[0] ? '' : 'New conversation')
   const adminSeen = messages.filter(x => x.from === 'admin' && x.to === s.id).some(x => x.replies?.some(r => r.from === 'admin')) ||
     messages.filter(x => x.from === s.id).some(x => x.adminRead)
+  // Group "seen by": classmates who've read this chat (+ the professor if read).
+  const groupMembersList = showGroup && groupMsg ? groupMembers(groupMsg, students) : []
+  const groupSeenBy = showGroup && groupMsg
+    ? [
+        ...groupMembersList.filter(m => m.id !== s.id && Array.isArray(groupMsg.read) && groupMsg.read.includes(m.id)).map(m => ({ id: m.id, name: m.name, photo: m.photo })),
+        ...(groupMsg.adminRead ? [{ id: 'admin', name: profName, photo: profPhoto }] : []),
+      ]
+    : []
   // Hide bubbles this student deleted "for me"; everyone-deletes stay as tombstones.
   const visibleEntries = useMemo(() => threadEntries.filter(e => !(e.hiddenFor || []).includes(s.id)), [threadEntries, s.id])
   let lastSelfIdx = -1
@@ -631,6 +641,11 @@ export default function MessagesTab({ student: s, messages }) {
                   </div>
                   {threadSubtitle && <div className="text-xs text-ink2 truncate">{threadSubtitle}</div>}
                 </div>
+                {showGroup && (
+                  <KebabMenu icon={<MoreHorizontal size={18} />} label="Chat actions" items={[
+                    { label: 'See chat members', onClick: () => setShowMembers(true) },
+                  ]} />
+                )}
               </div>
 
               {/* Messages */}
@@ -654,6 +669,7 @@ export default function MessagesTab({ student: s, messages }) {
                   const isEditing = editing === eKey
                   const editable = isSelf && !entry.deleted && !entry.postRef && entry.kind !== 'screenshot'
                   const menuItems = entry.deleted ? [] : [
+                    { label: 'Reply', onClick: () => startReplyTo(entry) },
                     editable && { label: 'Edit', onClick: () => { setEditing(eKey); setEditDraft(entry.body || '') } },
                     entry.body && !entry.secure && { label: 'Copy', onClick: () => navigator.clipboard?.writeText(entry.body).catch(() => {}) },
                     { label: 'Delete for you', onClick: () => handleDeleteEntry(entry, 'me') },
@@ -724,21 +740,26 @@ export default function MessagesTab({ student: s, messages }) {
                           {!isSelf && Menu}
                         </div>
                       </SwipeReply>
-                      {isSelf && i === lastSelfIdx && !showGroup && !entry.deleted && (
-                        adminSeen
-                          ? <div className="msg-seen-ava" title="Seen by professor">{profPhoto ? <img src={profPhoto} alt="" /> : <span className="av-fallback"><GraduationCap size={10} /></span>}</div>
-                          : <div className="msg-seen" title="Delivered">Sent <CheckCheck size={12} /></div>
+                      {isSelf && i === lastSelfIdx && !entry.deleted && (
+                        showGroup
+                          ? (groupSeenBy.length
+                              ? <SeenAvatars people={groupSeenBy} label="Seen by" onClick={() => setShowMembers(true)} />
+                              : <div className="msg-seen" title="Delivered">Sent · seen by 0</div>)
+                          : (adminSeen
+                              ? <SeenAvatars people={[{ id: 'admin', name: profName, photo: profPhoto }]} label="Seen" />
+                              : <div className="msg-seen" title="Delivered">Sent <CheckCheck size={12} /></div>)
                       )}
                     </React.Fragment>
                   )
                 })}
               </div>
 
-              {showGroup && (
-                <GroupMembers
+              {showMembers && showGroup && groupMsg && (
+                <ChatMembersModal
                   members={groupMembers(groupMsg, students)}
                   readerIds={Array.isArray(groupMsg.read) ? groupMsg.read : []}
                   readAt={groupMsg.readAt || {}}
+                  onClose={() => setShowMembers(false)}
                 />
               )}
 

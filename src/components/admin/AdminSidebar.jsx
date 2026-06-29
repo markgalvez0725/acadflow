@@ -115,7 +115,7 @@ export default function AdminSidebar({ onSettingsOpen }) {
           <span className="nav-label">Logout</span>
         </button>
         <button type="button" className="app-version-btn" onClick={() => setShowChangelog(true)} title="What's new in AcadFlow">
-          <History size={12} /> AcadFlow v{APP_VERSION}
+          <History size={12} /> <span className="appver-full">AcadFlow&nbsp;</span>v{APP_VERSION}
         </button>
         <div className="credit-footer">by lexark25</div>
       </div>

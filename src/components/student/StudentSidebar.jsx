@@ -112,7 +112,7 @@ export default function StudentSidebar({ student, badges = {}, onSettings, onLog
           <span className="nav-label">Logout</span>
         </button>
         <button type="button" className="app-version-btn" onClick={() => setShowChangelog(true)} title="What's new in AcadFlow">
-          <History size={12} /> AcadFlow v{APP_VERSION}
+          <History size={12} /> <span className="appver-full">AcadFlow&nbsp;</span>v{APP_VERSION}
         </button>
       </div>
       {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}

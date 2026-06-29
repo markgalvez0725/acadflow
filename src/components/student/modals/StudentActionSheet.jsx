@@ -1,5 +1,7 @@
 import React, { useRef } from 'react'
-import { Pencil, KeyRound, LogOut, Bell, BellRing, Lock, Fingerprint, ScanFace, Palette, ShieldCheck } from 'lucide-react'
+import { Pencil, KeyRound, LogOut, Bell, BellRing, Lock, Fingerprint, ScanFace, Palette, ShieldCheck, Info } from 'lucide-react'
+import AboutPanel from '@/components/primitives/AboutPanel'
+import { APP_VERSION } from '@/constants/changelog'
 import { isBiometricSupported } from '@/utils/biometric'
 import { accountStatusKey } from '@/utils/accountStatus'
 import { verifyBannerSub } from '@/utils/verificationGuide'
@@ -139,6 +141,9 @@ export default function StudentActionSheet({
     ] },
     { title: 'Appearance', rows: [
       { id: 'theme', Icon: Palette, label: 'Theme', sub: 'Light or dark mode', control: themeControl },
+    ] },
+    { title: 'About', rows: [
+      { id: 'about', Icon: Info, label: 'About AcadFlow', sub: `Version ${APP_VERSION} · what's new`, panel: () => <AboutPanel /> },
     ] },
   ]
 

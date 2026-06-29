@@ -1044,6 +1044,26 @@ html[data-theme="dark"] .aflogo-dark { display: block; }
 .changelog-changes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .changelog-changes li { display: flex; align-items: flex-start; gap: 7px; font-size: 0.8125rem; color: var(--ink2); line-height: 1.45; }
 .changelog-changes li svg { color: var(--accent); flex-shrink: 0; margin-top: 3px; }
+/* About panel header (version + What's new) */
+.about-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.about-logo { width: 38px; height: 38px; border-radius: 10px; background: var(--accent-l); color: var(--accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.about-title { font-size: 1.0625rem; font-weight: 700; color: var(--ink); }
+.about-sub { font-size: 0.75rem; color: var(--ink3); }
+/* Sidebar version line: "AcadFlow " collapses away on the icon rail, leaving "v2.0" */
+.app-version-btn .appver-full { max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap; transition: opacity 180ms ease, max-width 220ms ease; }
+.sidebar-wrap.expanded .app-version-btn .appver-full,
+.sidebar-wrap.open .app-version-btn .appver-full { max-width: 120px; opacity: 1; }
+
+/* "Seen by" read-receipt under the last sent message (1:1 + group) */
+.msg-seenby { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin: 1px 2px 6px; }
+.msg-seenby.tappable { cursor: pointer; }
+.msg-seenby-label { font-size: 0.65rem; color: var(--ink3); }
+.msg-seenby-stack { display: flex; }
+.msg-seenby-av { width: 15px; height: 15px; border-radius: 50%; overflow: hidden; border: 1.5px solid var(--surface); margin-left: -4px; }
+.msg-seenby-av:first-child { margin-left: 0; }
+.msg-seenby-av img { width: 100%; height: 100%; object-fit: cover; }
+.msg-seenby-av .ini { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: var(--accent-l); color: var(--accent); font-size: 0.5rem; font-weight: 700; }
+.msg-seenby-more { font-size: 0.6rem; color: var(--ink3); margin-left: 2px; }
 
 /* ══════════════════════════════════════════
    STUDENT LAYOUT
