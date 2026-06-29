@@ -118,7 +118,7 @@ export async function exportStudentRosterExcel({ students, classes, semester }) 
 function rosterData(students, classes, semester) {
   const exportDate = new Date().toLocaleDateString('en-PH', { dateStyle: 'long' })
   const sorted = sortByLastName(students)
-  const headers = ['#', 'Student No.', 'Surname', 'First Name', 'M.I.', 'Course', 'Year Level', 'Class Subject', 'Section']
+  const headers = ['#', 'Student No.', 'Surname', 'First Name', 'M.I.', 'Course', 'Year Level', 'Subjects', 'Section']
   const dataRows = sorted.map((s, idx) => {
     const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
     const primary = classes.find(c => c.id === s.classId) || classes.find(c => enrolledIds.includes(c.id))
@@ -186,7 +186,7 @@ async function rosterExcelJS(ExcelJS, ctx) {
 
   // Visible source sheet feeding the dropdowns (referenced above by name).
   const wsList = wb.addWorksheet('Lists')
-  wsList.addRow(['Class Subjects', 'Courses', 'Year Levels'])
+  wsList.addRow(['Subjects', 'Courses', 'Year Levels'])
   const maxLen = Math.max(allSubjects.length, courseShorts.length, yearLevels.length)
   for (let i = 0; i < maxLen; i++) wsList.addRow([allSubjects[i] || '', courseShorts[i] || '', yearLevels[i] || ''])
   wsList.getColumn(1).width = 44

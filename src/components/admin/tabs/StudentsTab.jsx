@@ -719,7 +719,7 @@ function ResetPasswordModal({ student, onClose }) {
 
 // ── CSV helpers ───────────────────────────────────────────────────────
 function exportRosterCSV(students, classes, semester) {
-  const headers = ['Student No.', 'Surname', 'First Name', 'M.I.', 'Course', 'Year Level', 'Class Subject', 'Email', 'Account Status']
+  const headers = ['Student No.', 'Surname', 'First Name', 'M.I.', 'Course', 'Year Level', 'Subjects', 'Email', 'Account Status']
   const rows = students.map(s => {
     // Only current-semester (non-archived) subjects.
     const subjects = activeSubjects(s, classes, semester).join(', ')
@@ -1165,8 +1165,12 @@ export default function StudentsTab() {
         case 'id':     va = a.id.toLowerCase(); vb = b.id.toLowerCase(); break
         case 'course': va = ((a.course || '') + (a.year || '')).toLowerCase(); vb = ((b.course || '') + (b.year || '')).toLowerCase(); break
         case 'class': {
-          const ca = classMap.get(a.classId); const cb = classMap.get(b.classId)
-          va = ca ? (ca.name + ca.section).toLowerCase() : 'zzz'; vb = cb ? (cb.name + cb.section).toLowerCase() : 'zzz'; break
+          const subsOf = s => {
+            const ids = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
+            return [...new Set(ids.flatMap(id => classMap.get(id)?.subjects || []))].sort()
+          }
+          const sa = subsOf(a); const sb = subsOf(b)
+          va = sa.length ? sa.join(',').toLowerCase() : 'zzz'; vb = sb.length ? sb.join(',').toLowerCase() : 'zzz'; break
         }
         case 'email':   va = (a.account?.email || '').toLowerCase(); vb = (b.account?.email || '').toLowerCase(); break
         case 'account': {
@@ -1439,7 +1443,7 @@ export default function StudentsTab() {
                   <th onClick={() => toggleSort('name')} style={{ cursor: 'pointer' }}>Name <SortIcon col="name" /></th>
                   <th onClick={() => toggleSort('id')} style={{ cursor: 'pointer' }}>Stn. No. <SortIcon col="id" /></th>
                   <th onClick={() => toggleSort('course')} className="hidden lg:table-cell" style={{ cursor: 'pointer' }}>Course <SortIcon col="course" /></th>
-                  <th onClick={() => toggleSort('class')} style={{ cursor: 'pointer' }}>Class <SortIcon col="class" /></th>
+                  <th onClick={() => toggleSort('class')} style={{ cursor: 'pointer' }}>Subjects <SortIcon col="class" /></th>
                   <th onClick={() => toggleSort('email')} className="hidden lg:table-cell" style={{ cursor: 'pointer' }}>Email <SortIcon col="email" /></th>
                   <th onClick={() => toggleSort('account')} style={{ cursor: 'pointer', textAlign: 'center' }}>Account <SortIcon col="account" /></th>
                   <th></th>
@@ -1449,6 +1453,7 @@ export default function StudentsTab() {
                 {slice.map(s => {
                   const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
                   const enrolledClasses = enrolledIds.map(id => classMap.get(id)).filter(Boolean)
+                  const subjects = [...new Set(enrolledClasses.flatMap(c => c.subjects || []))]
                   const initial = (s.name || '?').charAt(0).toUpperCase()
                   return (
                     <tr key={s.id} style={selected.has(s.id) ? { background: 'var(--accent-l)' } : undefined}>
@@ -1483,18 +1488,17 @@ export default function StudentsTab() {
                       <td>
                         {!enrolledClasses.length ? (
                           <span style={{ color: 'var(--ink3)', fontStyle: 'italic', fontSize: 12 }}>Unassigned</span>
-                        ) : enrolledClasses.length === 1 ? (
-                          <span style={{ fontSize: 12 }} title={enrolledClasses[0].name}>{courseShort(enrolledClasses[0].name)} {enrolledClasses[0].section}</span>
+                        ) : !subjects.length ? (
+                          <span style={{ color: 'var(--ink3)', fontStyle: 'italic', fontSize: 12 }}>No subjects</span>
                         ) : (
-                          <span>
-                            <span style={{ fontSize: 12, fontWeight: 600 }} title={(enrolledClasses.find(c => c.id === s.classId) || enrolledClasses[0]).name}>
-                              {courseShort((enrolledClasses.find(c => c.id === s.classId) || enrolledClasses[0]).name)}{' '}
-                              {(enrolledClasses.find(c => c.id === s.classId) || enrolledClasses[0]).section}
-                            </span>
-                            {enrolledClasses.filter(c => c.id !== s.classId).map(c => (
-                              <span key={c.id} style={{ display: 'block', fontSize: 10, color: 'var(--accent)', marginTop: 2 }} title={c.name}>+{courseShort(c.name)} {c.section}</span>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxWidth: 280 }} title={subjects.join(', ')}>
+                            {subjects.slice(0, 3).map(sub => (
+                              <span key={sub} style={{ fontSize: 11, padding: '1px 8px', borderRadius: 999, background: 'var(--accent-l)', color: 'var(--accent)', whiteSpace: 'nowrap' }}>{sub}</span>
                             ))}
-                          </span>
+                            {subjects.length > 3 && (
+                              <span style={{ fontSize: 11, color: 'var(--ink3)', alignSelf: 'center' }}>+{subjects.length - 3} more</span>
+                            )}
+                          </div>
                         )}
                       </td>
                       <td className="hidden lg:table-cell">
@@ -1537,8 +1541,7 @@ export default function StudentsTab() {
             {slice.map(s => {
               const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
               const enrolledClasses = enrolledIds.map(id => classMap.get(id)).filter(Boolean)
-              const primaryCls = enrolledClasses.find(c => c.id === s.classId) || enrolledClasses[0]
-              const extras = enrolledClasses.filter(c => c.id !== (primaryCls?.id)).length
+              const subjects = [...new Set(enrolledClasses.flatMap(c => c.subjects || []))]
               const initial = (s.name || '?').charAt(0).toUpperCase()
               const st = accountStatus(s)
               const isSel = selected.has(s.id)
@@ -1588,11 +1591,19 @@ export default function StudentsTab() {
                       <div className="text-ink3" style={{ fontSize: 11 }}>Course</div>
                       <div className="text-ink2 truncate" title={s.course || ''}>{courseShort(s.course) || '-'}</div>
                     </div>
-                    <div className="min-w-0">
-                      <div className="text-ink3" style={{ fontSize: 11 }}>Class</div>
-                      {!primaryCls
+                    <div className="min-w-0" style={{ gridColumn: '1 / -1' }}>
+                      <div className="text-ink3" style={{ fontSize: 11 }}>Subjects</div>
+                      {!enrolledClasses.length
                         ? <div style={{ color: 'var(--ink3)', fontStyle: 'italic' }}>Unassigned</div>
-                        : <div className="truncate" title={primaryCls.name}>{courseShort(primaryCls.name)} {primaryCls.section}{extras > 0 ? <span style={{ color: 'var(--accent)' }}> +{extras}</span> : null}</div>}
+                        : !subjects.length
+                          ? <div style={{ color: 'var(--ink3)', fontStyle: 'italic' }}>No subjects</div>
+                          : (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 2 }} title={subjects.join(', ')}>
+                              {subjects.map(sub => (
+                                <span key={sub} style={{ fontSize: 11, padding: '1px 8px', borderRadius: 999, background: 'var(--accent-l)', color: 'var(--accent)' }}>{sub}</span>
+                              ))}
+                            </div>
+                          )}
                     </div>
                     <div className="min-w-0" style={{ gridColumn: '1 / -1' }}>
                       <div className="text-ink3" style={{ fontSize: 11 }}>Email</div>
