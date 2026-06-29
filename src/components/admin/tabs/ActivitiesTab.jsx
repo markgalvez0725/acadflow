@@ -9,12 +9,13 @@ import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
 import EmptyState from '@/components/ds/EmptyState'
-import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil, ClipboardList, AlarmClock, CircleDot, BarChart3, CheckCircle2, Check, Save, Plus, Copy, Users } from 'lucide-react'
+import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil, ClipboardList, AlarmClock, CircleDot, BarChart3, CheckCircle2, Check, Save, Plus, Copy, Users, ClipboardPaste, AlertTriangle, Trash2 } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { deviceRubric, smartInstructions, smartRubric, smartGrade, smartGradeGroups, autoFormGroups, prewarmActivitySmart } from '@/utils/activitySmart'
 import { sendPushToOwners } from '@/firebase/pushTokens'
 import { pushStudentNotif } from '@/firebase/studentNotif'
 import { lateInfo, applyLatePenalty } from '@/utils/latePenalty'
+import { parseGroupPaste, verifyGroupRows, GROUP_COLUMNS } from '@/utils/groupImportVerifySmart'
 
 function fmtLocalInput(d) {
   const pad = n => String(n).padStart(2, '0')
@@ -92,6 +93,157 @@ function newCriterion() {
   return { id: 'c' + Date.now() + Math.random().toString(36).slice(2, 5), name: '', points: 10 }
 }
 
+// ── Custom groups (paste from Excel) ──────────────────────────────────
+// The professor copies a grouping block out of Excel and pastes it here. Excel
+// puts the clipboard on the board as TSV, so we parse it, smart-verify each row
+// against the class roster, and hand back ready-to-apply groups[]. Pure UI on top
+// of parseGroupPaste / verifyGroupRows.
+function CustomGroupsPanel({ roster, allStudents, classMeta, onApply, onClose }) {
+  const { toast } = useUI()
+  const [rawRows, setRawRows] = useState([])
+
+  const verify = useMemo(
+    () => verifyGroupRows(rawRows, { roster, allStudents, classMeta }),
+    [rawRows, roster, allStudents, classMeta]
+  )
+  const s = verify.summary
+
+  function handlePaste(e) {
+    const text = e.clipboardData?.getData('text/plain') || ''
+    if (!text.trim()) return
+    e.preventDefault()
+    const parsed = parseGroupPaste(text)
+    if (!parsed.length) { toast('Could not read any rows from the clipboard.', 'warn'); return }
+    setRawRows(prev => [...prev, ...parsed])
+    toast(`Added ${parsed.length} row${parsed.length === 1 ? '' : 's'} from the clipboard.`, 'green')
+  }
+  function copyHeaders() {
+    const line = GROUP_COLUMNS.join('\t')
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(line).then(
+        () => toast('Column headers copied - paste them into Excel row 1.', 'green'),
+        () => toast('Could not copy headers.', 'warn')
+      )
+    } else { toast('Clipboard not available in this browser.', 'warn') }
+  }
+  function removeRow(i) { setRawRows(prev => prev.filter((_, idx) => idx !== i)) }
+  function clearAll() { setRawRows([]) }
+  function apply() {
+    if (!verify.groups.length) { toast('No valid rows to apply yet.', 'warn'); return }
+    onApply(verify.groups)
+    toast(`Applied ${s.assigned} student${s.assigned === 1 ? '' : 's'} across ${verify.groups.length} group${verify.groups.length === 1 ? '' : 's'}.`, 'green')
+  }
+
+  const C_WARN = '#B5710D', C_ERR = '#A32D2D'
+  const td = { padding: '5px 7px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
+  const th = { ...td, textAlign: 'left', fontWeight: 600, color: 'var(--ink2)', position: 'sticky', top: 0, background: 'var(--surface2)' }
+
+  return (
+    <Modal isOpen onClose={onClose} zIndex={300} wide>
+      <div onPaste={handlePaste}>
+        <div className="mb-4 pr-8">
+          <h3 className="text-lg font-bold text-ink font-display"><ClipboardPaste size={18} className="inline-block mr-2" style={{ verticalAlign: -3 }} />Custom groups</h3>
+          <p className="text-xs text-ink2 mt-1">Build the grouping in Excel, copy the cells, then paste them anywhere in this panel. Smart check verifies every row against the class roster.</p>
+        </div>
+
+        {/* Column-order guide */}
+        <div className="mb-3 px-3 py-2 rounded-lg flex items-start gap-2" style={{ background: 'var(--accent-l)', border: '1px solid var(--accent)' }}>
+          <ClipboardList size={15} style={{ color: 'var(--accent)', marginTop: 2, flexShrink: 0 }} />
+          <div className="text-xs" style={{ color: 'var(--accent)', lineHeight: 1.6 }}>
+            Match this column order in Excel (M.I. may be left blank):
+            <div className="mt-1 font-mono" style={{ fontSize: 11, background: 'var(--surface)', color: 'var(--ink2)', padding: '3px 7px', borderRadius: 4, display: 'inline-block' }}>
+              {GROUP_COLUMNS.join('  ·  ')}
+            </div>
+            <button type="button" className="btn btn-ghost btn-sm ml-2" style={{ verticalAlign: 1 }} onClick={copyHeaders}><Copy size={12} className="inline-block mr-1" />Copy headers</button>
+          </div>
+        </div>
+
+        {verify.rows.length === 0 ? (
+          <div tabIndex={0} className="rounded-lg flex flex-col items-center justify-center text-center"
+            style={{ border: '1.5px dashed var(--border)', background: 'var(--surface2)', padding: '34px 16px', outline: 'none', cursor: 'text' }}>
+            <ClipboardPaste size={26} style={{ color: 'var(--ink3)' }} />
+            <p className="text-sm font-semibold text-ink2 mt-2">Paste your grouping here</p>
+            <p className="text-xs text-ink3 mt-1">Copy the cells in Excel, click this panel, then press Ctrl/Cmd + V.</p>
+          </div>
+        ) : (
+          <>
+            {/* Summary chips */}
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--green-l, #EAF3DE)', color: 'var(--green, #3B6D11)' }}><Check size={12} className="inline-block mr-1" style={{ verticalAlign: -2 }} />{s.assigned} assigned</span>
+              {s.review > 0 && <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'rgba(181,113,13,.12)', color: C_WARN }}>{s.review} need review</span>}
+              {s.skipped > 0 && <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'rgba(163,45,45,.1)', color: C_ERR }}>{s.skipped} skipped</span>}
+              <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--surface2)', color: 'var(--ink2)', border: '1px solid var(--border)' }}>{s.groupCount} group{s.groupCount === 1 ? '' : 's'}</span>
+            </div>
+
+            <div style={{ maxHeight: '46vh', overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
+              <table className="w-full" style={{ borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed' }}>
+                <colgroup>
+                  <col style={{ width: 30 }} /><col style={{ width: 92 }} /><col /><col /><col style={{ width: 44 }} />
+                  <col style={{ width: 72 }} /><col style={{ width: 72 }} /><col style={{ width: 56 }} /><col style={{ width: 52 }} /><col style={{ width: 30 }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th style={th}></th><th style={th}>ID</th><th style={th}>Surname</th><th style={th}>First name</th><th style={th}>M.I.</th>
+                    <th style={th}>Group</th><th style={th}>Course</th><th style={th}>Section</th><th style={th}>Year</th><th style={th}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {verify.rows.map(r => {
+                    const tint = r.status === 'error' ? 'rgba(163,45,45,.06)' : r.status === 'warn' ? 'rgba(181,113,13,.07)' : 'transparent'
+                    const ink = r.status === 'error' ? C_ERR : r.status === 'warn' ? C_WARN : 'var(--ink)'
+                    return (
+                      <React.Fragment key={r.i}>
+                        <tr style={{ borderTop: '1px solid var(--border)', background: tint }}>
+                          <td style={{ ...td, textAlign: 'center' }}>
+                            {r.status === 'ok' ? <CheckCircle2 size={15} style={{ color: 'var(--green)' }} />
+                              : r.status === 'warn' ? <AlertTriangle size={15} style={{ color: C_WARN }} />
+                              : <X size={15} style={{ color: C_ERR }} />}
+                          </td>
+                          <td style={{ ...td, fontFamily: 'var(--font-mono)', color: 'var(--ink3)' }} title={r.id}>{r.id || '-'}</td>
+                          <td style={{ ...td, color: ink }} title={r.surname}>{r.surname || '-'}</td>
+                          <td style={{ ...td, color: ink }} title={r.first}>{r.first || '-'}</td>
+                          <td style={{ ...td, color: 'var(--ink2)' }}>{r.mi || ''}</td>
+                          <td style={{ ...td, color: r.applied ? 'var(--accent)' : 'var(--ink3)' }}>{r.groupLabel || r.group || '-'}</td>
+                          <td style={{ ...td, color: 'var(--ink3)' }} title={r.course}>{r.course || ''}</td>
+                          <td style={{ ...td, color: 'var(--ink3)' }} title={r.section}>{r.section || ''}</td>
+                          <td style={{ ...td, color: 'var(--ink3)' }} title={r.year}>{r.year || ''}</td>
+                          <td style={{ ...td, textAlign: 'center' }}>
+                            <button type="button" className="btn btn-ghost btn-sm text-red-500" style={{ padding: 2 }} title="Remove row" onClick={() => removeRow(r.i)}><X size={13} /></button>
+                          </td>
+                        </tr>
+                        {r.warnings.length > 0 && (
+                          <tr style={{ background: tint }}>
+                            <td></td>
+                            <td colSpan={9} style={{ padding: '0 7px 5px', fontSize: 11, color: ink }}>
+                              {r.warnings.join('  •  ')}
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-xs text-ink3">Pasting more rows adds to the list. Applying replaces the current groups.</span>
+              <button type="button" className="btn btn-ghost btn-sm text-red-500" onClick={clearAll}><Trash2 size={13} className="inline-block mr-1" />Clear all</button>
+            </div>
+          </>
+        )}
+
+        <div className="modal-footer">
+          <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn btn-primary" onClick={apply} disabled={!verify.groups.length}>
+            <Check size={16} /> Apply groups
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Create / Edit Modal ───────────────────────────────────────────────
 function ActivityFormModal({ act, onClose }) {
   const { classes, students, db, fbReady, rubricLibrary, saveRubricToLibrary, deleteLibraryRubric } = useData()
@@ -105,6 +257,7 @@ function ActivityFormModal({ act, onClose }) {
   const [groups, setGroups] = useState(() => act?.groups?.length ? act.groups : [])
   const [groupSize, setGroupSize] = useState(3)
   const [autoForming, setAutoForming] = useState(false)
+  const [pasteOpen, setPasteOpen] = useState(false)
 
   const [title,    setTitle]    = useState(act?.title || '')
   const [classId,  setClassId]  = useState(act?.classId || '')
@@ -491,6 +644,9 @@ function ActivityFormModal({ act, onClose }) {
                 <Sparkles size={12} className="inline-block mr-1" />{autoForming ? 'Forming…' : 'Auto-form'}
               </button>
               <button type="button" className="btn btn-ghost btn-sm" onClick={addGroup}>+ Add group</button>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setPasteOpen(true)} style={{ color: 'var(--accent)' }}>
+                <ClipboardPaste size={12} className="inline-block mr-1" />Custom groups
+              </button>
             </div>
           </div>
 
@@ -542,6 +698,16 @@ function ActivityFormModal({ act, onClose }) {
           </>
         )}
       </div>
+      )}
+
+      {pasteOpen && (
+        <CustomGroupsPanel
+          roster={roster}
+          allStudents={students}
+          classMeta={{ courseName: selectedClass?.name, subject, section: selectedClass?.section }}
+          onApply={g => { setGroups(g); setPasteOpen(false) }}
+          onClose={() => setPasteOpen(false)}
+        />
       )}
 
       {err && <div className="err-msg mb-2">{err}</div>}
