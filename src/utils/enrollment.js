@@ -49,16 +49,27 @@ export function sectionMatches(student, cls, classes) {
   return normalize(stuSec) === normalize(cls.section)
 }
 
-// Full self-enroll eligibility: course + year level + exact section must match.
+// An IRREGULAR student may enroll in any subject across year levels, so neither
+// the year nor the section (which encodes the year) gates their eligibility -
+// only the course/program still applies. REGULAR students keep year-locked
+// matching. Defaults to regular when the field is unset (every existing student).
+export function isIrregular(student) {
+  return (student?.studentType || 'regular') === 'irregular'
+}
+
+// Full self-enroll eligibility: course always required; year + exact section
+// required only for regular students (irregular students bypass both).
 export function eligibleForClass(student, cls, classes) {
-  return courseMatches(student.course, cls.courseReq) &&
-         yearLevelMatches(student.year, cls.section) &&
+  if (!courseMatches(student.course, cls.courseReq)) return false
+  if (isIrregular(student)) return true
+  return yearLevelMatches(student.year, cls.section) &&
          sectionMatches(student, cls, classes)
 }
 
 // Lighter filter for the admin Add-Student flow: a class is offered to a student
 // of `course` + `year` when the course requirement and the section's year line up.
 // Section itself is chosen by picking the class, so it is NOT required here.
-export function classMatchesCourseYear(course, year, cls) {
-  return courseMatches(course, cls.courseReq) && yearLevelMatches(year, cls.section)
+// `irregular` students drop the year filter so every course class is offered.
+export function classMatchesCourseYear(course, year, cls, irregular = false) {
+  return courseMatches(course, cls.courseReq) && (irregular || yearLevelMatches(year, cls.section))
 }

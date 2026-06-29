@@ -1056,17 +1056,23 @@ export function DataProvider({ children }) {
       throw new Error(`Course mismatch. This subject is for "${cls.courseReq || cls.name}", but your course is "${student.course || 'not set'}". You can only enroll in subjects offered to your own course.`)
     }
 
+    // Irregular students may enroll across year levels, so the year + section
+    // gates (section encodes the year) are skipped for them; only course applies.
+    const irregular = (student.studentType || 'regular') === 'irregular'
+
     // Year level (digit from class.year or section vs student's year)
-    const clsYear = yearDigit(cls.year) || yearDigit(cls.section)
-    const stuYear = yearDigit(student.year)
-    if (clsYear && stuYear && clsYear !== stuYear) {
-      throw new Error(`Year level mismatch. This subject is for year ${clsYear}, but you are in year ${stuYear}. You can only enroll in subjects for your own year level.`)
+    if (!irregular) {
+      const clsYear = yearDigit(cls.year) || yearDigit(cls.section)
+      const stuYear = yearDigit(student.year)
+      if (clsYear && stuYear && clsYear !== stuYear) {
+        throw new Error(`Year level mismatch. This subject is for year ${clsYear}, but you are in year ${stuYear}. You can only enroll in subjects for your own year level.`)
+      }
     }
 
     // Section (exact match). Student section = explicit field, else their primary class's section.
-    const primaryCls = classes.find(c => c.id === (student.classId || student.classIds?.[0]))
-    const studentSection = student.section || primaryCls?.section || ''
-    if (cls.section) {
+    if (!irregular && cls.section) {
+      const primaryCls = classes.find(c => c.id === (student.classId || student.classIds?.[0]))
+      const studentSection = student.section || primaryCls?.section || ''
       if (!studentSection) {
         throw new Error('Your section is not set yet. Please ask your professor to set your section before enrolling.')
       }

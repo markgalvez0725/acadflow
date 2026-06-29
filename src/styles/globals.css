@@ -2466,6 +2466,12 @@ textarea.input { resize: vertical; }
   flex-shrink: 0;
 }
 
+/* Segmented two-option toggle (e.g. Regular / Irregular enrollment) */
+.seg-toggle { display: inline-flex; border: 1px solid var(--border2); border-radius: 10px; overflow: hidden; }
+.seg-toggle button { padding: 7px 16px; font-size: 0.8125rem; font-weight: 600; background: var(--surface); color: var(--ink2); border: none; cursor: pointer; transition: background .12s, color .12s; }
+.seg-toggle button.on { background: var(--accent); color: #fff; }
+.seg-toggle button + button { border-left: 1px solid var(--border2); }
+
 /* ══════════════════════════════════════════
    MESSENGER-STYLE CHAT (shared admin + student)
 ══════════════════════════════════════════ */

@@ -54,6 +54,7 @@ function AddStudentModal({ onClose }) {
   const [snum, setSnum]         = useState('')
   const [course, setCourse]     = useState('')
   const [year, setYear]         = useState('1st Year')
+  const [studentType, setStudentType] = useState('regular') // 'regular' | 'irregular'
   const [classId, setClassId]   = useState('')
   const [extraIds, setExtraIds] = useState([])
   const [setPass, setSetPass]   = useState(false)
@@ -70,8 +71,8 @@ function AddStudentModal({ onClose }) {
   // Only computed once both course and year are chosen.
   const matchingClasses = useMemo(() => {
     if (!course.trim()) return []
-    return classes.filter(c => !c.archived && classMatchesCourseYear(course, year, c))
-  }, [classes, course, year])
+    return classes.filter(c => !c.archived && classMatchesCourseYear(course, year, c, studentType === 'irregular'))
+  }, [classes, course, year, studentType])
 
   // Keep the primary/extra selections valid as the course/year filter changes.
   useEffect(() => {
@@ -130,7 +131,7 @@ function AddStudentModal({ onClose }) {
 
     setSaving(true)
     try {
-      const newStudent = { id, name: composedName, course: course.trim(), year, section: finalSection, classId: classId || null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account }
+      const newStudent = { id, name: composedName, course: course.trim(), year, studentType, section: finalSection, classId: classId || null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account }
       await saveStudents([...students, newStudent], [id])
       toast('Student added!', 'green')
       onClose()
@@ -190,6 +191,20 @@ function AddStudentModal({ onClose }) {
         </div>
       </div>
 
+      {/* Regular vs irregular - irregular students enroll across year levels */}
+      <div className="field">
+        <label>Enrollment type</label>
+        <div className="seg-toggle">
+          <button type="button" className={studentType === 'regular' ? 'on' : ''} onClick={() => setStudentType('regular')}>Regular</button>
+          <button type="button" className={studentType === 'irregular' ? 'on' : ''} onClick={() => setStudentType('irregular')}>Irregular</button>
+        </div>
+        <div className="text-xs text-ink3 mt-1">
+          {studentType === 'irregular'
+            ? 'Can enroll in any subject across year levels.'
+            : 'Enrolls only in subjects for their own year level (standard).'}
+        </div>
+      </div>
+
       {/* Enrollment - only classes matching the course + year are offered */}
       <div className="field">
         <label>Primary Class <span className="font-normal text-ink3">(home class for grades &amp; attendance)</span></label>
@@ -213,7 +228,7 @@ function AddStudentModal({ onClose }) {
         <div className="field mb-2">
           <label className="flex items-center justify-between">
             <span>Additional Classes <span className="font-normal text-ink3">(also enrolled in)</span></span>
-            <span className="text-xs text-ink3 font-normal">Same course &amp; year</span>
+            <span className="text-xs text-ink3 font-normal">{studentType === 'irregular' ? 'Any year level' : 'Same course & year'}</span>
           </label>
           <div className="grid grid-cols-1 gap-1.5 bg-bg border border-border rounded-lg p-2 mt-1 max-h-40 overflow-y-auto">
             {otherClasses.map(c => (
@@ -283,6 +298,7 @@ function EditStudentModal({ student, onClose }) {
   const isRegistered = !!student.account?.registered
   const [course, setCourse]   = useState(student.course || '')
   const [year, setYear]       = useState(student.year || '1st Year')
+  const [studentType, setStudentType] = useState(student.studentType || 'regular')
   const [classId, setClassId] = useState(student.classId || '')
   const [extraIds, setExtraIds] = useState(
     (student.classIds || []).filter(id => id !== student.classId)
@@ -295,8 +311,8 @@ function EditStudentModal({ student, onClose }) {
 
   // Classes offered for this student's course + year.
   const matchingClasses = useMemo(
-    () => classes.filter(c => !c.archived && classMatchesCourseYear(course, year, c)),
-    [classes, course, year]
+    () => classes.filter(c => !c.archived && classMatchesCourseYear(course, year, c, studentType === 'irregular')),
+    [classes, course, year, studentType]
   )
 
   // Primary-class options: the matching classes PLUS the student's CURRENT
@@ -358,7 +374,7 @@ function EditStudentModal({ student, onClose }) {
     const allClassIds = [...new Set([newClassId, ...extraIds].filter(Boolean))]
     const finalId = snumChanged ? trimSnum : student.id
 
-    const ns = { ...student, id: finalId, name: composedName, course: course.trim(), year, section: inheritedSection, classId: newClassId, classIds: allClassIds, grades: { ...student.grades }, attendance: { ...student.attendance }, excuse: { ...student.excuse } }
+    const ns = { ...student, id: finalId, name: composedName, course: course.trim(), year, studentType, section: inheritedSection, classId: newClassId, classIds: allClassIds, grades: { ...student.grades }, attendance: { ...student.attendance }, excuse: { ...student.excuse } }
     if (student.gradeComponents) ns.gradeComponents = { ...student.gradeComponents }
     allClassIds.forEach(cid => {
       const cls = classes.find(c => c.id === cid)
@@ -454,11 +470,24 @@ function EditStudentModal({ student, onClose }) {
       </div>
 
       <div className="field">
+        <label>Enrollment type</label>
+        <div className="seg-toggle">
+          <button type="button" className={studentType === 'regular' ? 'on' : ''} onClick={() => setStudentType('regular')}>Regular</button>
+          <button type="button" className={studentType === 'irregular' ? 'on' : ''} onClick={() => setStudentType('irregular')}>Irregular</button>
+        </div>
+        <div className="text-xs text-ink3 mt-1">
+          {studentType === 'irregular'
+            ? 'Can enroll in any subject across year levels.'
+            : 'Enrolls only in subjects for their own year level (standard).'}
+        </div>
+      </div>
+
+      <div className="field">
         <label>Primary Class <span className="font-normal text-ink3">(home class for grades &amp; attendance)</span></label>
         <select value={classId} onChange={e => { setClassId(e.target.value); setExtraIds(prev => prev.filter(x => x !== e.target.value)) }}>
           <option value="">- Unassigned -</option>
           {primaryOptions.map(c => {
-            const matches = classMatchesCourseYear(course, year, c)
+            const matches = classMatchesCourseYear(course, year, c, studentType === 'irregular')
             return <option key={c.id} value={c.id}>{c.section} · {classSubjectsLabel(c)}{matches ? '' : ` (${courseShort(c.name)})`}</option>
           })}
         </select>
@@ -472,12 +501,12 @@ function EditStudentModal({ student, onClose }) {
         <div className="field mb-2">
           <label className="flex items-center justify-between">
             <span>Additional Classes <span className="font-normal text-ink3">(also enrolled in)</span></span>
-            <span className="text-xs text-ink3 font-normal">Same course &amp; year</span>
+            <span className="text-xs text-ink3 font-normal">{studentType === 'irregular' ? 'Any year level' : 'Same course & year'}</span>
           </label>
           <div className="flex flex-wrap gap-1.5 mt-1">
             {additionalOptions.map(c => {
               const on = extraIds.includes(c.id)
-              const matches = classMatchesCourseYear(course, year, c)
+              const matches = classMatchesCourseYear(course, year, c, studentType === 'irregular')
               const border = on ? (matches ? 'var(--accent)' : 'var(--yellow)') : 'var(--border)'
               const bg     = on ? (matches ? 'var(--accent-l)' : 'var(--yellow-l)') : 'var(--surface)'
               const color  = on ? (matches ? 'var(--accent)' : 'var(--yellow)') : 'var(--ink2)'
@@ -492,7 +521,7 @@ function EditStudentModal({ student, onClose }) {
               )
             })}
           </div>
-          {additionalOptions.some(c => extraIds.includes(c.id) && !classMatchesCourseYear(course, year, c)) && (
+          {additionalOptions.some(c => extraIds.includes(c.id) && !classMatchesCourseYear(course, year, c, studentType === 'irregular')) && (
             <div className="text-xs text-ink3 mt-1.5">Yellow chips are enrolled outside this course/year - tap to remove if no longer applicable.</div>
           )}
         </div>
@@ -1443,6 +1472,7 @@ export default function StudentsTab() {
                             <div className="stu-name-text" style={{ color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
                               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
                               <VerifiedBadge student={s} size={14} />
+                              {s.studentType === 'irregular' && <Badge variant="yellow" style={{ fontSize: 10, flexShrink: 0 }}>Irregular</Badge>}
                             </div>
                             <div className="stu-year-text">{s.year || ''}</div>
                           </div>
@@ -1532,6 +1562,7 @@ export default function StudentsTab() {
                         <div className="stu-name-text" style={{ color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
                           <span className="truncate">{s.name}</span>
                           <VerifiedBadge student={s} size={14} />
+                          {s.studentType === 'irregular' && <Badge variant="yellow" style={{ fontSize: 10, flexShrink: 0 }}>Irregular</Badge>}
                         </div>
                         <div className="stu-year-text truncate" style={{ fontFamily: 'var(--font-mono)' }}>{s.id}{s.year ? ` · ${s.year}` : ''}</div>
                       </div>
