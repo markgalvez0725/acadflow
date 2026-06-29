@@ -1,10 +1,12 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useUI } from '@/context/UIContext'
 import { useData } from '@/context/DataContext'
 import { studentStanding } from '@/utils/groupChat'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import BrandMark from '@/components/primitives/BrandMark'
-import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Settings, LogOut, ListChecks, MessageSquarePlus, MessageSquare } from 'lucide-react'
+import ChangelogModal from '@/components/primitives/ChangelogModal'
+import { APP_VERSION } from '@/constants/changelog'
+import { LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Settings, LogOut, ListChecks, MessageSquarePlus, MessageSquare, History } from 'lucide-react'
 
 // Flat, Instagram-style nav list (no section headers).
 const NAV_ITEMS = [
@@ -25,6 +27,7 @@ const NAV_ITEMS = [
 export default function StudentSidebar({ student, badges = {}, onSettings, onLogout, onCompleteSetup }) {
   const { studentTab, setStudentTab } = useUI()
   const { classes = [] } = useData()
+  const [showChangelog, setShowChangelog] = useState(false)
 
   function getBadge(badgeId) {
     if (badgeId === 'act')   return badges.act || 0
@@ -108,7 +111,11 @@ export default function StudentSidebar({ student, badges = {}, onSettings, onLog
           </span>
           <span className="nav-label">Logout</span>
         </button>
+        <button type="button" className="app-version-btn" onClick={() => setShowChangelog(true)} title="What's new in AcadFlow">
+          <History size={12} /> AcadFlow v{APP_VERSION}
+        </button>
       </div>
+      {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
     </div>
   )
 }

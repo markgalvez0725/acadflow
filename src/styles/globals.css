@@ -1021,6 +1021,30 @@ html[data-theme="dark"] .aflogo-dark { display: block; }
   letter-spacing: .04em;
 }
 
+/* Clickable app-version line in the sidebar footer -> opens the changelog */
+.app-version-btn {
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  width: 100%; margin-top: 6px; padding: 4px;
+  background: none; border: none; cursor: pointer;
+  font-size: 0.6875rem; font-weight: 600; color: var(--accent); letter-spacing: .02em;
+}
+.app-version-btn:hover { text-decoration: underline; }
+
+/* Changelog ("What's new") modal */
+.changelog-list { display: flex; flex-direction: column; gap: 18px; }
+.changelog-rel-head { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.changelog-ver {
+  font-size: 0.75rem; font-weight: 700; padding: 2px 9px; border-radius: 6px;
+  background: var(--bg2); color: var(--ink2);
+}
+.changelog-ver.current { background: var(--accent-l); color: var(--accent); }
+.changelog-current-tag { font-size: 0.6875rem; font-weight: 600; color: var(--accent); }
+.changelog-date { font-size: 0.6875rem; color: var(--ink3); margin-left: auto; }
+.changelog-title { font-size: 0.875rem; font-weight: 600; color: var(--ink); margin-bottom: 7px; }
+.changelog-changes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.changelog-changes li { display: flex; align-items: flex-start; gap: 7px; font-size: 0.8125rem; color: var(--ink2); line-height: 1.45; }
+.changelog-changes li svg { color: var(--accent); flex-shrink: 0; margin-top: 3px; }
+
 /* ══════════════════════════════════════════
    STUDENT LAYOUT
 ══════════════════════════════════════════ */

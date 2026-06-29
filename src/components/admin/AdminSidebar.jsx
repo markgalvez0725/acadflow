@@ -1,8 +1,10 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import BrandMark from '@/components/primitives/BrandMark'
+import ChangelogModal from '@/components/primitives/ChangelogModal'
+import { APP_VERSION } from '@/constants/changelog'
 import { LayoutDashboard, School, Users, BookOpen, CalendarCheck, Bell, ClipboardList, Settings, LogOut, FileQuestion, Rss, CalendarDays, Video, History, MessageSquare, MessageSquarePlus, ShieldCheck } from 'lucide-react'
 
 // Flat, Instagram-style nav list (no section headers).
@@ -28,6 +30,7 @@ export default function AdminSidebar({ onSettingsOpen }) {
   const { logout } = useAuth()
   const { admin, adminNotifs, activities, messages } = useData()
   const { adminTab, setAdminTab } = useUI()
+  const [showChangelog, setShowChangelog] = useState(false)
 
   const unreadNotifs = adminNotifs.filter(n => !n.read).length
   const unreadMsgs   = (messages || []).filter(m => m.from !== 'admin' && !m.adminRead).length
@@ -111,8 +114,12 @@ export default function AdminSidebar({ onSettingsOpen }) {
           </span>
           <span className="nav-label">Logout</span>
         </button>
+        <button type="button" className="app-version-btn" onClick={() => setShowChangelog(true)} title="What's new in AcadFlow">
+          <History size={12} /> AcadFlow v{APP_VERSION}
+        </button>
         <div className="credit-footer">by lexark25</div>
       </div>
+      {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
     </div>
   )
 }
