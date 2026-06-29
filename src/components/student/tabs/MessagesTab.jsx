@@ -473,7 +473,7 @@ export default function MessagesTab({ student: s, messages }) {
     if (entry.from === s.id)    return { self: true,  name: 'You' }
     if (entry.from === 'admin') return { self: false, name: profName, teacher: true, photo: profPhoto }
     const st = students.find(x => x.id === entry.from)
-    return { self: false, name: st?.name || 'Member', id: entry.from }
+    return { self: false, name: st?.name || 'Member', id: entry.from, photo: st?.photo }
   }
 
   // Begin a quoted reply to a bubble (from a swipe or the hover reply icon).
@@ -674,7 +674,7 @@ export default function MessagesTab({ student: s, messages }) {
                         <div className={`msg-bubble-row ${isSelf ? 'sent' : 'received'}`} style={{ marginTop: sameAsPrev ? 2 : 8 }} title={timeLabel(entry.ts)}>
                           {!isSelf && (
                             <div className="msg-avatar-slot">
-                              {lastOfGroup && <div className="msg-avatar-sm">{info.teacher ? (info.photo ? <img src={info.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} /> : <GraduationCap size={13} />) : getInitials(info.name)}</div>}
+                              {lastOfGroup && <div className="msg-avatar-sm">{info.teacher ? (info.photo ? <img src={info.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} /> : <GraduationCap size={13} />) : (info.photo ? <img src={info.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} /> : getInitials(info.name))}</div>}
                             </div>
                           )}
                           {isSelf && Menu}

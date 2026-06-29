@@ -492,7 +492,10 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, o
                 <div className={`msg-bubble-row ${isAdmin ? 'sent' : 'received'}`} style={{ marginTop: sameAsPrev ? 2 : 8 }} title={timeLabel(entry.ts)}>
                   {!isAdmin && (
                     <div className="msg-avatar-slot">
-                      {lastOfGroup && <div className="msg-avatar-sm">{getInitials(entry.senderLabel)}</div>}
+                      {lastOfGroup && <div className="msg-avatar-sm">{(() => {
+                        const p = students.find(x => x.id === entry.from)?.photo
+                        return p ? <img src={p} alt="" /> : getInitials(entry.senderLabel)
+                      })()}</div>}
                     </div>
                   )}
                   {isAdmin && Menu}

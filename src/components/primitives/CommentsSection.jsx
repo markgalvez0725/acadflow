@@ -34,7 +34,7 @@ function EditRow({ value, onChange, onSave, onCancel, saving, candidates, small 
 }
 
 export default function CommentsSection({ ann, authorId, authorName, role, compact = false, previewCount = 0, composerRef = null }) {
-  const { addAnnouncementComment, addCommentReply, editAnnouncementComment, deleteAnnouncementComment, editCommentReply, deleteCommentReply, students = [], db } = useData()
+  const { addAnnouncementComment, addCommentReply, editAnnouncementComment, deleteAnnouncementComment, editCommentReply, deleteCommentReply, students = [], admin, db } = useData()
   const allComments = ann.comments || []
 
   // On a post shared to several classes, a STUDENT only sees comments from their
@@ -215,7 +215,7 @@ export default function CommentsSection({ ann, authorId, authorName, role, compa
               color: c.role === 'teacher' ? 'var(--accent)' : 'var(--purple)',
             }}>
               {(() => {
-                const p = c.role === 'student' && students.find(x => x.id === c.authorId)?.photo
+                const p = c.role === 'teacher' ? admin?.photo : students.find(x => x.id === c.authorId)?.photo
                 return p
                   ? <img src={p} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   : (c.authorName?.charAt(0)?.toUpperCase() || '?')
@@ -259,7 +259,7 @@ export default function CommentsSection({ ann, authorId, authorName, role, compa
                     color: r.role === 'teacher' ? 'var(--accent)' : 'var(--purple)',
                   }}>
                     {(() => {
-                      const p = r.role === 'student' && students.find(x => x.id === r.authorId)?.photo
+                      const p = r.role === 'teacher' ? admin?.photo : students.find(x => x.id === r.authorId)?.photo
                       return p
                         ? <img src={p} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         : (r.authorName?.charAt(0)?.toUpperCase() || '?')

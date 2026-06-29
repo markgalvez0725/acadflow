@@ -8,6 +8,7 @@ import { triageExcuses } from '@/utils/excuseTriage'
 import { prewarmEmbeddings } from '@/utils/embeddings'
 import { subjectSessionDates, trailingAbsenceStreak } from '@/utils/attendanceRisk'
 import Modal from '@/components/primitives/Modal'
+import Avatar from '@/components/primitives/Avatar'
 import Pagination from '@/components/primitives/Pagination'
 import QRCode from '@/components/primitives/QRCode'
 import KebabMenu from '@/components/primitives/KebabMenu'
@@ -612,10 +613,10 @@ function AttendanceCalendarModal({ classId, subject, readOnly, onClose }) {
                 <div key={s.id} className="att-row-item flex items-center justify-between gap-3 px-3.5 py-2"
                   style={{ borderBottom: '1px solid var(--border)' }}>
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
+                    <Avatar photo={s.photo} className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
                       style={{ background: iconBg, color: iconColor, transition: '.2s' }}>
                       {(s.name || '?').charAt(0).toUpperCase()}
-                    </div>
+                    </Avatar>
                     <div className="min-w-0">
                       <div className="font-semibold text-sm truncate">{s.name}</div>
                       <div className="text-xs text-ink2">{s.id}</div>
@@ -1025,10 +1026,10 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
             <div key={st.id} className="rounded-xl p-3"
               style={{ background: 'var(--surface)', border: `1px solid ${flag?.tone === 'danger' ? 'var(--red)' : 'var(--border)'}` }}>
               <div className="flex items-center gap-2.5">
-                <div className="flex items-center justify-center font-bold text-sm flex-shrink-0"
+                <Avatar photo={st.photo} className="flex items-center justify-center font-bold text-sm flex-shrink-0"
                   style={{ width: 38, height: 38, borderRadius: '50%', background: tier.bg, color: tier.fg }}>
                   {initial}
-                </div>
+                </Avatar>
                 <div className="min-w-0 flex-1">
                   <div className="font-semibold text-sm truncate">{st.name}</div>
                   <div className="text-xs text-ink3 truncate" style={{ fontFamily: 'var(--font-mono)' }}>{st.id}</div>

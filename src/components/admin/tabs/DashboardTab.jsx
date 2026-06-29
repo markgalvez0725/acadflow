@@ -11,6 +11,7 @@ import { sortByLastName } from '@/utils/format'
 import { courseShort } from '@/constants/courses'
 import Badge from '@/components/primitives/Badge'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
+import Avatar from '@/components/primitives/Avatar'
 import DonutChart from '@/components/charts/DonutChart'
 import SmartAnalyzer from '@/components/ds/SmartAnalyzer'
 import {
@@ -277,7 +278,7 @@ export default function DashboardTab() {
                   onClick={() => openStudentProfile(r.student.id)}
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openStudentProfile(r.student.id) } }}
                 >
-                  <div className="ds-stud-av" style={{ background: tint.bg, color: tint.fg }}>{initials(r.student.name)}</div>
+                  <Avatar photo={r.student.photo} className="ds-stud-av" style={{ background: tint.bg, color: tint.fg }}>{initials(r.student.name)}</Avatar>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
                       <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.student.name}</span>
@@ -339,7 +340,7 @@ export default function DashboardTab() {
                     onClick={() => openStudentProfile(s.id)}
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openStudentProfile(s.id) } }}
                   >
-                    <div className="ds-stud-av" style={{ background: tint.bg, color: tint.fg }}>{initials(s.name)}</div>
+                    <Avatar photo={s.photo} className="ds-stud-av" style={{ background: tint.bg, color: tint.fg }}>{initials(s.name)}</Avatar>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
                         <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</span>

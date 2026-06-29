@@ -4,6 +4,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Modal from '@/components/primitives/Modal'
 import Badge from '@/components/primitives/Badge'
+import Avatar from '@/components/primitives/Avatar'
 import Pagination from '@/components/primitives/Pagination'
 import EmptyState from '@/components/ds/EmptyState'
 import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList, Pencil, Save, Rocket, FileText, X, Lock, Circle, Archive, ArchiveRestore, Sparkles, Wand2, FileUp, Copy, Lightbulb, ScanSearch, Fingerprint } from 'lucide-react'
@@ -1080,8 +1081,13 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
               return (
                 <tr key={s.id}>
                   <td>
-                    <strong>{s.name}</strong>
-                    <br /><span style={{ fontSize: 11, color: 'var(--ink2)' }}>{s.snum || s.id}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Avatar photo={s.photo} name={s.name} size={26} style={{ borderRadius: '50%', background: 'var(--accent-l)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }} />
+                      <div style={{ minWidth: 0 }}>
+                        <strong>{s.name}</strong>
+                        <br /><span style={{ fontSize: 11, color: 'var(--ink2)' }}>{s.snum || s.id}</span>
+                      </div>
+                    </div>
                   </td>
                   <td>
                     {hasAttempt
