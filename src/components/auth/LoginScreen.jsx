@@ -7,15 +7,11 @@ import { useAuth } from '@/context/AuthContext'
 import { isBiometricSupported, getBiometric, biometricUnlock } from '@/utils/biometric'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { createUserWithEmailAndPassword, deleteUser, signOut, signInWithEmailAndPassword, signInWithCustomToken, updatePassword } from 'firebase/auth'
-import { doc, getDoc, updateDoc } from 'firebase/firestore'
-import { getFbAuth, getDb } from '@/firebase/firebaseInit'
-import { studentEmail, studentDocId } from '@/constants/auth'
+import { signInWithCustomToken, updatePassword } from 'firebase/auth'
+import { getFbAuth } from '@/firebase/firebaseInit'
 import { hashPassword, verifyPassword } from '@/utils/crypto'
 import { validateSnum, sanitizeSnum } from '@/utils/validate'
 import { SECURITY_QUESTIONS } from '@/utils/securityQuestions'
-import { scoreIdentity, describeFields } from '@/utils/identityVerify'
-import { courseOptions, courseShort } from '@/constants/courses'
 import LoadingButton from '@/components/primitives/LoadingButton'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 
@@ -34,7 +30,9 @@ const STUDENT_PHRASES = [
   ['Stay connected',   '\nwith your class.'],
 ]
 
-// Modes: 'student' | 'register' | 'forgot' | 'fp-set-sq' | 'fp-sq'
+// Modes: 'student' | 'forgot' | 'fp-set-sq' | 'fp-sq'
+// Students no longer self-register; the professor provisions each account (default
+// password) and the student signs in, then completes guided verification.
 export default function LoginScreen({ onRevealFaculty }) {
   const { loginStudent } = useAuth()
   const { students, saveStudents, fbReady } = useData()
@@ -76,17 +74,6 @@ export default function LoginScreen({ onRevealFaculty }) {
   const rpTimer = useRef(null)
   const rpDeadline = useRef(0)
 
-  // Register form
-  const [regSnum,    setRegSnum]    = useState('')
-  const [regSurname, setRegSurname] = useState('')
-  const [regFirst,   setRegFirst]   = useState('')
-  const [regMiddle,  setRegMiddle]  = useState('')
-  const [regCourse,  setRegCourse]  = useState('')
-  const [regYear,    setRegYear]    = useState('1st Year')
-  const [regSection, setRegSection] = useState('')
-  const [regPass,    setRegPass]    = useState('')
-  const [regPass2,   setRegPass2]   = useState('')
-
   // Forgot form
   const [fpSnum,    setFpSnum]    = useState('')
   const [fpPending, setFpPending] = useState(null) // { snum: canonical id }
@@ -102,8 +89,6 @@ export default function LoginScreen({ onRevealFaculty }) {
 
   // Show/hide password toggles
   const [showPass,     setShowPass]     = useState(false)
-  const [showRegPass,  setShowRegPass]  = useState(false)
-  const [showRegPass2, setShowRegPass2] = useState(false)
   const [showFpPass,   setShowFpPass]   = useState(false)
   const [showFpPass2,  setShowFpPass2]  = useState(false)
 
@@ -281,129 +266,6 @@ export default function LoginScreen({ onRevealFaculty }) {
     toast('Password updated. Welcome back!', 'success')
   }
 
-  // ── Register - verified, roster-gated account creation (Firebase Auth) ─────
-  // Flow: create the auth account (signs in), then read the roster record while
-  // authenticated and verify the details. If anything fails, the just-created
-  // account is deleted so nothing is left behind.
-  async function handleRegStep1(e) {
-    e.preventDefault()
-    clearMessages()
-
-    const snErr = validateSnum(regSnum)
-    if (snErr) return setErr(snErr)
-    // Compose the canonical school format from separate fields so the surname
-    // is never ambiguous: "SURNAME, FNAME MNAME", ALL UPPERCASE.
-    const clean   = v => v.trim().toUpperCase().replace(/\s+/g, ' ')
-    const surname = clean(regSurname)
-    const first   = clean(regFirst)
-    const middle  = clean(regMiddle)
-    if (!surname) return setErr('Please enter your surname.')
-    if (!first)   return setErr('Please enter your first name.')
-    const given   = [first, middle].filter(Boolean).join(' ')
-    const nameVal = `${surname}, ${given}`
-    if (!regCourse.trim()) return setErr('Please enter your course/program.')
-    if (!regSection.trim()) return setErr('Please enter your section.')
-    if (regPass.length < 8) return setErr('Password must be at least 8 characters.')
-    if (!/[A-Z]/.test(regPass) || !/[0-9]/.test(regPass))
-      return setErr('Password must include at least one uppercase letter and one number.')
-    if (regPass !== regPass2) return setErr('Passwords do not match.')
-
-    const auth = getFbAuth()
-    const db = getDb()
-    if (!fbReady || !auth || !db) {
-      return setErr('Still connecting. Please wait a moment and try again.')
-    }
-
-    setLoading(true)
-    let createdUser = null
-    try {
-      // 1) Create the Firebase Auth account (this also signs us in).
-      try {
-        const cred = await createUserWithEmailAndPassword(auth, studentEmail(regSnum), regPass)
-        createdUser = cred.user
-      } catch (err) {
-        const c = err?.code || ''
-        if (c.includes('email-already-in-use'))
-          return setErr('⛔ An account already exists for this student number. Switch to "Sign In", or ask your professor to reset it.')
-        if (c.includes('operation-not-allowed'))
-          return setErr('Registration is not enabled yet. Please ask the admin to turn on Email/Password sign-in.')
-        if (c.includes('weak-password'))
-          return setErr('Password is too weak. Use at least 8 characters with an uppercase letter and a number.')
-        return setErr('Could not create your account: ' + (err?.message || 'unknown error'))
-      }
-
-      // 2) Read the roster record directly (now authenticated).
-      const ref  = doc(db, 'students', studentDocId(regSnum))
-      const snap = await getDoc(ref)
-      if (!snap.exists()) {
-        await deleteUser(createdUser).catch(() => {})
-        await signOut(auth).catch(() => {})
-        return setErr('⛔ We could not find your student number in the class records. Please ask your professor to add you first, then register.')
-      }
-      const roster = snap.data()
-      if (roster.account?.registered) {
-        await signOut(auth).catch(() => {})
-        return setErr('⛔ An account already exists for this student number. Switch to "Sign In".')
-      }
-
-      // 3) Score the entered identity against the roster (fuzzy, multi-signal).
-      const entered = { name: nameVal, course: regCourse.trim(), year: regYear, section: regSection.trim() }
-      const score = scoreIdentity(entered, roster)
-      if (score.verdict === 'block') {
-        await deleteUser(createdUser).catch(() => {})
-        await signOut(auth).catch(() => {})
-        const detail = describeFields(score.fields)
-        return setErr(`⛔ Your details don't match our records for this student number${detail ? ` (${detail})` : ''}. Please check your name, course, year, and section, or contact your professor.`)
-      }
-
-      // 4) Create the account on the roster record. It starts PENDING:
-      //    `verified` is set to true only by the server gate below (strong match)
-      //    or by a professor - never by this device. Writing it explicitly false
-      //    keeps the account pending even if the server is unreachable.
-      const patch = {
-        'account.registered': true,
-        'account.activated': true,
-        'account._tempPass': false,
-        'account.verified': false,
-        'account.verification': { method: 'ai', confidence: score.confidence ?? 0, fields: score.fields, at: Date.now() },
-      }
-      if (!roster.name)    patch.name    = nameVal
-      if (!roster.course)  patch.course  = regCourse.trim()
-      if (!roster.year)    patch.year    = regYear
-      if (!roster.section) patch.section = regSection.trim()
-      await updateDoc(ref, patch)
-
-      // 5) Server-side verification (authoritative). On a strong match the server
-      //    flips account.verified=true → the student is Active immediately. If the
-      //    endpoint is unconfigured/unreachable, the account stays Pending for the
-      //    professor to approve - the student is never blocked.
-      let verified = false
-      try {
-        const idToken = await createdUser.getIdToken()
-        const resp = await fetch('/api/verify-account', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ idToken, studentNumber: regSnum, ...entered }),
-        })
-        if (resp.ok) { const d = await resp.json().catch(() => ({})); verified = !!d.verified }
-      } catch (_) { /* leave pending - professor will verify */ }
-
-      // 6) Sign out so they sign in cleanly with their new password.
-      await signOut(auth).catch(() => {})
-      setOkMsg(verified
-        ? '✅ Verified! Sign in with your student number.'
-        : '✅ Account created. You can sign in now - full access unlocks once your professor verifies you.')
-      setTimeout(() => { setMode('student'); clearMessages() }, 2400)
-    } catch (err) {
-      if (createdUser) { try { await deleteUser(createdUser) } catch (_) {} }
-      try { await signOut(auth) } catch (_) {}
-      setErr('Registration failed: ' + (err?.message || 'unknown error'))
-    } finally {
-      setLoading(false)
-    }
-  }
-
-
   // ── Forgot Step 1 - look up student, display security question ───────────
   async function handleFpStep1(e) {
     e.preventDefault()
@@ -418,7 +280,7 @@ export default function LoginScreen({ onRevealFaculty }) {
         return setErr('No account found for that student number. Please contact your professor.')
       }
       if (!s.account?.registered) {
-        return setErr('This student number has no account yet. Switch to "Register" to create one - you\'ll verify your identity with your course, year, and section.')
+        return setErr('This student number does not have an account yet. Please ask your professor to set up your account.')
       }
       setFpPending({ snum: s.id })
       if (!s.account?.securityQuestion) {
@@ -574,10 +436,10 @@ export default function LoginScreen({ onRevealFaculty }) {
 
           <div className="auth2-card">
             <div className="auth2-eyebrow auth2-eyebrow--card"><GraduationCap size={13} /> Student portal</div>
-            {(mode === 'student' || mode === 'register') && (
+            {mode === 'student' && (
               <>
-                <div className="auth2-title">{mode === 'student' ? 'Welcome back' : 'Create account'}</div>
-                <p className="auth2-sub-text">{mode === 'student' ? 'Sign in to your student portal.' : 'Register your AcadFlow student account.'}</p>
+                <div className="auth2-title">Welcome back</div>
+                <p className="auth2-sub-text">Sign in to your student portal.</p>
               </>
             )}
 
@@ -627,103 +489,6 @@ export default function LoginScreen({ onRevealFaculty }) {
                   </button>
                 </>
               )}
-            </form>
-          )}
-
-          {/* ── Register Step 1 ──────────────────────────────────────── */}
-          {mode === 'register' && (
-            <form onSubmit={handleRegStep1}>
-              <div className="auth-section-label">Verify your identity</div>
-
-              <div className="field-float">
-                <input type="text" placeholder=" " value={regSnum} onChange={e => setRegSnum(sanitizeSnum(e.target.value))} autoComplete="username" />
-                <label>Student Number</label>
-              </div>
-              <div className="field-float">
-                <input type="text" placeholder=" " value={regSurname} onChange={e => setRegSurname(e.target.value.toUpperCase())} autoComplete="family-name" />
-                <label>Surname</label>
-              </div>
-              <div className="ff-row">
-                <div className="field-float">
-                  <input type="text" placeholder=" " value={regFirst} onChange={e => setRegFirst(e.target.value.toUpperCase())} autoComplete="given-name" />
-                  <label>First Name</label>
-                </div>
-                <div className="field-float">
-                  <input type="text" placeholder=" " value={regMiddle} onChange={e => setRegMiddle(e.target.value.toUpperCase())} autoComplete="additional-name" />
-                  <label>Middle Name</label>
-                </div>
-              </div>
-              <p style={{ fontSize: 11, color: 'var(--ink3)', margin: '-4px 2px 12px', lineHeight: 1.5 }}>
-                Saved as <strong>{(regSurname.trim() || 'SURNAME').toUpperCase()}, {[regFirst.trim().toUpperCase(), regMiddle.trim().toUpperCase()].filter(Boolean).join(' ') || 'FNAME MNAME'}</strong> to match your class records. Middle name is optional.
-              </p>
-              <div className="field-float field-float--select">
-                <select value={regCourse} onChange={e => setRegCourse(e.target.value)}>
-                  <option value="">- Select course -</option>
-                  {courseOptions(regCourse).map(c => <option key={c} value={c}>{courseShort(c)}</option>)}
-                </select>
-                <label>Course / Program</label>
-              </div>
-              <div className="ff-row">
-                <div className="field-float field-float--select">
-                  <select value={regYear} onChange={e => setRegYear(e.target.value)}>
-                    <option>1st Year</option><option>2nd Year</option><option>3rd Year</option><option>4th Year</option>
-                  </select>
-                  <label>Year Level</label>
-                </div>
-                <div className="field-float">
-                  <input type="text" placeholder=" " value={regSection} onChange={e => setRegSection(e.target.value)} />
-                  <label>Section</label>
-                </div>
-              </div>
-              <p style={{ fontSize: 11, color: 'var(--ink3)', margin: '-4px 2px 10px', lineHeight: 1.5 }}>
-                Your details must match your professor's records to verify you're a real student. Section example: <strong>2A</strong>.
-              </p>
-
-              <div className="auth-section-label">Create your login</div>
-
-              <div className="field-float">
-                <input
-                  type={showRegPass ? 'text' : 'password'}
-                  placeholder=" "
-                  value={regPass}
-                  onChange={e => setRegPass(e.target.value)}
-                  autoComplete="new-password"
-                  style={{ paddingRight: 38 }}
-                />
-                <button type="button" className="pw-toggle" onClick={() => setShowRegPass(v => !v)} tabIndex={-1} aria-label={showRegPass ? 'Hide password' : 'Show password'}>
-                  {showRegPass ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-                <label>Password</label>
-              </div>
-              <div className="pw-reqs" aria-hidden="true">
-                {[['8+ characters', regPass.length >= 8], ['1 uppercase', /[A-Z]/.test(regPass)], ['1 number', /[0-9]/.test(regPass)]].map(([label, met]) => (
-                  <span key={label} className={`pw-req${met ? ' met' : ''}`}>
-                    <span className="dot">{met ? <Check size={11} /> : <span className="pw-req-dot" />}</span>{label}
-                  </span>
-                ))}
-              </div>
-              <div className="field-float">
-                <input
-                  type={showRegPass2 ? 'text' : 'password'}
-                  placeholder=" "
-                  value={regPass2}
-                  onChange={e => setRegPass2(e.target.value)}
-                  autoComplete="new-password"
-                  style={{ paddingRight: 38 }}
-                />
-                <button type="button" className="pw-toggle" onClick={() => setShowRegPass2(v => !v)} tabIndex={-1} aria-label={showRegPass2 ? 'Hide password' : 'Show password'}>
-                  {showRegPass2 ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-                <label>Confirm Password</label>
-              </div>
-              {regPass2.length > 0 && (
-                <div className={`pw-match ${regPass === regPass2 ? 'ok' : 'no'}`} role="status">
-                  {regPass === regPass2 ? '✓ Passwords match' : '✗ Passwords don’t match yet'}
-                </div>
-              )}
-              <LoadingButton loading={loading} loadingText="Next…" className="btn btn-primary btn-full mt-2">
-                Next →
-              </LoadingButton>
             </form>
           )}
 
@@ -941,20 +706,6 @@ export default function LoginScreen({ onRevealFaculty }) {
           })()}
 
           </div>{/* /auth2-card */}
-
-          {/* Mode switch - Instagram-style secondary card */}
-          {mode === 'student' && (
-            <div className="auth2-subcard">
-              New here?{' '}
-              <button type="button" className="link-btn" onClick={() => { setMode('register'); clearMessages() }}>Create a student account</button>
-            </div>
-          )}
-          {mode === 'register' && (
-            <div className="auth2-subcard">
-              Already have an account?{' '}
-              <button type="button" className="link-btn" onClick={() => { setMode('student'); clearMessages() }}>Sign in</button>
-            </div>
-          )}
 
           <div className="auth2-foot">
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><ShieldCheck size={11} style={{ color: 'var(--green)' }} /> Encrypted &amp; secure</span>

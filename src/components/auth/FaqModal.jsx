@@ -47,7 +47,7 @@ Once installed, just open it like any other app - your login and data stay exact
   },
   {
     q: 'How do I get an account?',
-    a: `Students register themselves, but only against the class roster their professor has already set up. You verify your identity with your student number, name, course, year, and section - so accounts stay tied to real, enrolled students. If your details don't match, ask your professor to add or correct your record first. After you sign in, a short guided setup in Settings helps you finish verifying your account (see "How do I get the verified badge?").`,
+    a: `Your professor sets up your account from the class roster and gives you a default password. Sign in with your student number and that password, then a short guided setup in Settings helps you set your own password and finish verifying your account (see "How do I get the verified badge?"). If you can't sign in, ask your professor to add or correct your record.`,
   },
   {
     q: 'How much does it cost?',
