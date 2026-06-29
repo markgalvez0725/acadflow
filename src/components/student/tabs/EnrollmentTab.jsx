@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { findScheduleConflicts } from '@/utils/schedule'
-import { eligibleForClass } from '@/utils/enrollment'
+import { eligibleForClass, isIrregular } from '@/utils/enrollment'
 import EmptyState from '@/components/ds/EmptyState'
 import {
   BookOpen, CheckCircle2, XCircle, LockOpen, Lock,
@@ -434,7 +434,12 @@ export default function EnrollmentTab({ student }) {
       {/* Header - title + progress + compact semester pill */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0">
-          <div className="sec-title">Class Enrollment</div>
+          <div className="sec-title" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            Class Enrollment
+            {isIrregular(student)
+              ? <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400 px-2 py-0.5 rounded-full">Irregular</span>
+              : <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--accent)] bg-[var(--accent-l)] px-2 py-0.5 rounded-full">Regular</span>}
+          </div>
           <div className="text-xs text-[var(--ink3)] mt-0.5">
             {enrolledClasses.length > 0
               ? <>Enrolled in <strong>{enrolledClasses.length}</strong> class{enrolledClasses.length !== 1 ? 'es' : ''}
@@ -445,6 +450,7 @@ export default function EnrollmentTab({ student }) {
               ? <span className="text-green-600 dark:text-green-400 font-medium">Enrollment is open - select your classes below.</span>
               : 'You are not enrolled in any classes yet.'
             }
+            {isIrregular(student) && <> As an irregular student, you can enroll in subjects across any year level.</>}
           </div>
         </div>
         <SemesterPill semester={semester} />
