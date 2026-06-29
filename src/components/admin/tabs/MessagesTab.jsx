@@ -8,6 +8,7 @@ import { isClassCurrent } from '@/utils/active'
 import { isGroupMessage, autoGroupName, groupName, studentTag, groupMembers, courseShort } from '@/utils/groupChat'
 import ChatMembersModal from '@/components/primitives/ChatMembersModal'
 import SeenAvatars from '@/components/primitives/SeenAvatars'
+import { anchorMap as seenAnchorMap } from '@/utils/seenReceipts'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import EmptyState from '@/components/ds/EmptyState'
 import TypingIndicator from '@/components/primitives/TypingIndicator'
@@ -426,12 +427,26 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, o
   const entries = (thread.entries || []).filter(e => !(e.hiddenFor || []).includes(myId))
   // The 1:1 peer (for the Messenger-style "seen" avatar under the last message).
   const peer = !isGroup ? students.find(x => x.id === thread.studentId) : null
-  // Group "seen by": members who have read (avatars stack under the last message).
-  const groupSeenBy = isGroup ? (thread.members || []).filter(m => (thread.readerIds || []).includes(m.id)) : []
+  // Read receipts, Messenger-style: each reader's avatar drops under the last of
+  // my bubbles they have actually seen (by read timestamp), not blindly under the
+  // newest one. See seenReceipts.js. Group members carry their own readAt; a 1:1
+  // peer carries the conversation's peerReadTs.
+  const seenReaders = isGroup
+    ? (thread.members || []).map(m => {
+        let readTs = (thread.readAt || {})[m.id] || 0
+        entries.forEach(e => { if (e.from === m.id) readTs = Math.max(readTs, e.ts || 0) })
+        return { id: m.id, name: m.name, photo: m.photo, readTs }
+      }).filter(r => r.readTs > 0)
+    : (thread.peerReadTs
+        ? [{ id: thread.studentId, name: thread.headerName, photo: peer?.photo, readTs: thread.peerReadTs }]
+        : [])
+  const seenMap = seenAnchorMap(entries, e => e.from === 'admin', seenReaders)
   function entryKey(e) { return (e.isMain ? 'm:' : 'r:') + e.msgId + ':' + e.ts + ':' + e.from }
   function saveEdit(entry) { const t = editDraft.trim(); setEditing(null); if (t && t !== entry.body) onEditEntry?.(entry, t) }
+  // Last of my still-present bubbles - where a "Sent/Delivered" hint shows when the
+  // recipient has not yet caught up to it.
   let lastSelfIdx = -1
-  entries.forEach((e, i) => { if (e.from === 'admin') lastSelfIdx = i })
+  entries.forEach((e, i) => { if (e.from === 'admin' && !e.deleted) lastSelfIdx = i })
 
   return (
     <div className="flex flex-col flex-1 min-h-0 min-w-0">
@@ -554,14 +569,20 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, o
                   {!isAdmin && Menu}
                 </div>
               </SwipeReply>
-              {isAdmin && i === lastSelfIdx && !entry.deleted && (
+              {/* Read receipts: avatars sit under the last bubble each reader has
+                  actually seen (drops down live as they catch up). */}
+              {!entry.deleted && seenMap.has(i) && (
+                <SeenAvatars
+                  people={seenMap.get(i).map(r => ({ id: r.id, name: r.name, photo: r.photo }))}
+                  label={isGroup ? 'Seen by' : ('Seen' + (thread.peerReadTs ? ' ' + timeLabel(thread.peerReadTs) : ''))}
+                  onClick={isGroup ? () => setShowMembers(true) : undefined}
+                />
+              )}
+              {/* Delivered/Sent hint under my newest bubble while it's still unseen. */}
+              {isAdmin && i === lastSelfIdx && !entry.deleted && !seenMap.has(i) && (
                 isGroup
-                  ? (groupSeenBy.length
-                      ? <SeenAvatars people={groupSeenBy.map(m => ({ id: m.id, name: m.name, photo: m.photo }))} label="Seen by" onClick={() => setShowMembers(true)} />
-                      : <div className="msg-seen" title="Delivered">Sent · seen by 0</div>)
-                  : (entry.studentRead
-                      ? <SeenAvatars people={[{ id: thread.studentId, name: thread.headerName, photo: peer?.photo }]} label={entry.readAtTs ? 'Seen ' + timeLabel(entry.readAtTs) : 'Seen'} />
-                      : <div className="msg-seen" title={entry.readTitle}>Sent <CheckCheck size={12} /></div>)
+                  ? <div className="msg-seen" title="Delivered">{seenMap.size ? 'Sent' : 'Sent · seen by 0'}</div>
+                  : <div className="msg-seen" title={entry.readTitle}>Sent <CheckCheck size={12} /></div>
               )}
             </React.Fragment>
           )
@@ -914,6 +935,14 @@ export default function MessagesTab() {
       })
       entries.sort((a, b) => a.ts - b.ts)
 
+      // When the student last live-read this conversation: the newest of their
+      // recorded read timestamps, plus any of their own bubbles (sending one
+      // proves they were present and had seen everything up to that point). Drives
+      // the Messenger-style drop of the "Seen" avatar - see seenReceipts.js.
+      let peerReadTs = 0
+      studentMsgs.forEach(m => { const t = m.readAt?.[sid]; if (t) peerReadTs = Math.max(peerReadTs, t) })
+      entries.forEach(e => { if (e.from === sid) peerReadTs = Math.max(peerReadTs, e.ts || 0) })
+
       return {
         type: 'conversation',
         studentId: sid,
@@ -922,6 +951,7 @@ export default function MessagesTab() {
         headerSub: studentTag(s, classes) || sid,
         headerPhoto: s?.photo || null,
         isGroup: false,
+        peerReadTs,
         entries,
       }
     }
@@ -969,10 +999,16 @@ export default function MessagesTab() {
       ].sort((a, b) => a.ts - b.ts)
 
       const group = isGroupMessage(m)
+      // For a 1:1 broadcast, the recipient's last-read time (newest readAt entry)
+      // drives the same Messenger-style "Seen" drop as a conversation thread.
+      const readTimes = Object.values(m.readAt || {}).filter(Boolean)
+      const peerReadTs = (!group && readTimes.length) ? Math.max(...readTimes) : 0
       return {
         type: 'message',
         msgId: m.id,
         isGroup: group,
+        studentId: group ? null : m.to,
+        peerReadTs,
         headerName: group ? groupName(m, classes) : ('→ ' + recipientName),
         headerSub: (m.subject ? m.subject + ' · ' : '') + new Date(m.ts).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }),
         entries,

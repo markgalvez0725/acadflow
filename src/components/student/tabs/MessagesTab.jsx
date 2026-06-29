@@ -7,6 +7,7 @@ import { getStudentMessages } from '@/utils/studentMessages'
 import { groupName, isGroupMessage, groupMembers } from '@/utils/groupChat'
 import ChatMembersModal from '@/components/primitives/ChatMembersModal'
 import SeenAvatars from '@/components/primitives/SeenAvatars'
+import { anchorMap as seenAnchorMap } from '@/utils/seenReceipts'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import { groupFlags, previewText } from '@/utils/messageThread'
 import TypingIndicator from '@/components/primitives/TypingIndicator'
@@ -473,20 +474,44 @@ export default function MessagesTab({ student: s, messages }) {
   const threadSubtitle = showGroup
     ? `Group · ${threadMemberCount} member${threadMemberCount === 1 ? '' : 's'}`
     : (threadEntries[0] ? '' : 'New conversation')
-  const adminSeen = messages.filter(x => x.from === 'admin' && x.to === s.id).some(x => x.replies?.some(r => r.from === 'admin')) ||
-    messages.filter(x => x.from === s.id).some(x => x.adminRead)
-  // Group "seen by": classmates who've read this chat (+ the professor if read).
   const groupMembersList = showGroup && groupMsg ? groupMembers(groupMsg, students) : []
-  const groupSeenBy = showGroup && groupMsg
-    ? [
-        ...groupMembersList.filter(m => m.id !== s.id && Array.isArray(groupMsg.read) && groupMsg.read.includes(m.id)).map(m => ({ id: m.id, name: m.name, photo: m.photo })),
-        ...(groupMsg.adminRead ? [{ id: 'admin', name: profName, photo: profPhoto }] : []),
-      ]
-    : []
+  // When the professor last live-read this 1:1: the newest of their recorded reads
+  // (adminReadAt) or any message/reply they sent (which proves they were present and
+  // had seen everything up to then). Drives the Messenger-style drop of the "Seen"
+  // avatar so it never sits under a message they have not actually opened.
+  const profReadTs = useMemo(() => {
+    if (showGroup) return 0
+    let t = 0
+    allMsgs.filter(m => m.type !== 'announcement').forEach(m => {
+      if (m.adminReadAt) t = Math.max(t, m.adminReadAt)
+      if (m.from === 'admin') t = Math.max(t, m.ts || 0)
+      ;(m.replies || []).forEach(r => { if (r.from === 'admin') t = Math.max(t, r.ts || 0) })
+    })
+    return t
+  }, [allMsgs, showGroup])
   // Hide bubbles this student deleted "for me"; everyone-deletes stay as tombstones.
   const visibleEntries = useMemo(() => threadEntries.filter(e => !(e.hiddenFor || []).includes(s.id)), [threadEntries, s.id])
+  // Readers (and their last-seen time) for the open thread - classmates + professor
+  // in a group, just the professor in a 1:1. Each avatar drops under the last of my
+  // bubbles they've seen (seenReceipts.js).
+  const seenReaders = useMemo(() => {
+    if (showGroup && groupMsg) {
+      const classmates = groupMembersList.filter(m => m.id !== s.id).map(m => {
+        let readTs = (groupMsg.readAt || {})[m.id] || 0
+        visibleEntries.forEach(e => { if (e.from === m.id) readTs = Math.max(readTs, e.ts || 0) })
+        return { id: m.id, name: m.name, photo: m.photo, readTs }
+      }).filter(r => r.readTs > 0)
+      if (groupMsg.adminRead) {
+        const adminReplyTs = (groupMsg.replies || []).filter(r => r.from === 'admin').reduce((mx, r) => Math.max(mx, r.ts || 0), 0)
+        classmates.push({ id: 'admin', name: profName, photo: profPhoto, readTs: groupMsg.adminReadAt || adminReplyTs || groupMsg.ts || 0 })
+      }
+      return classmates
+    }
+    return profReadTs ? [{ id: 'admin', name: profName, photo: profPhoto, readTs: profReadTs }] : []
+  }, [showGroup, groupMsg, groupMembersList, visibleEntries, profReadTs, profName, profPhoto, s.id])
+  const seenMap = useMemo(() => seenAnchorMap(visibleEntries, e => e.from === s.id, seenReaders), [visibleEntries, seenReaders, s.id])
   let lastSelfIdx = -1
-  visibleEntries.forEach((e, i) => { if (e.from === s.id) lastSelfIdx = i })
+  visibleEntries.forEach((e, i) => { if (e.from === s.id && !e.deleted) lastSelfIdx = i })
 
   function senderInfo(entry) {
     if (entry.from === s.id)    return { self: true,  name: 'You' }
@@ -749,14 +774,20 @@ export default function MessagesTab({ student: s, messages }) {
                           {!isSelf && Menu}
                         </div>
                       </SwipeReply>
-                      {isSelf && i === lastSelfIdx && !entry.deleted && (
+                      {/* Read receipts: avatars sit under the last bubble each reader
+                          has actually seen, dropping down live as they catch up. */}
+                      {!entry.deleted && seenMap.has(i) && (
+                        <SeenAvatars
+                          people={seenMap.get(i).map(r => ({ id: r.id, name: r.name, photo: r.photo }))}
+                          label={showGroup ? 'Seen by' : ('Seen' + (profReadTs ? ' ' + timeLabel(profReadTs) : ''))}
+                          onClick={showGroup ? () => setShowMembers(true) : undefined}
+                        />
+                      )}
+                      {/* Delivered/Sent hint under my newest bubble while it's still unseen. */}
+                      {isSelf && i === lastSelfIdx && !entry.deleted && !seenMap.has(i) && (
                         showGroup
-                          ? (groupSeenBy.length
-                              ? <SeenAvatars people={groupSeenBy} label="Seen by" onClick={() => setShowMembers(true)} />
-                              : <div className="msg-seen" title="Delivered">Sent · seen by 0</div>)
-                          : (adminSeen
-                              ? <SeenAvatars people={[{ id: 'admin', name: profName, photo: profPhoto }]} label="Seen" />
-                              : <div className="msg-seen" title="Delivered">Sent <CheckCheck size={12} /></div>)
+                          ? <div className="msg-seen" title="Delivered">{seenMap.size ? 'Sent' : 'Sent · seen by 0'}</div>
+                          : <div className="msg-seen" title="Delivered">Sent <CheckCheck size={12} /></div>
                       )}
                     </React.Fragment>
                   )
