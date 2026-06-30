@@ -15,7 +15,8 @@ import TypingIndicator from '@/components/primitives/TypingIndicator'
 import { useTyping } from '@/hooks/useTyping'
 import { notifyStudentMessage, notifyStudentsBroadcast, notifyMention } from '@/firebase/messageNotify'
 import { resolveMentions } from '@/utils/mentions'
-import { fbAddMessageReply, fbDeleteMessage, fbEditMessageEntry, fbDeleteMessageEntry } from '@/firebase/persistence'
+import { fbAddMessageReply, fbDeleteMessage, fbEditMessageEntry, fbDeleteMessageEntry, fbToggleMessageReaction } from '@/firebase/persistence'
+import { ReactionPicker, ReactionPills } from '@/components/primitives/MessageReactions'
 import Modal from '@/components/primitives/Modal'
 import MentionInput from '@/components/primitives/MentionInput'
 import MessageText from '@/components/primitives/MessageText'
@@ -382,7 +383,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
 }
 
 // ── Thread Panel ──────────────────────────────────────────────────────
-function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, onEditEntry, onDeleteEntry }) {
+function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, onEditEntry, onDeleteEntry, onToggleReaction }) {
   const { setAdminTab } = useUI()
   const myId = 'admin'
   const messagesEndRef = useRef(null)
@@ -503,8 +504,11 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, o
             { label: 'Delete for you', onClick: () => onDeleteEntry?.(entry, 'me') },
             isAdmin && { label: 'Delete for everyone', danger: true, onClick: () => onDeleteEntry?.(entry, 'everyone') },
           ].filter(Boolean)
-          const Menu = menuItems.length > 0 && !isEditing && (
-            <span className="msg-bubble-menu"><KebabMenu items={menuItems} icon={<MoreHorizontal size={15} />} size={15} label="Message actions" /></span>
+          const Actions = !isEditing && !entry.deleted && (
+            <span className="msg-bubble-menu">
+              <ReactionPicker side={isAdmin ? 'sent' : 'received'} onPick={emoji => onToggleReaction?.(entry, emoji)} />
+              {menuItems.length > 0 && <KebabMenu items={menuItems} icon={<MoreHorizontal size={15} />} size={15} label="Message actions" />}
+            </span>
           )
           return (
             <React.Fragment key={i}>
@@ -520,7 +524,7 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, o
                       })()}</div>}
                     </div>
                   )}
-                  {isAdmin && Menu}
+                  {isAdmin && Actions}
                   {isEditing ? (
                     <div className="msg-edit-box">
                       <textarea
@@ -566,9 +570,17 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, o
                       {entry.editedAt && !entry.secure && <span className="msg-edited">edited</span>}
                     </div>
                   )}
-                  {!isAdmin && Menu}
+                  {!isAdmin && Actions}
                 </div>
               </SwipeReply>
+              {!entry.deleted && (
+                <ReactionPills
+                  reactions={entry.reactions}
+                  myId={myId}
+                  side={isAdmin ? 'sent' : 'received'}
+                  onToggle={emoji => onToggleReaction?.(entry, emoji)}
+                />
+              )}
               {/* Read receipts: avatars sit under the last bubble each reader has
                   actually seen (drops down live as they catch up). */}
               {!entry.deleted && seenMap.has(i) && (
@@ -910,6 +922,7 @@ export default function MessagesTab() {
           kind: m.kind,
           postRef: m.postRef,
           deleted: m.deleted, deletedBy: m.deletedBy, editedAt: m.editedAt, hiddenFor: m.hiddenFor,
+          reactions: m.reactions,
           isMain: true,
           senderLabel: m.from === 'admin' ? 'You' : name,
           studentRead,
@@ -927,6 +940,7 @@ export default function MessagesTab() {
           quote: r.quote,
           postRef: r.postRef,
           deleted: r.deleted, deletedBy: r.deletedBy, editedAt: r.editedAt, hiddenFor: r.hiddenFor,
+          reactions: r.reactions,
           isMain: false,
           senderLabel: r.from === 'admin' ? 'You' : name,
           studentRead: false,
@@ -975,6 +989,7 @@ export default function MessagesTab() {
           mentions: m.mentions,
           msgId: m.id,
           deleted: m.deleted, deletedBy: m.deletedBy, editedAt: m.editedAt, hiddenFor: m.hiddenFor,
+          reactions: m.reactions,
           isMain: true,
           senderLabel: 'You',
           studentRead: anyRead,
@@ -991,6 +1006,7 @@ export default function MessagesTab() {
           mentions: r.mentions,
           msgId: m.id,
           deleted: r.deleted, deletedBy: r.deletedBy, editedAt: r.editedAt, hiddenFor: r.hiddenFor,
+          reactions: r.reactions,
           isMain: false,
           senderLabel: r.from === 'admin' ? 'You' : peerName(students, r.from),
           studentRead: false,
@@ -1124,6 +1140,11 @@ export default function MessagesTab() {
     }
     try { await fbDeleteMessageEntry(db.current, entry.msgId, entryTarget(entry), mode, 'admin') }
     catch (e) { toast('Delete failed: ' + e.message, 'red') }
+  }
+  async function handleToggleReaction(entry, emoji) {
+    if (!entry?.msgId || !fbReady || !db.current) { toast('Firebase not connected.', 'red'); return }
+    try { await fbToggleMessageReaction(db.current, entry.msgId, entryTarget(entry), emoji, 'admin') }
+    catch (e) { toast('Could not react: ' + e.message, 'red') }
   }
 
   // ── Render the unified list (direct conversations + group chats) ──────
@@ -1266,6 +1287,7 @@ export default function MessagesTab() {
               onRename={thread.isGroup ? () => setRenameTargetId(thread.msgId) : null}
               onEditEntry={handleEditEntry}
               onDeleteEntry={handleDeleteEntry}
+              onToggleReaction={handleToggleReaction}
             />
           ) : (
             <div id="admin-conv-empty" className="flex-1 flex items-center justify-center text-ink3 text-sm">

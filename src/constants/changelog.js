@@ -4,9 +4,20 @@
 // features ships, so the "What's new" modal always reflects the current build.
 // User-facing copy: keep it plain, no em-dashes.
 
-export const APP_VERSION = '2.0.1'
+export const APP_VERSION = '2.1.0'
 
 export const CHANGELOG = [
+  {
+    version: '2.1.0',
+    date: 'June 2026',
+    title: 'Emoji reactions in messages',
+    changes: [
+      'React to any message with an emoji, Telegram-style: tap the smiley to pick from a quick bar, or open the full set with the plus.',
+      'Reaction counts sit under each bubble; your own reaction is highlighted, and tapping it again removes it.',
+      'Works in direct chats and group chats, for both students and professors, and updates live as people react.',
+      'Emojis use the Apple style so they look the same on every phone and computer.',
+    ],
+  },
   {
     version: '2.0.1',
     date: 'June 2026',

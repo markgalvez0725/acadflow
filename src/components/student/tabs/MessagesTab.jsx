@@ -19,7 +19,9 @@ import MentionInput from '@/components/primitives/MentionInput'
 import MessageText from '@/components/primitives/MessageText'
 import ProfessorBadge from '@/components/primitives/ProfessorBadge'
 import PostRefCard from '@/components/primitives/PostRefCard'
-import { fbAddMessageReply, fbMarkMessageRead, fbEditMessageEntry, fbDeleteMessageEntry } from '@/firebase/persistence'
+import { fbAddMessageReply, fbMarkMessageRead, fbEditMessageEntry, fbDeleteMessageEntry, fbToggleMessageReaction } from '@/firebase/persistence'
+import { ReactionPicker, ReactionPills } from '@/components/primitives/MessageReactions'
+import { toggleReaction } from '@/utils/reactions'
 import useInfiniteFeed from '@/hooks/useInfiniteFeed'
 import KebabMenu from '@/components/primitives/KebabMenu'
 import SecureBubble from '@/components/primitives/SecureBubble'
@@ -45,7 +47,7 @@ function isGroupChat(m) {
 function toEntries(msgs) {
   const out = []
   ;(msgs || []).forEach(m => {
-    out.push({ from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, kind: m.kind, mentions: m.mentions, postRef: m.postRef, isMain: true, msgId: m.id, deleted: m.deleted, deletedBy: m.deletedBy, editedAt: m.editedAt, hiddenFor: m.hiddenFor })
+    out.push({ from: m.from, body: m.body, ts: m.ts, subject: m.subject, secure: m.secure, quote: m.quote, kind: m.kind, mentions: m.mentions, postRef: m.postRef, isMain: true, msgId: m.id, deleted: m.deleted, deletedBy: m.deletedBy, editedAt: m.editedAt, hiddenFor: m.hiddenFor, reactions: m.reactions })
     ;(m.replies || []).forEach(r => out.push({ ...r, isMain: false, msgId: m.id }))
   })
   return out.sort((a, b) => a.ts - b.ts)
@@ -450,6 +452,15 @@ export default function MessagesTab({ student: s, messages }) {
   }
   function saveEdit(entry) { const t = editDraft.trim(); setEditing(null); if (t && t !== entry.body) handleEditEntry(entry, t) }
 
+  // Toggle my emoji reaction on a bubble. Optimistic (so the pill updates on tap),
+  // then transactional so a near-simultaneous reply can't clobber it.
+  async function handleToggleReaction(entry, emoji) {
+    if (!entry?.msgId || !fbReady || !db.current) return
+    setThreadEntries(prev => prev.map(e => (entryKey(e) === entryKey(entry) ? { ...e, reactions: toggleReaction(e.reactions, emoji, s.id) } : e)))
+    try { await fbToggleMessageReaction(db.current, entry.msgId, entryTarget(entry), emoji, s.id) }
+    catch (e) { toast('Could not react: ' + e.message, 'error') }
+  }
+
   // Live typing presence for the open thread (group_ for a group chat, else direct_).
   const openTypingMsg = (view === 'thread' && replyMsgId) ? messages.find(x => x.id === replyMsgId) : null
   const typingKey = view === 'thread'
@@ -709,8 +720,11 @@ export default function MessagesTab({ student: s, messages }) {
                     { label: 'Delete for you', onClick: () => handleDeleteEntry(entry, 'me') },
                     isSelf && { label: 'Delete for everyone', danger: true, onClick: () => handleDeleteEntry(entry, 'everyone') },
                   ].filter(Boolean)
-                  const Menu = menuItems.length > 0 && !isEditing && (
-                    <span className="msg-bubble-menu"><KebabMenu items={menuItems} icon={<MoreHorizontal size={15} />} size={15} label="Message actions" /></span>
+                  const Actions = !isEditing && !entry.deleted && (
+                    <span className="msg-bubble-menu">
+                      <ReactionPicker side={isSelf ? 'sent' : 'received'} onPick={emoji => handleToggleReaction(entry, emoji)} />
+                      {menuItems.length > 0 && <KebabMenu items={menuItems} icon={<MoreHorizontal size={15} />} size={15} label="Message actions" />}
+                    </span>
                   )
                   return (
                     <React.Fragment key={i}>
@@ -727,7 +741,7 @@ export default function MessagesTab({ student: s, messages }) {
                               {lastOfGroup && <div className="msg-avatar-sm">{info.teacher ? (info.photo ? <img src={info.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} /> : <GraduationCap size={13} />) : (info.photo ? <img src={info.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} /> : getInitials(info.name))}</div>}
                             </div>
                           )}
-                          {isSelf && Menu}
+                          {isSelf && Actions}
                           {isEditing ? (
                             <div className="msg-edit-box">
                               <textarea
@@ -771,9 +785,17 @@ export default function MessagesTab({ student: s, messages }) {
                               {entry.editedAt && !entry.secure && <span className="msg-edited">edited</span>}
                             </div>
                           )}
-                          {!isSelf && Menu}
+                          {!isSelf && Actions}
                         </div>
                       </SwipeReply>
+                      {!entry.deleted && (
+                        <ReactionPills
+                          reactions={entry.reactions}
+                          myId={s.id}
+                          side={isSelf ? 'sent' : 'received'}
+                          onToggle={emoji => handleToggleReaction(entry, emoji)}
+                        />
+                      )}
                       {/* Read receipts: avatars sit under the last bubble each reader
                           has actually seen, dropping down live as they catch up. */}
                       {!entry.deleted && seenMap.has(i) && (

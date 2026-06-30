@@ -461,6 +461,39 @@ export async function fbDeleteMessageEntry(db, msgId, target, mode, actorId) {
   }))
 }
 
+// Toggle one reader's emoji reaction on a message entry. `target` selects the
+// entry the same way edit/delete do ({ main: true } or { ts, from }). Reactions
+// live as a map of emoji -> reader ids on the entry; the reader is added if
+// absent and removed if present, dropping the emoji key once empty. Transactional
+// so a reaction and a concurrent reply never clobber each other.
+function applyReactionToggle(reactions, emoji, actorId) {
+  const map = (reactions && typeof reactions === 'object') ? { ...reactions } : {}
+  const cur = Array.isArray(map[emoji]) ? map[emoji] : []
+  if (cur.includes(actorId)) {
+    const next = cur.filter(id => id !== actorId)
+    if (next.length) map[emoji] = next
+    else delete map[emoji]
+  } else {
+    map[emoji] = [...cur, actorId]
+  }
+  return map
+}
+
+export async function fbToggleMessageReaction(db, msgId, target, emoji, actorId) {
+  if (!db || !msgId || !target || !emoji || !actorId) return
+  const ref = doc(db, 'messages', msgId)
+  return fbWithTimeout(runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref)
+    if (!snap.exists()) throw new Error('Message not found')
+    const m = snap.data()
+    if (target.main) {
+      transaction.update(ref, { reactions: applyReactionToggle(m.reactions, emoji, actorId) })
+    } else {
+      transaction.update(ref, { replies: patchReplyOnce(m.replies, target, r => ({ ...r, reactions: applyReactionToggle(r.reactions, emoji, actorId) })) })
+    }
+  }))
+}
+
 // Atomically mark a message read for one reader without clobbering other
 // readers' entries (important for broadcast messages shared by many students).
 export async function fbMarkMessageRead(db, msgId, readerId, readAtTs) {

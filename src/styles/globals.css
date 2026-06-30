@@ -2556,6 +2556,52 @@ textarea.input { resize: vertical; }
 .msg-bubble-row:hover .msg-bubble-menu, .msg-bubble-menu:focus-within { opacity: 1; }
 .msg-bubble-menu .kebab-trigger { color: var(--ink3); padding: 2px; line-height: 0; }
 @media (hover: none) { .msg-bubble-menu { opacity: .5; } }
+/* ── Emoji reactions (Telegram-style, shared admin + student) ───────────── */
+.msg-react-wrap { position: relative; display: inline-flex; }
+.msg-react-trigger {
+  background: none; border: none; cursor: pointer; color: var(--ink3);
+  padding: 2px; line-height: 0; display: flex; align-items: center;
+  border-radius: 50%; transition: color .12s;
+}
+.msg-react-trigger:hover { color: var(--accent); }
+.msg-react-pop {
+  position: absolute; bottom: calc(100% + 6px); z-index: 40;
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: 999px; padding: 5px 8px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, .16);
+}
+.msg-react-pop.sent { right: 0; }
+.msg-react-pop.received { left: 0; }
+.msg-react-pop.more { border-radius: 16px; }
+.msg-react-quick { display: flex; align-items: center; gap: 6px; }
+.msg-react-emoji {
+  background: none; border: none; cursor: pointer; padding: 3px; line-height: 0;
+  border-radius: 50%; transition: transform .1s ease, background .12s;
+}
+.msg-react-emoji:hover { transform: scale(1.18); background: var(--bg2); }
+.msg-react-more-btn {
+  width: 26px; height: 26px; border-radius: 50%; border: none; cursor: pointer;
+  background: var(--accent-l); color: var(--accent);
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.msg-react-grid {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 7px;
+  width: 250px; padding: 2px;
+}
+/* Reaction count chips that sit under a bubble */
+.msg-react-pills { display: flex; flex-wrap: wrap; gap: 5px; margin: 3px 2px 7px; }
+.msg-react-pills:empty { display: none; }
+.msg-react-pills.sent { justify-content: flex-end; padding-right: 4px; }
+.msg-react-pills.received { justify-content: flex-start; padding-left: 30px; }
+.msg-react-pill {
+  display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+  background: var(--bg2); border: 1px solid var(--border2); border-radius: 999px;
+  padding: 2px 8px 2px 6px; font-size: 0.75rem; color: var(--ink2);
+  transition: border-color .12s, background .12s;
+}
+.msg-react-pill:hover { border-color: var(--accent); }
+.msg-react-pill.mine { background: var(--accent-l); border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.msg-react-count { font-size: 0.7rem; line-height: 1; }
 /* "edited" tag appended inside an edited bubble */
 .msg-edited { font-size: 0.625rem; opacity: .65; margin-left: 6px; white-space: nowrap; }
 /* Soft-deleted bubble (tombstone) - neutral, italic, no gradient */
