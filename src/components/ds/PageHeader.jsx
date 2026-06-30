@@ -7,7 +7,7 @@ export default function PageHeader({ crumb, title, subtitle, actions, children }
     <div className="ds-page-head">
       <div className="ds-ph-main">
         {crumb && <div className="ds-crumb">{crumb}</div>}
-        {title && <h1>{title}</h1>}
+        {title && <h2>{title}</h2>}
         {subtitle && <p>{subtitle}</p>}
         {children}
       </div>

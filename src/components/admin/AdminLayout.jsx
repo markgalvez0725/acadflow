@@ -144,7 +144,7 @@ export default function AdminLayout() {
         <div className="admin-topbar">
           <div className="flex items-center gap-3">
             <div>
-              <h3>{title}</h3>
+              <h1>{title}</h1>
               <span>{subtitle}</span>
             </div>
           </div>

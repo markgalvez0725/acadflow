@@ -730,7 +730,7 @@ html[data-theme="dark"] .aflogo-dark { display: block; }
   z-index: 20;
   gap: 12px;
 }
-.admin-topbar h3 {
+.admin-topbar h1 {
   font-size: 1.0313rem;
   font-weight: 700;
   color: var(--ink);
@@ -741,7 +741,7 @@ html[data-theme="dark"] .aflogo-dark { display: block; }
   background-clip: text;
   letter-spacing: -.02em;
 }
-[data-theme="dark"] .admin-topbar h3 {
+[data-theme="dark"] .admin-topbar h1 {
   background: linear-gradient(135deg, #a5b4fc 0%, #c4b5fd 100%);
   -webkit-background-clip: text;
   background-clip: text;

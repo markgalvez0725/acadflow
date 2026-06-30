@@ -452,7 +452,7 @@ export default function StudentLayout() {
         {/* Top bar */}
         <div className="admin-topbar">
           <div>
-            <h3>{title}</h3>
+            <h1>{title}</h1>
             <span>{subtitle}</span>
           </div>
           <div className="flex items-center gap-3">

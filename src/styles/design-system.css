@@ -80,7 +80,7 @@
 }
 
 /* ── Topbar title/subtitle: keep the description tight on every tab ─────── */
-.admin-topbar h3 { line-height: 1.2; }
+.admin-topbar h1 { line-height: 1.2; }
 .admin-topbar span { line-height: 1.25; display: block; margin-top: 1px; }
 @media (max-width: 640px) {
   /* On phones keep the description to a single tidy line */
@@ -118,7 +118,7 @@
   margin-bottom: 6px;
 }
 .ds-crumb svg { width: 13px; height: 13px; }
-.ds-page-head h1 {
+.ds-page-head h2 {
   font-size: 1.55rem;
   font-weight: 800;
   letter-spacing: -.03em;

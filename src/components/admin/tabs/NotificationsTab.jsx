@@ -76,7 +76,7 @@ export default function NotificationsTab() {
     <div>
       <div className="ds-page-head">
         <div className="ds-ph-main">
-          <h1>Notifications</h1>
+          <h2>Notifications</h2>
           <p>{unreadCount > 0 ? `${unreadCount} unread` : 'You’re all caught up'}</p>
         </div>
         {adminNotifs.length > 0 && (
