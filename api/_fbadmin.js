@@ -290,11 +290,25 @@ export async function getStudentRoster(projectId, accessToken, docId) {
   }
 }
 
-// Read account.securityAnswer (the hashed self-service reset answer) for one
-// student, server-side (bypasses rules). Returns the stored hash string, or null
-// when the account / field is absent. Lets the security-answer check run on the
-// server so the hash never has to be read in the browser.
+// Read one string field from the server-only studentSecrets/{docId} doc, or null.
+// This collection holds the secrets (pass / securityAnswer) once migrated out of
+// the student doc; it is never client-readable (denied by rules).
+export async function getSecretField(projectId, accessToken, docId, field) {
+  const r = await fetch(`${fsBase(projectId)}/studentSecrets/${encodeURIComponent(docId)}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!r.ok) return null // 404 (not migrated yet) or any error → caller falls back
+  const data = await r.json()
+  const v = data.fields?.[field]
+  return (v && typeof v.stringValue === 'string') ? v.stringValue : null
+}
+
+// Read the hashed self-service reset answer for one student, server-side. Prefers
+// the server-only studentSecrets doc; falls back to the legacy account.securityAnswer
+// on the student doc for accounts not yet migrated. Returns the hash, or null.
 export async function getStudentSecurityAnswer(projectId, accessToken, docId) {
+  const fromSecret = await getSecretField(projectId, accessToken, docId, 'securityAnswer')
+  if (fromSecret) return fromSecret
   const r = await fetch(`${fsBase(projectId)}/students/${encodeURIComponent(docId)}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
@@ -306,9 +320,11 @@ export async function getStudentSecurityAnswer(projectId, accessToken, docId) {
   return (ans && typeof ans.stringValue === 'string') ? ans.stringValue : null
 }
 
-// Read the fields needed to verify a provisioning claim (the professor-set temp
-// password hash + the registered / _tempPass flags), server-side. Lets the first
-// sign-in verify the temp password WITHOUT the browser reading account.pass.
+// Read the fields needed to verify a provisioning claim, server-side: the temp
+// password hash (preferring studentSecrets, falling back to the legacy
+// account.pass) plus the registered / _tempPass flags (which stay on the student
+// doc - they aren't secrets). Lets first sign-in verify WITHOUT the browser
+// reading account.pass.
 export async function getStudentClaimSecret(projectId, accessToken, docId) {
   const r = await fetch(`${fsBase(projectId)}/students/${encodeURIComponent(docId)}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -318,8 +334,9 @@ export async function getStudentClaimSecret(projectId, accessToken, docId) {
   if (!r.ok) throw new Error(data?.error?.message || 'Student read failed')
   const acct = data.fields?.account?.mapValue?.fields || {}
   const str = x => (x && typeof x.stringValue === 'string') ? x.stringValue : null
+  const secretPass = await getSecretField(projectId, accessToken, docId, 'pass')
   return {
-    pass: str(acct.pass),
+    pass: secretPass || str(acct.pass),
     registered: acct.registered?.booleanValue === true,
     tempPass: acct._tempPass?.booleanValue === true,
   }
