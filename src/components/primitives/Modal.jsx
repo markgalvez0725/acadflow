@@ -8,7 +8,7 @@ import { X } from 'lucide-react'
  *
  * @param {{ isOpen: boolean, onClose: () => void, size?: 'sm'|'md'|'lg', children: React.ReactNode, zIndex?: number }} props
  */
-export default function Modal({ isOpen = true, onClose, size = 'md', children, zIndex = 200, wide = false }) {
+export default function Modal({ isOpen = true, onClose, size = 'md', children, zIndex = 200, wide = false, header = null, footer = null, sheetOnMobile = false, padded = true }) {
   const panelRef = useRef(null)
   const prevFocusRef = useRef(null)
 
@@ -65,9 +65,15 @@ export default function Modal({ isOpen = true, onClose, size = 'md', children, z
     xl: 'max-w-[900px]',
   }[size] || 'max-w-[500px]')
 
+  // When a `header` or `footer` is supplied, the panel becomes a structured
+  // shell: the header and footer stay pinned and only the middle body scrolls.
+  // Modals that pass plain children (the long-standing pattern) are unaffected -
+  // they keep the single padded scroll area.
+  const structured = !!(header || footer)
+
   return ReactDOM.createPortal(
     <div
-      className="fixed inset-0 flex items-center justify-center p-4"
+      className={`fixed inset-0 flex items-center justify-center p-4${sheetOnMobile ? ' modal-overlay-sheet' : ''}`}
       style={{ background: 'rgba(10,20,50,.55)', zIndex, backdropFilter: 'blur(4px)' }}
     >
       {/* Backdrop click intentionally does NOT close - use the X (or Esc). */}
@@ -77,7 +83,7 @@ export default function Modal({ isOpen = true, onClose, size = 'md', children, z
         aria-modal="true"
         tabIndex={-1}
         onKeyDown={handleKeyDown}
-        className={`glass-panel bg-surface border border-border rounded-lg w-full ${maxW} max-h-[90vh] shadow-lg`}
+        className={`glass-panel bg-surface border border-border rounded-lg w-full ${maxW} max-h-[90vh] shadow-lg${sheetOnMobile ? ' modal-sheet' : ''}`}
         style={{ position: 'relative', display: 'flex', flexDirection: 'column', overflow: 'hidden', outline: 'none' }}
       >
         {onClose && (
@@ -90,9 +96,11 @@ export default function Modal({ isOpen = true, onClose, size = 'md', children, z
             <X size={18} />
           </button>
         )}
-        <div className="modal-scroll" style={{ overflowY: 'auto', padding: 28 }}>
-          {children}
+        {header && <div className="modal-head">{header}</div>}
+        <div className="modal-scroll" style={{ overflowY: 'auto', padding: structured ? 0 : 28, ...(structured ? { flex: '1 1 auto', minHeight: 0 } : {}) }}>
+          {structured && padded ? <div className="modal-body">{children}</div> : children}
         </div>
+        {footer && <div className="modal-foot">{footer}</div>}
       </div>
     </div>,
     document.body
@@ -103,11 +111,14 @@ export default function Modal({ isOpen = true, onClose, size = 'md', children, z
 // modal gets exactly one consistent control. `onClose` is accepted for
 // backwards-compatibility but no longer renders a second X here. `pr-8`
 // reserves room so a long title doesn't run under the panel's X.
-export function ModalHeader({ title, subtitle }) {
+export function ModalHeader({ icon, title, subtitle, flush = false }) {
   return (
-    <div className="mb-5 pr-8">
-      <h3 className="text-lg font-bold text-ink font-display">{title}</h3>
-      {subtitle && <p className="text-xs text-ink2 mt-1">{subtitle}</p>}
+    <div className={`${flush ? '' : 'mb-5 '}pr-8 flex items-start gap-2.5`}>
+      {icon && <span className="modal-head-ic">{icon}</span>}
+      <div className="min-w-0">
+        <h3 className="text-lg font-bold text-ink font-display">{title}</h3>
+        {subtitle && <p className="text-xs text-ink2 mt-1">{subtitle}</p>}
+      </div>
     </div>
   )
 }

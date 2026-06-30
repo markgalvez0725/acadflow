@@ -13,14 +13,14 @@ import EmptyState from '@/components/ds/EmptyState'
 import PageHeader from '@/components/ds/PageHeader'
 import Avatar from '@/components/primitives/Avatar'
 import SubmissionPreview from '@/components/primitives/SubmissionPreview'
+import GroupsModal from '@/components/admin/modals/GroupsModal'
 import { extractSubmissionText } from '@/utils/submissionExtract'
-import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil, ClipboardList, AlarmClock, CircleDot, BarChart3, CheckCircle2, Check, Save, Plus, Copy, Users, ClipboardPaste, AlertTriangle, Trash2 } from 'lucide-react'
+import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil, ClipboardList, AlarmClock, CircleDot, BarChart3, CheckCircle2, Check, Save, Plus, Copy, Users, ClipboardPaste } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
-import { deviceRubric, smartInstructions, smartRubric, smartGrade, smartGradeGroups, autoFormGroups, prewarmActivitySmart, groupName } from '@/utils/activitySmart'
+import { deviceRubric, smartInstructions, smartRubric, smartGrade, smartGradeGroups, prewarmActivitySmart } from '@/utils/activitySmart'
 import { sendPushToOwners } from '@/firebase/pushTokens'
 import { pushStudentNotif } from '@/firebase/studentNotif'
 import { lateInfo, applyLatePenalty } from '@/utils/latePenalty'
-import { parseGroupPaste, verifyGroupRows, GROUP_COLUMNS } from '@/utils/groupImportVerifySmart'
 
 function fmtLocalInput(d) {
   const pad = n => String(n).padStart(2, '0')
@@ -158,158 +158,6 @@ function newCriterion() {
   return { id: 'c' + Date.now() + Math.random().toString(36).slice(2, 5), name: '', points: 10 }
 }
 
-// ── Custom groups (paste from Excel) ──────────────────────────────────
-// The professor copies a grouping block out of Excel and pastes it here. Excel
-// puts the clipboard on the board as TSV, so we parse it, smart-verify each row
-// against the class roster, and hand back ready-to-apply groups[]. Pure UI on top
-// of parseGroupPaste / verifyGroupRows.
-function CustomGroupsPanel({ roster, allStudents, classes, semester, classMeta, onApply, onClose }) {
-  const { toast } = useUI()
-  const [rawRows, setRawRows] = useState([])
-
-  const verify = useMemo(
-    () => verifyGroupRows(rawRows, { roster, allStudents, classes, semester, classMeta }),
-    [rawRows, roster, allStudents, classes, semester, classMeta]
-  )
-  const s = verify.summary
-
-  function handlePaste(e) {
-    const text = e.clipboardData?.getData('text/plain') || ''
-    if (!text.trim()) return
-    e.preventDefault()
-    const parsed = parseGroupPaste(text)
-    if (!parsed.length) { toast('Could not read any rows from the clipboard.', 'warn'); return }
-    setRawRows(prev => [...prev, ...parsed])
-    toast(`Added ${parsed.length} row${parsed.length === 1 ? '' : 's'} from the clipboard.`, 'green')
-  }
-  function copyHeaders() {
-    const line = GROUP_COLUMNS.join('\t')
-    if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(line).then(
-        () => toast('Column headers copied - paste them into Excel row 1.', 'green'),
-        () => toast('Could not copy headers.', 'warn')
-      )
-    } else { toast('Clipboard not available in this browser.', 'warn') }
-  }
-  function removeRow(i) { setRawRows(prev => prev.filter((_, idx) => idx !== i)) }
-  function clearAll() { setRawRows([]) }
-  function apply() {
-    if (!verify.groups.length) { toast('No valid rows to apply yet.', 'warn'); return }
-    onApply(verify.groups)
-    toast(`Applied ${s.assigned} student${s.assigned === 1 ? '' : 's'} across ${verify.groups.length} group${verify.groups.length === 1 ? '' : 's'}.`, 'green')
-  }
-
-  const C_WARN = '#B5710D', C_ERR = '#A32D2D'
-  const td = { padding: '5px 7px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
-  const th = { ...td, textAlign: 'left', fontWeight: 600, color: 'var(--ink2)', position: 'sticky', top: 0, background: 'var(--surface2)' }
-
-  return (
-    <Modal isOpen onClose={onClose} zIndex={300} wide>
-      <div onPaste={handlePaste}>
-        <div className="mb-4 pr-8">
-          <h3 className="text-lg font-bold text-ink font-display"><ClipboardPaste size={18} className="inline-block mr-2" style={{ verticalAlign: -3 }} />Custom groups</h3>
-          <p className="text-xs text-ink2 mt-1">Build the grouping in Excel, copy the cells, then paste them anywhere in this panel. Smart check verifies every row against the class roster.</p>
-        </div>
-
-        {/* Column-order guide */}
-        <div className="mb-3 px-3 py-2 rounded-lg flex items-start gap-2" style={{ background: 'var(--accent-l)', border: '1px solid var(--accent)' }}>
-          <ClipboardList size={15} style={{ color: 'var(--accent)', marginTop: 2, flexShrink: 0 }} />
-          <div className="text-xs" style={{ color: 'var(--accent)', lineHeight: 1.6 }}>
-            Match this column order in Excel (M.I. may be left blank):
-            <div className="mt-1 font-mono" style={{ fontSize: 11, background: 'var(--surface)', color: 'var(--ink2)', padding: '3px 7px', borderRadius: 4, display: 'inline-block' }}>
-              {GROUP_COLUMNS.join('  ·  ')}
-            </div>
-            <button type="button" className="btn btn-ghost btn-sm ml-2" style={{ verticalAlign: 1 }} onClick={copyHeaders}><Copy size={12} className="inline-block mr-1" />Copy headers</button>
-          </div>
-        </div>
-
-        {verify.rows.length === 0 ? (
-          <div tabIndex={0} className="rounded-lg flex flex-col items-center justify-center text-center"
-            style={{ border: '1.5px dashed var(--border)', background: 'var(--surface2)', padding: '34px 16px', outline: 'none', cursor: 'text' }}>
-            <ClipboardPaste size={26} style={{ color: 'var(--ink3)' }} />
-            <p className="text-sm font-semibold text-ink2 mt-2">Paste your grouping here</p>
-            <p className="text-xs text-ink3 mt-1">Copy the cells in Excel, click this panel, then press Ctrl/Cmd + V.</p>
-          </div>
-        ) : (
-          <>
-            {/* Summary chips */}
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--green-l, #EAF3DE)', color: 'var(--green, #3B6D11)' }}><Check size={12} className="inline-block mr-1" style={{ verticalAlign: -2 }} />{s.assigned} assigned</span>
-              {s.review > 0 && <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'rgba(181,113,13,.12)', color: C_WARN }}>{s.review} need review</span>}
-              {s.notEnrolled > 0 && <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'rgba(163,45,45,.1)', color: C_ERR }}>{s.notEnrolled} not enrolled</span>}
-              {s.skipped > 0 && <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'rgba(163,45,45,.1)', color: C_ERR }}>{s.skipped} skipped</span>}
-              <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--surface2)', color: 'var(--ink2)', border: '1px solid var(--border)' }}>{s.groupCount} group{s.groupCount === 1 ? '' : 's'}</span>
-            </div>
-
-            <div style={{ maxHeight: '46vh', overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
-              <table className="w-full" style={{ borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed' }}>
-                <colgroup>
-                  <col style={{ width: 30 }} /><col style={{ width: 92 }} /><col /><col /><col style={{ width: 44 }} />
-                  <col style={{ width: 72 }} /><col style={{ width: 72 }} /><col style={{ width: 56 }} /><col style={{ width: 52 }} /><col style={{ width: 30 }} />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th style={th}></th><th style={th}>ID</th><th style={th}>Surname</th><th style={th}>First name</th><th style={th}>M.I.</th>
-                    <th style={th}>Group</th><th style={th}>Course</th><th style={th}>Section</th><th style={th}>Year</th><th style={th}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {verify.rows.map(r => {
-                    const tint = r.status === 'error' ? 'rgba(163,45,45,.06)' : r.status === 'warn' ? 'rgba(181,113,13,.07)' : 'transparent'
-                    const ink = r.status === 'error' ? C_ERR : r.status === 'warn' ? C_WARN : 'var(--ink)'
-                    return (
-                      <React.Fragment key={r.i}>
-                        <tr style={{ borderTop: '1px solid var(--border)', background: tint }}>
-                          <td style={{ ...td, textAlign: 'center' }}>
-                            {r.status === 'ok' ? <CheckCircle2 size={15} style={{ color: 'var(--green)' }} />
-                              : r.status === 'warn' ? <AlertTriangle size={15} style={{ color: C_WARN }} />
-                              : <X size={15} style={{ color: C_ERR }} />}
-                          </td>
-                          <td style={{ ...td, fontFamily: 'var(--font-mono)', color: 'var(--ink3)' }} title={r.id}>{r.id || '-'}</td>
-                          <td style={{ ...td, color: ink }} title={r.surname}>{r.surname || '-'}</td>
-                          <td style={{ ...td, color: ink }} title={r.first}>{r.first || '-'}</td>
-                          <td style={{ ...td, color: 'var(--ink2)' }}>{r.mi || ''}</td>
-                          <td style={{ ...td, color: r.applied ? 'var(--accent)' : 'var(--ink3)' }}>{r.groupLabel || r.group || '-'}</td>
-                          <td style={{ ...td, color: 'var(--ink3)' }} title={r.course}>{r.course || ''}</td>
-                          <td style={{ ...td, color: 'var(--ink3)' }} title={r.section}>{r.section || ''}</td>
-                          <td style={{ ...td, color: 'var(--ink3)' }} title={r.year}>{r.year || ''}</td>
-                          <td style={{ ...td, textAlign: 'center' }}>
-                            <button type="button" className="btn btn-ghost btn-sm text-red-500" style={{ padding: 2 }} title="Remove row" onClick={() => removeRow(r.i)}><X size={13} /></button>
-                          </td>
-                        </tr>
-                        {r.warnings.length > 0 && (
-                          <tr style={{ background: tint }}>
-                            <td></td>
-                            <td colSpan={9} style={{ padding: '0 7px 5px', fontSize: 11, color: ink }}>
-                              {r.warnings.join('  •  ')}
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex items-center justify-between mt-2">
-              <span className="text-xs text-ink3">Pasting more rows adds to the list. Applying replaces the current groups.</span>
-              <button type="button" className="btn btn-ghost btn-sm text-red-500" onClick={clearAll}><Trash2 size={13} className="inline-block mr-1" />Clear all</button>
-            </div>
-          </>
-        )}
-
-        <div className="modal-footer">
-          <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn btn-primary" onClick={apply} disabled={!verify.groups.length}>
-            <Check size={16} /> Apply groups
-          </button>
-        </div>
-      </div>
-    </Modal>
-  )
-}
-
 // ── Create / Edit Modal ───────────────────────────────────────────────
 function ActivityFormModal({ act, onClose }) {
   const { classes, students, db, fbReady, semester, rubricLibrary, saveRubricToLibrary, deleteLibraryRubric } = useData()
@@ -322,8 +170,7 @@ function ActivityFormModal({ act, onClose }) {
   const [casePrompt, setCasePrompt] = useState(act?.casePrompt || '')
   const [groups, setGroups] = useState(() => act?.groups?.length ? act.groups : [])
   const [groupSize, setGroupSize] = useState(3)
-  const [autoForming, setAutoForming] = useState(false)
-  const [pasteOpen, setPasteOpen] = useState(false)
+  const [groupsOpen, setGroupsOpen] = useState(false)
 
   const [title,    setTitle]    = useState(act?.title || '')
   const [classId,  setClassId]  = useState(act?.classId || '')
@@ -355,34 +202,8 @@ function ActivityFormModal({ act, onClose }) {
     () => sortByLastName((students || []).filter(s => s.classId === classId && s.account?.registered)),
     [students, classId]
   )
-  const assignedIds = useMemo(() => new Set(groups.flatMap(g => g.memberIds || [])), [groups])
-
-  function addGroup() {
-    setGroups(g => [...g, { id: 'g_' + Date.now() + '_' + g.length, name: groupName(g.length), memberIds: [] }])
-  }
-  function removeGroup(id) { setGroups(g => g.filter(x => x.id !== id)) }
-  function renameGroup(id, name) { setGroups(g => g.map(x => x.id === id ? { ...x, name } : x)) }
-  function toggleMember(groupId, sid) {
-    setGroups(g => g.map(x => {
-      if (x.id === groupId) {
-        const has = (x.memberIds || []).includes(sid)
-        return { ...x, memberIds: has ? x.memberIds.filter(i => i !== sid) : [...(x.memberIds || []), sid] }
-      }
-      // A student can be in only one group - strip them from every other group.
-      return { ...x, memberIds: (x.memberIds || []).filter(i => i !== sid) }
-    }))
-  }
-  async function autoForm() {
-    if (!roster.length) { toast('Select a class with students first.', 'warn'); return }
-    setAutoForming(true)
-    try {
-      const formed = await autoFormGroups(roster.map(s => ({ id: s.id, name: s.name })), groupSize)
-      setGroups(formed)
-      toast(`Formed ${formed.length} balanced group${formed.length === 1 ? '' : 's'}.`, 'green')
-    } catch {
-      toast('Could not auto-form groups.', 'warn')
-    } finally { setAutoForming(false) }
-  }
+  // Count of students placed into a group - shown on the "Set up groups" button.
+  const groupedCount = useMemo(() => new Set(groups.flatMap(g => g.memberIds || [])).size, [groups])
 
   // Deadline quick-presets
   function presetDeadline(kind) {
@@ -484,7 +305,7 @@ function ActivityFormModal({ act, onClose }) {
       ? groups.map(g => ({ id: g.id, name: (g.name || '').trim() || 'Group', memberIds: g.memberIds || [] })).filter(g => g.memberIds.length)
       : []
     if (isGroup) {
-      if (!cleanGroups.length) { setTab('groups'); setErr('Add at least one group with members.'); return }
+      if (!cleanGroups.length) { setGroupsOpen(true); setErr('Add at least one group with members.'); return }
     }
 
     if (!fbReady || !db.current) { setErr('Firebase is required to post activities.'); return }
@@ -529,7 +350,6 @@ function ActivityFormModal({ act, onClose }) {
         {[
           { id: 'details', label: 'Details' },
           { id: 'rubric', label: `Rubric${rubric.length ? ` · ${rubric.length}` : ''}` },
-          ...(isGroup ? [{ id: 'groups', label: `Groups${groups.length ? ` · ${groups.length}` : ''}` }] : []),
         ].map(t => (
           <button
             key={t.id}
@@ -602,7 +422,11 @@ function ActivityFormModal({ act, onClose }) {
             <label className="text-xs font-semibold text-ink2 mb-1 block">Case prompt / scenario</label>
             <textarea className="input w-full" rows={3} value={casePrompt} onChange={e => setCasePrompt(e.target.value)}
               placeholder="Describe the case or scenario the groups must analyze…" />
-            <p className="text-xs text-ink3 mt-1">Used to check each group actually addresses the case. Set up teams in the <strong>Groups</strong> tab.</p>
+            <p className="text-xs text-ink3 mt-1">Used to check each group actually addresses the case.</p>
+            <button type="button" className="btn btn-ghost btn-sm mt-2" onClick={() => setGroupsOpen(true)}>
+              <Users size={14} className="inline-block mr-1" />
+              {groups.length ? `Edit groups · ${groups.length} group${groups.length === 1 ? '' : 's'} · ${groupedCount}/${roster.length} grouped` : 'Set up groups'}
+            </button>
           </div>
         )}
       </div>
@@ -693,88 +517,21 @@ function ActivityFormModal({ act, onClose }) {
       </div>
       )}
 
-      {/* Groups builder */}
-      {tab === 'groups' && (
-      <div className="field mb-3">
-        {roster.length === 0 ? (
-          <p className="text-xs text-ink3">Select a class on the Details tab to load students.</p>
-        ) : (
-          <>
-          <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-            <label className="text-xs font-semibold text-ink2">{assignedIds.size} of {roster.length} students grouped</label>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-ink3">Size</span>
-              <input className="input" type="number" min={2} max={10} style={{ width: 56 }} value={groupSize}
-                onChange={e => setGroupSize(Math.max(2, Math.min(10, parseInt(e.target.value) || 3)))} />
-              <button type="button" className="btn btn-ghost btn-sm" onClick={autoForm} disabled={autoForming}>
-                <Sparkles size={12} className="inline-block mr-1" />{autoForming ? 'Forming…' : 'Auto-form'}
-              </button>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={addGroup}>+ Add group</button>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setPasteOpen(true)} style={{ color: 'var(--accent)' }}>
-                <ClipboardPaste size={12} className="inline-block mr-1" />Custom groups
-              </button>
-            </div>
-          </div>
-
-          {roster.filter(s => !assignedIds.has(s.id)).length > 0 && (
-            <div className="mb-2 px-3 py-2 rounded-lg" style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}>
-              <div className="text-xs text-ink3 mb-1">Unassigned students</div>
-              <div className="flex flex-wrap gap-1">
-                {roster.filter(s => !assignedIds.has(s.id)).map(s => (
-                  <span key={s.id} className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>{s.name}</span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {groups.length === 0 ? (
-            <p className="text-xs text-ink3">No groups yet - click “Auto-form” or “+ Add group”, then click student names to assign them.</p>
-          ) : (
-            <div className="flex flex-col gap-2" style={{ maxHeight: '48vh', overflowY: 'auto', paddingRight: 4 }}>
-              {groups.map(g => (
-                <div key={g.id} className="px-3 py-2.5 rounded-lg" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <input className="input" style={{ flex: 1, fontSize: 13, fontWeight: 600 }} value={g.name} onChange={e => renameGroup(g.id, e.target.value)} />
-                    <span className="text-xs text-ink3">{(g.memberIds || []).length}</span>
-                    <button type="button" className="btn btn-ghost btn-sm text-red-500" onClick={() => removeGroup(g.id)}><X size={14} /></button>
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {roster.map(s => {
-                      const inGroup = (g.memberIds || []).includes(s.id)
-                      const elsewhere = !inGroup && assignedIds.has(s.id)
-                      return (
-                        <button key={s.id} type="button" onClick={() => toggleMember(g.id, s.id)}
-                          title={elsewhere ? 'In another group - click to move here' : ''}
-                          style={{
-                            fontSize: 11, padding: '2px 8px', borderRadius: 4, cursor: 'pointer',
-                            background: inGroup ? 'var(--accent-l)' : 'var(--surface2)',
-                            color: inGroup ? 'var(--accent)' : elsewhere ? 'var(--ink3)' : 'var(--ink2)',
-                            border: `1px solid ${inGroup ? 'var(--accent)' : 'var(--border)'}`,
-                            opacity: elsewhere ? 0.55 : 1,
-                          }}>
-                          {s.name}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          </>
-        )}
-      </div>
-      )}
-
-      {pasteOpen && (
-        <CustomGroupsPanel
+      {/* Dedicated grouping modal - opened from the Details tab when this is a
+         group case-study activity. Holds its own editing state and hands the
+         finished groups back through onApply. */}
+      {groupsOpen && (
+        <GroupsModal
           roster={roster}
           allStudents={students}
           classes={classes}
           semester={semester}
           classMeta={{ courseName: selectedClass?.name, subject, section: selectedClass?.section }}
-          onApply={g => { setGroups(g); setPasteOpen(false) }}
-          onClose={() => setPasteOpen(false)}
+          subjectLabel={[subject, selectedClass ? `${courseShort(selectedClass.name)} ${selectedClass.section || ''}`.trim() : ''].filter(Boolean).join(' · ')}
+          initialGroups={groups}
+          initialSize={groupSize}
+          onApply={(g, size) => { setGroups(g); if (size) setGroupSize(size) }}
+          onClose={() => setGroupsOpen(false)}
         />
       )}
 

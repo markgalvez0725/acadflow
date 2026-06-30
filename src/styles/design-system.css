@@ -515,3 +515,45 @@ html[data-glass="off"] .sidebar { background: var(--navy) !important; }
   box-shadow: 2px 0 4px -2px var(--border);
 }
 .tbl--sticky-first thead th:first-child { z-index: 2; background: var(--surface2); }
+
+/* ── Structured modal shell ───────────────────────────────────────────────
+   Opt-in via the Modal `header`/`footer` props: a pinned header + pinned
+   footer with only the middle body scrolling. Modals that pass plain children
+   keep the single padded scroll area and never see these rules. */
+.modal-head { padding: 16px 20px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.modal-body { padding: 16px 20px; }
+.modal-foot {
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+/* Icon chip in a structured header (ModalHeader `icon` prop). */
+.modal-head-ic {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--accent-l);
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Mobile: opt-in full-screen bottom sheet (Modal `sheetOnMobile`). The panel
+   fills the width and anchors to the bottom for thumb reach. */
+@media (max-width: 640px) {
+  .modal-overlay-sheet { align-items: flex-end !important; padding: 0 !important; }
+  .modal-sheet {
+    max-width: 100% !important;
+    max-height: 94vh !important;
+    border-radius: 16px 16px 0 0 !important;
+  }
+  .modal-foot .btn { flex: 1 1 0; justify-content: center; }
+}
