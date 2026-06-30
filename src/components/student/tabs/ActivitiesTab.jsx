@@ -442,6 +442,11 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                             value={groupText[act.id] ?? ''} onChange={e => setGroupText(prev => ({ ...prev, [act.id]: e.target.value }))} />
                           <input className="input w-full mt-2" placeholder="Optional supporting link (https://…)"
                             value={groupLink[act.id] ?? ''} onChange={e => setGroupLink(prev => ({ ...prev, [act.id]: e.target.value }))} />
+                          {(groupLink[act.id] || '').trim() && (
+                            <div style={{ marginTop: 8 }}>
+                              <SubmissionPreview link={(groupLink[act.id] || '').trim()} name={`${myGroup.name} - ${act.title}`} compact previewOnly />
+                            </div>
+                          )}
                           <div className="flex gap-2 mt-2">
                             <button className="btn btn-primary btn-sm" onClick={() => submitGroup(act.id, myGroup)}
                               disabled={submitting[act.id] || !(groupText[act.id] ?? '').trim() || isPast}>
@@ -471,6 +476,11 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                         onChange={e => setLinkInputs(prev => ({ ...prev, [act.id]: e.target.value }))}
                         onKeyDown={e => { if (e.key === 'Enter') submitActivity(act.id) }}
                       />
+                      {(linkInputs[act.id] ?? sub.link ?? '').trim() && (
+                        <div style={{ marginTop: 8 }}>
+                          <SubmissionPreview link={(linkInputs[act.id] ?? sub.link ?? '').trim()} name={act.title} compact previewOnly />
+                        </div>
+                      )}
                       <SubmissionFileField
                         file={pendingFiles[act.id] || null}
                         onPick={f => setPendingFiles(prev => ({ ...prev, [act.id]: f }))}
@@ -536,6 +546,11 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                     onChange={e => setLinkInputs(prev => ({ ...prev, [act.id]: e.target.value }))}
                     onKeyDown={e => { if (e.key === 'Enter') submitActivity(act.id) }}
                   />
+                  {(linkInputs[act.id] || '').trim() && (
+                    <div style={{ marginTop: 8 }}>
+                      <SubmissionPreview link={(linkInputs[act.id] || '').trim()} name={act.title} compact previewOnly />
+                    </div>
+                  )}
                   <SubmissionFileField
                     file={pendingFiles[act.id] || null}
                     onPick={f => setPendingFiles(prev => ({ ...prev, [act.id]: f }))}

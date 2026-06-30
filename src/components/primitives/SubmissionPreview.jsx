@@ -17,7 +17,10 @@ import { parseMediaLink } from '@/utils/streamMedia'
 //   name          - file label shown on the tile / lightbox bar
 //   compact        - constrain the thumbnail to a small tile (review cards)
 //   fallbackLabel  - text for the plain anchor when the link is not previewable
-export default function SubmissionPreview({ link, name, compact = false, fallbackLabel = 'View submission' }) {
+//   previewOnly    - render nothing (not the plain anchor) when the link is not
+//                    previewable; use for a LIVE preview under a link input so a
+//                    half-typed URL never flashes a broken anchor
+export default function SubmissionPreview({ link, name, compact = false, fallbackLabel = 'View submission', previewOnly = false }) {
   const media = useMemo(() => {
     const d = parseMediaLink(link, name ? { name } : {})
     return d ? [d] : []
@@ -26,6 +29,7 @@ export default function SubmissionPreview({ link, name, compact = false, fallbac
 
   if (!link) return null
   if (!media.length) {
+    if (previewOnly) return null
     return (
       <a href={link} target="_blank" rel="noopener noreferrer" className="sa-act-link">{fallbackLabel} ↗</a>
     )
