@@ -340,17 +340,21 @@ export default function LoginScreen({ onRevealFaculty }) {
               <div className="field-float field-float--icon">
                 <span className="ff-icon" aria-hidden="true"><IdCard size={16} /></span>
                 <input
+                  id="login-snum"
+                  name="studentNumber"
                   type="text"
                   placeholder=" "
                   value={snum}
                   onChange={e => setSnum(sanitizeSnum(e.target.value))}
                   autoComplete="username"
                 />
-                <label>Student Number</label>
+                <label htmlFor="login-snum">Student Number</label>
               </div>
               <div className="field-float field-float--icon">
                 <span className="ff-icon" aria-hidden="true"><Lock size={16} /></span>
                 <input
+                  id="login-pass"
+                  name="password"
                   type={showPass ? 'text' : 'password'}
                   placeholder=" "
                   value={pass}
@@ -361,7 +365,7 @@ export default function LoginScreen({ onRevealFaculty }) {
                 <button type="button" className="pw-toggle" onClick={() => setShowPass(v => !v)} tabIndex={-1} aria-label={showPass ? 'Hide password' : 'Show password'}>
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
-                <label>Password</label>
+                <label htmlFor="login-pass">Password</label>
               </div>
               <LoadingButton loading={loading} loadingText="Signing in…" className="btn btn-primary btn-full mt-2">
                 Sign In
@@ -392,6 +396,8 @@ export default function LoginScreen({ onRevealFaculty }) {
 
               <div className="field-float">
                 <input
+                  id="reset-snum"
+                  name="studentNumber"
                   type="text"
                   placeholder=" "
                   value={rpNum}
@@ -399,7 +405,7 @@ export default function LoginScreen({ onRevealFaculty }) {
                   disabled={rpStatus !== 'idle'}
                   autoComplete="off"
                 />
-                <label>Student Number</label>
+                <label htmlFor="reset-snum">Student Number</label>
               </div>
 
               {rpStatus === 'idle' && (
@@ -471,6 +477,8 @@ export default function LoginScreen({ onRevealFaculty }) {
                 <form onSubmit={handleResetSetPassword}>
                   <div className="field-float">
                     <input
+                      id="reset-newpass"
+                      name="newPassword"
                       type="password"
                       placeholder=" "
                       value={rpNewPass}
@@ -478,18 +486,20 @@ export default function LoginScreen({ onRevealFaculty }) {
                       autoComplete="new-password"
                       autoFocus
                     />
-                    <label>New Password</label>
+                    <label htmlFor="reset-newpass">New Password</label>
                   </div>
                   <p className="text-xs text-ink3 -mt-1 mb-2">Min. 8 characters, 1 uppercase, 1 number.</p>
                   <div className="field-float">
                     <input
+                      id="reset-newpass2"
+                      name="confirmPassword"
                       type="password"
                       placeholder=" "
                       value={rpNewPass2}
                       onChange={e => setRpNewPass2(e.target.value)}
                       autoComplete="new-password"
                     />
-                    <label>Confirm Password</label>
+                    <label htmlFor="reset-newpass2">Confirm Password</label>
                   </div>
                   <LoadingButton loading={rpStatus === 'saving'} loadingText="Saving…" className="btn btn-primary btn-full mt-2">
                     <Check size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />Set Password &amp; Continue

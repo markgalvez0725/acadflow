@@ -100,13 +100,8 @@
     <div class="boot-hint">Connecting your campus…</div>
   </div>
   <script type="module" src="/src/main.jsx"></script>
-  <script>
-    /* Safety net: if React never mounts (fatal boot error), don't trap the user
-       behind the splash forever. The normal path removes it far sooner. */
-    setTimeout(function () {
-      var b = document.getElementById('boot-splash')
-      if (b) { b.classList.add('is-hiding'); setTimeout(function () { if (b.parentNode) b.parentNode.removeChild(b) }, 500) }
-    }, 10000)
-  </script>
+  <!-- Boot-splash safety net in a same-origin file (not inline) so the strict
+       CSP (script-src 'self') allows it without a hash/nonce. -->
+  <script src="/boot-fallback.js"></script>
 </body>
 </html>

@@ -145,17 +145,21 @@ export default function AdminLoginScreen() {
               <div className="field-float field-float--icon">
                 <span className="ff-icon" aria-hidden="true"><Mail size={16} /></span>
                 <input
+                  id="admin-email"
+                  name="email"
                   type="email"
                   value={ADMIN_EMAIL}
                   readOnly
                   autoComplete="username"
                   style={{ background: 'var(--surface2)', color: 'var(--ink2)' }}
                 />
-                <label>Admin email</label>
+                <label htmlFor="admin-email">Admin email</label>
               </div>
               <div className="field-float field-float--icon">
                 <span className="ff-icon" aria-hidden="true"><Lock size={16} /></span>
                 <input
+                  id="admin-password"
+                  name="password"
                   type={showPass ? 'text' : 'password'}
                   placeholder=" "
                   value={password}
@@ -166,7 +170,7 @@ export default function AdminLoginScreen() {
                 <button type="button" className="pw-toggle" onClick={() => setShowPass(v => !v)} tabIndex={-1} aria-label={showPass ? 'Hide password' : 'Show password'}>
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
-                <label>Password</label>
+                <label htmlFor="admin-password">Password</label>
               </div>
               <LoadingButton loading={loading} loadingText="Signing in…" className="btn btn-primary btn-full mt-2">
                 Sign In
