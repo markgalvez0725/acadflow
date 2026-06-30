@@ -521,7 +521,7 @@ html[data-glass="off"] .sidebar { background: var(--navy) !important; }
    footer with only the middle body scrolling. Modals that pass plain children
    keep the single padded scroll area and never see these rules. */
 .modal-head { padding: 16px 20px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-.modal-body { padding: 16px 20px; }
+.modal-shell-body { padding: 16px 20px; }
 .modal-foot {
   padding: 14px 20px;
   border-top: 1px solid var(--border);

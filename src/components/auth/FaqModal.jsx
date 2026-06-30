@@ -59,13 +59,10 @@ export default function FaqModal({ onClose }) {
   const [open, setOpen] = useState(0)
 
   return (
-    <Modal onClose={onClose} size="lg" zIndex={300}>
-      <ModalHeader
-        title="About AcadFlow"
-        subtitle="Why this portal exists & how it works"
-        onClose={onClose}
-      />
-
+    <Modal onClose={onClose} size="lg" zIndex={300} sheetOnMobile
+      header={<ModalHeader flush icon={<HelpCircle size={18} />} title="About AcadFlow" subtitle="Why this portal exists & how it works" />}
+      footer={<button type="button" className="btn btn-primary" onClick={onClose}>Got it</button>}
+    >
       <div className="faq-intro">
         <div className="faq-intro-ic"><HelpCircle size={20} /></div>
         <p>A quick look at the idea behind AcadFlow. Tap any question to expand it.</p>
@@ -91,9 +88,6 @@ export default function FaqModal({ onClose }) {
         })}
       </div>
 
-      <div className="faq-foot">
-        <button type="button" className="btn btn-primary" onClick={onClose}>Got it</button>
-      </div>
     </Modal>
   )
 }

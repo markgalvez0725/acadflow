@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
-import Modal from '@/components/primitives/Modal'
+import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import Button from '@/components/ds/Button'
+import { KeyRound } from 'lucide-react'
 import PinBoxes from '@/components/primitives/PinBoxes'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
@@ -26,19 +27,14 @@ export default function ResetPinModal({ onClose, onReset }) {
 
   if (!admin?.resetPin) {
     return (
-      <Modal onClose={onClose}>
-        <div className="modal-header">
-          <h2 className="modal-title">Recovery PIN Not Set</h2>
-        </div>
-        <div className="modal-body">
-          <p className="text-sm text-ink2">
-            No recovery PIN has been configured. Use the email OTP option to reset your password,
-            then set a recovery PIN in Admin Settings.
-          </p>
-        </div>
-        <div className="modal-footer">
-          <button className="btn btn-primary" onClick={onClose}>OK</button>
-        </div>
+      <Modal onClose={onClose} size="sm" sheetOnMobile
+        header={<ModalHeader flush icon={<KeyRound size={18} />} title="Recovery PIN Not Set" />}
+        footer={<button className="btn btn-primary" onClick={onClose}>OK</button>}
+      >
+        <p className="text-sm text-ink2">
+          No recovery PIN has been configured. Use the email OTP option to reset your password,
+          then set a recovery PIN in Admin Settings.
+        </p>
       </Modal>
     )
   }
@@ -77,10 +73,9 @@ export default function ResetPinModal({ onClose, onReset }) {
   }
 
   return (
-    <Modal onClose={onClose}>
-      <div className="modal-header">
-        <h2 className="modal-title">Reset via Recovery PIN</h2>
-      </div>
+    <Modal onClose={onClose} size="sm" sheetOnMobile
+      header={<ModalHeader flush icon={<KeyRound size={18} />} title="Reset via Recovery PIN" />}
+    >
       <form onSubmit={handleSubmit}>
         <div className="modal-body">
           <p className="text-sm text-ink2 mb-4">

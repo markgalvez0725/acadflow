@@ -98,7 +98,7 @@ export default function Modal({ isOpen = true, onClose, size = 'md', children, z
         )}
         {header && <div className="modal-head">{header}</div>}
         <div className="modal-scroll" style={{ overflowY: 'auto', padding: structured ? 0 : 28, ...(structured ? { flex: '1 1 auto', minHeight: 0 } : {}) }}>
-          {structured && padded ? <div className="modal-body">{children}</div> : children}
+          {structured && padded ? <div className="modal-shell-body">{children}</div> : children}
         </div>
         {footer && <div className="modal-foot">{footer}</div>}
       </div>

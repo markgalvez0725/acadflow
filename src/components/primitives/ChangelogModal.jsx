@@ -7,7 +7,7 @@ import AboutPanel from '@/components/primitives/AboutPanel'
 // same view is reused as a Settings / Account panel.
 export default function ChangelogModal({ onClose }) {
   return (
-    <Modal onClose={onClose} size="sm">
+    <Modal onClose={onClose} size="sm" sheetOnMobile>
       <div className="pr-8"><AboutPanel /></div>
     </Modal>
   )

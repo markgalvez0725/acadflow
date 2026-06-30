@@ -1,5 +1,5 @@
 import React from 'react'
-import Modal from '@/components/primitives/Modal'
+import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import { Check, Users } from 'lucide-react'
 
@@ -31,13 +31,9 @@ export default function ChatMembersModal({ members = [], readerIds = [], readAt 
   const seenCount = members.filter(s => readerSet.has(s.id)).length
 
   return (
-    <Modal onClose={onClose} size="sm">
-      <div className="pr-8 mb-3">
-        <h3 className="text-lg font-bold text-ink" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Users size={18} /> Chat members
-        </h3>
-        <p className="text-xs text-ink2 mt-1">{members.length} member{members.length !== 1 ? 's' : ''} · seen by {seenCount}</p>
-      </div>
+    <Modal onClose={onClose} size="sm" sheetOnMobile
+      header={<ModalHeader flush icon={<Users size={18} />} title="Chat members" subtitle={`${members.length} member${members.length !== 1 ? 's' : ''} · seen by ${seenCount}`} />}
+    >
       <div className="gm-list" style={{ maxHeight: '60vh' }}>
         {members.map(s => {
           const seen = readerSet.has(s.id)
