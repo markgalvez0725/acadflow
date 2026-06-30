@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react'
+import React, { useState, useRef, useEffect, useMemo, useLayoutEffect } from 'react'
 import { doc, setDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -268,10 +268,10 @@ export default function MessagesTab({ student: s, messages }) {
     setThreadEntries(prev => mergePending(toEntries(src), prev))
   }, [messages, allMsgs, view, activeKey])
 
-  // Scroll thread to bottom when opened
-  useEffect(() => {
+  // Land on the most recent message before paint - no animated scroll-down.
+  useLayoutEffect(() => {
     if (view === 'thread' && threadRef.current) {
-      setTimeout(() => { threadRef.current.scrollTop = threadRef.current.scrollHeight }, 80)
+      threadRef.current.scrollTop = threadRef.current.scrollHeight
     }
   }, [view, threadEntries])
 

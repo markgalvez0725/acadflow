@@ -11,7 +11,7 @@ import Badge from '@/components/primitives/Badge'
 import EmptyState from '@/components/ds/EmptyState'
 import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil, ClipboardList, AlarmClock, CircleDot, BarChart3, CheckCircle2, Check, Save, Plus, Copy, Users, ClipboardPaste, AlertTriangle, Trash2 } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
-import { deviceRubric, smartInstructions, smartRubric, smartGrade, smartGradeGroups, autoFormGroups, prewarmActivitySmart } from '@/utils/activitySmart'
+import { deviceRubric, smartInstructions, smartRubric, smartGrade, smartGradeGroups, autoFormGroups, prewarmActivitySmart, groupName } from '@/utils/activitySmart'
 import { sendPushToOwners } from '@/firebase/pushTokens'
 import { pushStudentNotif } from '@/firebase/studentNotif'
 import { lateInfo, applyLatePenalty } from '@/utils/latePenalty'
@@ -293,7 +293,7 @@ function ActivityFormModal({ act, onClose }) {
   const assignedIds = useMemo(() => new Set(groups.flatMap(g => g.memberIds || [])), [groups])
 
   function addGroup() {
-    setGroups(g => [...g, { id: 'g_' + Date.now() + '_' + g.length, name: `Group ${g.length + 1}`, memberIds: [] }])
+    setGroups(g => [...g, { id: 'g_' + Date.now() + '_' + g.length, name: groupName(g.length), memberIds: [] }])
   }
   function removeGroup(id) { setGroups(g => g.filter(x => x.id !== id)) }
   function renameGroup(id, name) { setGroups(g => g.map(x => x.id === id ? { ...x, name } : x)) }
@@ -768,11 +768,11 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
 
   const timeLeft = useMemo(() => {
     if (isPast) return null
-    const mins = Math.round((act.deadline - now) / 60000)
-    if (mins > 1440) return Math.round(mins / 1440) + 'd'
-    if (mins > 60)   return Math.round(mins / 60) + 'h ' + Math.round(mins % 60) + 'm'
+    const mins = Math.max(0, Math.floor((act.deadline - now) / 60000))
+    if (mins >= 1440) { const d = Math.floor(mins / 1440); const h = Math.floor((mins % 1440) / 60); return h ? `${d}d ${h}h` : `${d}d` }
+    if (mins >= 60)   { const h = Math.floor(mins / 60); const m = mins % 60; return m ? `${h}h ${m}m` : `${h}h` }
     return mins + 'm'
-  }, [act.deadline, isPast])
+  }, [act.deadline, isPast, now])
 
   function toggleRubricCheck(studentId, criterionId) {
     setRubricChecks(prev => {

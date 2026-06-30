@@ -776,8 +776,17 @@ export function DataProvider({ children }) {
 
     await saveClasses(updatedClasses)
     if (enrolled.length) {
+      // Strict write + rollback: a silently-dropped write here would leave the
+      // students un-enrolled locally yet still enrolled in Firestore (or the
+      // reverse on the next reload), i.e. a phantom auto-unenroll. Surface the
+      // failure and restore local state so it always matches what was saved.
       setStudents(updatedStudents)
-      await persistStudentsSync(dbRef.current, updatedStudents, enrolled.map(s => s.id))
+      try {
+        await persistStudentsSync(dbRef.current, updatedStudents, enrolled.map(s => s.id), { strict: true })
+      } catch (e) {
+        setStudents(students)
+        throw new Error('Could not archive the class for all students. Please check your connection and try again.')
+      }
     }
   }, [students, classes, semester, saveClasses])
 
@@ -840,8 +849,16 @@ export function DataProvider({ children }) {
 
     await saveClasses(updatedClasses)
     if (studentsToRestore.length > 0) {
+      // Strict write + rollback (see archiveClassWithStudents): without this a
+      // dropped write leaves students re-enrolled locally but absent in
+      // Firestore, so the next reload silently un-enrolls them again.
       setStudents(updatedStudents)
-      await persistStudentsSync(dbRef.current, updatedStudents, studentsToRestore.map(s => s.id))
+      try {
+        await persistStudentsSync(dbRef.current, updatedStudents, studentsToRestore.map(s => s.id), { strict: true })
+      } catch (e) {
+        setStudents(students)
+        throw new Error('Could not restore the class for all students. Please check your connection and try again.')
+      }
     }
   }, [students, classes, saveClasses])
 

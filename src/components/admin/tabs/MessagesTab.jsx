@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react'
+import React, { useState, useMemo, useRef, useEffect, useLayoutEffect } from 'react'
 import { doc, setDoc, updateDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -397,8 +397,9 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, o
   const [showMembers, setShowMembers] = useState(false)
   const [reactKey, setReactKey] = useState(null) // entryKey whose reaction picker is open
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  // Position at the most recent message before paint (no animated auto-scroll).
+  useLayoutEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ block: 'end' })
   }, [thread])
   // Drop any pending reply target / open editor / members modal when the thread changes.
   useEffect(() => { setReplyingTo(null); setEditing(null); setShowMembers(false); setReactKey(null) }, [chatKey])

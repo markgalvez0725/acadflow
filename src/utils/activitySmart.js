@@ -18,6 +18,18 @@ import { splitSentences } from '@/utils/quizGen'
 // Warm the shared embedding model when the activity modal opens (re-export).
 export const prewarmActivitySmart = prewarmEmbeddings
 
+// Case-study group names use the NATO phonetic alphabet (Alpha, Bravo, ...)
+// instead of plain numbers. 0-based index in; falls back to "Group N" past Zulu.
+export const NATO_GROUP_NAMES = [
+  'Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot', 'Golf', 'Hotel',
+  'India', 'Juliet', 'Kilo', 'Lima', 'Mike', 'November', 'Oscar', 'Papa',
+  'Quebec', 'Romeo', 'Sierra', 'Tango', 'Uniform', 'Victor', 'Whiskey',
+  'Xray', 'Yankee', 'Zulu',
+]
+export function groupName(i) {
+  return NATO_GROUP_NAMES[i] || `Group ${i + 1}`
+}
+
 // ── On-device rubric templates by activity type ───────────────────────────
 const RUBRIC_TEMPLATES = [
   { keys: ['essay', 'paper', 'writing', 'reaction', 'reflection'], rubric: [
@@ -286,7 +298,7 @@ export async function autoFormGroups(students, size, pastText = {}) {
   const roster = (students || []).filter(s => s && s.id)
   const n = roster.length
   const groupCount = Math.max(1, Math.ceil(n / Math.max(2, size || 3)))
-  const groups = Array.from({ length: groupCount }, (_, i) => ({ id: 'g_' + Date.now() + '_' + i, name: `Group ${i + 1}`, memberIds: [] }))
+  const groups = Array.from({ length: groupCount }, (_, i) => ({ id: 'g_' + Date.now() + '_' + i, name: groupName(i), memberIds: [] }))
 
   // Order students: by diversity if we have text + a model, else shuffled.
   let ordered = roster

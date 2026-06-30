@@ -2651,14 +2651,14 @@ textarea.input { resize: vertical; }
 
 /* Rounded reply bar - pill input + circular send (Messenger/IG style) */
 .msg-reply-bar { display: flex; align-items: flex-end; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
-.msg-reply-pill { flex: 1; display: flex; align-items: center; background: var(--bg2); border: 1px solid var(--border); border-radius: 20px; padding: 0 6px 0 14px; transition: border-color .15s; }
+.msg-reply-pill { flex: 1; display: flex; align-items: center; min-height: 38px; background: var(--bg2); border: 1px solid var(--border); border-radius: 20px; padding: 0 14px; transition: border-color .15s; }
 .msg-reply-pill:focus-within { border-color: var(--accent); }
-.msg-reply-input { flex: 1; border: none; background: transparent; outline: none; resize: none; font-family: var(--font-body); font-size: 0.9063rem; color: var(--ink); line-height: 1.45; padding: 9px 0; max-height: 104px; }
+.msg-reply-input { flex: 1; border: none; background: transparent; outline: none; resize: none; font-family: var(--font-body); font-size: 0.9063rem; color: var(--ink); line-height: 1.45; padding: 8px 0; max-height: 104px; }
 /* The pill itself shows focus (border-color above), so the inner input must NOT
    also paint the global focus-ring box-shadow - that drew a second box inside. */
 .msg-reply-input:focus-visible, .msg-search-pill input:focus-visible { box-shadow: none; }
 /* Plain stroke send icon - no circle/container, just the glyph in ink. */
-.msg-send-circle { flex-shrink: 0; border: none; display: flex; align-items: center; justify-content: center; background: none; color: var(--ink); cursor: pointer; padding: 6px; transition: opacity .15s, transform .1s, color .15s; }
+.msg-send-circle { flex-shrink: 0; width: 38px; height: 38px; border: none; display: flex; align-items: center; justify-content: center; background: none; color: var(--ink); cursor: pointer; padding: 0; transition: opacity .15s, transform .1s, color .15s; }
 .msg-send-circle:not(:disabled):hover { color: var(--accent); }
 .msg-send-circle:disabled { opacity: .4; cursor: default; }
 .msg-send-circle:not(:disabled):active { transform: scale(.9); }
