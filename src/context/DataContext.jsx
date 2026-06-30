@@ -52,6 +52,15 @@ function currentStudentId() {
   } catch { return null }
 }
 
+// Hostnames where one-time, IRREVERSIBLE data migrations may auto-run. localhost
+// and Vercel preview URLs share the SAME production Firestore (config is hardcoded
+// in firebaseInit), so without this the account.pass strip would fire there too -
+// mutating real data while merely trying the app. Add any custom production domain.
+const PROD_MIGRATION_HOSTS = ['acadflow-seven.vercel.app']
+function isProdMigrationHost() {
+  try { return PROD_MIGRATION_HOSTS.includes(window.location.hostname) } catch { return false }
+}
+
 const DataContext = createContext(null)
 
 export function DataProvider({ children }) {
@@ -191,7 +200,9 @@ export function DataProvider({ children }) {
           // One-time: move account.pass off the broadly-readable student docs into
           // the server-only studentSecrets collection (closes the C1 read gap).
           // Idempotent and self-retrying, so it clears the flag only on a clean run.
-          if (!localStorage.getItem('cp_student_secrets_migrated_v1')) {
+          // Gated to the production host so running locally / on a preview (which
+          // share the same Firestore) never triggers the irreversible strip.
+          if (isProdMigrationHost() && !localStorage.getItem('cp_student_secrets_migrated_v1')) {
             fbMigrateStudentSecrets(db)
               .then(({ migrated, skipped }) => {
                 if (!skipped) localStorage.setItem('cp_student_secrets_migrated_v1', '1')
