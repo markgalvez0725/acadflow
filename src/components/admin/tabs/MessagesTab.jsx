@@ -16,7 +16,7 @@ import { useTyping } from '@/hooks/useTyping'
 import { notifyStudentMessage, notifyStudentsBroadcast, notifyMention } from '@/firebase/messageNotify'
 import { resolveMentions } from '@/utils/mentions'
 import { fbAddMessageReply, fbDeleteMessage, fbEditMessageEntry, fbDeleteMessageEntry, fbToggleMessageReaction } from '@/firebase/persistence'
-import { ReactionPicker, ReactionPills } from '@/components/primitives/MessageReactions'
+import { ReactionTrigger, ReactionBar, ReactionPills } from '@/components/primitives/MessageReactions'
 import Modal from '@/components/primitives/Modal'
 import MentionInput from '@/components/primitives/MentionInput'
 import MessageText from '@/components/primitives/MessageText'
@@ -507,13 +507,8 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, o
           ].filter(Boolean)
           const reactOpen = reactKey === eKey
           const Actions = !isEditing && !entry.deleted && (
-            <span className={`msg-bubble-menu${reactOpen ? ' force-show' : ''}`}>
-              <ReactionPicker
-                side={isAdmin ? 'sent' : 'received'}
-                onPick={emoji => onToggleReaction?.(entry, emoji)}
-                open={reactOpen}
-                onOpenChange={v => setReactKey(v ? eKey : null)}
-              />
+            <span className="msg-bubble-menu">
+              <ReactionTrigger active={reactOpen} onToggle={() => setReactKey(reactOpen ? null : eKey)} />
               {menuItems.length > 0 && <KebabMenu items={menuItems} icon={<MoreHorizontal size={15} />} size={15} label="Message actions" />}
             </span>
           )
@@ -580,6 +575,13 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, o
                   {!isAdmin && Actions}
                 </div>
               </SwipeReply>
+              {reactOpen && (
+                <ReactionBar
+                  side={isAdmin ? 'sent' : 'received'}
+                  onPick={emoji => { onToggleReaction?.(entry, emoji); setReactKey(null) }}
+                  onClose={() => setReactKey(null)}
+                />
+              )}
               {!entry.deleted && (
                 <ReactionPills
                   reactions={entry.reactions}

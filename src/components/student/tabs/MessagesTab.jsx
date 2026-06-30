@@ -20,7 +20,7 @@ import MessageText from '@/components/primitives/MessageText'
 import ProfessorBadge from '@/components/primitives/ProfessorBadge'
 import PostRefCard from '@/components/primitives/PostRefCard'
 import { fbAddMessageReply, fbMarkMessageRead, fbEditMessageEntry, fbDeleteMessageEntry, fbToggleMessageReaction } from '@/firebase/persistence'
-import { ReactionPicker, ReactionPills } from '@/components/primitives/MessageReactions'
+import { ReactionTrigger, ReactionBar, ReactionPills } from '@/components/primitives/MessageReactions'
 import { toggleReaction } from '@/utils/reactions'
 import useInfiniteFeed from '@/hooks/useInfiniteFeed'
 import KebabMenu from '@/components/primitives/KebabMenu'
@@ -723,13 +723,8 @@ export default function MessagesTab({ student: s, messages }) {
                   ].filter(Boolean)
                   const reactOpen = reactKey === eKey
                   const Actions = !isEditing && !entry.deleted && (
-                    <span className={`msg-bubble-menu${reactOpen ? ' force-show' : ''}`}>
-                      <ReactionPicker
-                        side={isSelf ? 'sent' : 'received'}
-                        onPick={emoji => handleToggleReaction(entry, emoji)}
-                        open={reactOpen}
-                        onOpenChange={v => setReactKey(v ? eKey : null)}
-                      />
+                    <span className="msg-bubble-menu">
+                      <ReactionTrigger active={reactOpen} onToggle={() => setReactKey(reactOpen ? null : eKey)} />
                       {menuItems.length > 0 && <KebabMenu items={menuItems} icon={<MoreHorizontal size={15} />} size={15} label="Message actions" />}
                     </span>
                   )
@@ -795,6 +790,13 @@ export default function MessagesTab({ student: s, messages }) {
                           {!isSelf && Actions}
                         </div>
                       </SwipeReply>
+                      {reactOpen && (
+                        <ReactionBar
+                          side={isSelf ? 'sent' : 'received'}
+                          onPick={emoji => { handleToggleReaction(entry, emoji); setReactKey(null) }}
+                          onClose={() => setReactKey(null)}
+                        />
+                      )}
                       {!entry.deleted && (
                         <ReactionPills
                           reactions={entry.reactions}

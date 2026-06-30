@@ -2557,22 +2557,23 @@ textarea.input { resize: vertical; }
 .msg-bubble-menu .kebab-trigger { color: var(--ink3); padding: 2px; line-height: 0; }
 @media (hover: none) { .msg-bubble-menu { opacity: .5; } }
 /* ── Emoji reactions (Telegram-style, shared admin + student) ───────────── */
-.msg-react-wrap { position: relative; display: inline-flex; }
 .msg-react-trigger {
   background: none; border: none; cursor: pointer; color: var(--ink3);
   padding: 2px; line-height: 0; display: flex; align-items: center;
   border-radius: 50%; transition: color .12s;
 }
-.msg-react-trigger:hover { color: var(--accent); }
-.msg-react-pop {
-  position: absolute; bottom: calc(100% + 6px); z-index: 40;
+.msg-react-trigger:hover, .msg-react-trigger.on { color: var(--accent); }
+/* Inline reaction bar: rendered in the message flow (not a floating popover), so
+   it can never be clipped or land out of range on mobile. */
+.msg-react-bar { display: flex; margin: 4px 2px 8px; }
+.msg-react-bar.sent { justify-content: flex-end; padding-right: 4px; }
+.msg-react-bar.received { justify-content: flex-start; padding-left: 30px; }
+.msg-react-bar-inner {
+  display: inline-flex; align-items: center; max-width: 100%;
   background: var(--surface); border: 1px solid var(--border2);
-  border-radius: 999px; padding: 5px 8px;
-  box-shadow: 0 6px 22px rgba(0, 0, 0, .16);
+  border-radius: 999px; padding: 5px 8px; box-shadow: 0 4px 14px rgba(0, 0, 0, .10);
 }
-.msg-react-pop.sent { right: 0; }
-.msg-react-pop.received { left: 0; }
-.msg-react-pop.more { border-radius: 16px; }
+.msg-react-bar-inner.grid { border-radius: 16px; }
 .msg-react-quick { display: flex; align-items: center; gap: 6px; }
 .msg-react-emoji {
   background: none; border: none; cursor: pointer; padding: 3px; line-height: 0;
@@ -2586,7 +2587,7 @@ textarea.input { resize: vertical; }
 }
 .msg-react-grid {
   display: grid; grid-template-columns: repeat(6, 1fr); gap: 7px;
-  width: 250px; padding: 2px;
+  width: min(252px, calc(100vw - 56px)); padding: 2px;
 }
 /* Reaction count chips that sit under a bubble */
 .msg-react-pills { display: flex; flex-wrap: wrap; gap: 5px; margin: 3px 2px 7px; }
@@ -2602,32 +2603,10 @@ textarea.input { resize: vertical; }
 .msg-react-pill:hover { border-color: var(--accent); }
 .msg-react-pill.mine { background: var(--accent-l); border-color: var(--accent); color: var(--accent); font-weight: 700; }
 .msg-react-count { font-size: 0.7rem; line-height: 1; }
-/* Keep the action cluster (and its open popover) fully visible while a long-press
-   or click has the reaction picker open, overriding the hover/mobile fade. */
-.msg-bubble-menu.force-show { opacity: 1; }
 /* On touch, suppress the long-press text-selection magnifier / iOS callout so the
    press-and-hold opens the reaction picker cleanly. Desktop keeps text selection. */
 @media (hover: none) {
   .swipe-reply { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
-}
-/* Mobile: the thread is full-screen and clipped by .msg-shell (overflow:hidden)
-   + the scrolling message list, so an absolutely-positioned popover anchored to
-   the tiny trigger lands out of view. Pin it to the viewport instead - centered
-   and floating just above the composer - so it is always fully in range. */
-@media (max-width: 767px) {
-  .msg-react-pop,
-  .msg-react-pop.sent,
-  .msg-react-pop.received {
-    position: fixed;
-    left: 50%;
-    right: auto;
-    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
-    transform: translateX(-50%);
-    max-width: calc(100vw - 20px);
-    z-index: 1200;
-  }
-  .msg-react-quick { flex-wrap: wrap; justify-content: center; }
-  .msg-react-grid { width: min(252px, calc(100vw - 40px)); }
 }
 /* "edited" tag appended inside an edited bubble */
 .msg-edited { font-size: 0.625rem; opacity: .65; margin-left: 6px; white-space: nowrap; }

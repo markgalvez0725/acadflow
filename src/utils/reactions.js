@@ -7,8 +7,8 @@
 // on Android/Windows/ChromeOS, where the native font would otherwise show
 // Google/Microsoft glyphs. Only this fixed set is imaged - see appleEmojiUrl.
 
-// Six one-tap reactions shown in the quick bar.
-export const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
+// Five one-tap reactions shown in the inline bar (plus the "+" for the full set).
+export const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '🙏']
 
 // The full grid revealed by the "more" (+) button - a superset of the quick set.
 export const MORE_REACTIONS = [
