@@ -9,6 +9,7 @@ import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import StandingRing from '@/components/primitives/StandingRing'
 import SubmissionFileField from '@/components/student/SubmissionFileField'
 import { uploadSubmission } from '@/utils/googleDrive'
+import { extractSubmissionText } from '@/utils/submissionExtract'
 
 const PER_PAGE = 10
 const SOON_MS = 48 * 3600000 // "due soon" window
@@ -49,6 +50,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
   const [linkInputs, setLinkInputs] = useState({}) // actId → string
   const [pendingFiles, setPendingFiles] = useState({}) // actId → File (staged, not yet uploaded)
   const [uploadPct, setUploadPct] = useState({})    // actId → number|null (Drive upload progress)
+  const [extractPct, setExtractPct] = useState({})  // actId → number|null (on-device text read progress)
   const [submitting, setSubmitting] = useState({})  // actId → bool
   const [editing, setEditing] = useState({})        // actId → bool
   const [groupText, setGroupText] = useState({})    // actId → string (group analysis)
@@ -145,9 +147,19 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
     try {
       const act = activities.find(a => a.id === actId)
       let link = typedLink
+      let contentText = null, contentMeta = null
       if (file) {
-        // Verify-then-upload: the file is checked on pick; here it actually
-        // uploads to the student's own Drive and we store the share link.
+        // Step 1: read the file's text ON DEVICE (OCR/PDF/DOCX/text) so the
+        //    professor's Smart grader can score it later without anyone pasting.
+        //    Best-effort: a failure just means we submit without the extracted text.
+        setExtractPct(prev => ({ ...prev, [actId]: 0 }))
+        try {
+          const ex = await extractSubmissionText(file, { onProgress: p => setExtractPct(prev => ({ ...prev, [actId]: p })) })
+          if (ex?.text) { contentText = ex.text; contentMeta = ex.meta }
+        } catch { /* best-effort */ }
+        setExtractPct(prev => ({ ...prev, [actId]: null }))
+        // Step 2: verify-then-upload. The file was checked on pick; here it
+        //    uploads to the student's own Drive and we store the share link.
         setUploadPct(prev => ({ ...prev, [actId]: 0 }))
         const res = await uploadSubmission(file, {
           folderPath: [act?.subject || 'General', act?.title || 'Activity'],
@@ -159,6 +171,10 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
       await updateDoc(doc(db.current, 'activities', actId), {
         [`${sidPath}.link`]: link,
         [`${sidPath}.submittedAt`]: Date.now(),
+        // Store (or clear) the extracted text alongside the link so re-submitting
+        // a plain link never leaves stale OCR text behind.
+        [`${sidPath}.contentText`]: contentText,
+        [`${sidPath}.contentMeta`]: contentMeta,
       })
       setLinkInputs(prev => ({ ...prev, [actId]: '' }))
       setPendingFiles(prev => ({ ...prev, [actId]: null }))
@@ -173,6 +189,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
     } catch (e) {
       toast('Failed to submit: ' + e.message, 'error')
     } finally {
+      setExtractPct(prev => ({ ...prev, [actId]: null }))
       setUploadPct(prev => ({ ...prev, [actId]: null }))
       setSubmitting(prev => ({ ...prev, [actId]: false }))
     }
@@ -460,7 +477,8 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                           disabled={submitting[act.id] || (!(linkInputs[act.id] ?? sub.link).trim() && !pendingFiles[act.id])}
                         >
                           {submitting[act.id]
-                            ? (uploadPct[act.id] != null ? `Uploading ${uploadPct[act.id]}%…` : 'Saving…')
+                            ? (extractPct[act.id] != null ? `Reading file ${extractPct[act.id]}%…`
+                              : uploadPct[act.id] != null ? `Uploading ${uploadPct[act.id]}%…` : 'Saving…')
                             : 'Save changes →'}
                         </button>
                         <button
@@ -523,7 +541,8 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                     disabled={submitting[act.id] || (!(linkInputs[act.id] || '').trim() && !pendingFiles[act.id])}
                   >
                     {submitting[act.id]
-                      ? (uploadPct[act.id] != null ? `Uploading ${uploadPct[act.id]}%…` : 'Submitting…')
+                      ? (extractPct[act.id] != null ? `Reading file ${extractPct[act.id]}%…`
+                        : uploadPct[act.id] != null ? `Uploading ${uploadPct[act.id]}%…` : 'Submitting…')
                       : 'Submit →'}
                   </button>
                 </div>

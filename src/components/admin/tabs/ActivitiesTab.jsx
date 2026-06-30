@@ -27,6 +27,11 @@ function actId() {
   return 'act_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7)
 }
 
+// A pasted submission link the serverless proxy can read text from.
+function isDocLink(link) {
+  return /(docs|drive)\.google\.com/i.test(String(link || ''))
+}
+
 function defaultDeadlineStr() {
   const dl = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
   const pad = n => String(n).padStart(2, '0')
@@ -737,6 +742,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
   const [smartText,   setAiText]   = useState('')
   const [smartBusy,   setAiBusy]   = useState(false)
   const [smartResult, setAiResult] = useState(null)  // { score, feedback, criteria }
+  const [docFetching, setDocFetching] = useState(false) // pulling text from a pasted Doc link
   const [saving,        setSaving]       = useState({})
   const [savingAll,     setSavingAll]    = useState(false)
   const [fbSaveState,   setFbSaveState]  = useState({}) // sid → 'saving' | 'saved' (feedback note autosave)
@@ -1005,19 +1011,36 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
     }
   }
 
-  async function runAiGrade(studentId) {
-    if (!smartText.trim()) { toast('Paste the student\'s submission text first.', 'warn'); return }
+  async function runAiGrade(studentId, textOverride) {
+    const text = (textOverride != null ? textOverride : smartText).trim()
+    if (!text) { toast('Paste the student\'s submission text first.', 'warn'); return }
     setAiBusy(true); setAiResult(null)
     try {
       const res = await smartGrade({
         title: act.title, subject: act.subject, instructions: act.instructions,
-        rubric: act.rubric, maxScore: act.maxScore, submissionText: smartText,
+        rubric: act.rubric, maxScore: act.maxScore, submissionText: text,
       })
       if (res) setAiResult(res)
       else toast('On-device Smart grading is unavailable on this device. Grade manually against the rubric.', 'warn', 7000)
     } catch (e) {
       toast('Smart grading error: ' + e.message, 'error', 7000)
     } finally { setAiBusy(false) }
+  }
+
+  // Phase B fallback for pasted-link submissions (no uploaded file to read):
+  // pull the public Google Doc/Drive text via the serverless proxy, then grade.
+  async function fetchFromLink(link) {
+    if (!link) return
+    setDocFetching(true)
+    try {
+      const r = await fetch('/api/extract-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: link }) })
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok || !data.text) { toast(data.error || 'Could not read text from that link. Make sure it is shared, or paste it manually.', 'warn', 7000); return }
+      setAiText(data.text)
+      runAiGrade(smartFor, data.text)
+    } catch (e) {
+      toast('Could not reach the text reader. Paste the work manually.', 'warn', 6000)
+    } finally { setDocFetching(false) }
   }
 
   function applyAiGrade(studentId) {
@@ -1334,7 +1357,11 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
 
                 {hasLink && (
                   <div className="flex gap-1.5 items-center justify-end" style={{ marginTop: 10 }}>
-                    <button className="btn btn-ghost btn-sm" title="Smart grading assistant" onClick={() => { setAiFor(s.id); setAiText(''); setAiResult(null) }}>
+                    <button className="btn btn-ghost btn-sm" title="Smart grading assistant" onClick={() => {
+                      const t = sub.contentText || ''
+                      setAiFor(s.id); setAiText(t); setAiResult(null)
+                      if (t) runAiGrade(s.id, t) // auto-grade from the extracted submission text - no paste needed
+                    }}>
                       <Sparkles size={13} /> Smart grade
                     </button>
                   </div>
@@ -1372,12 +1399,25 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
           <Modal onClose={() => setAiFor(null)} size="md">
             <h3 className="text-lg font-bold mb-1"><Sparkles size={16} className="inline-block mr-1 align-text-bottom" />Grading Assist <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--green)', background: 'var(--green-l)', padding: '2px 8px', borderRadius: 999, marginLeft: 6, verticalAlign: 'middle' }}>on-device</span></h3>
             <p className="modal-sub">{stud?.name} · {act.title}</p>
-            <div style={{ fontSize: 12, color: 'var(--ink2)', background: 'var(--accent-l)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', margin: '8px 0 12px' }}>
-              Paste the student's work below (open their link, copy the text). On-device Smart grading estimates how well it covers each rubric criterion and drafts a score - a starting point you review and adjust before saving. Nothing is uploaded.
-            </div>
-            {sub.link && (
-              <a href={sub.link} target="_blank" rel="noopener noreferrer" className="link-btn" style={{ fontSize: 12, marginBottom: 8, display: 'inline-block' }}>Open submission ↗</a>
+            {sub.contentText ? (
+              <div style={{ fontSize: 12, color: 'var(--green)', background: 'var(--green-l)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', margin: '8px 0 12px' }}>
+                <Check size={13} className="inline-block mr-1 align-text-bottom" />Read automatically from the submitted file{sub.contentMeta?.method ? ` (${sub.contentMeta.method === 'ocr' ? 'image OCR' : sub.contentMeta.method.toUpperCase()})` : ''}. The score below is drafted from it - review and edit before applying. Nothing is uploaded.
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, color: 'var(--ink2)', background: 'var(--accent-l)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', margin: '8px 0 12px' }}>
+                This submission has no auto-read text (it is a pasted link, not an uploaded file). Open it, paste the work below, or pull the text from the link. On-device Smart grading drafts a score you review before saving. Nothing is uploaded.
+              </div>
             )}
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              {sub.link && (
+                <a href={sub.link} target="_blank" rel="noopener noreferrer" className="link-btn" style={{ fontSize: 12, display: 'inline-block' }}>Open submission ↗</a>
+              )}
+              {!sub.contentText && isDocLink(sub.link) && (
+                <button className="btn btn-ghost btn-sm" onClick={() => fetchFromLink(sub.link)} disabled={docFetching}>
+                  <ClipboardPaste size={13} className="inline-block mr-1" />{docFetching ? 'Fetching…' : 'Pull text from link'}
+                </button>
+              )}
+            </div>
             <textarea
               className="input w-full"
               rows={6}
@@ -1387,7 +1427,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
             />
             <div className="flex gap-2 mt-2">
               <button className="btn btn-primary btn-sm" onClick={() => runAiGrade(smartFor)} disabled={smartBusy || !smartText.trim()}>
-                <Sparkles size={13} className="inline-block mr-1" />{smartBusy ? 'Assessing…' : 'Suggest grade'}
+                <Sparkles size={13} className="inline-block mr-1" />{smartBusy ? 'Assessing…' : (smartResult ? 'Re-run' : 'Suggest grade')}
               </button>
             </div>
             {smartResult && (
