@@ -92,8 +92,9 @@ export default function AccountAuditModal({ onClose, onOpenStudent }) {
   const sevColor = s => s === 'high' ? 'var(--red)' : s === 'medium' ? 'var(--yellow)' : 'var(--ink3)'
 
   return (
-    <Modal onClose={onClose} size="lg" zIndex={300}>
-      <ModalHeader title="Account verification audit" subtitle="Analyze existing accounts for integrity issues" onClose={onClose} />
+    <Modal onClose={onClose} size="lg" zIndex={300} sheetOnMobile
+      header={<ModalHeader flush icon={<ShieldCheck size={18} />} title="Account verification audit" subtitle="Analyze existing accounts for integrity issues" />}
+    >
 
       <div className="flex items-center justify-between gap-2 mb-3" style={{ marginTop: -4 }}>
         <div className="text-[11px] text-ink3">

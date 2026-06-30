@@ -99,7 +99,7 @@ export default function StudentProfileModal() {
   if (!viewStudentId) return null
   if (!student) {
     return (
-      <Modal onClose={closeStudentProfile} size="md">
+      <Modal onClose={closeStudentProfile} size="md" sheetOnMobile>
         <div style={{ textAlign: 'center', padding: 20, color: 'var(--ink2)' }}>Student not found.</div>
       </Modal>
     )
@@ -118,26 +118,27 @@ export default function StudentProfileModal() {
   const acct = accountStatus(student).label
 
   return (
-    <Modal onClose={closeStudentProfile} size="lg">
-      {/* Header */}
-      <div className="pr-8" style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 16 }}>
-        <div className="stu-avatar" style={{ width: 56, height: 56, fontSize: 22, flexShrink: 0, overflow: 'hidden' }}>
-          {student.photo ? <img src={student.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : initial}
-        </div>
-        <div style={{ minWidth: 0 }}>
-          <h3 className="text-lg font-bold text-ink" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{student.name}</span>
-            <VerifiedBadge student={student} size={17} />
-          </h3>
-          <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
-            #{student.id} · <span title={student.course || ''}>{courseShort(student.course) || '-'}</span> · {student.year || '-'}
+    <Modal onClose={closeStudentProfile} size="lg" sheetOnMobile
+      header={
+        <div className="pr-8" style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+          <div className="stu-avatar" style={{ width: 56, height: 56, fontSize: 22, flexShrink: 0, overflow: 'hidden' }}>
+            {student.photo ? <img src={student.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : initial}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 2 }}>
-            {enrolledClasses.map(c => `${courseShort(c.name)} ${c.section}`).join(' · ') || 'Unassigned'} · Account: {acct}
+          <div style={{ minWidth: 0 }}>
+            <h3 className="text-lg font-bold text-ink" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{student.name}</span>
+              <VerifiedBadge student={student} size={17} />
+            </h3>
+            <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
+              #{student.id} · <span title={student.course || ''}>{courseShort(student.course) || '-'}</span> · {student.year || '-'}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 2 }}>
+              {enrolledClasses.map(c => `${courseShort(c.name)} ${c.section}`).join(' · ') || 'Unassigned'} · Account: {acct}
+            </div>
           </div>
         </div>
-      </div>
-
+      }
+    >
       {/* Stat row */}
       <div className="stat-grid mb-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
         {[

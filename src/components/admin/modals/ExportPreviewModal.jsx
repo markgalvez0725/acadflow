@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import Modal from '@/components/primitives/Modal'
+import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import { FileText, BarChart2 } from 'lucide-react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -160,34 +160,19 @@ export default function ExportPreviewModal({ type, classId, subject, student: st
   }
 
   return (
-    <Modal onClose={onClose} maxWidth={900}>
-      <div className="modal-header">
-        <div>
-          <h2 className="modal-title">Export Preview</h2>
-          <p className="text-xs text-ink3 mt-0.5">{title}</p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={handlePDF}
-            disabled={downloading}
-            title="Download PDF"
-          >
-            <FileText size={13} className="inline-block mr-1" />PDF
-          </button>
-          <button
-            className="btn btn-primary btn-sm"
-            onClick={handleExcel}
-            disabled={downloading}
-            title="Download Excel"
-          >
-            {downloading ? 'Exporting…' : <><BarChart2 size={13} className="inline-block mr-1" />Excel</>}
-          </button>
-        </div>
-      </div>
-
+    <Modal onClose={onClose} wide sheetOnMobile padded={false}
+      header={<ModalHeader flush icon={<FileText size={18} />} title="Export Preview" subtitle={title} />}
+      footer={<>
+        <button className="btn btn-ghost btn-sm" onClick={handlePDF} disabled={downloading} title="Download PDF">
+          <FileText size={13} className="inline-block mr-1" />PDF
+        </button>
+        <button className="btn btn-primary btn-sm" onClick={handleExcel} disabled={downloading} title="Download Excel">
+          {downloading ? 'Exporting…' : <><BarChart2 size={13} className="inline-block mr-1" />Excel</>}
+        </button>
+      </>}
+    >
       {type === 'student' && studentSem && studentSem.groups.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', background: 'var(--accent-l)', borderRadius: 10, padding: '10px 12px', margin: '0 0 10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', background: 'var(--accent-l)', borderRadius: 10, padding: '10px 12px', margin: '12px 14px 10px' }}>
           <span style={{ fontSize: 11.5, color: 'var(--accent)', lineHeight: 1.5, flex: 1, minWidth: 180 }}>
             <strong>On-device check:</strong> {studentSem.narration}
           </span>

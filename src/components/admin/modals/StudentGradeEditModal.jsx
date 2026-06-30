@@ -190,7 +190,7 @@ export default function StudentGradeEditModal() {
   if (!editGradesStudentId) return null
   if (!student) {
     return (
-      <Modal onClose={closeEditGrades} size="md">
+      <Modal onClose={closeEditGrades} size="md" sheetOnMobile>
         <div style={{ textAlign: 'center', padding: 20, color: 'var(--ink2)' }}>Student not found.</div>
       </Modal>
     )
@@ -290,20 +290,35 @@ export default function StudentGradeEditModal() {
   const initial = (student.name || '?').charAt(0).toUpperCase()
 
   return (
-    <Modal onClose={closeEditGrades} size="lg">
-      <div className="pr-8" style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 14 }}>
-        <div className="stu-avatar" style={{ width: 44, height: 44, fontSize: 18, flexShrink: 0, overflow: 'hidden' }}>
-          {student.photo ? <img src={student.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : initial}
-        </div>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <GraduationCap size={15} style={{ color: 'var(--accent)' }} />
-            <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Edit Grades</h3>
+    <Modal onClose={closeEditGrades} size="lg" sheetOnMobile
+      header={
+        <div className="pr-8" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <div className="stu-avatar" style={{ width: 44, height: 44, fontSize: 18, flexShrink: 0, overflow: 'hidden' }}>
+            {student.photo ? <img src={student.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : initial}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--ink2)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{student.name} · #{student.id}</div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <GraduationCap size={15} style={{ color: 'var(--accent)' }} />
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Edit Grades</h3>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--ink2)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{student.name} · #{student.id}</div>
+          </div>
         </div>
-      </div>
-
+      }
+      footer={subjects.length ? (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--ink3)' }}>
+            {changedCount > 0 ? `${changedCount} of ${subjects.length} subject${subjects.length === 1 ? '' : 's'} changed` : 'No changes yet'}
+          </span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn" onClick={closeEditGrades} disabled={saving}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleSave} disabled={saving || changedCount === 0}>
+              {saving ? 'Saving…' : 'Save Grades'}
+            </button>
+          </div>
+        </div>
+      ) : null}
+    >
       <p style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 12, lineHeight: 1.5 }}>
         Enter the <strong>Midterm</strong> and <strong>Finals</strong> exam scores per subject. Class standing (CS) -
         activities, quizzes, attendance &amp; attitude - is carried over and folded into each term automatically.
@@ -335,19 +350,6 @@ export default function StudentGradeEditModal() {
             />
           ))}
 
-          <div className="modal-footer-sticky" style={{ justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 12, color: 'var(--ink3)' }}>
-              {changedCount > 0
-                ? `${changedCount} of ${subjects.length} subject${subjects.length === 1 ? '' : 's'} changed`
-                : 'No changes yet'}
-            </span>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn" onClick={closeEditGrades} disabled={saving}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving || changedCount === 0}>
-                {saving ? 'Saving…' : 'Save Grades'}
-              </button>
-            </div>
-          </div>
         </>
       )}
     </Modal>

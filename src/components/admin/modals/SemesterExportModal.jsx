@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
-import { Sparkles, AlertTriangle, Cpu } from 'lucide-react'
+import { Sparkles, AlertTriangle, Cpu, FileDown } from 'lucide-react'
 
 /**
  * On-device semester check shown before a student-level export when the
@@ -38,13 +38,13 @@ export default function SemesterExportModal({ student, analysis, kind = 'report 
   const selIsPast = sel && !sel.all && !sel.isCurrent
 
   return (
-    <Modal onClose={onClose} size="md" zIndex={1200}>
-      <ModalHeader
-        title={`Export ${kind}`}
-        subtitle={student?.name || ''}
-        onClose={onClose}
-      />
-
+    <Modal onClose={onClose} size="md" zIndex={1200} sheetOnMobile
+      header={<ModalHeader flush icon={<FileDown size={18} />} title={`Export ${kind}`} subtitle={student?.name || ''} />}
+      footer={<>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>Cancel</button>
+        <button type="button" className="btn btn-primary btn-sm" onClick={() => onConfirm?.(key)} disabled={!sel || !sel.subjects.length}>Export PDF</button>
+      </>}
+    >
       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: 'var(--accent-l)', borderRadius: 10, padding: '11px 13px', margin: '4px 2px 14px' }}>
         <Cpu size={18} style={{ color: 'var(--accent)', flexShrink: 0, marginTop: 1 }} />
         <div style={{ fontSize: 12.5, color: 'var(--accent)', lineHeight: 1.55 }}>
@@ -100,12 +100,6 @@ export default function SemesterExportModal({ student, analysis, kind = 'report 
         </div>
       )}
 
-      <div className="modal-footer" style={{ marginTop: 16 }}>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>Cancel</button>
-        <button type="button" className="btn btn-primary btn-sm" onClick={() => onConfirm?.(key)} disabled={!sel || !sel.subjects.length}>
-          Export PDF
-        </button>
-      </div>
     </Modal>
   )
 }
