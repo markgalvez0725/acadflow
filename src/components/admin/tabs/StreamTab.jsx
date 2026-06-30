@@ -18,7 +18,7 @@ import CommentsSection from '@/components/primitives/CommentsSection'
 import AnnouncementPost from '@/components/primitives/AnnouncementPost'
 import { resolveMentions } from '@/utils/mentions'
 import { notifyMention } from '@/firebase/messageNotify'
-import { streamGroupLabel as getGroupLabel, fmtDateTime as formatDate } from '@/utils/format'
+import { streamGroupLabel as getGroupLabel, fmtDateTime as formatDate, dayLabel } from '@/utils/format'
 import { courseShort } from '@/constants/courses'
 import useInfiniteFeed from '@/hooks/useInfiniteFeed'
 
@@ -910,7 +910,7 @@ function AttendanceCard({ item, classObj }) {
     <PostShell
       type="attendance"
       name="Attendance"
-      time={timeAgo(item.ts)}
+      time={dayLabel(item.ts)}
       dateLabel={dateKicker(item.ts) || (date ? String(date).toUpperCase() : '')}
       title={`${subject || 'Attendance'}${cls ? ` · ${cls}` : ''}`}
       pills={<StreamPills cls={null} subject={subject} />}

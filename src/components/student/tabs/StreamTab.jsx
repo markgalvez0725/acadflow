@@ -4,7 +4,7 @@ import { useUI } from '@/context/UIContext'
 import { activeClassIds } from '@/utils/active'
 import ExpandableHtml from '@/components/primitives/ExpandableHtml'
 import { sanitizeAnnouncementHtml } from '@/utils/sanitizeHtml'
-import { streamGroupLabel as getGroupLabel, fmtDateTime as formatDate } from '@/utils/format'
+import { streamGroupLabel as getGroupLabel, fmtDateTime as formatDate, dayLabel } from '@/utils/format'
 import { courseShort } from '@/constants/courses'
 import useInfiniteFeed from '@/hooks/useInfiniteFeed'
 
@@ -285,7 +285,7 @@ function AttendanceCard({ item, classObj, student }) {
     <PostShell
       type="attendance"
       name="Attendance"
-      time={timeAgo(item.ts)}
+      time={dayLabel(item.ts)}
       dateLabel={dateKicker(item.ts)}
       title={`${subject || 'Attendance'}${cls ? ` · ${cls}` : ''}`}
       onAskProfessor={onAsk}
