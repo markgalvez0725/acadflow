@@ -339,12 +339,11 @@ function ActivityFormModal({ act, onClose }) {
   }
 
   return (
-    <Modal onClose={onClose} size="md">
-      <h3 className="text-lg font-bold text-ink mb-1">
-        {isEdit ? <><Pencil size={18} /> Edit Activity</> : <><ClipboardList size={18} /> New Activity</>}
-      </h3>
-      <p className="modal-sub">{isEdit ? 'Update activity details below.' : 'Fill in the activity details below.'}</p>
-
+    <Modal onClose={onClose} size="md" sheetOnMobile
+      icon={isEdit ? <Pencil size={18} /> : <ClipboardList size={18} />}
+      title={isEdit ? 'Edit Activity' : 'New Activity'}
+      subtitle={isEdit ? 'Update activity details below.' : 'Fill in the activity details below.'}
+    >
       {/* Tabs: Details · Rubric */}
       <div className="inline-flex bg-[var(--surface2)] border border-[var(--border)] rounded-full p-0.5 mb-3">
         {[
@@ -1032,16 +1031,9 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
   }
 
   return (
-    <Modal onClose={onClose} size="lg">
-      <div className="mb-1 pr-8">
-        <h3 className="text-lg font-bold text-ink"><ClipboardList size={18} /> {act.title}</h3>
-        <p className="text-xs text-ink2 mt-0.5">
-          {act.subject} · Max {act.maxScore} pts · Deadline: {dlLabel}
-        </p>
-        <p className="text-xs text-ink2">
-          {submitted}/{enrolledStudents.length} submitted · {graded} graded
-        </p>
-      </div>
+    <Modal onClose={onClose} size="lg" sheetOnMobile icon={<ClipboardList size={18} />} title={act.title}
+      subtitle={<>{act.subject} · Max {act.maxScore} pts · Deadline: {dlLabel}<br />{submitted}/{enrolledStudents.length} submitted · {graded} graded</>}
+    >
 
       {/* Deadline banner */}
       {isPast ? (
@@ -1294,9 +1286,11 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
         const stud = enrolledStudents.find(x => x.id === smartFor)
         const sub = (act.submissions || {})[smartFor] || {}
         return (
-          <Modal onClose={() => setAiFor(null)} size="md">
-            <h3 className="text-lg font-bold mb-1"><Sparkles size={16} className="inline-block mr-1 align-text-bottom" />Grading Assist <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--green)', background: 'var(--green-l)', padding: '2px 8px', borderRadius: 999, marginLeft: 6, verticalAlign: 'middle' }}>on-device</span></h3>
-            <p className="modal-sub">{stud?.name} · {act.title}</p>
+          <Modal onClose={() => setAiFor(null)} size="md" sheetOnMobile
+            icon={<Sparkles size={18} />}
+            title={<>Grading Assist <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--green)', background: 'var(--green-l)', padding: '2px 8px', borderRadius: 999, marginLeft: 6, verticalAlign: 'middle' }}>on-device</span></>}
+            subtitle={<>{stud?.name} · {act.title}</>}
+          >
             {sub.contentText ? (
               <div style={{ fontSize: 12, color: 'var(--green)', background: 'var(--green-l)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', margin: '8px 0 12px' }}>
                 <Check size={13} className="inline-block mr-1 align-text-bottom" />Read automatically from the submitted file{sub.contentMeta?.method ? ` (${sub.contentMeta.method === 'ocr' ? 'image OCR' : sub.contentMeta.method.toUpperCase()})` : ''}. The score below is drafted from it - review and edit before applying. Nothing is uploaded.

@@ -4,7 +4,7 @@ import { computeSubjectGrade } from '@/utils/gradeEngine'
 import { computeSemesterWrapped } from '@/utils/semesterWrapped'
 import { useData } from '@/context/DataContext'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
-import Modal, { ModalHeader } from '@/components/primitives/Modal'
+import Modal from '@/components/primitives/Modal'
 import { BookOpen, Clock, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Sparkles, Bookmark, Library } from 'lucide-react'
 import { courseShort } from '@/constants/courses'
 import { annReaches, annClassIds, annIsBroadcast } from '@/utils/announce'
@@ -283,11 +283,7 @@ function StudentCommentsSection({ ann, student }) {
 
 function AnnouncementDetailModal({ ann, student, onClose }) {
   return (
-    <Modal onClose={onClose} size="md">
-      <ModalHeader
-        title={ann.title}
-        onClose={onClose}
-      />
+    <Modal onClose={onClose} size="md" sheetOnMobile icon={<AnnIcon type={ann.type} size={18} />} title={ann.title}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {/* Type + class badge row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>

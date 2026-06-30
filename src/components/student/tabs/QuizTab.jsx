@@ -288,7 +288,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
     const { score, total, pct } = finalScore
     const passed = pct >= 75
     return (
-      <Modal onClose={onClose} size="md">
+      <Modal onClose={onClose} size="md" sheetOnMobile>
         <div className="text-center py-4">
           <div style={{ fontSize: 56, marginBottom: 8 }}>{passed ? <PartyPopper size={48} /> : <FileText size={48} />}</div>
           <h3 className="text-xl font-bold text-ink mb-1">Quiz Submitted!</h3>
@@ -568,11 +568,10 @@ function QuizReviewModal({ quiz, submission, onClose }) {
   const total = submission.total ?? graded.total
   const score = submission.score ?? graded.score
   return (
-    <Modal onClose={onClose} size="lg">
-      <h3 className="text-base font-bold text-ink mb-1"><ClipboardList size={18} /> {quiz.title} - Review</h3>
-      <p className="text-xs text-ink2 mb-4">
-        Score: <strong>{score}/{total}</strong> · {total > 0 ? ((score / total) * 100).toFixed(1) : '0'}%
-      </p>
+    <Modal onClose={onClose} size="lg" sheetOnMobile icon={<ClipboardList size={18} />} title={`${quiz.title} - Review`}
+      subtitle={<>Score: <strong>{score}/{total}</strong> · {total > 0 ? ((score / total) * 100).toFixed(1) : '0'}%</>}
+      footer={<button className="btn btn-primary" onClick={onClose}>Close</button>}
+    >
       <div className="flex flex-col gap-3" style={{ maxHeight: 400, overflowY: 'auto' }}>
         {quiz.questions.map((q, i) => {
           const studentAns = (submission.answers?.[i] || '').toString()
@@ -581,9 +580,6 @@ function QuizReviewModal({ quiz, submission, onClose }) {
             <ReviewRow key={i} q={q} index={i} isCorrect={res.correct} partial={res.awarded > 0 && !res.correct} studentAns={studentAns} />
           )
         })}
-      </div>
-      <div className="modal-footer mt-4">
-        <button className="btn btn-primary" onClick={onClose}>Close</button>
       </div>
     </Modal>
   )

@@ -90,17 +90,11 @@ function AddClassModal({ onClose, prefill = null }) {
   }
 
   return (
-    <Modal onClose={onClose}>
-      <h3>
-        {isDuplicate
-          ? <><Copy size={18} className="inline-block mr-1 align-text-bottom" />Duplicate to New Section</>
-          : <><Plus size={18} className="inline-block mr-1 align-text-bottom" />Add New Class</>}
-      </h3>
-      <p className="modal-sub">
-        {isDuplicate
-          ? 'Same course and subjects, new section. Set a unique section, then save.'
-          : 'Fill in the class details below.'}
-      </p>
+    <Modal onClose={onClose} sheetOnMobile
+      icon={isDuplicate ? <Copy size={18} /> : <Plus size={18} />}
+      title={isDuplicate ? 'Duplicate to New Section' : 'Add New Class'}
+      subtitle={isDuplicate ? 'Same course and subjects, new section. Set a unique section, then save.' : 'Fill in the class details below.'}
+    >
       <div className="input-row">
         <div className="field">
           <label>Course Name <span className="text-red-500">*</span></label>
@@ -285,9 +279,7 @@ function EditClassModal({ cls, onClose }) {
   }
 
   return (
-    <Modal onClose={onClose}>
-      <h3><Pencil size={18} className="inline-block mr-1 align-text-bottom" />Edit Class</h3>
-      <p className="modal-sub">Update class details and subjects below.</p>
+    <Modal onClose={onClose} sheetOnMobile icon={<Pencil size={18} />} title="Edit Class" subtitle="Update class details and subjects below.">
       <div className="input-row">
         <div className="field">
           <label>Course Name <span className="text-red-500">*</span></label>

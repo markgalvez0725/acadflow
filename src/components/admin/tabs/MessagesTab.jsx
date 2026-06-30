@@ -321,12 +321,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
   })()
 
   return (
-    <Modal onClose={onClose} size="md">
-      <div className="pr-8 mb-4">
-        <h3 className="text-lg font-bold text-ink mb-1"><Pencil size={18} /> New Message</h3>
-        <p className="text-xs text-ink2">Send a direct message or start a group chat - no subject needed.</p>
-      </div>
-
+    <Modal onClose={onClose} size="md" sheetOnMobile icon={<Pencil size={18} />} title="New Message" subtitle="Send a direct message or start a group chat - no subject needed.">
       <div className="field mb-1">
         <label className="text-xs font-semibold text-ink2 mb-1 block">To</label>
         <RecipientPicker
@@ -745,9 +740,7 @@ function ConvItem({ isActive, isUnread, avatarChar, photo, isAnnounce, name, bad
 function RenameGroupModal({ current, autoName, onClose, onSave }) {
   const [name, setName] = useState(current || autoName)
   return (
-    <Modal onClose={onClose} size="sm">
-      <h3 className="text-lg font-bold text-ink mb-1"><Pencil size={18} /> Rename group chat</h3>
-      <p className="text-xs text-ink2 mb-3">Give this group chat a custom name, or reset to the auto name (subject · course year).</p>
+    <Modal onClose={onClose} size="sm" sheetOnMobile icon={<Pencil size={18} />} title="Rename group chat" subtitle="Give this group chat a custom name, or reset to the auto name (subject · course year).">
       <input
         className="input w-full mb-1"
         value={name}
