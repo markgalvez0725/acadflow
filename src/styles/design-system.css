@@ -77,6 +77,9 @@
 @media (max-width: 1023px) {
   .tb-desktop-only { display: none !important; }
   .adm-clock { display: none !important; }
+  /* Connection pill stays visible on mobile, collapsed to icon-only. */
+  .conn-pill .conn-label { display: none; }
+  .conn-pill { padding: 0 8px !important; }
 }
 
 /* ── Topbar title/subtitle: keep the description tight on every tab ─────── */

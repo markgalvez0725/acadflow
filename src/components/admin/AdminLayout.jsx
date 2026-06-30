@@ -149,7 +149,7 @@ export default function AdminLayout() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="tb-desktop-only"><ConnectionStatus /></span>
+            <ConnectionStatus />
             <CommandPaletteButton />
             <ThemeToggle style={{ position: 'static', width: 36, height: 36, borderRadius: 10 }} />
             <span className="tb-desktop-only"><SemesterCalendarChip semester={semester} /></span>

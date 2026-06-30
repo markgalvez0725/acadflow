@@ -467,7 +467,7 @@ export default function StudentLayout() {
                 ))}
               </select>
             )}
-            <span className="tb-desktop-only"><ConnectionStatus compact /></span>
+            <ConnectionStatus />
             <CommandPaletteButton compact />
             <ThemeToggle style={{ position: 'static', width: 36, height: 36, borderRadius: 10 }} />
             <span className="tb-desktop-only"><SemesterCalendarChip semester={semester} /></span>
