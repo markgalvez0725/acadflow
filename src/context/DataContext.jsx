@@ -10,6 +10,7 @@ import {
   fbSaveMeetLink, fbScheduleMeeting, fbStartMeeting, fbEndMeeting, fbCancelMeeting, fbPushMeetingNotifs,
   fbSetSubjectRep, fbDeleteClassRelatedData, fbAddAuditLog, fbRestoreFromBackup,
   fbSubmitStudentFeedback, fbUpdateFeedbackStatus,
+  fbBackfillMessageActivity,
 } from '@/firebase/persistence'
 import { fbPushReminderNotif } from '@/firebase/reminders'
 import { serializeStudents } from '@/utils/attendance'
@@ -167,6 +168,21 @@ export function DataProvider({ children }) {
           if (data?.branding) setBranding(data.branding)
         },
       }, { isAdmin: _isAdmin, studentId: _studentId })
+
+      // One-time (per admin device): backfill lastActivityAt on legacy message
+      // docs so the paginated admin listener's orderBy doesn't exclude them.
+      if (_isAdmin) {
+        try {
+          if (!localStorage.getItem('cp_msg_lastact_backfill_v1')) {
+            fbBackfillMessageActivity(db)
+              .then(({ patched }) => {
+                localStorage.setItem('cp_msg_lastact_backfill_v1', '1')
+                if (patched) console.log('[Firebase] backfilled lastActivityAt on', patched, 'messages')
+              })
+              .catch(() => {})
+          }
+        } catch (e) {}
+      }
     }
 
     // Gate all data loading behind sign-in so locked Firestore rules

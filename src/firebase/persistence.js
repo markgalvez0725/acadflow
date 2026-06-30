@@ -507,6 +507,28 @@ export async function fbMarkMessageRead(db, msgId, readerId, readAtTs) {
   }))
 }
 
+// One-time backfill: stamp lastActivityAt on legacy message docs that predate the
+// field, so an orderBy('lastActivityAt') admin query doesn't silently exclude
+// them (Firestore omits docs missing the ordered field). Derives the value from
+// max(message ts, newest reply ts). Idempotent - only patches docs missing it, so
+// re-running is a no-op once complete. Returns { scanned, patched }.
+export async function fbBackfillMessageActivity(db) {
+  if (!db) return { scanned: 0, patched: 0 }
+  const snap = await getDocs(collection(db, 'messages'))
+  const writes = []
+  snap.forEach(d => {
+    const m = d.data() || {}
+    if (m.lastActivityAt != null) return
+    const replyTs = Array.isArray(m.replies) ? m.replies.reduce((mx, r) => Math.max(mx, r?.ts || 0), 0) : 0
+    const last = Math.max(m.ts || 0, replyTs) || Date.now()
+    writes.push(updateDoc(d.ref, { lastActivityAt: last }))
+  })
+  for (let i = 0; i < writes.length; i += 20) {
+    await Promise.allSettled(writes.slice(i, i + 20))
+  }
+  return { scanned: snap.size, patched: writes.length }
+}
+
 export async function fbPushAnnouncementNotifs(db, announcement, students) {
   if (!db || !announcement || !students?.length) return
   const targetIds = annClassIds(announcement)
