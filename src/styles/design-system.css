@@ -422,3 +422,65 @@ html[data-glass="off"] .sidebar { background: var(--navy) !important; }
     background: var(--red); border: 2px solid #12161f;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   ds/ component primitives (Button, Card, Field, DataTable)
+   Additive support classes for the shared React components in
+   src/components/ds/. They build on the existing globals.css `.btn` / `.card`
+   / `.input` / `.tbl` so existing markup is untouched; only the new component
+   call sites opt into these. This file loads after globals.css (unlayered), so
+   these win over the base rules by load order without !important.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Button: the previously-undefined secondary variant (used in CalendarTab +
+   LoginScreen, which rendered unstyled until now) + a large size that meets the
+   44px touch target, and a 36px floor for the small size. */
+.btn-secondary {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--border2);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--surface2);
+  color: var(--ink);
+  border-color: var(--ink3);
+  transform: translateY(-1px);
+}
+.btn-lg { padding: 12px 22px; font-size: 0.9688rem; min-height: 44px; border-radius: var(--radius); }
+.btn-sm { min-height: 36px; }
+
+/* Card: hover lift ONLY when interactive (clickable). Static cards reset the
+   global `.card:hover` lift so the lift reliably signals "this is clickable". */
+.card--static:hover { transform: none; border-color: var(--border); }
+.card--interactive { cursor: pointer; }
+.card--interactive:hover { transform: translateY(-2px); border-color: var(--border2); }
+.card-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.card-f { padding: 14px 18px; border-top: 1px solid var(--border); }
+
+/* Field: neutral wrapper (NOT `.field`, to avoid the global `.field input`
+   descendant rules colliding with `.input`) + hint line + error state. */
+.ds-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+.ds-field label { font-size: 0.8438rem; font-weight: 600; color: var(--ink2); }
+.field-hint { font-size: 0.8125rem; color: var(--ink3); margin-top: 1px; }
+.field-hint--error { color: var(--red); }
+.input--error { border-color: var(--red); }
+.input--error:focus { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-l); }
+
+/* DataTable: optional sticky first column for wide grids (the `.tbl-wrap`
+   scroll container already lives in globals.css). */
+.tbl--sticky-first th:first-child,
+.tbl--sticky-first td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+  box-shadow: 2px 0 4px -2px var(--border);
+}
+.tbl--sticky-first thead th:first-child { z-index: 2; background: var(--surface2); }
