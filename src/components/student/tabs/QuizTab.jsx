@@ -3,7 +3,6 @@ import {
   PartyPopper, FileText, Timer, Check, X, CheckCircle2, ClipboardList, XCircle, ShieldAlert,
   Lightbulb, ShieldCheck, Clock, RefreshCw, Trophy, CalendarClock, Pencil, Maximize2,
 } from 'lucide-react'
-import { doc, updateDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Modal from '@/components/primitives/Modal'
@@ -79,7 +78,7 @@ function useCountdown(deadlineMs) {
 
 // ── Quiz Taking Modal ─────────────────────────────────────────────────────────
 function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
-  const { db, fbReady, students, saveStudents } = useData()
+  const { db, fbReady, students, saveStudents, submitQuizResult } = useData()
   const { toast } = useUI()
 
   const totalSecs = quiz.timeLimit * 60
@@ -236,22 +235,11 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
     try {
       if (!fbReady || !db.current) throw new Error('Firebase not ready')
 
-      // 1. Write submission to quiz doc - includes anti-cheat signals (timeTaken
-      //    and leftCount) so the professor can flag suspicious attempts.
-      const subPath = `submissions.${student.id}`
-      await updateDoc(doc(db.current, 'quizzes', quiz.id), {
-        [`${subPath}.score`]: score,
-        [`${subPath}.total`]: total,
-        [`${subPath}.timeTaken`]: timeTaken,
-        [`${subPath}.leftCount`]: leftCountRef.current,
-        [`${subPath}.answers`]: answers,
-        [`${subPath}.submittedAt`]: Date.now(),
-      })
-
-      // 2. Cache the student's own per-quiz result for instant display in their
-      // Grades/Overview. This lives in `quizResults` (NOT gradeComponents):
-      // students may not write grade fields, and the authoritative score is the
-      // quiz-doc submission above, which the professor's grade computation reads.
+      // Submit through the data layer: it writes the authoritative submission to
+      // the quiz doc (with anti-cheat signals timeTaken/leftCount) AND caches the
+      // student's own per-quiz result on their student doc. The cache lives in
+      // `quizResults` (NOT gradeComponents - students may not write grade fields),
+      // and that students-doc write is echo-suppressed inside the helper.
       const subject = quiz.subject
       const quizResults = student.quizResults || {}
       const existing = quizResults[subject] || []
@@ -261,7 +249,10 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
         ? existing.map((q, i) => i === existingIdx ? quizEntry : q)
         : [...existing, quizEntry]
 
-      await updateDoc(doc(db.current, 'students', student.id), {
+      await submitQuizResult({
+        quizId: quiz.id,
+        studentId: student.id,
+        submission: { score, total, timeTaken, leftCount: leftCountRef.current, answers, submittedAt: Date.now() },
         quizResults: { ...quizResults, [subject]: updatedList },
       })
 

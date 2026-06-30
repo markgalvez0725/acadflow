@@ -578,6 +578,30 @@ export async function fbMigrateStudentSecrets(db) {
   return { migrated, skipped }
 }
 
+// Student quiz submission: writes the authoritative submission to the quiz doc
+// AND caches the student's own per-quiz result on their student doc. The student
+// write is echo-suppressed (setFbWriting) so the students listener doesn't
+// re-process mid-write and clobber the just-submitted optimistic state - the
+// reason this one belongs in the data layer rather than as a raw component write.
+export async function fbSubmitQuizResult(db, { quizId, studentId, submission, quizResults }) {
+  if (!db || !quizId || !studentId) return
+  const sp = `submissions.${studentId}`
+  await fbWithTimeout(updateDoc(doc(db, 'quizzes', quizId), {
+    [`${sp}.score`]: submission.score,
+    [`${sp}.total`]: submission.total,
+    [`${sp}.timeTaken`]: submission.timeTaken,
+    [`${sp}.leftCount`]: submission.leftCount,
+    [`${sp}.answers`]: submission.answers,
+    [`${sp}.submittedAt`]: submission.submittedAt,
+  }))
+  setFbWriting(true)
+  try {
+    await fbWithTimeout(updateDoc(doc(db, 'students', studentId), { quizResults }))
+  } finally {
+    setTimeout(() => setFbWriting(false), 1500)
+  }
+}
+
 export async function fbPushAnnouncementNotifs(db, announcement, students) {
   if (!db || !announcement || !students?.length) return
   const targetIds = annClassIds(announcement)
