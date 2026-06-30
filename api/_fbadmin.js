@@ -291,8 +291,8 @@ export async function getStudentRoster(projectId, accessToken, docId) {
 }
 
 // Read one string field from the server-only studentSecrets/{docId} doc, or null.
-// This collection holds the secrets (pass / securityAnswer) once migrated out of
-// the student doc; it is never client-readable (denied by rules).
+// This collection holds the password hash once migrated out of the student doc;
+// it is never client-readable (denied by rules).
 export async function getSecretField(projectId, accessToken, docId, field) {
   const r = await fetch(`${fsBase(projectId)}/studentSecrets/${encodeURIComponent(docId)}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -301,41 +301,6 @@ export async function getSecretField(projectId, accessToken, docId, field) {
   const data = await r.json()
   const v = data.fields?.[field]
   return (v && typeof v.stringValue === 'string') ? v.stringValue : null
-}
-
-// Merge one or more string fields into studentSecrets/{docId} (creates the doc if
-// absent). updateMask means only the named fields are touched, so writing the
-// security answer never clobbers the password hash and vice-versa.
-export async function writeSecretFields(projectId, accessToken, docId, fields) {
-  const keys = Object.keys(fields)
-  if (!keys.length) return true
-  const restFields = {}
-  for (const k of keys) restFields[k] = { stringValue: String(fields[k]) }
-  const mask = keys.map(f => 'updateMask.fieldPaths=' + encodeURIComponent(f)).join('&')
-  const r = await fetch(`${fsBase(projectId)}/studentSecrets/${encodeURIComponent(docId)}?${mask}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-    body: JSON.stringify({ fields: restFields }),
-  })
-  if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d?.error?.message || 'Secret write failed') }
-  return true
-}
-
-// Read the hashed self-service reset answer for one student, server-side. Prefers
-// the server-only studentSecrets doc; falls back to the legacy account.securityAnswer
-// on the student doc for accounts not yet migrated. Returns the hash, or null.
-export async function getStudentSecurityAnswer(projectId, accessToken, docId) {
-  const fromSecret = await getSecretField(projectId, accessToken, docId, 'securityAnswer')
-  if (fromSecret) return fromSecret
-  const r = await fetch(`${fsBase(projectId)}/students/${encodeURIComponent(docId)}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  if (r.status === 404) return null
-  const data = await r.json()
-  if (!r.ok) throw new Error(data?.error?.message || 'Student read failed')
-  const acct = data.fields?.account?.mapValue?.fields || {}
-  const ans = acct.securityAnswer
-  return (ans && typeof ans.stringValue === 'string') ? ans.stringValue : null
 }
 
 // Read the fields needed to verify a provisioning claim, server-side: the temp

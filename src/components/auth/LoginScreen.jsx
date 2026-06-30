@@ -9,9 +9,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { signInWithCustomToken, updatePassword } from 'firebase/auth'
 import { getFbAuth } from '@/firebase/firebaseInit'
-import { hashPassword } from '@/utils/crypto'
 import { validateSnum, sanitizeSnum } from '@/utils/validate'
-import { SECURITY_QUESTIONS } from '@/utils/securityQuestions'
 import LoadingButton from '@/components/primitives/LoadingButton'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 
@@ -30,7 +28,7 @@ const STUDENT_PHRASES = [
   ['Stay connected',   '\nwith your class.'],
 ]
 
-// Modes: 'student' | 'forgot' | 'fp-set-sq' | 'fp-sq'
+// Modes: 'student' | 'forgot'
 // Students no longer self-register; the professor provisions each account (default
 // password) and the student signs in, then completes guided verification.
 export default function LoginScreen({ onRevealFaculty }) {
@@ -74,23 +72,8 @@ export default function LoginScreen({ onRevealFaculty }) {
   const rpTimer = useRef(null)
   const rpDeadline = useRef(0)
 
-  // Forgot form
-  const [fpSnum,    setFpSnum]    = useState('')
-  const [fpPending, setFpPending] = useState(null) // { snum: canonical id }
-
-  // Forgot secret question answer + new password
-  const [fpAnswer,   setFpAnswer]   = useState('')
-  const [fpNewPass,  setFpNewPass]  = useState('')
-  const [fpNewPass2, setFpNewPass2] = useState('')
-
-  // Forgot - set security question (for legacy accounts without one)
-  const [fpSetSqKey,    setFpSetSqKey]    = useState('')
-  const [fpSetSqAnswer, setFpSetSqAnswer] = useState('')
-
   // Show/hide password toggles
   const [showPass,     setShowPass]     = useState(false)
-  const [showFpPass,   setShowFpPass]   = useState(false)
-  const [showFpPass2,  setShowFpPass2]  = useState(false)
 
   const clearMessages = () => { setErr(''); setOkMsg('') }
 
@@ -264,119 +247,6 @@ export default function LoginScreen({ onRevealFaculty }) {
       return setErr(result.msg || 'Your password was updated - please sign in with it.')
     }
     toast('Password updated. Welcome back!', 'success')
-  }
-
-  // ── Forgot Step 1 - look up student, display security question ───────────
-  async function handleFpStep1(e) {
-    e.preventDefault()
-    clearMessages()
-    if (!fbReady || students.length === 0) {
-      return setErr('Student data is still loading. Please wait a moment and try again.')
-    }
-    setLoading(true)
-    try {
-      const s = students.find(x => x.id.toLowerCase() === fpSnum.trim().toLowerCase())
-      if (!s) {
-        return setErr('No account found for that student number. Please contact your professor.')
-      }
-      if (!s.account?.registered) {
-        return setErr('This student number does not have an account yet. Please ask your professor to set up your account.')
-      }
-      setFpPending({ snum: s.id })
-      if (!s.account?.securityQuestion) {
-        // Legacy account - let them set a security question first
-        setFpSetSqKey('')
-        setFpSetSqAnswer('')
-        setMode('fp-set-sq')
-      } else {
-        setFpAnswer('')
-        setFpNewPass('')
-        setFpNewPass2('')
-        setMode('fp-sq')
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // ── Forgot Step 1b - set security question for legacy accounts ──────────
-  async function handleFpSetSq(e) {
-    e.preventDefault()
-    clearMessages()
-    if (!fpSetSqKey) return setErr('Please select a security question.')
-    if (!fpSetSqAnswer.trim()) return setErr('Please enter your answer.')
-    if (!fpPending) return setErr('Session expired. Please start again.')
-    setLoading(true)
-    try {
-      // The ANSWER hash is sensitive, so store it server-side in studentSecrets
-      // (never client-readable). The non-secret QUESTION key stays on the doc.
-      const { getIdToken } = await import('@/firebase/firebaseInit')
-      const idToken = await getIdToken()
-      const r = await fetch('/api/set-security-answer', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentNumber: fpPending.snum, answer: fpSetSqAnswer.trim().toLowerCase(), idToken }),
-      })
-      if (!r.ok && r.status !== 501) {
-        const data = await r.json().catch(() => ({}))
-        setLoading(false)
-        return setErr(data.error || 'Failed to save security question. Please try again.')
-      }
-      // When the server isn't configured (501), keep the legacy on-doc answer so
-      // the flow still works; otherwise the doc carries only the question key.
-      const legacyAnswer = (r.status === 501) ? await hashPassword(fpSetSqAnswer.trim().toLowerCase()) : null
-      const updatedStudents = students.map(x =>
-        x.id !== fpPending.snum ? x : {
-          ...x,
-          account: { ...x.account, securityQuestion: fpSetSqKey, ...(legacyAnswer ? { securityAnswer: legacyAnswer } : {}) },
-        }
-      )
-      await saveStudents(updatedStudents, [fpPending.snum])
-      setFpAnswer('')
-      setFpNewPass('')
-      setFpNewPass2('')
-      setMode('fp-sq')
-    } catch (e) {
-      setErr('Failed to save security question: ' + e.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // ── Forgot Step 2 - verify answer, save new password ────────────────────
-  async function handleFpStep2(e) {
-    e.preventDefault()
-    clearMessages()
-    if (!fpAnswer.trim()) return setErr('Please enter your answer.')
-    if (fpNewPass.length < 8) return setErr('Password must be at least 8 characters.')
-    if (!/[A-Z]/.test(fpNewPass) || !/[0-9]/.test(fpNewPass))
-      return setErr('Password must include at least one uppercase letter and one number.')
-    if (fpNewPass !== fpNewPass2) return setErr('Passwords do not match.')
-    if (!fpPending) return setErr('Session expired. Please start again.')
-
-    setLoading(true)
-    try {
-      // Verify the security answer AND reset the real Firebase Auth password
-      // server-side, so the stored answer hash is never read in the browser and
-      // the new password actually takes effect (the old on-device path only wrote
-      // account.pass, which never changed the Auth credential).
-      const r = await fetch('/api/verify-security-answer', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentNumber: fpPending.snum, answer: fpAnswer.trim().toLowerCase(), newPassword: fpNewPass }),
-      })
-      const data = await r.json().catch(() => ({}))
-      if (r.status === 501) {
-        return setErr('Self-service reset is unavailable right now. Please ask your professor to open a reset for you.')
-      }
-      if (!r.ok) {
-        return setErr(data.error || 'Incorrect answer. If you cannot remember, please contact your professor to reset your password.')
-      }
-      setOkMsg('Password reset! Sign in with your new password.')
-      setTimeout(() => { setMode('student'); setOkMsg(''); setFpPending(null); setFpAnswer(''); setFpNewPass(''); setFpNewPass2('') }, 1800)
-    } catch (e) {
-      setErr('Failed to reset: ' + e.message)
-    } finally {
-      setLoading(false)
-    }
   }
 
   const { displayed: typed, done: typingDone } = useTypingEffect(
@@ -628,100 +498,6 @@ export default function LoginScreen({ onRevealFaculty }) {
               </div>
             </div>
           )}
-
-          {/* ── Forgot Password Step 1b - Set Security Question ─────── */}
-          {mode === 'fp-set-sq' && (
-            <form onSubmit={handleFpSetSq}>
-              <h3 className="font-display text-lg font-bold text-ink mb-1">Set Security Question</h3>
-              <p className="text-xs text-ink2 mb-4">Your account doesn't have a security question yet. Set one to continue resetting your password.</p>
-              <div className="field-float">
-                <select
-                  value={fpSetSqKey}
-                  onChange={e => setFpSetSqKey(e.target.value)}
-                  className="w-full"
-                >
-                  <option value="">Select a question…</option>
-                  {SECURITY_QUESTIONS.map(q => (
-                    <option key={q.key} value={q.key}>{q.label}</option>
-                  ))}
-                </select>
-                <label>Security Question</label>
-              </div>
-              <div className="field-float">
-                <input
-                  type="text"
-                  placeholder=" "
-                  value={fpSetSqAnswer}
-                  onChange={e => setFpSetSqAnswer(e.target.value)}
-                  autoComplete="off"
-                />
-                <label>Your Answer</label>
-              </div>
-              <LoadingButton loading={loading} loadingText="Saving…" className="btn btn-primary btn-full mt-2">
-                Continue →
-              </LoadingButton>
-              <button type="button" className="link-btn w-full text-center mt-2" onClick={() => { setMode('forgot'); clearMessages() }}>
-                ← Back
-              </button>
-            </form>
-          )}
-
-          {/* ── Forgot Password Step 2 - Answer + New Password ──────── */}
-          {mode === 'fp-sq' && (() => {
-            const s = students.find(x => x.id === fpPending?.snum)
-            const q = SECURITY_QUESTIONS.find(q => q.key === s?.account?.securityQuestion)
-            return (
-              <form onSubmit={handleFpStep2}>
-                <h3 className="font-display text-lg font-bold text-ink mb-1">Reset Password</h3>
-                <p className="text-xs text-ink2 mb-3">Answer your security question to set a new password.</p>
-                <div className="mb-4 p-3 rounded-xl bg-bg2 text-sm text-ink font-medium">
-                  {q?.label ?? 'Security question not found.'}
-                </div>
-                <div className="field-float">
-                  <input
-                    type="text"
-                    placeholder=" "
-                    value={fpAnswer}
-                    onChange={e => setFpAnswer(e.target.value)}
-                    autoComplete="off"
-                  />
-                  <label>Your Answer</label>
-                </div>
-                <div className="field-float" style={{ marginTop: 10 }}>
-                  <input
-                    type={showFpPass ? 'text' : 'password'}
-                    placeholder=" "
-                    value={fpNewPass}
-                    onChange={e => setFpNewPass(e.target.value)}
-                    style={{ paddingRight: 38 }}
-                  />
-                  <button type="button" className="pw-toggle" onClick={() => setShowFpPass(v => !v)} tabIndex={-1} aria-label={showFpPass ? 'Hide password' : 'Show password'}>
-                    {showFpPass ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                  <label>New Password</label>
-                </div>
-                <div className="field-float">
-                  <input
-                    type={showFpPass2 ? 'text' : 'password'}
-                    placeholder=" "
-                    value={fpNewPass2}
-                    onChange={e => setFpNewPass2(e.target.value)}
-                    style={{ paddingRight: 38 }}
-                  />
-                  <button type="button" className="pw-toggle" onClick={() => setShowFpPass2(v => !v)} tabIndex={-1} aria-label={showFpPass2 ? 'Hide password' : 'Show password'}>
-                    {showFpPass2 ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                  <label>Confirm New Password</label>
-                </div>
-                <LoadingButton loading={loading} loadingText="Saving…" className="btn btn-primary btn-full mt-2">
-                  Set New Password
-                </LoadingButton>
-                <button type="button" className="link-btn w-full text-center mt-2" onClick={() => { setMode('forgot'); clearMessages() }}>
-                  ← Back
-                </button>
-              </form>
-            )
-          })()}
 
           </div>{/* /auth2-card */}
 
