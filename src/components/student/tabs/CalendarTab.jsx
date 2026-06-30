@@ -55,7 +55,7 @@ const TAB_MAP = { activity: 'activities', quiz: 'quizzes', announcement: 'stream
 
 export default function CalendarTab({ student, viewClassId, classes }) {
   const { activities, quizzes, announcements, fbReady, semester } = useData()
-  const { setStudentTab, toast } = useUI()
+  const { setStudentTab, toast, navigateToTarget } = useUI()
 
   const today = new Date()
   const [year,  setYear]  = useState(today.getFullYear())
@@ -392,7 +392,11 @@ export default function CalendarTab({ student, viewClassId, classes }) {
                         <span className="text-xs text-ink3">{fmtTime(ev.ts)}</span>
                       </div>
                     </div>
-                    <button className="btn btn-secondary text-xs py-1 px-3 flex-shrink-0" onClick={() => { setStudentTab(TAB_MAP[ev.type] || 'overview'); setSelectedKey(null) }}>View →</button>
+                    <button className="btn btn-secondary text-xs py-1 px-3 flex-shrink-0" onClick={() => {
+                      setSelectedKey(null)
+                      if (ev.type === 'activity' || ev.type === 'quiz') navigateToTarget({ side: 'student', tab: TAB_MAP[ev.type], type: ev.type, id: ev.id })
+                      else setStudentTab(TAB_MAP[ev.type] || 'overview')
+                    }}>View →</button>
                   </div>
                 )
               })}

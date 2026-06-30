@@ -35,7 +35,7 @@ function fmtDate(key) {
 
 export default function CalendarTab() {
   const { activities, quizzes, announcements, classes, fbReady } = useData()
-  const { setAdminTab } = useUI()
+  const { setAdminTab, navigateToTarget } = useUI()
 
   const today = new Date()
   const [year,  setYear]  = useState(today.getFullYear())
@@ -393,7 +393,11 @@ export default function CalendarTab() {
                     </div>
                     <button
                       className="btn btn-secondary text-xs py-1 px-3 flex-shrink-0"
-                      onClick={() => { setAdminTab(TAB_MAP[ev.type] || 'dashboard'); setSelectedKey(null) }}
+                      onClick={() => {
+                        setSelectedKey(null)
+                        if (ev.type === 'activity' || ev.type === 'quiz') navigateToTarget({ side: 'admin', tab: TAB_MAP[ev.type], type: ev.type, id: ev.id })
+                        else setAdminTab(TAB_MAP[ev.type] || 'dashboard')
+                      }}
                     >
                       View →
                     </button>
