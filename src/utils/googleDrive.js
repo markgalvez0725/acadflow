@@ -199,6 +199,52 @@ export async function listDriveFiles({ pageSize = 100 } = {}) {
   }))
 }
 
+// Max size accepted for a student activity submission.
+export const SUBMISSION_MAX_BYTES = 25 * 1024 * 1024 // 25 MB
+const SUBMISSION_ROOT = 'AcadFlow Submissions'
+
+// Upload one student submission File into
+//   AcadFlow Submissions / {folderPath...} / file
+// in the STUDENT's own Drive, make it "anyone with link can view" so the
+// professor can open it, and resolve with the shareable webViewLink (stored as
+// the submission link, so the professor's view is unchanged). Distinct root
+// from uploadFile() so a student's submissions never mix with teacher Stream
+// uploads. The caller verifies size/type first; the size cap is re-checked here.
+export function uploadSubmission(file, { onProgress, folderPath } = {}) {
+  return new Promise((resolve, reject) => {
+    (async () => {
+      if (!file) throw new Error('No file selected.')
+      if (file.size > SUBMISSION_MAX_BYTES) throw new Error('That file is over the 25 MB limit.')
+      const token = await getToken()
+      const folderId = await ensureFolderPath([SUBMISSION_ROOT, ...(folderPath || []).filter(Boolean)])
+      const meta = { name: file.name, ...(folderId ? { parents: [folderId] } : {}) }
+      const boundary = 'acadflow' + Math.random().toString(36).slice(2)
+      const head = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: ${file.type || 'application/octet-stream'}\r\n\r\n`
+      const tail = `\r\n--${boundary}--`
+      const body = new Blob([head, file, tail], { type: `multipart/related; boundary=${boundary}` })
+
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink')
+      xhr.setRequestHeader('Authorization', 'Bearer ' + token)
+      xhr.upload.onprogress = e => { if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100)) }
+      xhr.onload = () => {
+        if (xhr.status < 200 || xhr.status >= 300) { reject(new Error('Upload failed (' + xhr.status + ').')); return }
+        const f = JSON.parse(xhr.responseText)
+        const link = f.webViewLink || `https://drive.google.com/file/d/${f.id}/view`
+        driveFetch(`https://www.googleapis.com/drive/v3/files/${f.id}/permissions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'reader', type: 'anyone' }),
+        }).catch(() => { /* link-sharing best-effort */ }).finally(() => {
+          resolve({ driveId: f.id, name: f.name || file.name, link })
+        })
+      }
+      xhr.onerror = () => reject(new Error('Upload failed.'))
+      xhr.send(body)
+    })().catch(reject)
+  })
+}
+
 // Upload one File into AcadFlow / {classLabel} / {Photos|Modules}, make it
 // "anyone with link can view", and return an attachment descriptor.
 export function uploadFile(file, { onProgress, classLabel } = {}) {

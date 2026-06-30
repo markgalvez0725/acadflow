@@ -3004,6 +3004,41 @@ textarea.input { resize: vertical; }
   margin-bottom: 8px;
 }
 .sa-act-submit-form { margin-top: 10px; }
+/* Student submission Drive uploader (paired with the link input). */
+.sa-drive-connect, .sa-drive-pick {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  width: 100%; margin-top: 8px; padding: 9px 12px;
+  font-family: var(--font-body); font-size: 0.8125rem; font-weight: 600;
+  color: var(--ink2); background: var(--surface2);
+  border: 1px dashed var(--border2); border-radius: var(--radius); cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.sa-drive-connect:hover:not(:disabled), .sa-drive-pick:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.sa-drive-connect:disabled, .sa-drive-pick:disabled { opacity: .55; cursor: default; }
+.sa-drive-file {
+  display: flex; align-items: center; gap: 9px; margin-top: 8px; padding: 9px 11px;
+  background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.sa-drive-name { font-size: 0.8125rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sa-drive-ok { display: flex; align-items: center; gap: 4px; font-size: 0.6875rem; color: var(--green); margin-top: 2px; }
+.sa-drive-pct { font-size: 0.75rem; font-weight: 700; color: var(--accent); flex-shrink: 0; }
+.sa-drive-bar { height: 4px; margin-top: 5px; background: var(--border); border-radius: 99px; overflow: hidden; }
+.sa-drive-bar > span { display: block; height: 100%; background: var(--accent); border-radius: 99px; transition: width .2s ease; }
+.sa-drive-x { flex-shrink: 0; display: inline-flex; padding: 3px; border: none; background: none; color: var(--ink3); cursor: pointer; border-radius: 4px; }
+.sa-drive-x:hover:not(:disabled) { color: var(--red); }
+/* Professor activity-review cards (one per student, replaces the table). */
+.act-review-list { display: flex; flex-direction: column; gap: 10px; }
+.act-review-card { padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.ar-avatar {
+  flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-l); color: var(--accent); font-size: 0.75rem; font-weight: 700;
+}
+.ar-name { font-size: 0.875rem; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ar-sub { font-size: 0.6875rem; color: var(--ink3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ar-lbl { font-size: 0.6875rem; font-weight: 700; color: var(--ink2); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 5px; }
+.ar-save { display: inline-flex; align-items: center; gap: 3px; font-size: 0.6875rem; font-weight: 600; color: var(--ink3); text-transform: none; letter-spacing: 0; }
+.ar-save-ok { color: var(--green); }
 .sa-act-submitted {
   margin-top: 10px;
   padding: 10px 12px;

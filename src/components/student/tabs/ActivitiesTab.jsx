@@ -7,6 +7,8 @@ import EmptyState from '@/components/ds/EmptyState'
 import { ClipboardList, Check, Circle, Users, ShieldCheck, AlertTriangle, Clock, Hourglass, Trophy, CheckCircle2 } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import StandingRing from '@/components/primitives/StandingRing'
+import SubmissionFileField from '@/components/student/SubmissionFileField'
+import { uploadSubmission } from '@/utils/googleDrive'
 
 const PER_PAGE = 10
 const SOON_MS = 48 * 3600000 // "due soon" window
@@ -45,6 +47,8 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
 
   const [page, setPage] = useState(1)
   const [linkInputs, setLinkInputs] = useState({}) // actId → string
+  const [pendingFiles, setPendingFiles] = useState({}) // actId → File (staged, not yet uploaded)
+  const [uploadPct, setUploadPct] = useState({})    // actId → number|null (Drive upload progress)
   const [submitting, setSubmitting] = useState({})  // actId → bool
   const [editing, setEditing] = useState({})        // actId → bool
   const [groupText, setGroupText] = useState({})    // actId → string (group analysis)
@@ -131,20 +135,34 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
   function pickFilter(next) { setFilter(next); setPage(1) }
 
   async function submitActivity(actId) {
-    const link = (linkInputs[actId] || '').trim()
-    if (!link) { toast('Please enter a submission link.', 'warn'); return }
-    if (!/^https?:\/\/.+/.test(link)) { toast('Please enter a valid URL starting with http:// or https://', 'warn'); return }
+    const file = pendingFiles[actId] || null
+    const typedLink = (linkInputs[actId] || '').trim()
+    // A submission is a file OR a pasted link. A staged file wins.
+    if (!file && !typedLink) { toast('Paste a link or attach a file.', 'warn'); return }
+    if (!file && !/^https?:\/\/.+/.test(typedLink)) { toast('Please enter a valid URL starting with http:// or https://', 'warn'); return }
     if (!fbReady || !db.current) { toast('Activities require Firebase to be connected.', 'warn'); return }
     setSubmitting(prev => ({ ...prev, [actId]: true }))
     try {
+      const act = activities.find(a => a.id === actId)
+      let link = typedLink
+      if (file) {
+        // Verify-then-upload: the file is checked on pick; here it actually
+        // uploads to the student's own Drive and we store the share link.
+        setUploadPct(prev => ({ ...prev, [actId]: 0 }))
+        const res = await uploadSubmission(file, {
+          folderPath: [act?.subject || 'General', act?.title || 'Activity'],
+          onProgress: pct => setUploadPct(prev => ({ ...prev, [actId]: pct })),
+        })
+        link = res.link
+      }
       const sidPath = `submissions.${s.id}`
       await updateDoc(doc(db.current, 'activities', actId), {
         [`${sidPath}.link`]: link,
         [`${sidPath}.submittedAt`]: Date.now(),
       })
       setLinkInputs(prev => ({ ...prev, [actId]: '' }))
+      setPendingFiles(prev => ({ ...prev, [actId]: null }))
       setEditing(prev => ({ ...prev, [actId]: false }))
-      const act = activities.find(a => a.id === actId)
       await pushAdminNotif(
         db.current, s,
         `Submitted: ${act?.title || actId}`,
@@ -155,6 +173,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
     } catch (e) {
       toast('Failed to submit: ' + e.message, 'error')
     } finally {
+      setUploadPct(prev => ({ ...prev, [actId]: null }))
       setSubmitting(prev => ({ ...prev, [actId]: false }))
     }
   }
@@ -428,19 +447,28 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                         onChange={e => setLinkInputs(prev => ({ ...prev, [act.id]: e.target.value }))}
                         onKeyDown={e => { if (e.key === 'Enter') submitActivity(act.id) }}
                       />
+                      <SubmissionFileField
+                        file={pendingFiles[act.id] || null}
+                        onPick={f => setPendingFiles(prev => ({ ...prev, [act.id]: f }))}
+                        progress={uploadPct[act.id] ?? null}
+                        disabled={submitting[act.id]}
+                      />
                       <div className="flex gap-2 mt-2">
                         <button
                           className="btn btn-primary btn-sm"
                           onClick={() => submitActivity(act.id)}
-                          disabled={submitting[act.id] || !(linkInputs[act.id] ?? sub.link).trim()}
+                          disabled={submitting[act.id] || (!(linkInputs[act.id] ?? sub.link).trim() && !pendingFiles[act.id])}
                         >
-                          {submitting[act.id] ? 'Saving…' : 'Save changes →'}
+                          {submitting[act.id]
+                            ? (uploadPct[act.id] != null ? `Uploading ${uploadPct[act.id]}%…` : 'Saving…')
+                            : 'Save changes →'}
                         </button>
                         <button
                           className="btn btn-ghost btn-sm"
                           onClick={() => {
                             setEditing(prev => ({ ...prev, [act.id]: false }))
                             setLinkInputs(prev => ({ ...prev, [act.id]: '' }))
+                            setPendingFiles(prev => ({ ...prev, [act.id]: null }))
                           }}
                         >
                           Cancel
@@ -483,12 +511,20 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                     onChange={e => setLinkInputs(prev => ({ ...prev, [act.id]: e.target.value }))}
                     onKeyDown={e => { if (e.key === 'Enter') submitActivity(act.id) }}
                   />
+                  <SubmissionFileField
+                    file={pendingFiles[act.id] || null}
+                    onPick={f => setPendingFiles(prev => ({ ...prev, [act.id]: f }))}
+                    progress={uploadPct[act.id] ?? null}
+                    disabled={submitting[act.id]}
+                  />
                   <button
                     className="btn btn-primary btn-sm mt-2"
                     onClick={() => submitActivity(act.id)}
-                    disabled={submitting[act.id] || !(linkInputs[act.id] || '').trim()}
+                    disabled={submitting[act.id] || (!(linkInputs[act.id] || '').trim() && !pendingFiles[act.id])}
                   >
-                    {submitting[act.id] ? 'Submitting…' : 'Submit →'}
+                    {submitting[act.id]
+                      ? (uploadPct[act.id] != null ? `Uploading ${uploadPct[act.id]}%…` : 'Submitting…')
+                      : 'Submit →'}
                   </button>
                 </div>
               )}

@@ -1,15 +1,15 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { sortByLastName } from '@/utils/format'
+import { sortByLastName, getInitials } from '@/utils/format'
 import { courseShort } from '@/constants/courses'
 import { getHeldDays, computeTerms, scoredPercent, round2 } from '@/utils/grades'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
 import EmptyState from '@/components/ds/EmptyState'
-import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil, ClipboardList, AlarmClock, CircleDot, BarChart3, CheckCircle2, Check, Save, Plus, Copy, Users, ClipboardPaste, AlertTriangle, Trash2 } from 'lucide-react'
+import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil, ClipboardList, AlarmClock, CircleDot, BarChart3, CheckCircle2, Check, Save, Plus, Copy, Users, ClipboardPaste, AlertTriangle, Trash2, ExternalLink } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { deviceRubric, smartInstructions, smartRubric, smartGrade, smartGradeGroups, autoFormGroups, prewarmActivitySmart, groupName } from '@/utils/activitySmart'
 import { sendPushToOwners } from '@/firebase/pushTokens'
@@ -739,6 +739,10 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
   const [smartResult, setAiResult] = useState(null)  // { score, feedback, criteria }
   const [saving,        setSaving]       = useState({})
   const [savingAll,     setSavingAll]    = useState(false)
+  const [fbSaveState,   setFbSaveState]  = useState({}) // sid → 'saving' | 'saved' (feedback note autosave)
+  const fbTimers = useRef({})            // sid → debounce timer id for feedback autosave
+  // Cancel any pending feedback autosaves when the modal closes.
+  useEffect(() => () => { Object.values(fbTimers.current).forEach(t => clearTimeout(t)) }, [])
 
   // Group case-study grading state
   const isGroupAct = !!act.isGroup
@@ -831,6 +835,25 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
     } finally {
       setSaving(prev => ({ ...prev, [s.id]: false }))
     }
+  }
+
+  // Auto-save professor feedback notes ~1.1s after typing stops (debounced),
+  // independent of the Score button. Writes ONLY the feedback field, so it can
+  // never touch the grade. A per-student chip shows Saving.../Saved.
+  function onFeedbackChange(sid, val) {
+    setFeedbacks(prev => ({ ...prev, [sid]: val }))
+    clearTimeout(fbTimers.current[sid])
+    fbTimers.current[sid] = setTimeout(async () => {
+      if (!fbReady || !db.current) return
+      setFbSaveState(prev => ({ ...prev, [sid]: 'saving' }))
+      try {
+        await updateDoc(doc(db.current, 'activities', act.id), { [`submissions.${sid}.feedback`]: val.trim() })
+        setFbSaveState(prev => ({ ...prev, [sid]: 'saved' }))
+        setTimeout(() => setFbSaveState(prev => { const n = { ...prev }; if (n[sid] === 'saved') delete n[sid]; return n }), 2000)
+      } catch {
+        setFbSaveState(prev => { const n = { ...prev }; delete n[sid]; return n })
+      }
+    }, 1100)
   }
 
   async function handleApplyDefault() {
@@ -1183,140 +1206,107 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       {!enrolledStudents.length ? (
         <EmptyState compact title="No registered students in this class yet." />
       ) : (
-        <div className="tbl-wrap mb-3">
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>Student</th>
-                <th>Status</th>
-                <th>Submission</th>
-                {hasRubric && <th>Rubric</th>}
-                <th>Score /{act.maxScore}</th>
-                <th>Feedback</th>
-                <th>Save</th>
-              </tr>
-            </thead>
-            <tbody>
-              {enrolledStudents.map(s => {
-                const sub    = (act.submissions || {})[s.id] || {}
-                const hasLink = !!sub.link
-                const curScore = sub.score != null ? sub.score : ''
-                const subDate = sub.submittedAt
-                  ? new Date(sub.submittedAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-                  : '-'
-                const inputVal = scores[s.id] !== undefined ? scores[s.id] : String(curScore)
-                const checks = rubricChecks[s.id] || {}
-                const li = lateInfo(sub, act, latePolicy)
-                return (
-                  <tr key={s.id}>
-                    <td>
-                      <strong>{s.name}</strong>
-                      <br />
-                      <span style={{ fontSize: 11, color: 'var(--ink2)' }}>{s.id}</span>
-                    </td>
-                    <td>
-                      {hasLink
-                        ? <Badge variant="green"><CheckCircle2 size={14} /> Submitted</Badge>
-                        : <Badge variant="gray" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>{isPast ? <><AlertCircle size={11} />Missed</> : <><Clock size={11} />Pending</>}</Badge>
-                      }
-                    </td>
-                    <td>
-                      {hasLink ? (
-                        <>
-                          <a
-                            href={sub.link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{ fontSize: 11, color: 'var(--c-accent)', wordBreak: 'break-all', maxWidth: 200, display: 'inline-block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                          >
-                            {sub.link.replace(/^https?:\/\//, '').slice(0, 40)}…
-                          </a>
-                          <br />
-                          <span style={{ fontSize: 10, color: 'var(--ink3)' }}>{subDate}</span>
-                        </>
-                      ) : (
-                        <span style={{ color: 'var(--ink3)', fontSize: 11 }}>No submission</span>
-                      )}
-                    </td>
-                    {hasRubric && (
-                      <td>
-                        <div className="flex flex-col gap-1">
-                          {act.rubric.map(c => (
-                            <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                              <input
-                                type="checkbox"
-                                checked={!!(checks[c.id])}
-                                onChange={() => toggleRubricCheck(s.id, c.id)}
-                                style={{ accentColor: 'var(--c-accent)' }}
-                              />
-                              {c.name} <span style={{ color: 'var(--ink3)' }}>({c.points}pt{c.points !== 1 ? 's' : ''})</span>
-                            </label>
-                          ))}
-                        </div>
-                      </td>
-                    )}
-                    <td>
+        <div className="act-review-list mb-3">
+          {enrolledStudents.map(s => {
+            const sub    = (act.submissions || {})[s.id] || {}
+            const hasLink = !!sub.link
+            const curScore = sub.score != null ? sub.score : ''
+            const subDate = sub.submittedAt
+              ? new Date(sub.submittedAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+              : null
+            const inputVal = scores[s.id] !== undefined ? scores[s.id] : String(curScore)
+            const checks = rubricChecks[s.id] || {}
+            const li = lateInfo(sub, act, latePolicy)
+            const fbState = fbSaveState[s.id]
+            return (
+              <div className="act-review-card" key={s.id}>
+                <div className="flex items-center gap-2.5">
+                  <div className="ar-avatar">{getInitials(s.name)}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="ar-name">{s.name}</div>
+                    <div className="ar-sub">{s.id}{subDate ? ` · submitted ${subDate}` : ''}</div>
+                  </div>
+                  {hasLink
+                    ? <Badge variant="green"><CheckCircle2 size={14} /> Submitted</Badge>
+                    : <Badge variant="gray" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>{isPast ? <><AlertCircle size={11} />Missed</> : <><Clock size={11} />Pending</>}</Badge>}
+                  {hasLink && (
+                    <a href={sub.link} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }}>
+                      <ExternalLink size={13} /> Open
+                    </a>
+                  )}
+                </div>
+
+                {hasRubric && (
+                  <div className="flex flex-wrap gap-x-3 gap-y-1" style={{ marginTop: 10 }}>
+                    {act.rubric.map(c => (
+                      <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        <input type="checkbox" checked={!!(checks[c.id])} onChange={() => toggleRubricCheck(s.id, c.id)} style={{ accentColor: 'var(--c-accent)' }} />
+                        {c.name} <span style={{ color: 'var(--ink3)' }}>({c.points}pt{c.points !== 1 ? 's' : ''})</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex gap-3 items-start flex-wrap" style={{ marginTop: 10 }}>
+                  <div style={{ width: 120 }}>
+                    <div className="ar-lbl">Score</div>
+                    <div className="flex items-center gap-1.5">
                       <input
-                        type="number"
-                        min="0"
-                        max={act.maxScore}
-                        value={inputVal}
+                        type="number" min="0" max={act.maxScore} value={inputVal}
                         onChange={e => setScores(prev => ({ ...prev, [s.id]: e.target.value }))}
-                        style={{ width: 70, padding: '5px 7px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, textAlign: 'center', background: 'var(--surface)', color: 'var(--ink)' }}
+                        aria-label={`Score for ${s.name}`}
+                        style={{ width: 64, padding: '6px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, textAlign: 'center', background: 'var(--surface)', color: 'var(--ink)' }}
                         placeholder="-"
                       />
-                      {li.late && (
-                        <div style={{ marginTop: 4, fontSize: 10, lineHeight: 1.4, color: waived[s.id] ? 'var(--ink3)' : 'var(--red)', whiteSpace: 'nowrap' }}>
-                          <AlarmClock size={10} /> {li.days}d late · −{li.percent}%
-                          {inputVal !== '' && !isNaN(parseFloat(inputVal)) && !waived[s.id] && (
-                            <span> → <strong>{applyLatePenalty(parseFloat(inputVal), sub, act, latePolicy, false)}</strong></span>
-                          )}
-                          <label style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 2, color: 'var(--ink2)', cursor: 'pointer', fontWeight: 600 }}>
-                            <input type="checkbox" checked={!!waived[s.id]} onChange={() => setWaived(p => ({ ...p, [s.id]: !p[s.id] }))} style={{ width: 'auto', margin: 0 }} />
-                            Waive penalty
-                          </label>
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      <textarea
-                        value={feedbacks[s.id] !== undefined ? feedbacks[s.id] : (sub.feedback || '')}
-                        onChange={e => setFeedbacks(prev => ({ ...prev, [s.id]: e.target.value }))}
-                        placeholder="Optional feedback…"
-                        aria-label={`Feedback for ${s.name}`}
-                        rows={2}
-                        style={{ width: 190, minWidth: 150, padding: '5px 7px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 12, lineHeight: 1.45, background: 'var(--surface)', color: 'var(--ink)', resize: 'vertical', fontFamily: 'inherit' }}
-                      />
-                    </td>
-                    <td>
-                      <div className="flex gap-1.5 items-center">
-                        {hasLink && (
-                          <button
-                            className="btn btn-ghost btn-sm"
-                            title="Smart grading assistant"
-                            onClick={() => { setAiFor(s.id); setAiText(''); setAiResult(null) }}
-                          >
-                            <Sparkles size={13} />
-                          </button>
+                      <span className="text-xs text-ink3">/ {act.maxScore}</span>
+                    </div>
+                    {li.late && (
+                      <div style={{ marginTop: 5, fontSize: 10.5, lineHeight: 1.4, color: waived[s.id] ? 'var(--ink3)' : 'var(--red)' }}>
+                        <AlarmClock size={10} /> {li.days}d late · −{li.percent}%
+                        {inputVal !== '' && !isNaN(parseFloat(inputVal)) && !waived[s.id] && (
+                          <span> → <strong>{applyLatePenalty(parseFloat(inputVal), sub, act, latePolicy, false)}</strong></span>
                         )}
-                        <button
-                          className="btn btn-primary btn-sm"
-                          disabled={saving[s.id] || inputVal === ''}
-                          onClick={() => handleSaveScore(s)}
-                        >
-                          {saving[s.id] ? '…' : 'Save'}
-                        </button>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 2, color: 'var(--ink2)', cursor: 'pointer', fontWeight: 600 }}>
+                          <input type="checkbox" checked={!!waived[s.id]} onChange={() => setWaived(p => ({ ...p, [s.id]: !p[s.id] }))} style={{ width: 'auto', margin: 0 }} />
+                          Waive penalty
+                        </label>
                       </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                    )}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <div className="ar-lbl flex items-center justify-between">
+                      <span>Feedback note</span>
+                      {fbState === 'saving' && <span className="ar-save">Saving…</span>}
+                      {fbState === 'saved' && <span className="ar-save ar-save-ok"><Check size={11} /> Saved</span>}
+                    </div>
+                    <textarea
+                      value={feedbacks[s.id] !== undefined ? feedbacks[s.id] : (sub.feedback || '')}
+                      onChange={e => onFeedbackChange(s.id, e.target.value)}
+                      placeholder="Notes save automatically as you type…"
+                      aria-label={`Feedback for ${s.name}`}
+                      rows={2}
+                      style={{ width: '100%', padding: '6px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 12.5, lineHeight: 1.45, background: 'var(--surface)', color: 'var(--ink)', resize: 'vertical', fontFamily: 'inherit' }}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-1.5 items-center justify-end" style={{ marginTop: 10 }}>
+                  {hasLink && (
+                    <button className="btn btn-ghost btn-sm" title="Smart grading assistant" onClick={() => { setAiFor(s.id); setAiText(''); setAiResult(null) }}>
+                      <Sparkles size={13} /> Smart grade
+                    </button>
+                  )}
+                  <button className="btn btn-primary btn-sm" disabled={saving[s.id] || inputVal === ''} onClick={() => handleSaveScore(s)}>
+                    {saving[s.id] ? 'Saving…' : 'Save score'}
+                  </button>
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
 
-      <p className="text-xs text-ink3 mb-4">Scores are saved immediately. After saving, the student's grade components are updated automatically.</p>
+      <p className="text-xs text-ink3 mb-4">Feedback notes save automatically as you type. Saving a score updates the student's grade components right away.</p>
 
       {/* Actions */}
       <div className="flex gap-2 flex-wrap items-center">
