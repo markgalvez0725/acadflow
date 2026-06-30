@@ -2,7 +2,7 @@
 // Tokens live in their own `pushTokens` collection (doc id = token) so they
 // are never clobbered by full-document student writes. Server-side send code
 // reads this collection to deliver pushes.
-import { doc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore'
+import { doc, setDoc, deleteDoc, collection, getDocs, query, where } from 'firebase/firestore'
 import { fbWithTimeout, getIdToken } from './firebaseInit'
 
 export async function fbSavePushToken(db, token, ownerId, role) {
@@ -22,11 +22,12 @@ export async function fbSavePushToken(db, token, ownerId, role) {
     // and the server fans out to all of them - so the same push shows several
     // times. Keeping one token per owner+device delivers exactly one push.
     if (ownerId) {
-      const snap = await getDocs(collection(db, 'pushTokens'))
+      // Query just this owner's tokens instead of scanning the whole collection.
+      const snap = await getDocs(query(collection(db, 'pushTokens'), where('ownerId', '==', ownerId)))
       const stale = []
       snap.forEach((d) => {
         const t = d.data()
-        if (t && t.ownerId === ownerId && t.ua === ua && t.token !== token) stale.push(t.token)
+        if (t && t.ua === ua && t.token !== token) stale.push(t.token)
       })
       await Promise.all(stale.map((t) => deleteDoc(doc(db, 'pushTokens', t)).catch(() => {})))
     }
@@ -49,16 +50,23 @@ export async function fbSavePushToken(db, token, ownerId, role) {
 export async function sendPushToOwners(db, ownerIds, notification, data = {}) {
   if (!db) return
   try {
-    const snap = await getDocs(collection(db, 'pushTokens'))
-    if (snap.empty) return
-    const all = ownerIds === 'all'
-    const targetSet = all ? null : new Set(ownerIds || [])
     const tokens = []
-    snap.forEach((d) => {
-      const t = d.data()
-      if (!t?.token) return
-      if (all || targetSet.has(t.ownerId)) tokens.push(t.token)
-    })
+    if (ownerIds === 'all') {
+      // Genuine broadcast to every device: a full scan is unavoidable here.
+      const snap = await getDocs(collection(db, 'pushTokens'))
+      snap.forEach((d) => { const t = d.data(); if (t?.token) tokens.push(t.token) })
+    } else {
+      const ids = [...new Set((ownerIds || []).filter(Boolean))]
+      if (!ids.length) return
+      // Query by ownerId in chunks of 30 (Firestore 'in' cap) instead of reading
+      // the entire pushTokens collection on every push. Most sends target one or
+      // a few owners, so this is ~1-2 reads instead of one-per-registered-device.
+      for (let i = 0; i < ids.length; i += 30) {
+        const chunk = ids.slice(i, i + 30)
+        const snap = await getDocs(query(collection(db, 'pushTokens'), where('ownerId', 'in', chunk)))
+        snap.forEach((d) => { const t = d.data(); if (t?.token) tokens.push(t.token) })
+      }
+    }
     if (!tokens.length) return
 
     const idToken = await getIdToken()
