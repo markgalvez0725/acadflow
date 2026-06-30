@@ -413,7 +413,7 @@ export default function MessagesTab({ student: s, messages }) {
         const msg = {
           id: newDocId, from: s.id, to: 'admin',
           subject: 'Message from ' + (s.name || s.id),
-          body: text, ts,
+          body: text, ts, lastActivityAt: ts,
           read: [s.id], adminRead: false, replies: [], type: 'direct',
           ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}), ...postObj,
         }

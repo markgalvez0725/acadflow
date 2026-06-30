@@ -265,13 +265,15 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
       setErr('That subject has no current-semester classes.'); setSending(false); return
     }
 
+    const _ts = Date.now()
     const msg = {
       id,
       from:      'admin',
       to,
       subject:   '',            // no subject field - message body stands alone
       body:      body.trim(),
-      ts:        Date.now(),
+      ts:        _ts,
+      lastActivityAt: _ts,
       read:      [],
       adminRead: true,
       replies:   [],
@@ -1155,7 +1157,7 @@ export default function MessagesTab() {
         if (optimisticMain) {
           await setDoc(doc(db.current, 'messages', targetDocId), {
             id: targetDocId, from: 'admin', to: thread.studentId, subject: '',
-            body: text, ts, read: [], adminRead: true, replies: [], type: 'direct',
+            body: text, ts, lastActivityAt: ts, read: [], adminRead: true, replies: [], type: 'direct',
             ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}),
           })
         } else {

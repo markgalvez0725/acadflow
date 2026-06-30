@@ -392,7 +392,7 @@ export async function fbAddMessageReply(db, msgId, reply, opts = {}) {
   // against) and never retries under group-chat contention. The read[]/adminRead
   // updates piggy-back on the same single write. arrayUnion dedupes by value, so
   // a repeated readerId is a no-op just like the old includes() check.
-  const patch = { replies: arrayUnion(reply) }
+  const patch = { replies: arrayUnion(reply), lastActivityAt: reply.ts || Date.now() }
   if (opts.adminRead !== undefined) patch.adminRead = opts.adminRead
   if (opts.readerId) patch.read = arrayUnion(opts.readerId)
   return fbWithTimeout(updateDoc(ref, patch))

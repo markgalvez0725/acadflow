@@ -1058,7 +1058,7 @@ function MessageSelectedModal({ recipients, onClose }) {
         return setDoc(doc(db.current, 'messages', id), {
           id, from: 'admin', to: s.id,
           subject: subject.trim(), body: body.trim(),
-          ts, read: [], adminRead: true, replies: [], type: 'direct', classId: null,
+          ts, lastActivityAt: ts, read: [], adminRead: true, replies: [], type: 'direct', classId: null,
         })
       }))
       notifyStudentsBroadcast(db.current, ids, subject.trim())

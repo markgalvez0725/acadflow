@@ -41,13 +41,15 @@ export default function RegradeRequestModal({ student: s, subjects = [], onClose
     try {
       const newId = 'm' + Date.now() + Math.random().toString(36).slice(2, 6)
       const gradeNote = currentGrade != null ? ` (current: ${currentGrade.toFixed(1)}%)` : ''
+      const _ts = Date.now()
       const msg = {
         id: newId,
         from: s.id,
         to: 'admin',
         subject: `Regrade request: ${subject}${gradeNote}`,
         body: text,
-        ts: Date.now(),
+        ts: _ts,
+        lastActivityAt: _ts,
         read: [s.id],
         adminRead: false,
         replies: [],
