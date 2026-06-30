@@ -290,6 +290,22 @@ export async function getStudentRoster(projectId, accessToken, docId) {
   }
 }
 
+// Read account.securityAnswer (the hashed self-service reset answer) for one
+// student, server-side (bypasses rules). Returns the stored hash string, or null
+// when the account / field is absent. Lets the security-answer check run on the
+// server so the hash never has to be read in the browser.
+export async function getStudentSecurityAnswer(projectId, accessToken, docId) {
+  const r = await fetch(`${fsBase(projectId)}/students/${encodeURIComponent(docId)}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (r.status === 404) return null
+  const data = await r.json()
+  if (!r.ok) throw new Error(data?.error?.message || 'Student read failed')
+  const acct = data.fields?.account?.mapValue?.fields || {}
+  const ans = acct.securityAnswer
+  return (ans && typeof ans.stringValue === 'string') ? ans.stringValue : null
+}
+
 // Set account.verified + account.verification on a student doc (admin write,
 // bypasses rules). Uses field-path masks so the rest of the account map is kept.
 export async function patchStudentVerification(projectId, accessToken, docId, { verified, verification }) {

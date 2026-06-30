@@ -9,7 +9,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { signInWithCustomToken, updatePassword } from 'firebase/auth'
 import { getFbAuth } from '@/firebase/firebaseInit'
-import { hashPassword, verifyPassword } from '@/utils/crypto'
+import { hashPassword } from '@/utils/crypto'
 import { validateSnum, sanitizeSnum } from '@/utils/validate'
 import { SECURITY_QUESTIONS } from '@/utils/securityQuestions'
 import LoadingButton from '@/components/primitives/LoadingButton'
@@ -338,24 +338,27 @@ export default function LoginScreen({ onRevealFaculty }) {
     if (fpNewPass !== fpNewPass2) return setErr('Passwords do not match.')
     if (!fpPending) return setErr('Session expired. Please start again.')
 
-    const s = students.find(x => x.id === fpPending.snum)
-    if (!s) return setErr('Student account not found.')
-
-    const answerMatch = await verifyPassword(fpAnswer.trim().toLowerCase(), s.account.securityAnswer)
-    if (!answerMatch)
-      return setErr('Incorrect answer. If you cannot remember, please contact your professor to reset your password.')
-
     setLoading(true)
     try {
-      const hashed = await hashPassword(fpNewPass)
-      const updatedStudents = students.map(x =>
-        x.id === s.id ? { ...x, account: { ...x.account, pass: hashed } } : x
-      )
-      await saveStudents(updatedStudents, [s.id])
-      setOkMsg('Password reset! Redirecting…')
-      setTimeout(() => { setMode('student'); setOkMsg(''); setFpPending(null) }, 1800)
+      // Verify the security answer AND reset the real Firebase Auth password
+      // server-side, so the stored answer hash is never read in the browser and
+      // the new password actually takes effect (the old on-device path only wrote
+      // account.pass, which never changed the Auth credential).
+      const r = await fetch('/api/verify-security-answer', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentNumber: fpPending.snum, answer: fpAnswer.trim().toLowerCase(), newPassword: fpNewPass }),
+      })
+      const data = await r.json().catch(() => ({}))
+      if (r.status === 501) {
+        return setErr('Self-service reset is unavailable right now. Please ask your professor to open a reset for you.')
+      }
+      if (!r.ok) {
+        return setErr(data.error || 'Incorrect answer. If you cannot remember, please contact your professor to reset your password.')
+      }
+      setOkMsg('Password reset! Sign in with your new password.')
+      setTimeout(() => { setMode('student'); setOkMsg(''); setFpPending(null); setFpAnswer(''); setFpNewPass(''); setFpNewPass2('') }, 1800)
     } catch (e) {
-      setErr('Failed to save: ' + e.message)
+      setErr('Failed to reset: ' + e.message)
     } finally {
       setLoading(false)
     }
