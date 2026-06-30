@@ -10,7 +10,7 @@ import { useUI } from '@/context/UIContext'
 import { signInWithCustomToken, updatePassword } from 'firebase/auth'
 import { getFbAuth } from '@/firebase/firebaseInit'
 import { validateSnum, sanitizeSnum } from '@/utils/validate'
-import LoadingButton from '@/components/primitives/LoadingButton'
+import Button from '@/components/ds/Button'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 
 const FaqModal = lazy(() => import('@/components/auth/FaqModal'))
@@ -367,9 +367,9 @@ export default function LoginScreen({ onRevealFaculty }) {
                 </button>
                 <label htmlFor="login-pass">Password</label>
               </div>
-              <LoadingButton loading={loading} loadingText="Signing in…" className="btn btn-primary btn-full mt-2">
+              <Button type="submit" full loading={loading} loadingText="Signing in…" className="mt-2">
                 Sign In
-              </LoadingButton>
+              </Button>
               <button type="button" className="link-btn w-full text-center mt-3" onClick={() => { setMode('forgot'); clearMessages() }}>
                 Forgot Password?
               </button>
@@ -501,9 +501,9 @@ export default function LoginScreen({ onRevealFaculty }) {
                     />
                     <label htmlFor="reset-newpass2">Confirm Password</label>
                   </div>
-                  <LoadingButton loading={rpStatus === 'saving'} loadingText="Saving…" className="btn btn-primary btn-full mt-2">
+                  <Button type="submit" full loading={rpStatus === 'saving'} loadingText="Saving…" className="mt-2">
                     <Check size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />Set Password &amp; Continue
-                  </LoadingButton>
+                  </Button>
                 </form>
               </div>
             </div>

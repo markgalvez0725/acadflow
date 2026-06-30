@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { ADMIN_EMAIL } from '@/constants/auth'
-import LoadingButton from '@/components/primitives/LoadingButton'
+import Button from '@/components/ds/Button'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 
 const ADMIN_FEATURES = [
@@ -172,9 +172,9 @@ export default function AdminLoginScreen() {
                 </button>
                 <label htmlFor="admin-password">Password</label>
               </div>
-              <LoadingButton loading={loading} loadingText="Signing in…" className="btn btn-primary btn-full mt-2">
+              <Button type="submit" full loading={loading} loadingText="Signing in…" className="mt-2">
                 Sign In
-              </LoadingButton>
+              </Button>
               <button type="button" className="link-btn w-full text-center mt-3" onClick={() => { clearMessages(); setPinResetOpen(true) }}>
                 Forgot Password?
               </button>

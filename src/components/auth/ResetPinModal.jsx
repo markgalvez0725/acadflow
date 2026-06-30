@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import Modal from '@/components/primitives/Modal'
-import LoadingButton from '@/components/primitives/LoadingButton'
+import Button from '@/components/ds/Button'
 import PinBoxes from '@/components/primitives/PinBoxes'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
@@ -118,9 +118,9 @@ export default function ResetPinModal({ onClose, onReset }) {
           <button type="button" className="btn btn-ghost" onClick={onClose} disabled={loading}>
             Cancel
           </button>
-          <LoadingButton loading={loading} loadingText="Saving…" className="btn btn-primary">
+          <Button type="submit" loading={loading} loadingText="Saving…">
             Reset Password
-          </LoadingButton>
+          </Button>
         </div>
       </form>
     </Modal>
