@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Fingerprint, ShieldCheck, AlertCircle } from 'lucide-react'
 import Modal from '@/components/primitives/Modal'
 import { useUI } from '@/context/UIContext'
-import { verifyPassword } from '@/utils/crypto'
+import { reauthCurrentUser } from '@/firebase/firebaseInit'
 import {
   isBiometricSupported, isPlatformAuthAvailable,
   isBiometricEnabled, enableBiometric, disableBiometric,
@@ -33,11 +33,10 @@ export default function BiometricSetupModal({ student, onClose, embedded = false
     if (!pass) { setErr('Enter your password to confirm.'); return }
     setBusy(true)
     try {
-      const stored = student?.account?.pass
-      if (stored) {
-        const ok = await verifyPassword(pass, stored)
-        if (!ok) { setErr('Incorrect password.'); setBusy(false); return }
-      }
+      // Confirm the password via Firebase Auth reauthentication instead of the
+      // stored hash, so account.pass can move server-side.
+      const ok = await reauthCurrentUser(pass)
+      if (!ok) { setErr('Incorrect password.'); setBusy(false); return }
       await enableBiometric({ snum: student.id, name: student.name, password: pass })
       setEnabled(true)
       setPass('')

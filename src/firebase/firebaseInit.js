@@ -1,7 +1,7 @@
 // ── Firebase initialization - modular SDK v10 ─────────────────────────────
 import { initializeApp, getApps, deleteApp } from 'firebase/app'
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
-import { getAuth } from 'firebase/auth'
+import { getAuth, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth'
 
 /** Hardcoded Firebase config - always available on any device. */
 const HARDCODED_FB_CONFIG = {
@@ -31,6 +31,24 @@ let _initializing = false;
 
 export function getDb() { return _db; }
 export function getFbAuth() { return _auth; }
+
+/**
+ * Re-verify the signed-in user's password via Firebase Auth reauthentication,
+ * WITHOUT reading any stored hash. Lets "confirm your password" flows (edit
+ * profile, enable biometric) stop reading account.pass off the student doc, so
+ * that secret can move to a server-only collection. Returns true on a correct
+ * password, false on a wrong password / no signed-in user / offline.
+ */
+export async function reauthCurrentUser(password) {
+  try {
+    const u = _auth?.currentUser
+    if (!u?.email || !password) return false
+    await reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, password))
+    return true
+  } catch {
+    return false
+  }
+}
 
 /**
  * Current user's Firebase ID token, or '' when signed-out / unavailable.

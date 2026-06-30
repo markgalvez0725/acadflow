@@ -125,8 +125,11 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
     const dup = students.find(x => x.id !== s.id && x.account?.registered && x.account?.email?.toLowerCase() === trimEmail.toLowerCase())
     if (dup) { setEmailError('This email is already linked to another account.'); return }
 
-    const { verifyPassword } = await import('@/utils/crypto')
-    const match = await verifyPassword(confirmPass, s.account?.pass ?? s.pass)
+    // Verify via Firebase Auth reauthentication (the real credential) rather than
+    // reading the stored hash off the student doc, so account.pass can move
+    // server-side. Requires being online; offline the prompt simply won't confirm.
+    const { reauthCurrentUser } = await import('@/firebase/firebaseInit')
+    const match = await reauthCurrentUser(confirmPass)
     if (!match) { setEmailError('Incorrect password.'); return }
 
     setEmailStep('verified')
