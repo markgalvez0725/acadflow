@@ -235,6 +235,8 @@ function GradeEntryModal({ classId, subject, onClose }) {
   const resyncRef = useRef(false)   // set during panel re-sync: skip history + auto-save
   const firstRowsRef = useRef(true)
   const dirtyRef  = useRef(false)
+  const dirtyIdsRef = useRef(new Set())   // student ids actually edited this session
+  const savingInFlightRef = useRef(false) // guards against overlapping autosaves
   const autoTimerRef = useRef(null)
   const autoSaveRef  = useRef(null)
   const [canUndo, setCanUndo] = useState(false)
@@ -309,8 +311,14 @@ function GradeEntryModal({ classId, subject, onClose }) {
     return String(Math.min(100, Math.max(0, n)))
   }
 
+  // Record which student a row edit touched, so autosave writes ONLY changed
+  // students instead of re-uploading the whole roster on every keystroke.
+  const markRowDirty = (i) => { const id = studs[i]?.id; if (id) dirtyIdsRef.current.add(id) }
+  const markAllDirty = () => { studs.forEach(s => dirtyIdsRef.current.add(s.id)) }
+
   // Update an activity input by index
   const updateActInput = useCallback((rowIdx, actIdx, val) => {
+    markRowDirty(rowIdx)
     setRows(prev => prev.map((r, i) => {
       if (i !== rowIdx) return r
       const actInputs = r.actInputs.map((v, j) => j === actIdx ? clampGrade(val) : v)
@@ -320,6 +328,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
 
   // Update a quiz input by index
   const updateQzInput = useCallback((rowIdx, qzIdx, val) => {
+    markRowDirty(rowIdx)
     setRows(prev => prev.map((r, i) => {
       if (i !== rowIdx) return r
       const qzInputs = r.qzInputs.map((v, j) => j === qzIdx ? clampGrade(val) : v)
@@ -329,6 +338,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
 
   // Live recompute row equiv
   const updateRow = useCallback((i, field, val) => {
+    markRowDirty(i)
     setRows(prev => prev.map((r, idx) => {
       if (idx !== i) return r
       return recomputeRow({ ...r, [field]: clampGrade(val) })
@@ -337,6 +347,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
 
   // When finalGrade is manually edited, just update equiv
   const updateFinalGrade = useCallback((i, val) => {
+    markRowDirty(i)
     setRows(prev => prev.map((r, idx) => {
       if (idx !== i) return r
       const clamped = clampGrade(val)
@@ -345,14 +356,17 @@ function GradeEntryModal({ classId, subject, onClose }) {
     }))
   }, [eqScale])
 
-  // Add an extra activity column (manual mode only - when no panel activities)
+  // Add an extra activity column (manual mode only - when no panel activities).
+  // A new column changes every row, so mark all students dirty.
   function addActColumn() {
+    markAllDirty()
     setManualActExtra(n => n + 1)
     setRows(prev => prev.map(r => recomputeRow({ ...r, actInputs: [...r.actInputs, ''] })))
   }
 
   // Add an extra quiz column (manual mode only - when no panel quizzes)
   function addQzColumn() {
+    markAllDirty()
     setManualQzExtra(n => n + 1)
     setRows(prev => prev.map(r => recomputeRow({ ...r, qzInputs: [...r.qzInputs, ''] })))
   }
@@ -449,9 +463,13 @@ function GradeEntryModal({ classId, subject, onClose }) {
     setSaving(true)
     if (autoTimerRef.current) { clearTimeout(autoTimerRef.current); autoTimerRef.current = null }
     const updatedStudents = buildUpdatedStudents(true)
-    const changedIds = studs.map(s => s.id)
+    // Only the students actually edited this session (full roster as a fallback
+    // when nothing was tracked, e.g. right after a bulk import).
+    const changedIds = dirtyIdsRef.current.size ? [...dirtyIdsRef.current] : studs.map(s => s.id)
+    const changedSet = new Set(changedIds)
     try {
       await saveStudents(updatedStudents, changedIds)
+      dirtyIdsRef.current = new Set()
       dirtyRef.current = false
       setAutoStatus('saved')
       logAudit?.({
@@ -465,6 +483,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
       if (fbReady && db.current) {
         const clsName = cls?.name || subject
         for (const s of studs) {
+          if (!changedSet.has(s.id)) continue   // don't re-notify unchanged students
           const si = updatedStudents.findIndex(x => x.id === s.id)
           const grade = si !== -1 ? updatedStudents[si].grades?.[subject] : null
           if (grade != null) {
@@ -488,14 +507,23 @@ function GradeEntryModal({ classId, subject, onClose }) {
   // Debounced auto-save - quietly persists edits (no audit/notification spam);
   // kept in a ref so the debounce timer always calls the latest closure.
   autoSaveRef.current = async () => {
-    if (!dirtyRef.current || saving) return
+    if (!dirtyRef.current || saving || savingInFlightRef.current) return
+    // Per-cell edits tracked their own student ids, so write ONLY those instead
+    // of re-uploading the whole roster on every keystroke. Bulk paths (e.g. a
+    // grade import) flag dirtyRef but don't enumerate ids, so fall back to the
+    // full roster there to stay correct.
+    const ids = dirtyIdsRef.current.size ? [...dirtyIdsRef.current] : studs.map(s => s.id)
+    savingInFlightRef.current = true
     setAutoStatus('saving')
     try {
-      await saveStudents(buildUpdatedStudents(), studs.map(s => s.id))
+      await saveStudents(buildUpdatedStudents(), ids)
+      dirtyIdsRef.current = new Set()
       dirtyRef.current = false
       setAutoStatus('saved')
     } catch (e) {
-      setAutoStatus('idle')
+      setAutoStatus('idle')   // keep dirty ids so the next change retries them
+    } finally {
+      savingInFlightRef.current = false
     }
   }
 
@@ -536,6 +564,20 @@ function GradeEntryModal({ classId, subject, onClose }) {
     if (autoTimerRef.current) clearTimeout(autoTimerRef.current)
     autoTimerRef.current = setTimeout(() => { autoSaveRef.current && autoSaveRef.current() }, 2000)
   }, [rows, syncHist])
+
+  // Flush any pending edits on modal close or tab-hide, so closing within the 2s
+  // debounce window never loses work. Mount-once (refs are stable; autoSaveRef
+  // always holds the latest closure), so it fires only on true unmount/hide.
+  React.useEffect(() => {
+    const flush = () => { if (dirtyRef.current && autoSaveRef.current) autoSaveRef.current() }
+    const onHide = () => { if (document.hidden) flush() }
+    document.addEventListener('visibilitychange', onHide)
+    return () => {
+      document.removeEventListener('visibilitychange', onHide)
+      if (autoTimerRef.current) clearTimeout(autoTimerRef.current)
+      flush()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keyboard undo/redo + clear the auto-save timer on unmount.
   React.useEffect(() => {
