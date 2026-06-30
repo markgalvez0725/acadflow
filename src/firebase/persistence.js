@@ -855,6 +855,49 @@ export async function fbPushMeetingNotifs(db, meeting, students, type) {
   }
 }
 
+// Notify students enrolled in a quiz's class(es) when a new quiz is posted. The
+// `quiz:<id>` link deep-links to (and glows) the quiz card. Mirrors
+// fbPushMeetingNotifs (one notif fanned out in batches, capped at 200/items).
+export async function fbPushQuizNotifs(db, quiz, students, type = 'quiz_new') {
+  if (!db || !quiz || !students?.length) return;
+  const quizClassIds = quiz.classIds?.length ? quiz.classIds : [];
+  if (!quizClassIds.length) return;
+  const enrolled = students.filter(s => {
+    const ids = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : []);
+    return ids.some(id => quizClassIds.includes(id));
+  });
+  if (!enrolled.length) return;
+
+  const { doc: fbDoc, getDoc, setDoc } = await import('firebase/firestore');
+
+  const openLabel = quiz.openAt
+    ? new Date(quiz.openAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    : null;
+  const notif = {
+    id: `n_${uuidv4()}`,
+    type,
+    read: false,
+    ts: Date.now(),
+    title: `New quiz: ${quiz.title}`,
+    body: `${quiz.subject || 'Quiz'}${openLabel ? ` - opens ${openLabel}` : ''}`,
+    link: `quiz:${quiz.id}`,
+    quizId: quiz.id,
+  };
+
+  for (let i = 0; i < enrolled.length; i += BATCH) {
+    await Promise.all(enrolled.slice(i, i + BATCH).map(async s => {
+      try {
+        const ref = fbDoc(db, 'notifications', s.id);
+        const snap = await getDoc(ref);
+        const existing = snap.exists() ? (snap.data().items || []) : [];
+        await setDoc(ref, { items: [notif, ...existing].slice(0, 200) }, { merge: false });
+      } catch (e) {
+        console.warn('[FB] fbPushQuizNotifs student:', s.id, e.message);
+      }
+    }));
+  }
+}
+
 // ── Full backup restore ────────────────────────────────────────────────────
 // Writes a backup object (produced by DataContext.buildBackup) back to
 // Firestore. Restores durable academic data only - students, classes,

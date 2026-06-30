@@ -3,7 +3,7 @@ import { doc, setDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Pagination from '@/components/primitives/Pagination'
-import { Mail, Upload, CheckCircle, BookOpen, MessageSquare, Bell, Trash2, Megaphone, Video, UserCircle } from 'lucide-react'
+import { Mail, Upload, CheckCircle, BookOpen, MessageSquare, Bell, Trash2, Megaphone, Video, UserCircle, FileQuestion } from 'lucide-react'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 import EmptyState from '@/components/ds/EmptyState'
 import { applyNotifPrefs, isNotifAllowed } from '@/utils/notifPrefs'
@@ -16,6 +16,7 @@ const ICONS = {
   act_sub:   <Upload size={16} />,
   act_grade: <CheckCircle size={16} />,
   act_new:   <BookOpen size={16} />,
+  quiz_new:  <FileQuestion size={16} />,
   msg_in:    <MessageSquare size={16} />,
   announce:  <Megaphone size={16} />,
   meeting_scheduled: <Video size={16} />,
@@ -35,6 +36,7 @@ const LINK_TO_TAB = {
 
 const TYPE_TO_TAB = {
   act_new:   { label: '→ View Activities', tab: 'activities' },
+  quiz_new:  { label: '→ View Quiz',       tab: 'quizzes' },
   profile:   { label: '→ Update profile',  tab: 'profile' },
   act_grade: { label: '→ View Grades',     tab: 'grades' },
   msg_out:   { label: '→ View Messages',   tab: 'messages' },

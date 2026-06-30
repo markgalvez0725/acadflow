@@ -22,6 +22,7 @@ const TYPE_TO_CATEGORY = {
   act_sub:           'activities',
   act_reminder:      'activities',
   quiz_reminder:     'activities',
+  quiz_new:          'activities',
   act_grade:         'grades',
   grade_note:        'grades',
   msg_in:            'messages',

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore'
+import { fbPushQuizNotifs } from '@/firebase/persistence'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { useRedirectHighlight } from '@/navigation/useRedirectHighlight'
@@ -305,7 +306,7 @@ function ImportResponseModal({ onClose, onImported }) {
 
 // ── Create/Edit Quiz Modal ────────────────────────────────────────────────────
 function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', onClose }) {
-  const { classes, db, fbReady } = useData()
+  const { classes, db, fbReady, students } = useData()
   const { toast } = useUI()
   const isEdit = !!quiz
 
@@ -472,6 +473,8 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
       } else {
         const id = quizId()
         await setDoc(doc(db.current, 'quizzes', id), { id, ...payload })
+        // Notify enrolled students (deep-links + glows the quiz card).
+        fbPushQuizNotifs(db.current, { id, ...payload }, students)
       }
       toast(isEdit ? 'Quiz updated!' : 'Quiz created and shared!', 'green')
       onClose()
