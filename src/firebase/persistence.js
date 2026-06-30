@@ -833,7 +833,7 @@ export async function fbPushMeetingNotifs(db, meeting, students, type) {
     ts: Date.now(),
     title: messages[type] || `${meeting.className}: Meeting update`,
     body: meeting.title,
-    link: 'onlineClasses',
+    link: `meeting:${meeting.id}`,
     meetingId: meeting.id,
     meetLink: meeting.meetLink || null,
     classId: meeting.classId,

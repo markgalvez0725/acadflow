@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react'
 import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
+import { useRedirectHighlight } from '@/navigation/useRedirectHighlight'
 import Modal from '@/components/primitives/Modal'
 import Badge from '@/components/primitives/Badge'
 import Avatar from '@/components/primitives/Avatar'
@@ -1401,6 +1402,7 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
 
 export default function QuizTab() {
   const { quizzes, classes, fbReady } = useData()
+  const highlightId = useRedirectHighlight('quiz')
   const [page, setPage] = useState(1)
   const [archivedPage, setArchivedPage] = useState(1)
   const [showArchivedQuizzes, setShowArchivedQuizzes] = useState(false)
@@ -1436,6 +1438,16 @@ export default function QuizTab() {
     () => activeQuizzes.slice((page - 1) * PER_PAGE, page * PER_PAGE),
     [activeQuizzes, page]
   )
+
+  // Deep-linked from elsewhere: page to the quiz (revealing the archived list
+  // if needed) so its card renders for the scroll-and-glow.
+  useEffect(() => {
+    if (!highlightId) return
+    const ai = activeQuizzes.findIndex(q => q.id === highlightId)
+    if (ai >= 0) { setPage(Math.floor(ai / PER_PAGE) + 1); return }
+    const xi = archivedQuizzes.findIndex(q => q.id === highlightId)
+    if (xi >= 0) { setShowArchivedQuizzes(true); setArchivedPage(Math.floor(xi / PER_PAGE) + 1) }
+  }, [highlightId, activeQuizzes, archivedQuizzes])
 
   const archivedSlice = useMemo(
     () => archivedQuizzes.slice((archivedPage - 1) * PER_PAGE, archivedPage * PER_PAGE),
@@ -1496,7 +1508,7 @@ export default function QuizTab() {
               const closeLabel = new Date(q.closeAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
 
               return (
-                <div key={q.id} className="card card-pad">
+                <div key={q.id} id={`quiz-${q.id}`} className={`card card-pad${highlightId === q.id ? ' redirect-glow' : ''}`}>
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -1556,7 +1568,7 @@ export default function QuizTab() {
                   const openLabel = new Date(q.openAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
                   const closeLabel = new Date(q.closeAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
                   return (
-                    <div key={q.id} className="card card-pad" style={{ opacity: 0.85 }}>
+                    <div key={q.id} id={`quiz-${q.id}`} className={`card card-pad${highlightId === q.id ? ' redirect-glow' : ''}`} style={{ opacity: 0.85 }}>
                       <div className="flex items-start justify-between gap-3 flex-wrap">
                         <div style={{ minWidth: 0, flex: 1 }}>
                           <div className="flex items-center gap-2 flex-wrap mb-1">

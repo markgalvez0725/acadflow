@@ -29,14 +29,14 @@ function categoryOf(type) {
 }
 
 export default function NotificationsTab() {
-  const { adminNotifs, setAdminNotifs, db, fbReady, activities, quizzes, onlineMeetings } = useData()
+  const { adminNotifs, setAdminNotifs, db, fbReady, activities, quizzes, meetings } = useData()
   const { openDialog, setAdminTab, toast, navigateToTarget } = useUI()
 
   // Guard against landing on a deleted record's blank panel.
   function recordExists(type, id) {
     if (type === 'activity') return (activities || []).some(a => a.id === id)
     if (type === 'quiz')     return (quizzes || []).some(q => q.id === id)
-    if (type === 'meeting')  return (onlineMeetings || []).some(m => m.id === id)
+    if (type === 'meeting')  return (meetings || []).some(m => m.id === id)
     return true
   }
 

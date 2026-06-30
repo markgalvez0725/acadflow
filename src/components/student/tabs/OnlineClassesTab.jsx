@@ -7,6 +7,7 @@ import {
 import { activeClassIds } from '@/utils/active'
 import { courseShort } from '@/constants/courses'
 import EmptyState from '@/components/ds/EmptyState'
+import { useRedirectHighlight } from '@/navigation/useRedirectHighlight'
 
 const IMMINENT_MS = 15 * 60 * 1000 // a class "starting soon" - show one-tap join
 
@@ -37,6 +38,7 @@ function meetingClassLabel(meeting, classNameById) {
 
 export default function OnlineClassesTab({ student }) {
   const { meetings, classes, semester } = useData()
+  const highlightId = useRedirectHighlight('meeting')
   const now = useNow(30000)
 
   const studentClassIds = useMemo(
@@ -177,7 +179,7 @@ export default function OnlineClassesTab({ student }) {
           <div className="oc-sec-h first"><span className="oc-dot oc-pulse" style={{ background: '#ef4444' }} /> Live now · {liveMeetings.length}</div>
           <div className="sact-card" style={{ borderColor: '#ef4444' }}>
             {liveMeetings.map(m => (
-              <div key={m.id} className="oc-row">
+              <div key={m.id} id={`meeting-${m.id}`} className={`oc-row${highlightId === m.id ? ' redirect-glow' : ''}`}>
                 <span style={{ fontSize: 11, fontWeight: 800, color: '#ef4444', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
                   <Radio size={13} className="animate-pulse" /> LIVE
                 </span>
@@ -209,7 +211,7 @@ export default function OnlineClassesTab({ student }) {
             const ms = m.scheduledAt - now
             const soon = ms <= IMMINENT_MS
             return (
-              <div key={m.id} className="oc-row">
+              <div key={m.id} id={`meeting-${m.id}`} className={`oc-row${highlightId === m.id ? ' redirect-glow' : ''}`}>
                 <span className="oc-dot" style={{ background: soon ? 'var(--accent)' : '#888780' }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13.5, fontWeight: 600 }}>{m.title}</div>
@@ -241,7 +243,7 @@ export default function OnlineClassesTab({ student }) {
             const dt = new Date(m.endedAt || m.scheduledAt)
             const dateStr = dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
             return (
-              <div key={m.id} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--surface2)', fontSize: 13 }}>
+              <div key={m.id} id={`meeting-${m.id}`} className={highlightId === m.id ? 'redirect-glow' : undefined} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--surface2)', fontSize: 13 }}>
                 <span style={{ fontWeight: 600 }}>{m.title}</span>
                 <span style={{ color: 'var(--ink3)', marginLeft: 10 }}>{meetingClassLabel(m, classNameById)}</span>
                 <span style={{ color: 'var(--ink3)', marginLeft: 10 }}>· {dateStr}</span>

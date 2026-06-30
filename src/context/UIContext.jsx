@@ -172,11 +172,16 @@ export function UIProvider({ children }) {
   const openStreamPost = useCallback((postRef) => {
     if (!postRef) return
     const tab = STREAM_POST_TAB[postRef.type]
-    if (tab) { setStudentTab(tab); return }
+    if (tab) {
+      // Activity/quiz posts deep-link to (and glow) the exact record.
+      const ht = (postRef.type === 'activity' || postRef.type === 'quiz') ? postRef.type : undefined
+      navigateToTarget({ side: 'student', tab, type: ht, id: postRef.id })
+      return
+    }
     setPendingStreamAnnId(postRef.id || null)
     setPendingStreamClassId(postRef.classId || null)
     setStudentTab('stream')
-  }, [])
+  }, [navigateToTarget])
 
   // ── "Ask the professor about this post": open the student's direct thread with
   // the professor, pre-filling a draft AND attaching a preview of the post so the

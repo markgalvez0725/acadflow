@@ -1,6 +1,7 @@
-import React, { useState, useMemo, lazy, Suspense } from 'react'
+import React, { useState, useMemo, useEffect, lazy, Suspense } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
+import { useRedirectHighlight } from '@/navigation/useRedirectHighlight'
 import Badge from '@/components/primitives/Badge'
 import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
@@ -376,6 +377,7 @@ function EditClassModal({ cls, onClose }) {
 export default function ClassesTab() {
   const { classes, students, saveClasses, saveStudents, archiveClassWithStudents, unarchiveClassWithStudents, deleteClass, semester, eqScale, fbReady } = useData()
   const { toast, openDialog } = useUI()
+  const highlightId = useRedirectHighlight('class')
   const [page, setPage]           = useState(1)
   const [showAdd, setShowAdd]     = useState(false)
   const [editClass, setEditClass] = useState(null)
@@ -425,6 +427,14 @@ export default function ClassesTab() {
     () => filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE),
     [filtered, page]
   )
+
+  // Deep-linked (e.g. from the command palette): page to the class so its card
+  // renders for the scroll-and-glow.
+  useEffect(() => {
+    if (!highlightId) return
+    const idx = filtered.findIndex(c => c.id === highlightId)
+    if (idx >= 0) setPage(Math.floor(idx / PER_PAGE) + 1)
+  }, [highlightId, filtered])
 
   async function handleToggleEnrollment(cls) {
     const newState = !cls.enrollmentOpen
@@ -634,7 +644,7 @@ export default function ClassesTab() {
               const archivedCnt = students.filter(s => s.archivedSemesters?.some(e => e.classId === cls.id)).length
               const subs = cls.subjects || []
               return (
-                <div key={cls.id} style={{
+                <div key={cls.id} id={`class-${cls.id}`} className={highlightId === cls.id ? 'redirect-glow' : undefined} style={{
                   background: cls.archived ? 'var(--surface2)' : 'var(--surface)',
                   border: '1px solid var(--border)', borderRadius: 14, padding: 14,
                   display: 'flex', flexDirection: 'column', gap: 10,

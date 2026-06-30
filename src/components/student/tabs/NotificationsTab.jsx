@@ -52,7 +52,7 @@ function resolveAction(n) {
 }
 
 export default function NotificationsTab({ student, notifs, setNotifs, onOpenProfile }) {
-  const { db, fbReady, activities, quizzes, onlineMeetings } = useData()
+  const { db, fbReady, activities, quizzes, meetings } = useData()
   const { setStudentTab, openDialog, toast, navigateToTarget, openStreamAnnouncement } = useUI()
   const [page, setPage] = useState(1)
 
@@ -61,7 +61,7 @@ export default function NotificationsTab({ student, notifs, setNotifs, onOpenPro
   function recordExists(type, id) {
     if (type === 'activity') return (activities || []).some(a => a.id === id)
     if (type === 'quiz')     return (quizzes || []).some(q => q.id === id)
-    if (type === 'meeting')  return (onlineMeetings || []).some(m => m.id === id)
+    if (type === 'meeting')  return (meetings || []).some(m => m.id === id)
     return true // unknown types: don't block the redirect
   }
 

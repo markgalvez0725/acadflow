@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
+import { useRedirectHighlight } from '@/navigation/useRedirectHighlight'
 import Modal from '@/components/primitives/Modal'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 import StandingRing from '@/components/primitives/StandingRing'
@@ -590,6 +591,7 @@ function QuizReviewModal({ quiz, submission, onClose }) {
 // ── Main Student Quiz Tab ─────────────────────────────────────────────────────
 export default function StudentQuizTab({ student, viewClassId }) {
   const { quizzes, fbReady, classes, semester } = useData()
+  const highlightId = useRedirectHighlight('quiz')
   const [takingQuiz, setTakingQuiz] = useState(null)
   const [reviewQuiz, setReviewQuiz] = useState(null)
 
@@ -619,6 +621,10 @@ export default function StudentQuizTab({ student, viewClassId }) {
   }, [quizzes, studentClassIds, now])
 
   const [filter, setFilter] = useState('all')
+  // Deep-linked from elsewhere: clear the pill filter so the quiz card renders.
+  useEffect(() => {
+    if (highlightId && (quizzes || []).some(q => q.id === highlightId)) setFilter('all')
+  }, [highlightId, quizzes])
 
   // Per-quiz standing - computed once, reused by the ring, Quiz Watch, the pill
   // counts, and each card, so nothing on screen can disagree.
@@ -772,7 +778,7 @@ export default function StudentQuizTab({ student, viewClassId }) {
           else badge = <span className="badge badge-red">Missed</span>
 
           return (
-            <div key={q.id} className="sact-card" style={{ padding: '13px 14px', display: 'flex', flexDirection: 'column' }}>
+            <div key={q.id} id={`quiz-${q.id}`} className={`sact-card${highlightId === q.id ? ' redirect-glow' : ''}`} style={{ padding: '13px 14px', display: 'flex', flexDirection: 'column' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
                 <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink)' }}>{q.title}</span>
                 {badge}

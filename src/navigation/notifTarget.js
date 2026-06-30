@@ -22,4 +22,4 @@ export function parseRecordTarget(n) {
 // Record types that currently have a destination consumer (a `${type}-${id}`
 // anchor + useRedirectHighlight). Targets not listed still route to the correct
 // tab; the glow is wired in per module, phase by phase.
-export const HIGHLIGHT_READY = new Set(['activity'])
+export const HIGHLIGHT_READY = new Set(['activity', 'meeting', 'quiz', 'class'])

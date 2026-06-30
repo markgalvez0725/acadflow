@@ -64,7 +64,7 @@ function fuzzyScore(query, text) {
 
 export default function CommandPalette() {
   const { sessionRole, currentStudent } = useAuth()
-  const { theme, toggleTheme, adminTab, setAdminTab, studentTab, setStudentTab, toast, openStudentProfile } = useUI()
+  const { theme, toggleTheme, adminTab, setAdminTab, studentTab, setStudentTab, toast, openStudentProfile, navigateToTarget } = useUI()
   const { students = [], classes = [], activities = [], quizzes = [] } = useData()
 
   const [open, setOpen] = useState(false)
@@ -193,7 +193,7 @@ export default function CommandPalette() {
           section: 'Classes',
           keywords: `${c.name} ${courseShort(c.name)} ${c.section || ''} ${(c.subjects || []).join(' ')}`,
           Icon: Building2,
-          run: () => { setAdminTab('classes'); toast?.(`Open Classes → ${c.name}`, 'info', 2500); setOpen(false) },
+          run: () => { navigateToTarget({ side: 'admin', tab: 'classes', type: 'class', id: c.id }); setOpen(false) },
         })
       })
       activities.slice(0, 300).forEach((a) => {
@@ -205,7 +205,7 @@ export default function CommandPalette() {
           section: 'Activities',
           keywords: `${a.title} ${a.subject || ''} activity assignment`,
           Icon: ClipboardList,
-          run: () => { setAdminTab('activities'); toast?.(`Open Activities → ${a.title}`, 'info', 2500); setOpen(false) },
+          run: () => { navigateToTarget({ side: 'admin', tab: 'activities', type: 'activity', id: a.id }); setOpen(false) },
         })
       })
       quizzes.slice(0, 200).forEach((qz) => {
@@ -216,7 +216,7 @@ export default function CommandPalette() {
           section: 'Quizzes',
           keywords: `${qz.title} ${qz.subject || ''} quiz exam`,
           Icon: FileQuestion,
-          run: () => { setAdminTab('quizzes'); toast?.(`Open Quizzes → ${qz.title}`, 'info', 2500); setOpen(false) },
+          run: () => { navigateToTarget({ side: 'admin', tab: 'quizzes', type: 'quiz', id: qz.id }); setOpen(false) },
         })
       })
     }
@@ -253,7 +253,7 @@ export default function CommandPalette() {
     }
 
     return [...tabs, ...actions, ...entities]
-  }, [isAdmin, theme, deferredInstall, students, classes, activities, quizzes, currentStudent, go, toggleTheme, setAdminTab, setStudentTab, toast, openStudentProfile])
+  }, [isAdmin, theme, deferredInstall, students, classes, activities, quizzes, currentStudent, go, toggleTheme, setAdminTab, setStudentTab, toast, openStudentProfile, navigateToTarget])
 
   const filtered = useMemo(() => {
     if (!query.trim()) {
