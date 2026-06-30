@@ -4,6 +4,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { sortByLastName, getInitials } from '@/utils/format'
 import { courseShort } from '@/constants/courses'
+import StudentMeta from '@/components/primitives/StudentMeta'
 import { getHeldDays, computeTerms, scoredPercent, round2 } from '@/utils/grades'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
@@ -1403,6 +1404,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div className="ar-name">{s.name}</div>
                     <div className="ar-sub" style={{ fontFamily: 'var(--font-mono)' }}>{s.id}{subDate ? ` · submitted ${subDate}` : ''}</div>
+                    <StudentMeta student={s} subject={act.subject} />
                   </div>
                   {status === 'sub'
                     ? <span className="ar-status ar-status-sub"><CheckCircle2 size={12} /> Submitted</span>

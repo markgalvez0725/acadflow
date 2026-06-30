@@ -24,6 +24,12 @@ function suggestNextSection(section = '') {
   return ''
 }
 
+// Sections already coined across classes - suggested in the section combobox so
+// the same label (e.g. "2-A") stays consistent instead of drifting per class.
+function existingSections(classes) {
+  return [...new Set((classes || []).map(c => (c.section || '').trim()).filter(Boolean))].sort()
+}
+
 // ── Add Class Modal ───────────────────────────────────────────────────
 function AddClassModal({ onClose, prefill = null }) {
   const { classes, saveClasses, semester } = useData()
@@ -35,6 +41,7 @@ function AddClassModal({ onClose, prefill = null }) {
   const [schedule, setSchedule]         = useState(prefill?.schedule || '')
   const [subjects, setSubjects]         = useState(prefill?.subjects || '')
   const [courseReq, setCourseReq]       = useState(prefill?.courseReq || '')
+  const sectionOpts = useMemo(() => existingSections(classes), [classes])
   const [enrollmentOpen, setEnrollmentOpen] = useState(
     prefill ? !!prefill.enrollmentOpen : semester?.status === 'active'
   )
@@ -102,7 +109,10 @@ function AddClassModal({ onClose, prefill = null }) {
         </div>
         <div className="field">
           <label>Year &amp; Section <span className="text-red-500">*</span></label>
-          <input value={section} onChange={e => setSection(e.target.value)} placeholder="2-A" />
+          <input value={section} onChange={e => setSection(e.target.value)} placeholder="2-A" list="class-section-list-add" />
+          <datalist id="class-section-list-add">
+            {sectionOpts.map(sec => <option key={sec} value={sec} />)}
+          </datalist>
         </div>
       </div>
       <div className="input-row">
@@ -183,6 +193,7 @@ function EditClassModal({ cls, onClose }) {
   const [schedule, setSchedule]         = useState(cls.schedule || '')
   const [subjects, setSubjects]         = useState(cls.subjects.join(', '))
   const [courseReq, setCourseReq]       = useState(cls.courseReq || cls.name)
+  const sectionOpts = useMemo(() => existingSections(classes), [classes])
   const [enrollmentOpen, setEnrollmentOpen] = useState(cls.enrollmentOpen || false)
   const autoSemLabel = semester ? (semester.label || `${semester.term} AY ${semester.year}`) : cls.activeSemester || null
   const [err, setErr]           = useState('')
@@ -285,7 +296,10 @@ function EditClassModal({ cls, onClose }) {
         </div>
         <div className="field">
           <label>Year &amp; Section <span className="text-red-500">*</span></label>
-          <input value={section} onChange={e => setSection(e.target.value)} placeholder="2-A" />
+          <input value={section} onChange={e => setSection(e.target.value)} placeholder="2-A" list="class-section-list-edit" />
+          <datalist id="class-section-list-edit">
+            {sectionOpts.map(sec => <option key={sec} value={sec} />)}
+          </datalist>
         </div>
       </div>
       <div className="input-row">

@@ -16,6 +16,7 @@ import MentionInput from '@/components/primitives/MentionInput'
 import PostShell from '@/components/primitives/StreamPost'
 import CommentsSection from '@/components/primitives/CommentsSection'
 import AnnouncementPost from '@/components/primitives/AnnouncementPost'
+import StudentMeta from '@/components/primitives/StudentMeta'
 import { resolveMentions } from '@/utils/mentions'
 import { notifyMention } from '@/firebase/messageNotify'
 import { streamGroupLabel as getGroupLabel, fmtDateTime as formatDate, dayLabel } from '@/utils/format'
@@ -883,7 +884,7 @@ function QuizCard({ item, classObj, students }) {
 }
 
 function GradeCard({ item, classObj }) {
-  const { studentName, subject, gradeData, uploadedAt } = item.data
+  const { studentName, studentId, student, subject, gradeData, uploadedAt } = item.data
   const cls = adminClassLabel(classObj)
   return (
     <PostShell
@@ -891,10 +892,11 @@ function GradeCard({ item, classObj }) {
       name="Grade update"
       time={timeAgo(uploadedAt)}
       dateLabel={subject ? `GRADE · ${subject.toUpperCase()}` : 'GRADE POSTED'}
-      title={studentName}
+      title={studentId ? `${studentName} · ${studentId}` : studentName}
       pills={<StreamPills cls={cls} subject={subject} />}
     >
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+      <StudentMeta student={student} subject={subject} />
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 8 }}>
         {gradeData.midterm != null && <span style={{ fontSize: 13, color: 'var(--ink2)' }}>Midterm: <strong>{gradeData.midterm?.toFixed(1)}</strong></span>}
         {gradeData.finals != null && <span style={{ fontSize: 13, color: 'var(--ink2)' }}>Finals: <strong>{gradeData.finals?.toFixed(1)}</strong></span>}
         {gradeData.finalGrade != null && <span style={{ fontSize: 13, color: 'var(--ink)' }}>Final Grade: <strong style={{ color: '#10b981' }}>{gradeData.finalGrade?.toFixed(1)}</strong></span>}
@@ -1003,6 +1005,8 @@ export default function StreamTab() {
             classId: cid,
             data: {
               studentName: stu.name,
+              studentId: stu.id,
+              student: stu,
               subject: subj,
               gradeData: gradeData || {},
               uploadedAt,

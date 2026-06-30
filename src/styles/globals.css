@@ -3051,6 +3051,14 @@ textarea.input { resize: vertical; }
 .act-stripe-closed { background: var(--red); }
 .act-stripe-archived { background: var(--gold); }
 .act-body { flex: 1; min-width: 0; padding: 14px 16px; }
+/* Shared student-context chip line (course / year / section / subject). One
+   look across professor + student cards via the StudentMeta primitive. */
+.smeta { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+.smeta-chip { font-size: 0.65625rem; font-weight: 600; line-height: 1.6; padding: 1px 7px; border-radius: 999px; white-space: nowrap; }
+.smeta-accent { background: var(--accent-l); color: var(--accent); }
+.smeta-plain { background: var(--surface2); color: var(--ink2); border: 1px solid var(--border); }
+.smeta-subject { background: var(--purple-l); color: var(--purple); }
+
 .act-chip { font-size: 0.6875rem; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--surface2); color: var(--ink2); border: 1px solid var(--border); display: inline-flex; align-items: center; gap: 4px; }
 .act-chip-class { background: var(--accent-l); color: var(--accent); border-color: transparent; }
 .act-chip-group { background: var(--purple-l); color: var(--purple); border-color: transparent; }

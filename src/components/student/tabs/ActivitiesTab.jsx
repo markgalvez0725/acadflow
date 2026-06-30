@@ -9,6 +9,7 @@ import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import StandingRing from '@/components/primitives/StandingRing'
 import SubmissionFileField from '@/components/student/SubmissionFileField'
 import SubmissionPreview from '@/components/primitives/SubmissionPreview'
+import StudentMeta from '@/components/primitives/StudentMeta'
 import { uploadSubmission } from '@/utils/googleDrive'
 import { extractSubmissionText } from '@/utils/submissionExtract'
 
@@ -334,9 +335,8 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                 <span className={`badge ${badgeCls}`}>{badgeLabel}</span>
               </div>
 
-              {act.subject && (
-                <div className="sa-act-meta">{act.subject}</div>
-              )}
+              <StudentMeta student={s} subject={act.subject} className="sa-act-meta" />
+
 
               {act.instructions && (
                 <div className="sa-act-desc">{act.instructions}</div>

@@ -7,6 +7,7 @@ import { activeClassIds, activeSubjects } from '@/utils/active'
 import EmptyState from '@/components/ds/EmptyState'
 import { neededFinalsForRemarks } from '@/utils/whatIf'
 import RegradeRequestModal from '@/components/student/modals/RegradeRequestModal'
+import StudentMeta from '@/components/primitives/StudentMeta'
 
 export default function GradesTab({ student: s, viewClassId, classes }) {
   const { activities, quizzes, students, eqScale, semester, gradeFloor } = useData()
@@ -55,6 +56,7 @@ export default function GradesTab({ student: s, viewClassId, classes }) {
             <div>
               <div className="sg-gwa-title">Grade Weighted Average</div>
               <div className="sg-gwa-sub">{gwaData.count} of {gwaData.total} subject{gwaData.total !== 1 ? 's' : ''} with uploaded grades</div>
+              <StudentMeta student={s} />
             </div>
           </div>
           <div className="sg-gwa-right">
