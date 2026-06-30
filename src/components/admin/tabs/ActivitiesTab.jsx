@@ -7,8 +7,8 @@ import { courseShort } from '@/constants/courses'
 import { getHeldDays, computeTerms, scoredPercent, round2 } from '@/utils/grades'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
-import Badge from '@/components/primitives/Badge'
 import EmptyState from '@/components/ds/EmptyState'
+import Avatar from '@/components/primitives/Avatar'
 import SubmissionPreview from '@/components/primitives/SubmissionPreview'
 import { extractSubmissionText } from '@/utils/submissionExtract'
 import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil, ClipboardList, AlarmClock, CircleDot, BarChart3, CheckCircle2, Check, Save, Plus, Copy, Users, ClipboardPaste, AlertTriangle, Trash2 } from 'lucide-react'
@@ -32,6 +32,48 @@ function actId() {
 // A pasted submission link the serverless proxy can read text from.
 function isDocLink(link) {
   return /(docs|drive)\.google\.com/i.test(String(link || ''))
+}
+
+// Enrolled students with no effective submission. For a group activity a
+// student counts as missing when THEIR group has not submitted.
+function missingStudentsFor(act, enrolled) {
+  const subs = act?.submissions || {}
+  if (act?.isGroup) {
+    const submittedMembers = new Set()
+    ;(act.groups || []).forEach(g => {
+      if ((act.groupSubmissions || {})[g.id]?.text) (g.memberIds || []).forEach(id => submittedMembers.add(id))
+    })
+    return (enrolled || []).filter(s => !submittedMembers.has(s.id))
+  }
+  return (enrolled || []).filter(s => !subs[s.id]?.link)
+}
+
+// Default grade for a submitted activity that the professor left a feedback note
+// on but never scored: a passing 75-80 (spread deterministically by student id),
+// scaled to the activity's max so rubric-based activities stay in range.
+function feedbackDefaultScore(studentId, maxScore) {
+  let h = 0
+  const id = String(studentId || '')
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0
+  const base = 75 + (Math.abs(h) % 6) // 75..80
+  const max = maxScore || 100
+  return Math.min(max, Math.round(base * max / 100))
+}
+
+// Default for a missed (no submission) student.
+function missedDefaultScore(maxScore) {
+  return Math.min(50, maxScore || 100)
+}
+
+// Short "in 2d" / "in 5h" label for a future deadline.
+function relTime(ms) {
+  if (ms <= 0) return 'closed'
+  const mins = Math.floor(ms / 60000)
+  if (mins < 60) return `in ${Math.max(1, mins)}m`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `in ${hrs}h`
+  const days = Math.floor(hrs / 24)
+  return `in ${days}d`
 }
 
 // Rebuild a base64 payload from the extract-doc proxy into a File the on-device
@@ -762,6 +804,8 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
   const [savingAll,     setSavingAll]    = useState(false)
   const [fbSaveState,   setFbSaveState]  = useState({}) // sid → 'saving' | 'saved' (feedback note autosave)
   const [scoreSaveState, setScoreSaveState] = useState({}) // sid → 'saving' | 'saved' (score autosave)
+  const [nudged,        setNudged]       = useState({}) // sid → true once an individual nudge was sent
+  const [nudgingAll,    setNudgingAll]   = useState(false)
   const fbTimers = useRef({})            // sid → debounce timer id for feedback autosave
   const scoreTimers = useRef({})         // sid → debounce timer id for score autosave
   const saveScoreRef = useRef(null)      // always points at the latest handleSaveScore (fresh state)
@@ -975,29 +1019,38 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
 
   async function handleSaveAll() {
     if (!fbReady || !db.current) { toast('Firebase not connected.', 'red'); return }
-    const toSave = enrolledStudents.filter(s => {
+    // Each student's base score comes from a valid manual entry, OR - for a
+    // SUBMITTED student the professor left a feedback note on but never scored -
+    // an automatic passing 75-80 default. Missed / blank students are skipped.
+    const picks = []
+    enrolledStudents.forEach(s => {
       const raw = scores[s.id]
-      if (raw === undefined || raw === '') return false
-      const score = parseFloat(raw)
-      return !isNaN(score) && score >= 0 && score <= act.maxScore
+      if (raw !== undefined && raw !== '') {
+        const score = parseFloat(raw)
+        if (!isNaN(score) && score >= 0 && score <= act.maxScore) picks.push({ s, base: score })
+        return
+      }
+      const sub = (act.submissions || {})[s.id] || {}
+      const fb  = (feedbacks[s.id] !== undefined ? feedbacks[s.id] : (sub.feedback || '')).trim()
+      if (sub.link && fb && sub.score == null) picks.push({ s, base: feedbackDefaultScore(s.id, act.maxScore), auto: true })
     })
-    if (!toSave.length) { toast('No valid scores to save.', 'red'); return }
+    if (!picks.length) { toast('No valid scores to save.', 'red'); return }
     setSavingAll(true)
     try {
       const update = {}
       const effById = {}        // effective (penalized) score per student
-      let penalizedCount = 0
-      toSave.forEach(s => {
-        const score = parseFloat(scores[s.id])
-        const sub   = (act.submissions || {})[s.id] || {}
-        const li    = lateInfo(sub, act, latePolicy)
-        const eff   = applyLatePenalty(score, sub, act, latePolicy, waived[s.id])
-        const penalized = li.late && !waived[s.id] && eff !== score
+      let penalizedCount = 0, autoCount = 0
+      picks.forEach(({ s, base, auto }) => {
+        const sub = (act.submissions || {})[s.id] || {}
+        const li  = lateInfo(sub, act, latePolicy)
+        const eff = applyLatePenalty(base, sub, act, latePolicy, waived[s.id])
+        const penalized = li.late && !waived[s.id] && eff !== base
         if (penalized) penalizedCount++
+        if (auto) autoCount++
         effById[s.id] = eff
         update[`submissions.${s.id}.score`]  = eff
         update[`submissions.${s.id}.graded`] = true
-        update[`submissions.${s.id}.latePenalty`] = penalized ? { percent: li.percent, days: li.days, rawScore: score } : null
+        update[`submissions.${s.id}.latePenalty`] = penalized ? { percent: li.percent, days: li.days, rawScore: base } : null
         if (hasRubric) update[`submissions.${s.id}.rubricChecks`] = rubricChecks[s.id] || {}
         if (feedbacks[s.id] !== undefined) update[`submissions.${s.id}.feedback`] = feedbacks[s.id].trim()
       })
@@ -1005,17 +1058,17 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       // Patch this activity's submissions with the effective scores so the
       // grade recompute reflects the penalties immediately.
       const patchedSubs = { ...(act.submissions || {}) }
-      toSave.forEach(s => { patchedSubs[s.id] = { ...(patchedSubs[s.id] || {}), score: effById[s.id], graded: true } })
+      picks.forEach(({ s }) => { patchedSubs[s.id] = { ...(patchedSubs[s.id] || {}), score: effById[s.id], graded: true } })
       const patchedActs = activities.map(a => a.id === act.id ? { ...a, submissions: patchedSubs } : a)
       const updatedStudents = students.map(s => {
-        if (!toSave.find(x => x.id === s.id)) return s
+        if (!picks.find(x => x.s.id === s.id)) return s
         const updated = buildUpdatedStudent(s, act.subject, act.classId, patchedActs, students)
         return updated || s
       })
-      await saveStudents(updatedStudents, toSave.map(s => s.id))
-      toast(`Saved grades for ${toSave.length} student${toSave.length !== 1 ? 's' : ''}.${penalizedCount ? ` ${penalizedCount} late-penalized.` : ''}`, 'green')
+      await saveStudents(updatedStudents, picks.map(x => x.s.id))
+      toast(`Saved grades for ${picks.length} student${picks.length !== 1 ? 's' : ''}.${autoCount ? ` ${autoCount} auto-graded from feedback.` : ''}${penalizedCount ? ` ${penalizedCount} late-penalized.` : ''}`, 'green')
       if (fbReady && db.current) {
-        for (const s of toSave) {
+        for (const { s } of picks) {
           pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} - Score: ${effById[s.id]}/${act.maxScore}`, 'act_grade', 'activities')
         }
       }
@@ -1183,27 +1236,39 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
   }
 
   // Manual deadline reminder: notify enrolled students who haven't submitted.
-  async function handleRemind() {
-    const missing = enrolledStudents.filter(s => !(act.submissions || {})[s.id]?.link)
-    if (!missing.length) { toast('Everyone enrolled has already submitted.', 'green'); return }
-    const ok = await openDialog({
-      title: `Remind ${missing.length} student${missing.length === 1 ? '' : 's'}?`,
-      msg: `Send a reminder to enrolled students who haven't submitted "${act.title}".`,
-      confirmLabel: 'Send reminder',
-      showCancel: true,
-    })
-    if (!ok) return
-    const ids = missing.map(s => s.id)
+  // Students with no effective submission (the "missed" list the cards surface).
+  const missingStudents = useMemo(() => missingStudentsFor(act, enrolledStudents), [act, enrolledStudents])
+
+  // Send a deadline reminder to a set of students (in-app + best-effort push) and
+  // mark them nudged so the per-student button can flip to "Nudged".
+  async function sendNudge(ids, { confirm = true } = {}) {
+    if (!ids.length) { toast('Everyone enrolled has already submitted.', 'green'); return false }
+    if (confirm) {
+      const ok = await openDialog({
+        title: `Nudge ${ids.length} student${ids.length === 1 ? '' : 's'}?`,
+        msg: `Send a reminder to students who haven't submitted "${act.title}".`,
+        confirmLabel: 'Send reminder',
+        showCancel: true,
+      })
+      if (!ok) return false
+    }
     const title = `Reminder: ${act.title}`
     const body = isPast
       ? `${act.subject} - this activity is past due. Please submit as soon as you can.`
       : `${act.subject} - due ${dlLabel}. Don't forget to submit.`
-    // In-app notifications (reliable) + best-effort web push.
     if (fbReady && db.current) {
       for (const id of ids) pushStudentNotif(db.current, id, title, body, 'act_grade', 'activities')
       sendPushToOwners(db.current, ids, { title, body }, { url: 'activities', tag: 'deadline-reminder' })
     }
+    setNudged(prev => { const n = { ...prev }; ids.forEach(id => { n[id] = true }); return n })
     toast(`Reminder sent to ${ids.length} student${ids.length === 1 ? '' : 's'}.`, 'green')
+    return true
+  }
+
+  async function handleNudgeAll() {
+    setNudgingAll(true)
+    try { await sendNudge(missingStudents.map(s => s.id), { confirm: true }) }
+    finally { setNudgingAll(false) }
   }
 
   return (
@@ -1298,6 +1363,20 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       {!enrolledStudents.length ? (
         <EmptyState compact title="No registered students in this class yet." />
       ) : (
+        <>
+        <div className={`act-missed mb-3 ${missingStudents.length ? '' : 'act-missed-ok'}`}>
+          {missingStudents.length
+            ? <AlertCircle size={15} style={{ color: 'var(--red)', flexShrink: 0 }} />
+            : <CheckCircle2 size={15} style={{ color: 'var(--green)', flexShrink: 0 }} />}
+          <span className="act-missed-text">
+            {missingStudents.length ? `${missingStudents.length} of ${enrolledStudents.length} haven't submitted` : 'Everyone enrolled has submitted'}
+          </span>
+          {missingStudents.length > 0 && (
+            <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} onClick={handleNudgeAll} disabled={nudgingAll}>
+              <AlarmClock size={13} /> {nudgingAll ? 'Sending…' : 'Nudge all'}
+            </button>
+          )}
+        </div>
         <div className="act-review-list mb-3">
           {enrolledStudents.map(s => {
             const sub    = (act.submissions || {})[s.id] || {}
@@ -1306,26 +1385,47 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
             const subDate = sub.submittedAt
               ? new Date(sub.submittedAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
               : null
+            const status = hasLink ? 'sub' : (isPast ? 'missed' : 'pending')
+            const hasScore = (scores[s.id] !== undefined && scores[s.id] !== '') || sub.score != null
+            const effFeedback = (feedbacks[s.id] !== undefined ? feedbacks[s.id] : (sub.feedback || '')).trim()
+            const scorePlaceholder = (!hasScore && hasLink && effFeedback) ? String(feedbackDefaultScore(s.id, act.maxScore))
+              : (!hasScore && status === 'missed') ? String(missedDefaultScore(act.maxScore))
+              : '-'
             const inputVal = scores[s.id] !== undefined ? scores[s.id] : String(curScore)
             const checks = rubricChecks[s.id] || {}
             const li = lateInfo(sub, act, latePolicy)
             const fbState = fbSaveState[s.id]
             const scoreState = scoreSaveState[s.id]
             return (
-              <div className="act-review-card" key={s.id}>
+              <div className={`act-review-card${status === 'missed' ? ' ar-card-missed' : ''}`} key={s.id}>
                 <div className="flex items-center gap-2.5">
-                  <div className="ar-avatar">{getInitials(s.name)}</div>
+                  <Avatar photo={s.photo} className={`ar-avatar ar-avatar-${status}`}>{getInitials(s.name)}</Avatar>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div className="ar-name">{s.name}</div>
-                    <div className="ar-sub">{s.id}{subDate ? ` · submitted ${subDate}` : ''}</div>
+                    <div className="ar-sub" style={{ fontFamily: 'var(--font-mono)' }}>{s.id}{subDate ? ` · submitted ${subDate}` : ''}</div>
                   </div>
-                  {hasLink
-                    ? <Badge variant="green"><CheckCircle2 size={14} /> Submitted</Badge>
-                    : <Badge variant="gray" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>{isPast ? <><AlertCircle size={11} />Missed</> : <><Clock size={11} />Pending</>}</Badge>}
+                  {status === 'sub'
+                    ? <span className="ar-status ar-status-sub"><CheckCircle2 size={12} /> Submitted</span>
+                    : status === 'missed'
+                      ? <span className="ar-status ar-status-missed"><AlertCircle size={11} /> Missed</span>
+                      : <span className="ar-status ar-status-pending"><Clock size={11} /> Pending</span>}
                 </div>
 
+                {!hasLink && (
+                  <div className="ar-flag">
+                    <AlarmClock size={13} style={{ flexShrink: 0 }} />
+                    <span className="ar-flag-text">
+                      {isPast ? `Did not submit · gets the default ${missedDefaultScore(act.maxScore)} if left ungraded` : 'Not yet submitted'}
+                    </span>
+                    {nudged[s.id]
+                      ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 700 }}><Check size={12} /> Nudged</span>
+                      : <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} onClick={() => sendNudge([s.id], { confirm: false })}><AlarmClock size={12} /> Nudge</button>}
+                  </div>
+                )}
+
+                <div className="ar-divider">
                 {hasLink && (
-                  <div style={{ marginTop: 10 }}>
+                  <div>
                     <SubmissionPreview link={sub.link} name={`${s.name} - ${act.title}`} compact fallbackLabel="Open submission" />
                   </div>
                 )}
@@ -1355,7 +1455,8 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                         onChange={e => onScoreChange(s, e.target.value)}
                         aria-label={`Score for ${s.name}`}
                         style={{ width: 64, padding: '6px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, textAlign: 'center', background: 'var(--surface)', color: 'var(--ink)' }}
-                        placeholder="-"
+                        placeholder={scorePlaceholder}
+                        title={scorePlaceholder !== '-' ? `Default ${scorePlaceholder} if left ungraded` : undefined}
                       />
                       <span className="text-xs text-ink3">/ {act.maxScore}</span>
                     </div>
@@ -1403,10 +1504,12 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                     </button>
                   </div>
                 )}
+                </div>
               </div>
             )
           })}
         </div>
+        </>
       )}
 
       <p className="text-xs text-ink3 mb-4">Scores and feedback notes save automatically as you type. The student's grade components update right away.</p>
@@ -1414,12 +1517,9 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       {/* Actions */}
       <div className="flex gap-2 flex-wrap items-center">
         {isPast && (
-          <button className="btn btn-ghost btn-sm" onClick={handleApplyDefault}>Apply Missed Grade (50)</button>
+          <button className="btn btn-ghost btn-sm" onClick={handleApplyDefault}>Apply Missed Grade ({missedDefaultScore(act.maxScore)})</button>
         )}
         <button className="btn btn-ghost btn-sm" onClick={handleExtend}>Extend Deadline</button>
-        <button className="btn btn-ghost btn-sm" onClick={handleRemind} title="Notify enrolled students who haven't submitted">
-          <AlarmClock size={16} /> Remind Missing
-        </button>
         <button className="btn btn-ghost btn-sm" onClick={onEdit}><Pencil size={16} /> Edit</button>
         <button className="btn btn-ghost btn-sm" onClick={handleClone}><Copy size={16} /> Duplicate</button>
         <button className="btn btn-danger btn-sm" onClick={handleDelete}>Delete</button>
@@ -1512,7 +1612,8 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
 const PER_PAGE = 10
 
 export default function ActivitiesTab() {
-  const { activities, students, classes, fbReady } = useData()
+  const { activities, students, classes, fbReady, db } = useData()
+  const { toast, openDialog } = useUI()
   const [page,            setPage]           = useState(1)
   const [archivedPage,    setArchivedPage]   = useState(1)
   const [showCreate,      setShowCreate]     = useState(false)
@@ -1553,6 +1654,31 @@ export default function ActivitiesTab() {
 
   const now = Date.now()
 
+  // Remind students who haven't submitted (reused by the list card "Nudge all").
+  async function nudgeMissing(act, ids, { confirm = true } = {}) {
+    if (!fbReady || !db.current) { toast('Firebase not connected.', 'red'); return false }
+    if (!ids.length) { toast('Everyone enrolled has already submitted.', 'green'); return false }
+    const isPast = act.deadline < Date.now()
+    const dlLabel = new Date(act.deadline).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+    if (confirm) {
+      const ok = await openDialog({
+        title: `Nudge ${ids.length} student${ids.length === 1 ? '' : 's'}?`,
+        msg: `Send a reminder to students who haven't submitted "${act.title}".`,
+        confirmLabel: 'Send reminder',
+        showCancel: true,
+      })
+      if (!ok) return false
+    }
+    const title = `Reminder: ${act.title}`
+    const body = isPast
+      ? `${act.subject} - this activity is past due. Please submit as soon as you can.`
+      : `${act.subject} - due ${dlLabel}. Don't forget to submit.`
+    for (const id of ids) pushStudentNotif(db.current, id, title, body, 'act_grade', 'activities')
+    sendPushToOwners(db.current, ids, { title, body }, { url: 'activities', tag: 'deadline-reminder' })
+    toast(`Reminder sent to ${ids.length} student${ids.length === 1 ? '' : 's'}.`, 'green')
+    return true
+  }
+
   function ActivityCard({ act, readOnly }) {
     const cls       = classMap.get(act.classId)
     const subs      = studsByClass.get(act.classId) || []
@@ -1562,31 +1688,62 @@ export default function ActivitiesTab() {
     const groupCount     = act.isGroup ? (act.groups || []).length : 0
     const groupsSubmitted = act.isGroup ? Object.values(act.groupSubmissions || {}).filter(g => g?.text).length : 0
     const dlLabel   = new Date(act.deadline).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+    const missing   = missingStudentsFor(act, subs)
+    const subDen    = act.isGroup ? groupCount : subs.length
+    const subNum    = act.isGroup ? groupsSubmitted : submitted
+    const subPct    = subDen ? Math.round(subNum / subDen * 100) : 0
+    const gradePct  = subNum ? Math.round(graded / subNum * 100) : 0
     return (
-      <div className="card card-pad">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div className="flex items-center gap-2 flex-wrap mb-1">
-              <strong style={{ fontSize: 14 }}>{act.title}</strong>
-              <Badge variant={isPast ? 'red' : 'green'}>{isPast ? 'Closed' : 'Open'}</Badge>
-              <Badge variant="blue">{act.subject}</Badge>
-              {act.isGroup && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 999, background: 'var(--accent-l)', color: 'var(--accent)' }}>
-                  <Users size={11} /> Group
-                </span>
-              )}
-              {readOnly && <Badge variant="yellow">Archived</Badge>}
+      <div className="card act-list-card">
+        <div className={`act-stripe ${readOnly ? 'act-stripe-archived' : isPast ? 'act-stripe-closed' : 'act-stripe-open'}`} />
+        <div className="act-body">
+          <div className="flex items-start gap-2.5">
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <strong style={{ fontSize: 14, color: 'var(--ink)' }}>{act.title}</strong>
+              <div className="flex items-center gap-1.5 flex-wrap" style={{ marginTop: 7 }}>
+                <span className="act-chip act-chip-class">{cls ? courseShort(cls.name) + ' ' + cls.section : '-'}</span>
+                <span className="act-chip">{act.subject}</span>
+                {act.isGroup && <span className="act-chip act-chip-group"><Users size={11} /> Group</span>}
+                <span className="act-chip">{act.maxScore} pts</span>
+                {readOnly && <span className="act-chip" style={{ color: 'var(--gold)' }}>Archived</span>}
+              </div>
             </div>
-            <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
-              {cls ? courseShort(cls.name) + ' ' + cls.section : '-'} · Max: {act.maxScore} pts
+            <span className={`act-status ${isPast ? 'act-status-closed' : 'act-status-open'}`}>{isPast ? 'Closed' : 'Open'}</span>
+          </div>
+
+          <div className="act-prog-row">
+            <div>
+              <div className="act-prog-head"><span>{act.isGroup ? 'Groups submitted' : 'Submitted'}</span><strong>{subNum} / {subDen}</strong></div>
+              <div className="act-prog-track"><div className="act-prog-fill" style={{ width: subPct + '%', background: 'var(--accent)' }} /></div>
             </div>
-            <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 3 }}>
-              Deadline: {dlLabel} · {act.isGroup ? `${groupsSubmitted}/${groupCount} group${groupCount === 1 ? '' : 's'} submitted` : `${submitted}/${subs.length} submitted`} · {graded} graded
+            <div>
+              <div className="act-prog-head"><span>Graded</span><strong>{graded} / {subNum}</strong></div>
+              <div className="act-prog-track"><div className="act-prog-fill" style={{ width: gradePct + '%', background: 'var(--green)' }} /></div>
             </div>
           </div>
-          <div className="flex gap-1.5 flex-shrink-0">
-            <button className="btn btn-ghost btn-sm" onClick={() => setViewAct(act)}>View</button>
-            {!readOnly && <button className="btn btn-ghost btn-sm" onClick={() => setEditAct(act)}>Edit</button>}
+
+          {subs.length > 0 && (
+            <div className={`act-missed ${missing.length ? '' : 'act-missed-ok'}`} style={{ marginTop: 12 }}>
+              {missing.length
+                ? <AlertCircle size={15} style={{ color: 'var(--red)', flexShrink: 0 }} />
+                : <CheckCircle2 size={15} style={{ color: 'var(--green)', flexShrink: 0 }} />}
+              <span className="act-missed-text">{missing.length ? `${missing.length} missed` : 'Everyone submitted'}</span>
+              {missing.length > 0 && !readOnly && (
+                <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} onClick={() => nudgeMissing(act, missing.map(s => s.id))}>
+                  <AlarmClock size={13} /> Nudge all
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="act-foot">
+            <span style={{ fontSize: 12, color: isPast ? 'var(--red)' : 'var(--ink2)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <Clock size={13} /> {dlLabel} <span style={{ color: 'var(--ink3)' }}>· {relTime(act.deadline - now)}</span>
+            </span>
+            <div className="flex gap-1.5 flex-shrink-0">
+              <button className="btn btn-ghost btn-sm" onClick={() => setViewAct(act)}>View</button>
+              {!readOnly && <button className="btn btn-ghost btn-sm" onClick={() => setEditAct(act)}>Edit</button>}
+            </div>
           </div>
         </div>
       </div>

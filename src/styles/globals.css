@@ -3043,6 +3043,45 @@ textarea.input { resize: vertical; }
 .ar-score-input::-webkit-inner-spin-button,
 .ar-score-input::-webkit-outer-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
 .ar-score-input { -moz-appearance: textfield; appearance: textfield; }
+
+/* ── Activity list card (restructured) ───────────────────────────────────── */
+.act-list-card { display: flex; gap: 0; padding: 0; overflow: hidden; }
+.act-stripe { width: 4px; flex-shrink: 0; align-self: stretch; }
+.act-stripe-open { background: var(--green); }
+.act-stripe-closed { background: var(--red); }
+.act-stripe-archived { background: var(--gold); }
+.act-body { flex: 1; min-width: 0; padding: 14px 16px; }
+.act-chip { font-size: 0.6875rem; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--surface2); color: var(--ink2); border: 1px solid var(--border); display: inline-flex; align-items: center; gap: 4px; }
+.act-chip-class { background: var(--accent-l); color: var(--accent); border-color: transparent; }
+.act-chip-group { background: var(--purple-l); color: var(--purple); border-color: transparent; }
+.act-status { font-size: 0.6875rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; flex-shrink: 0; }
+.act-status-open { background: var(--green-l); color: var(--green); }
+.act-status-closed { background: var(--red-l); color: var(--red); }
+.act-prog-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 18px; margin-top: 12px; }
+.act-prog-head { display: flex; justify-content: space-between; font-size: 0.6875rem; color: var(--ink2); margin-bottom: 4px; }
+.act-prog-head strong { color: var(--ink); font-weight: 700; }
+.act-prog-track { height: 6px; background: var(--bg2); border-radius: 999px; overflow: hidden; }
+.act-prog-fill { height: 100%; border-radius: 999px; }
+.act-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+
+/* Missed summary banner (list card + modal) */
+.act-missed { display: flex; align-items: center; gap: 8px; border: 1px solid var(--red); background: var(--red-l); border-radius: 8px; padding: 8px 11px; flex-wrap: wrap; }
+.act-missed-ok { border-color: var(--green); background: var(--green-l); }
+.act-missed-text { font-size: 0.8125rem; font-weight: 700; color: var(--red); flex: 1; min-width: 0; }
+.act-missed-ok .act-missed-text { color: var(--green); }
+
+/* ── Attendance-style per-student review card ────────────────────────────── */
+.ar-card-missed { border-color: var(--red); }
+.ar-status { font-size: 0.6875rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; }
+.ar-status-sub { background: var(--green-l); color: var(--green); }
+.ar-status-missed { background: var(--red-l); color: var(--red); }
+.ar-status-pending { background: var(--bg2); color: var(--ink3); }
+.ar-flag { margin-top: 10px; display: flex; align-items: center; gap: 8px; background: var(--red-l); border-radius: 6px; padding: 5px 9px; font-size: 0.75rem; color: var(--red); flex-wrap: wrap; }
+.ar-flag-text { flex: 1; min-width: 120px; }
+.ar-divider { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.ar-avatar-sub { background: var(--green-l); color: var(--green); }
+.ar-avatar-missed { background: var(--red-l); color: var(--red); }
+.ar-avatar-pending { background: var(--bg2); color: var(--ink3); }
 .sa-act-submitted {
   margin-top: 10px;
   padding: 10px 12px;
