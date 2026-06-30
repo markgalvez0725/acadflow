@@ -1047,15 +1047,16 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
   // Docs/Slides/Sheets come back as plain `text`; a Drive image/PDF comes back
   // as `binary` (base64) which we OCR/parse on-device with the SAME pipeline the
   // student-upload path uses, so a pasted Drive file link still gets scanned.
-  async function fetchFromLink(link) {
+  async function fetchFromLink(link, studentId) {
     if (!link) return
+    const sid = studentId != null ? studentId : smartFor
     setDocFetching(true)
     try {
       const r = await fetch('/api/extract-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: link }) })
       const data = await r.json().catch(() => ({}))
       if (r.ok && data.text) {
         setAiText(data.text)
-        runAiGrade(smartFor, data.text)
+        runAiGrade(sid, data.text)
         return
       }
       if (r.ok && data.binary) {
@@ -1063,7 +1064,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
         const ex = file ? await extractSubmissionText(file).catch(() => null) : null
         if (ex?.text) {
           setAiText(ex.text)
-          runAiGrade(smartFor, ex.text)
+          runAiGrade(sid, ex.text)
         } else {
           toast('Could not read text from that file. Open it to grade manually, or paste the text.', 'warn', 7000)
         }
@@ -1393,7 +1394,10 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                     <button className="btn btn-ghost btn-sm" title="Smart grading assistant" onClick={() => {
                       const t = sub.contentText || ''
                       setAiFor(s.id); setAiText(t); setAiResult(null)
-                      if (t) runAiGrade(s.id, t) // auto-grade from the extracted submission text - no paste needed
+                      // Auto-grade from the already-extracted text, else automatically
+                      // OCR/read the submitted Drive file (image/PDF/Doc) - no manual paste.
+                      if (t) runAiGrade(s.id, t)
+                      else if (isDocLink(sub.link)) fetchFromLink(sub.link, s.id)
                     }}>
                       <Sparkles size={13} /> Smart grade
                     </button>
@@ -1436,9 +1440,17 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
               <div style={{ fontSize: 12, color: 'var(--green)', background: 'var(--green-l)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', margin: '8px 0 12px' }}>
                 <Check size={13} className="inline-block mr-1 align-text-bottom" />Read automatically from the submitted file{sub.contentMeta?.method ? ` (${sub.contentMeta.method === 'ocr' ? 'image OCR' : sub.contentMeta.method.toUpperCase()})` : ''}. The score below is drafted from it - review and edit before applying. Nothing is uploaded.
               </div>
+            ) : docFetching ? (
+              <div style={{ fontSize: 12, color: 'var(--ink2)', background: 'var(--accent-l)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', margin: '8px 0 12px' }}>
+                <Sparkles size={13} className="inline-block mr-1 align-text-bottom" />Reading the submitted file (OCR for images, text layer for PDFs)… This runs on your device and may take a moment the first time.
+              </div>
+            ) : isDocLink(sub.link) ? (
+              <div style={{ fontSize: 12, color: 'var(--ink2)', background: 'var(--accent-l)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', margin: '8px 0 12px' }}>
+                The submitted file is read automatically (image OCR / PDF). If the draft looks off, read it again or paste the text below. Nothing is uploaded.
+              </div>
             ) : (
               <div style={{ fontSize: 12, color: 'var(--ink2)', background: 'var(--accent-l)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', margin: '8px 0 12px' }}>
-                This submission has no auto-read text (it is a pasted link, not an uploaded file). Open it, paste the work below, or pull the text from the link. On-device Smart grading drafts a score you review before saving. Nothing is uploaded.
+                This submission has no auto-read file (it is a plain link). Open it and paste the work below. On-device Smart grading drafts a score you review before saving. Nothing is uploaded.
               </div>
             )}
             {sub.link && (
@@ -1446,13 +1458,13 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                 <SubmissionPreview link={sub.link} name={`${stud?.name || 'Submission'} - ${act.title}`} compact fallbackLabel="Open submission" />
               </div>
             )}
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
-              {!sub.contentText && isDocLink(sub.link) && (
-                <button className="btn btn-ghost btn-sm" onClick={() => fetchFromLink(sub.link)} disabled={docFetching}>
-                  <ClipboardPaste size={13} className="inline-block mr-1" />{docFetching ? 'Reading…' : 'Pull text from link'}
+            {!sub.contentText && isDocLink(sub.link) && (
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <button className="btn btn-ghost btn-sm" onClick={() => fetchFromLink(sub.link, smartFor)} disabled={docFetching}>
+                  <ClipboardPaste size={13} className="inline-block mr-1" />{docFetching ? 'Reading…' : 'Read file again'}
                 </button>
-              )}
-            </div>
+              </div>
+            )}
             <textarea
               className="input w-full"
               rows={6}
@@ -1461,8 +1473,8 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
               onChange={e => setAiText(e.target.value)}
             />
             <div className="flex gap-2 mt-2">
-              <button className="btn btn-primary btn-sm" onClick={() => runAiGrade(smartFor)} disabled={smartBusy || !smartText.trim()}>
-                <Sparkles size={13} className="inline-block mr-1" />{smartBusy ? 'Assessing…' : (smartResult ? 'Re-run' : 'Suggest grade')}
+              <button className="btn btn-primary btn-sm" onClick={() => runAiGrade(smartFor)} disabled={smartBusy || docFetching || !smartText.trim()}>
+                <Sparkles size={13} className="inline-block mr-1" />{docFetching ? 'Reading file…' : smartBusy ? 'Assessing…' : (smartResult ? 'Re-run' : 'Suggest grade')}
               </button>
             </div>
             {smartResult && (
