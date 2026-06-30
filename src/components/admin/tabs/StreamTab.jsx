@@ -836,13 +836,13 @@ function ActivityCard({ item, classObj, students }) {
       {act.deadline && (
         <div style={{ fontSize: 12, color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: 4 }}>
           <Clock size={12} /> Due: {formatDate(act.deadline)}
-          {Date.now() > act.deadline && <span style={{ color: '#ef4444', fontWeight: 600 }}> · Overdue</span>}
+          {Date.now() > act.deadline && <span style={{ color: 'var(--red)', fontWeight: 600 }}> · Overdue</span>}
         </div>
       )}
       <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap' }}>
         <div className="stream-stat"><CheckCircle2 size={14} style={{ color: '#10b981' }} /><span>{subCount} submitted</span></div>
         <div className="stream-stat"><Award size={14} style={{ color: '#6366f1' }} /><span>{gradedCount} graded</span></div>
-        <div className="stream-stat"><AlertCircle size={14} style={{ color: '#f59e0b' }} /><span>{notSubmitted} pending</span></div>
+        <div className="stream-stat"><AlertCircle size={14} style={{ color: 'var(--yellow)' }} /><span>{notSubmitted} pending</span></div>
         {totalRubric > 0 && <div className="stream-stat"><span style={{ color: 'var(--ink3)' }}>{totalRubric} pts total</span></div>}
       </div>
     </PostShell>
@@ -875,9 +875,9 @@ function QuizCard({ item, classObj, students }) {
         {quiz.closeAt && <span>Closes: {formatDate(quiz.closeAt)}</span>}
       </div>
       <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap' }}>
-        <div className="stream-stat"><FileQuestion size={14} style={{ color: '#8b5cf6' }} /><span>{totalQ} question{totalQ !== 1 ? 's' : ''}</span></div>
+        <div className="stream-stat"><FileQuestion size={14} style={{ color: 'var(--purple)' }} /><span>{totalQ} question{totalQ !== 1 ? 's' : ''}</span></div>
         <div className="stream-stat"><CheckCircle2 size={14} style={{ color: '#10b981' }} /><span>{subCount} taken</span></div>
-        {avgScore != null && <div className="stream-stat"><Award size={14} style={{ color: '#f59e0b' }} /><span>Avg: {avgScore}%</span></div>}
+        {avgScore != null && <div className="stream-stat"><Award size={14} style={{ color: 'var(--yellow)' }} /><span>Avg: {avgScore}%</span></div>}
       </div>
     </PostShell>
   )
@@ -919,8 +919,8 @@ function AttendanceCard({ item, classObj }) {
     >
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
         <div className="stream-stat"><CheckCircle2 size={14} style={{ color: '#10b981' }} /><span>{presentCount} present</span></div>
-        <div className="stream-stat"><XCircle size={14} style={{ color: '#ef4444' }} /><span>{absentCount} absent</span></div>
-        {excusedCount > 0 && <div className="stream-stat"><AlertCircle size={14} style={{ color: '#f59e0b' }} /><span>{excusedCount} excused</span></div>}
+        <div className="stream-stat"><XCircle size={14} style={{ color: 'var(--red)' }} /><span>{absentCount} absent</span></div>
+        {excusedCount > 0 && <div className="stream-stat"><AlertCircle size={14} style={{ color: 'var(--yellow)' }} /><span>{excusedCount} excused</span></div>}
       </div>
     </PostShell>
   )

@@ -183,7 +183,7 @@ function ActivityCard({ item, classObj, student }) {
       pills={<StreamPills cls={cls} subject={act.subject} />}
     >
       {act.deadline && (
-        <div style={{ fontSize: 12, color: overdue ? '#ef4444' : 'var(--ink3)', display: 'flex', alignItems: 'center', gap: 4 }}>
+        <div style={{ fontSize: 12, color: overdue ? 'var(--red)' : 'var(--ink3)', display: 'flex', alignItems: 'center', gap: 4 }}>
           <Clock size={12} /> Due: {formatDate(act.deadline)}{overdue && <span style={{ fontWeight: 600 }}> · Overdue</span>}
         </div>
       )}
@@ -191,7 +191,7 @@ function ActivityCard({ item, classObj, student }) {
         {submitted ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#10b981', fontWeight: 600 }}><CheckCircle2 size={14} /> Submitted</div>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: overdue ? '#ef4444' : '#f59e0b', fontWeight: 600 }}><AlertCircle size={14} /> {overdue ? 'Missed' : 'Not yet submitted'}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: overdue ? 'var(--red)' : 'var(--yellow)', fontWeight: 600 }}><AlertCircle size={14} /> {overdue ? 'Missed' : 'Not yet submitted'}</div>
         )}
         {graded && <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#6366f1', fontWeight: 600 }}><Award size={14} /> Score: {sub.score}{totalRubric > 0 ? `/${totalRubric}` : ''}</div>}
       </div>
@@ -235,9 +235,9 @@ function QuizCard({ item, classObj, student }) {
         {taken ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#10b981', fontWeight: 600 }}><CheckCircle2 size={14} /> Completed{sub.score != null && <span> · {sub.score}/{subTotal}</span>}</div>
         ) : isOpen ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#f59e0b', fontWeight: 600 }}><AlertCircle size={14} /> Not yet taken</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--yellow)', fontWeight: 600 }}><AlertCircle size={14} /> Not yet taken</div>
         ) : isClosed ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#ef4444', fontWeight: 600 }}><XCircle size={14} /> Missed</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--red)', fontWeight: 600 }}><XCircle size={14} /> Missed</div>
         ) : (
           <div style={{ fontSize: 12, color: 'var(--ink3)' }}>Not yet open</div>
         )}
@@ -294,7 +294,7 @@ function AttendanceCard({ item, classObj, student }) {
       {present ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#10b981', fontWeight: 600 }}><CheckCircle2 size={14} /> Present</div>
       ) : (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#ef4444', fontWeight: 600 }}><XCircle size={14} /> Absent</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: 'var(--red)', fontWeight: 600 }}><XCircle size={14} /> Absent</div>
       )}
     </PostShell>
   )
