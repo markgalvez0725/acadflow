@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { doc, setDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import Modal from '@/components/primitives/Modal'
+import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import Button from '@/components/ds/Button'
 import { Select, Textarea } from '@/components/ds/Field'
 import { notifyAdminMessage } from '@/firebase/messageNotify'
@@ -70,12 +70,13 @@ export default function RegradeRequestModal({ student: s, subjects = [], onClose
   }
 
   return (
-    <Modal onClose={onClose} size="sm">
-      <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}><RefreshCw size={18} /> Request a Regrade</h3>
-      <p className="modal-sub">
-        Politely explain why you believe a grade should be reviewed. Your professor receives this in their messages and can reply to you.
-      </p>
-
+    <Modal onClose={onClose} size="sm" sheetOnMobile
+      header={<ModalHeader flush icon={<RefreshCw size={18} />} title="Request a Regrade" subtitle="Politely explain why you believe a grade should be reviewed. Your professor receives this in their messages and can reply to you." />}
+      footer={<>
+        <Button variant="ghost" size="sm" onClick={onClose} disabled={sending}>Cancel</Button>
+        <Button size="sm" loading={sending} loadingText="Sending…" onClick={handleSubmit}>Send request</Button>
+      </>}
+    >
       <Select
         label="Subject"
         id="regrade-subject"
@@ -101,11 +102,6 @@ export default function RegradeRequestModal({ student: s, subjects = [], onClose
         maxLength={MAX_REASON}
       />
       <div style={{ textAlign: 'right', fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>{reason.length}/{MAX_REASON}</div>
-
-      <div className="flex justify-end gap-2 mt-3">
-        <Button variant="ghost" size="sm" onClick={onClose} disabled={sending}>Cancel</Button>
-        <Button size="sm" loading={sending} loadingText="Sending…" onClick={handleSubmit}>Send request</Button>
-      </div>
     </Modal>
   )
 }

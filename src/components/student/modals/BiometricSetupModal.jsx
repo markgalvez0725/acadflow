@@ -110,5 +110,5 @@ export default function BiometricSetupModal({ student, onClose, embedded = false
   )
 
   if (embedded) return inner
-  return <Modal onClose={onClose} size="md">{inner}</Modal>
+  return <Modal onClose={onClose} size="md" sheetOnMobile>{inner}</Modal>
 }

@@ -3,7 +3,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { sortByLastName } from '@/utils/format'
 import { courseShort } from '@/constants/courses'
-import Modal from '@/components/primitives/Modal'
+import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import Avatar from '@/components/primitives/Avatar'
 import { CalendarDays, Check, ClipboardList, X, UserCheck } from 'lucide-react'
 
@@ -80,14 +80,15 @@ export default function TakeAttendanceModal({ classId, subject, onClose }) {
   }
 
   return (
-    <Modal onClose={onClose} size="lg">
-      {/* Header */}
-      <div className="flex items-center gap-2 mb-1">
-        <UserCheck size={16} />
-        <h3 className="mb-0">Take Attendance</h3>
-      </div>
-      <p className="modal-sub mb-3">{subject} · <span title={cls?.name || ''}>{courseShort(cls?.name)}</span> {cls?.section}</p>
-
+    <Modal onClose={onClose} size="lg" sheetOnMobile
+      header={<ModalHeader flush icon={<UserCheck size={18} />} title="Take Attendance" subtitle={<>{subject} · <span title={cls?.name || ''}>{courseShort(cls?.name)}</span> {cls?.section}</>} />}
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={saveDay} disabled={saving}>
+          {saving ? 'Saving…' : 'Save Attendance'}
+        </button>
+      </>}
+    >
       {/* Date banner */}
       <div className="rounded-lg p-3 mb-3 flex items-center justify-between flex-wrap gap-2"
         style={{ background: 'var(--accent)' }}>
@@ -179,12 +180,6 @@ export default function TakeAttendanceModal({ classId, subject, onClose }) {
         Excused counts separately from absent. Attendance is locked to today's date.
       </p>
 
-      <div className="modal-footer">
-        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={saveDay} disabled={saving}>
-          {saving ? 'Saving…' : 'Save Attendance'}
-        </button>
-      </div>
     </Modal>
   )
 }

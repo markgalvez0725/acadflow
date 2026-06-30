@@ -159,5 +159,5 @@ export default function FaceEnrollModal({ student, onClose, embedded = false, hi
   )
 
   if (embedded) return inner
-  return <Modal onClose={onClose} size="md">{inner}</Modal>
+  return <Modal onClose={onClose} size="md" sheetOnMobile>{inner}</Modal>
 }

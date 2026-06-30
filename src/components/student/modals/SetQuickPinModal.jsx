@@ -61,5 +61,5 @@ export default function SetQuickPinModal({ onClose, embedded = false }) {
   )
 
   if (embedded) return inner
-  return <Modal onClose={onClose} size="sm">{inner}</Modal>
+  return <Modal onClose={onClose} size="sm" sheetOnMobile>{inner}</Modal>
 }

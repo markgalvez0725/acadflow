@@ -96,5 +96,5 @@ export default function NotifPrefsModal({ student: s, onClose, embedded = false 
   )
 
   if (embedded) return inner
-  return <Modal size="sm" onClose={onClose}>{inner}</Modal>
+  return <Modal size="sm" onClose={onClose} sheetOnMobile>{inner}</Modal>
 }

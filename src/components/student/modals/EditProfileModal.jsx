@@ -594,5 +594,5 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
 
   // Embedded: the shared SettingsShell provides the sheet/back/title chrome.
   if (embedded) return inner
-  return <Modal onClose={forced ? undefined : onClose}>{inner}</Modal>
+  return <Modal onClose={forced ? undefined : onClose} sheetOnMobile>{inner}</Modal>
 }

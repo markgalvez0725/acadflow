@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import Modal from '@/components/primitives/Modal'
+import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import { ScanFace, Lock, Loader2, AlertTriangle, RefreshCw, ShieldAlert, ArrowRight, Check } from 'lucide-react'
 import { sanitizeSnum, validateSnum } from '@/utils/validate'
 import {
@@ -161,12 +161,9 @@ export default function FaceResetModal({ initialNumber = '', onClose, onSuccess 
   const dismissable = phase === 'number' || phase === 'error' || phase === 'nomatch'
 
   return (
-    <Modal onClose={dismissable ? onClose : null} size="md">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 4 }}>
-        <ScanFace size={20} style={{ color: 'var(--accent)' }} />
-        <h3 className="text-base font-bold text-ink">Reset with Face ID</h3>
-      </div>
-
+    <Modal onClose={dismissable ? onClose : null} size="md" sheetOnMobile
+      header={<ModalHeader flush icon={<ScanFace size={18} />} title="Reset with Face ID" />}
+    >
       {phase === 'number' ? (
         <form onSubmit={confirmNumber}>
           <p className="text-xs text-ink2" style={{ marginBottom: 14, lineHeight: 1.55 }}>
