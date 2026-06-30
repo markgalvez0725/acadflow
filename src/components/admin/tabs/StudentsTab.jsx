@@ -44,7 +44,7 @@ function classSubjectsLabel(cls) {
 // with the Excel/CSV export + import so the column parsing stays identical.
 
 function AddStudentModal({ onClose }) {
-  const { classes, students, saveStudents } = useData()
+  const { classes, students, saveStudents, provisionStudentSecret } = useData()
   const { toast } = useUI()
 
   // Name is captured in parts and stored canonically as "LASTNAME, FIRST M".
@@ -103,15 +103,19 @@ function AddStudentModal({ onClose }) {
       setErr('A student with this name already exists.'); return
     }
 
-    let account
+    // The temp-password HASH goes to the server-only studentSecrets store
+    // (provisionStudentSecret below), never onto the broadly-readable student doc.
+    let account, passHash
     if (setPass) {
       if (!initPass) { setPassErr('Please enter an initial password.'); return }
       if (initPass.length < 8) { setPassErr('Password must be at least 8 characters.'); return }
       if (!/[A-Z]/.test(initPass) || !/[0-9]/.test(initPass)) { setPassErr('Password must include at least one uppercase letter and one number.'); return }
       if (initEmail && !initEmail.includes('@')) { setPassErr('Please enter a valid email address.'); return }
-      account = { registered: true, pass: await hashPassword(initPass), email: initEmail || '', _tempPass: true, needsProfileSetup: true, verified: true, verification: { method: 'teacher', at: Date.now() } }
+      passHash = await hashPassword(initPass)
+      account = { registered: true, email: initEmail || '', _tempPass: true, needsProfileSetup: true, verified: true, verification: { method: 'teacher', at: Date.now() } }
     } else {
-      account = { registered: true, pass: await hashPassword(DEFAULT_PASS), email: '', _tempPass: true, needsProfileSetup: true, verified: true, verification: { method: 'teacher', at: Date.now() } }
+      passHash = await hashPassword(DEFAULT_PASS)
+      account = { registered: true, email: '', _tempPass: true, needsProfileSetup: true, verified: true, verification: { method: 'teacher', at: Date.now() } }
     }
 
     const allClassIds = [...new Set([classId, ...extraIds].filter(Boolean))]
@@ -133,6 +137,7 @@ function AddStudentModal({ onClose }) {
     try {
       const newStudent = { id, name: composedName, course: course.trim(), year, studentType, section: finalSection, classId: classId || null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account }
       await saveStudents([...students, newStudent], [id])
+      await provisionStudentSecret(id, passHash)
       toast('Student added!', 'green')
       onClose()
     } catch (e) {
@@ -777,7 +782,7 @@ function parseCSV(text) {
 
 // ── Import Students Modal ─────────────────────────────────────────────
 function ImportStudentsModal({ onClose }) {
-  const { classes, students, saveStudents } = useData()
+  const { classes, students, saveStudents, provisionStudentSecret } = useData()
   const { toast } = useUI()
   const fileRef = useRef(null)
   const [rows, setRows]     = useState([])
@@ -876,13 +881,18 @@ function ImportStudentsModal({ onClose }) {
     if (!validRows.length) return
     setSaving(true)
     try {
-      const newStudents = await Promise.all(validRows.map(async r => {
+      // Every imported student starts on the same default temp password; its hash
+      // goes to the server-only studentSecrets store, not the student doc.
+      const passHash = await hashPassword(DEFAULT_PASS)
+      const newStudents = validRows.map(r => {
         const id = r.id.toUpperCase()
         const allClassIds = []
         const grades = {}, attendance = {}, excuse = {}, gradeComponents = {}
-        return { id, name: (r.name || '').toUpperCase(), course: r.course, year: r.year || '1st Year', section: r.section || '', mobile: r.mobile || '', dob: r.dob || '', classId: null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account: { registered: true, pass: await hashPassword(DEFAULT_PASS), email: '', _tempPass: true, needsProfileSetup: true, verified: true, verification: { method: 'teacher', at: Date.now() } } }
-      }))
+        return { id, name: (r.name || '').toUpperCase(), course: r.course, year: r.year || '1st Year', section: r.section || '', mobile: r.mobile || '', dob: r.dob || '', classId: null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account: { registered: true, email: '', _tempPass: true, needsProfileSetup: true, verified: true, verification: { method: 'teacher', at: Date.now() } } }
+      })
       await saveStudents([...students, ...newStudents], newStudents.map(s => s.id))
+      // Store each temp-password secret (sequential to stay gentle on quotas).
+      for (const s of newStudents) await provisionStudentSecret(s.id, passHash)
       toast(`Imported ${newStudents.length} student${newStudents.length !== 1 ? 's' : ''}!`, 'green')
       onClose()
     } catch (e) {

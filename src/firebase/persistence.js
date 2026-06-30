@@ -540,6 +540,44 @@ export async function fbFetchAllMessages(db) {
   return out
 }
 
+// ── Student secrets (server-only collection) ───────────────────────────────
+// The temp-password hash lives in studentSecrets/{id} (never client-readable),
+// not on the broadly-readable student doc. The professor (admin) writes it at
+// provisioning. Throws on failure so the caller can fall back to the legacy
+// on-doc pass (e.g. before the studentSecrets rules are published).
+export async function fbWriteStudentSecret(db, studentId, passHash) {
+  if (!db || !studentId || !passHash) return
+  await fbWithTimeout(setDoc(doc(db, 'studentSecrets', studentId), { pass: passHash }, { merge: true }))
+}
+
+// One-time migration: move account.pass out of every student doc into
+// studentSecrets, then strip the secret fields (pass + the now-removed
+// security-question fields) from the student doc. Per-doc and ordered so the
+// secret is safely stored BEFORE it's removed; if the studentSecrets write fails
+// (e.g. rules not published) that doc is left intact and retried next run.
+// Idempotent: docs with no secret fields are skipped. Returns { migrated, skipped }.
+export async function fbMigrateStudentSecrets(db) {
+  if (!db) return { migrated: 0, skipped: 0 }
+  const snap = await getDocs(collection(db, 'students'))
+  let migrated = 0, skipped = 0
+  for (const d of snap.docs) {
+    const acct = (d.data() || {}).account || {}
+    if (acct.pass == null && acct.securityAnswer == null && acct.securityQuestion == null) continue
+    try {
+      if (acct.pass != null) {
+        await fbWithTimeout(setDoc(doc(db, 'studentSecrets', d.id), { pass: acct.pass }, { merge: true }))
+      }
+      await fbWithTimeout(updateDoc(d.ref, {
+        'account.pass': deleteField(),
+        'account.securityAnswer': deleteField(),
+        'account.securityQuestion': deleteField(),
+      }))
+      migrated++
+    } catch (e) { skipped++ }
+  }
+  return { migrated, skipped }
+}
+
 export async function fbPushAnnouncementNotifs(db, announcement, students) {
   if (!db || !announcement || !students?.length) return
   const targetIds = annClassIds(announcement)

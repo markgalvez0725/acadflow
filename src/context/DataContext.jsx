@@ -11,6 +11,7 @@ import {
   fbSetSubjectRep, fbDeleteClassRelatedData, fbAddAuditLog, fbRestoreFromBackup,
   fbSubmitStudentFeedback, fbUpdateFeedbackStatus,
   fbBackfillMessageActivity, fbFetchAllMessages,
+  fbWriteStudentSecret, fbMigrateStudentSecrets,
 } from '@/firebase/persistence'
 import { fbPushReminderNotif } from '@/firebase/reminders'
 import { serializeStudents } from '@/utils/attendance'
@@ -187,6 +188,17 @@ export function DataProvider({ children }) {
               })
               .catch(() => {})
           }
+          // One-time: move account.pass off the broadly-readable student docs into
+          // the server-only studentSecrets collection (closes the C1 read gap).
+          // Idempotent and self-retrying, so it clears the flag only on a clean run.
+          if (!localStorage.getItem('cp_student_secrets_migrated_v1')) {
+            fbMigrateStudentSecrets(db)
+              .then(({ migrated, skipped }) => {
+                if (!skipped) localStorage.setItem('cp_student_secrets_migrated_v1', '1')
+                if (migrated) console.log('[Firebase] migrated', migrated, 'student secrets', skipped ? `(${skipped} deferred)` : '')
+              })
+              .catch(() => {})
+          }
         } catch (e) {}
       }
     }
@@ -292,6 +304,22 @@ export function DataProvider({ children }) {
     }
     setStudents(updatedStudents)
     await persistStudentsSync(dbRef.current, updatedStudents, changedIds)
+  }, [])
+
+  // Store a provisioned student's temp-password hash in the server-only
+  // studentSecrets store (so it never lives on the broadly-readable student doc).
+  // On failure (e.g. the studentSecrets rules aren't published yet) fall back to
+  // the legacy on-doc account.pass so onboarding never silently breaks.
+  const provisionStudentSecret = useCallback(async (studentId, passHash) => {
+    if (!dbRef.current || !studentId || !passHash) return
+    try {
+      await fbWriteStudentSecret(dbRef.current, studentId, passHash)
+    } catch (e) {
+      try {
+        const { doc, updateDoc } = await import('firebase/firestore')
+        await updateDoc(doc(dbRef.current, 'students', studentId), { 'account.pass': passHash })
+      } catch (_) {}
+    }
   }, [])
 
   // Promote a student's account to "Active": they've taken ownership by setting
@@ -1457,7 +1485,7 @@ export function DataProvider({ children }) {
 
   return (
     <DataContext.Provider value={{
-      students, setStudents, saveStudents, saveGradeNote, markAccountActive, deleteStudent, purgeStudentEverywhere, schedulePurge, cancelPurge, restoreStudents,
+      students, setStudents, saveStudents, provisionStudentSecret, saveGradeNote, markAccountActive, deleteStudent, purgeStudentEverywhere, schedulePurge, cancelPurge, restoreStudents,
       classes, setClasses, saveClasses, setSubjectRep, archiveClassWithStudents, unarchiveClassWithStudents, deleteClass,
       enrollInClass, unenrollFromClass,
       messages, setMessages, loadMoreMessages, hasMoreMessages,
