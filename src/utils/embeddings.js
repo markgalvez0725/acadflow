@@ -4,8 +4,13 @@
 // in the app - quiz generation, Auto-key synonyms, activity rubric matching, and
 // grading-coverage estimates. Multilingual on purpose (the content here is
 // Filipino/Tagalog). Nothing is uploaded; inference runs entirely in-browser.
-// Weights are fetched from the Hugging Face hub (the app sets no CSP, so the
-// cross-origin model load is allowed) and cached by the browser after first use.
+// The library is imported from esm.sh and weights are fetched from the Hugging
+// Face hub, then cached by the browser after first use. The deployed CSP MUST
+// allow these origins or every embedding-backed Smart feature silently fails:
+//   script-src/worker-src/connect-src → https://esm.sh
+//   connect-src → https://huggingface.co https://*.huggingface.co https://*.hf.co
+// (see vercel.json). Without them the dynamic import is blocked and smartGrade
+// returns null → "Smart grading unavailable" toast.
 
 const TRANSFORMERS_URL = 'https://esm.sh/@xenova/transformers@2.17.2'
 const MODEL = 'Xenova/paraphrase-multilingual-MiniLM-L12-v2'
