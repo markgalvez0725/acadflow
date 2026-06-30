@@ -4,9 +4,20 @@
 // features ships, so the "What's new" modal always reflects the current build.
 // User-facing copy: keep it plain, no em-dashes.
 
-export const APP_VERSION = '2.1.0'
+export const APP_VERSION = '2.2.0'
 
 export const CHANGELOG = [
+  {
+    version: '2.2.0',
+    date: 'July 2026',
+    title: 'Cleaner, more consistent design',
+    changes: [
+      'Every tab now opens with a clear title header, and the whole app shares one consistent look on phone, tablet, and computer.',
+      'Pop-up windows were redesigned to match: a tidy title at the top, content that scrolls in the middle, and the action buttons pinned at the bottom. On phones they now slide up as a full-screen sheet that is easier to reach.',
+      'Group activities get a dedicated "Set up groups" tool: choose how many students per group, auto-form balanced teams, or build your own, with clear Alpha, Bravo, Charlie names. You can also paste a grouping straight from Excel.',
+      'Smaller polish: consistent calendar and control buttons, and status colors in the Stream now read clearly in dark mode.',
+    ],
+  },
   {
     version: '2.1.0',
     date: 'June 2026',
