@@ -67,6 +67,18 @@ export default function NotificationsTab({ student, notifs, setNotifs, onOpenPro
     return true // unknown types: don't block the redirect
   }
 
+  // The class the deep-linked record belongs to, preferring one the student is
+  // actually enrolled in (a quiz can span several classes).
+  function classForTarget(rec) {
+    if (rec.type === 'activity') return (activities || []).find(a => a.id === rec.id)?.classId || null
+    if (rec.type === 'quiz') {
+      const cids = (quizzes || []).find(q => q.id === rec.id)?.classIds || []
+      const mine = student?.classIds?.length ? student.classIds : (student?.classId ? [student.classId] : [])
+      return cids.find(id => mine.includes(id)) || cids[0] || null
+    }
+    return null
+  }
+
   // Hide categories the student has muted in their notification preferences.
   const visible = applyNotifPrefs(notifs, student?.notifPrefs)
   const sorted  = [...visible].sort((a, b) => b.ts - a.ts)
@@ -96,11 +108,15 @@ export default function NotificationsTab({ student, notifs, setNotifs, onOpenPro
         setStudentTab(rec.tab) // land on the module rather than a blank panel
         return
       }
+      // The student feed is scoped to one class at a time, so switch the viewed
+      // class to the record's so a deep-linked activity/quiz from another class
+      // actually renders (and glows).
       navigateToTarget({
         side: 'student',
         tab: rec.tab,
         type: HIGHLIGHT_READY.has(rec.type) ? rec.type : undefined,
         id: rec.id,
+        classId: classForTarget(rec),
       })
       return
     }

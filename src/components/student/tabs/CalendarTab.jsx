@@ -88,7 +88,7 @@ export default function CalendarTab({ student, viewClassId, classes }) {
       const submitted = !!(a.submissions || {})[student?.id]?.link
       const past = Date.now() > a.deadline
       add(toDateKey(a.deadline), {
-        type: 'activity', id: a.id,
+        type: 'activity', id: a.id, classId: a.classId,
         title: a.title || 'Activity',
         subtitle: cls?.name || '',
         ts: a.deadline,
@@ -102,7 +102,7 @@ export default function CalendarTab({ student, viewClassId, classes }) {
       const taken = !!(q.submissions || {})[student?.id]
       const past = Date.now() > q.closeAt
       add(toDateKey(q.closeAt), {
-        type: 'quiz', id: q.id,
+        type: 'quiz', id: q.id, classId: q.classIds?.find(id => studentClassIds.includes(id)) || null,
         title: q.title || 'Quiz',
         subtitle: '',
         ts: q.closeAt,
@@ -394,7 +394,7 @@ export default function CalendarTab({ student, viewClassId, classes }) {
                     </div>
                     <button className="btn btn-secondary text-xs py-1 px-3 flex-shrink-0" onClick={() => {
                       setSelectedKey(null)
-                      if (ev.type === 'activity' || ev.type === 'quiz') navigateToTarget({ side: 'student', tab: TAB_MAP[ev.type], type: ev.type, id: ev.id })
+                      if (ev.type === 'activity' || ev.type === 'quiz') navigateToTarget({ side: 'student', tab: TAB_MAP[ev.type], type: ev.type, id: ev.id, classId: ev.classId })
                       else setStudentTab(TAB_MAP[ev.type] || 'overview')
                     }}>View →</button>
                   </div>
