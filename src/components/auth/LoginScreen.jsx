@@ -308,11 +308,26 @@ export default function LoginScreen({ onRevealFaculty }) {
     if (!fpPending) return setErr('Session expired. Please start again.')
     setLoading(true)
     try {
-      const hashedAnswer = await hashPassword(fpSetSqAnswer.trim().toLowerCase())
+      // The ANSWER hash is sensitive, so store it server-side in studentSecrets
+      // (never client-readable). The non-secret QUESTION key stays on the doc.
+      const { getIdToken } = await import('@/firebase/firebaseInit')
+      const idToken = await getIdToken()
+      const r = await fetch('/api/set-security-answer', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentNumber: fpPending.snum, answer: fpSetSqAnswer.trim().toLowerCase(), idToken }),
+      })
+      if (!r.ok && r.status !== 501) {
+        const data = await r.json().catch(() => ({}))
+        setLoading(false)
+        return setErr(data.error || 'Failed to save security question. Please try again.')
+      }
+      // When the server isn't configured (501), keep the legacy on-doc answer so
+      // the flow still works; otherwise the doc carries only the question key.
+      const legacyAnswer = (r.status === 501) ? await hashPassword(fpSetSqAnswer.trim().toLowerCase()) : null
       const updatedStudents = students.map(x =>
         x.id !== fpPending.snum ? x : {
           ...x,
-          account: { ...x.account, securityQuestion: fpSetSqKey, securityAnswer: hashedAnswer },
+          account: { ...x.account, securityQuestion: fpSetSqKey, ...(legacyAnswer ? { securityAnswer: legacyAnswer } : {}) },
         }
       )
       await saveStudents(updatedStudents, [fpPending.snum])

@@ -303,6 +303,24 @@ export async function getSecretField(projectId, accessToken, docId, field) {
   return (v && typeof v.stringValue === 'string') ? v.stringValue : null
 }
 
+// Merge one or more string fields into studentSecrets/{docId} (creates the doc if
+// absent). updateMask means only the named fields are touched, so writing the
+// security answer never clobbers the password hash and vice-versa.
+export async function writeSecretFields(projectId, accessToken, docId, fields) {
+  const keys = Object.keys(fields)
+  if (!keys.length) return true
+  const restFields = {}
+  for (const k of keys) restFields[k] = { stringValue: String(fields[k]) }
+  const mask = keys.map(f => 'updateMask.fieldPaths=' + encodeURIComponent(f)).join('&')
+  const r = await fetch(`${fsBase(projectId)}/studentSecrets/${encodeURIComponent(docId)}?${mask}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ fields: restFields }),
+  })
+  if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d?.error?.message || 'Secret write failed') }
+  return true
+}
+
 // Read the hashed self-service reset answer for one student, server-side. Prefers
 // the server-only studentSecrets doc; falls back to the legacy account.securityAnswer
 // on the student doc for accounts not yet migrated. Returns the hash, or null.
