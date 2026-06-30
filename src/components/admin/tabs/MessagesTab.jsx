@@ -457,7 +457,7 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, o
       {/* Thread header */}
       <div className="msg-thread-head">
         {onClose && (
-          <button className="msg-icon-btn md:hidden" onClick={onClose} title="Back" style={{ width: 28, marginLeft: -4 }}>
+          <button className="msg-icon-btn md:hidden" onClick={onClose} title="Back" aria-label="Back to conversations" style={{ width: 28, marginLeft: -4 }}>
             <ChevronLeft size={20} />
           </button>
         )}

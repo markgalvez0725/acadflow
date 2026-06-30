@@ -1643,7 +1643,6 @@ html[data-theme="dark"] .aflogo-dark { display: block; }
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-l);
 }
-[data-theme="dark"] .input:focus { box-shadow: 0 0 0 3px rgba(20,184,166,.15); }
 .input::placeholder { color: var(--ink3); }
 textarea.input { resize: vertical; }
 
@@ -1674,7 +1673,6 @@ textarea.input { resize: vertical; }
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-l);
 }
-[data-theme="dark"] .form-input:focus { box-shadow: 0 0 0 3px rgba(20,184,166,.15); }
 .form-input::placeholder { color: var(--ink3); }
 .form-input:disabled { opacity: .5; cursor: not-allowed; }
 

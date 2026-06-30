@@ -156,6 +156,7 @@ export default function NotificationsTab({ student, notifs, setNotifs, onOpenPro
                   onClick={e => deleteNotif(e, n.id)}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink3)', padding: '2px 4px', borderRadius: 4, display: 'flex', alignItems: 'center' }}
                   title="Delete notification"
+                  aria-label="Delete notification"
                 >
                   <Trash2 size={14} />
                 </button>

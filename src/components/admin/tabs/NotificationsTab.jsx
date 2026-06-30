@@ -126,6 +126,7 @@ export default function NotificationsTab() {
                         onClick={e => { e.stopPropagation(); deleteNotif(n.id) }}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink3)', padding: '2px 4px', borderRadius: 4, lineHeight: 1 }}
                         title="Delete notification"
+                        aria-label="Delete notification"
                       ><Trash2 size={14} /></button>
                     </div>
                   </div>
