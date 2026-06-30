@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import EmptyState from '@/components/ds/EmptyState'
+import PageHeader from '@/components/ds/PageHeader'
 import {
   Sparkles, Bug, Lightbulb, MessageSquare, Send, CheckCircle2, Clock, Archive,
   ShieldCheck, Wand2, AlertTriangle,
@@ -124,7 +125,7 @@ export default function FeedbackTab({ student }) {
 
   return (
     <div className="feedback-tab" style={{ maxWidth: 920 }}>
-      <div style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--ink)', marginBottom: 14 }}>Feedback hub</div>
+      <PageHeader title="Feedback hub" />
 
       <div className="fb2-top">
         {/* Send feedback form */}

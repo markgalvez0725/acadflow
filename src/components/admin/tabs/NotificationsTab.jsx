@@ -5,6 +5,7 @@ import { useUI } from '@/context/UIContext'
 import { MessageSquare, Upload, CheckCircle, ClipboardList, Mail, Bell, Trash2, Megaphone, FileQuestion } from 'lucide-react'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 import EmptyState from '@/components/ds/EmptyState'
+import PageHeader from '@/components/ds/PageHeader'
 import { parseRecordTarget, HIGHLIGHT_READY } from '@/navigation/notifTarget'
 
 const NOTIF_ICONS = {
@@ -113,18 +114,16 @@ export default function NotificationsTab() {
 
   return (
     <div>
-      <div className="ds-page-head">
-        <div className="ds-ph-main">
-          <h2>Notifications</h2>
-          <p>{unreadCount > 0 ? `${unreadCount} unread` : 'You’re all caught up'}</p>
-        </div>
-        {adminNotifs.length > 0 && (
-          <div className="ds-ph-actions">
+      <PageHeader
+        title="Notifications"
+        subtitle={unreadCount > 0 ? `${unreadCount} unread` : 'You’re all caught up'}
+        actions={adminNotifs.length > 0 ? (
+          <>
             {unreadCount > 0 && <button className="btn" onClick={markAllRead}>Mark all read</button>}
             <button className="btn btn-danger" onClick={clearAll}>Clear all</button>
-          </div>
-        )}
-      </div>
+          </>
+        ) : null}
+      />
 
       {!adminNotifs.length ? (
         <div className="ds-card">

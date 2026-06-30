@@ -7,6 +7,7 @@ import Pagination from '@/components/primitives/Pagination'
 import Modal from '@/components/primitives/Modal'
 import KebabMenu from '@/components/primitives/KebabMenu'
 import EmptyState from '@/components/ds/EmptyState'
+import PageHeader from '@/components/ds/PageHeader'
 import { Plus, Pencil, School, Archive, ArchiveRestore, CalendarDays, Users, LockOpen, Lock, CheckCircle2, Copy, FileText, Trash2, Clock, MapPin, Search } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { buildClassReportCards } from '@/export/reportCard'
@@ -578,8 +579,14 @@ export default function ClassesTab() {
       )}
 
       {/* Header */}
-      <div className="sec-hdr mb-3">
-        <div className="sec-title">Classes</div>
+      <PageHeader
+        title="Classes"
+        subtitle={(() => {
+          const a = classes.filter(c => !c.archived).length
+          const z = classes.filter(c => c.archived).length
+          return `${a} active${z ? ` · ${z} archived` : ''}`
+        })()}
+        actions={
         <div className="flex items-center gap-2 flex-wrap">
           <div style={{ position: 'relative', flex: '1 1 160px', minWidth: 150 }}>
             <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--ink3)', pointerEvents: 'none' }} />
@@ -614,7 +621,8 @@ export default function ClassesTab() {
           </button>
           {!showArchived && <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>+ Add Class</button>}
         </div>
-      </div>
+        }
+      />
 
       {/* Subject grouping summary */}
       {subjectFilter && (

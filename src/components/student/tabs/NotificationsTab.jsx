@@ -6,6 +6,7 @@ import Pagination from '@/components/primitives/Pagination'
 import { Mail, Upload, CheckCircle, BookOpen, MessageSquare, Bell, Trash2, Megaphone, Video, UserCircle, FileQuestion } from 'lucide-react'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 import EmptyState from '@/components/ds/EmptyState'
+import PageHeader from '@/components/ds/PageHeader'
 import { applyNotifPrefs, isNotifAllowed } from '@/utils/notifPrefs'
 import { parseRecordTarget, HIGHLIGHT_READY } from '@/navigation/notifTarget'
 
@@ -162,9 +163,10 @@ export default function NotificationsTab({ student, notifs, setNotifs, onOpenPro
 
   return (
     <div className="student-notifications">
-      <div className="sec-hdr mb-3">
-        <div className="sec-title">Notifications</div>
-        {visible.some(n => !n.read) && (
+      <PageHeader
+        title="Notifications"
+        subtitle={visible.some(n => !n.read) ? `${visible.filter(n => !n.read).length} unread` : 'You’re all caught up'}
+        actions={visible.some(n => !n.read) ? (
           <button
             className="btn btn-ghost btn-sm"
             onClick={async () => {
@@ -175,8 +177,8 @@ export default function NotificationsTab({ student, notifs, setNotifs, onOpenPro
           >
             Mark all read
           </button>
-        )}
-      </div>
+        ) : null}
+      />
 
       <div className="notif-list">
         {slice.map(n => {

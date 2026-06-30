@@ -10,6 +10,7 @@ import { getHeldDays, computeTerms, scoredPercent, round2 } from '@/utils/grades
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import EmptyState from '@/components/ds/EmptyState'
+import PageHeader from '@/components/ds/PageHeader'
 import Avatar from '@/components/primitives/Avatar'
 import SubmissionPreview from '@/components/primitives/SubmissionPreview'
 import { extractSubmissionText } from '@/utils/submissionExtract'
@@ -1767,10 +1768,11 @@ export default function ActivitiesTab() {
   return (
     <div>
       {/* Header */}
-      <div className="sec-hdr mb-3">
-        <div className="sec-title">Activities</div>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}><Plus size={16} /> New Activity</button>
-      </div>
+      <PageHeader
+        title="Activities"
+        subtitle={`${activeActs.length} active${archivedActs.length ? ` · ${archivedActs.length} archived` : ''}`}
+        actions={<button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}><Plus size={16} /> New Activity</button>}
+      />
 
       {/* Active Activities */}
       {activeActs.length === 0 ? (

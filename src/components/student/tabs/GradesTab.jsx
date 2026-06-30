@@ -5,6 +5,7 @@ import { useData } from '@/context/DataContext'
 import { BookOpen, Clock, ChevronDown, ChevronUp, Award, Check, RefreshCw, Target, MessageSquare } from 'lucide-react'
 import { activeClassIds, activeSubjects } from '@/utils/active'
 import EmptyState from '@/components/ds/EmptyState'
+import PageHeader from '@/components/ds/PageHeader'
 import { neededFinalsForRemarks } from '@/utils/whatIf'
 import RegradeRequestModal from '@/components/student/modals/RegradeRequestModal'
 import StudentMeta from '@/components/primitives/StudentMeta'
@@ -65,12 +66,15 @@ export default function GradesTab({ student: s, viewClassId, classes }) {
           </div>
         </div>
       )}
-      <div className="sec-hdr mb-3">
-        <div className="sec-title">Grade Breakdown</div>
-        <button className="btn btn-ghost btn-sm" onClick={() => setRegradeOpen(true)} title="Ask your professor to review a grade">
-          <RefreshCw size={14} /> Request regrade
-        </button>
-      </div>
+      <PageHeader
+        title="Grade Breakdown"
+        subtitle={`${subs.length} subject${subs.length !== 1 ? 's' : ''}`}
+        actions={
+          <button className="btn btn-ghost btn-sm" onClick={() => setRegradeOpen(true)} title="Ask your professor to review a grade">
+            <RefreshCw size={14} /> Request regrade
+          </button>
+        }
+      />
       {regradeOpen && (
         <RegradeRequestModal student={s} subjects={subs} onClose={() => setRegradeOpen(false)} />
       )}

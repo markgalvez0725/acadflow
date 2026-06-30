@@ -15,6 +15,7 @@ import Modal from '@/components/primitives/Modal'
 import AccountAuditModal from '@/components/admin/modals/AccountAuditModal'
 import KebabMenu from '@/components/primitives/KebabMenu'
 import EmptyState from '@/components/ds/EmptyState'
+import PageHeader from '@/components/ds/PageHeader'
 import { Download, Upload, KeyRound, GraduationCap, CheckCircle2, Pencil, Plus, Save, BookOpen, Check, Users, ClipboardList, Hourglass, Send, AlertTriangle, ShieldCheck, XCircle, Search, Sparkles } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { useStudentReportCardExport } from '@/hooks/useStudentReportCardExport'
@@ -1323,12 +1324,10 @@ export default function StudentsTab() {
   return (
     <div>
       {/* Header */}
-      <div className="stu-panel-hdr mb-3">
-        <div>
-          <div className="stu-panel-title">Student Roster</div>
-          <div className="stu-panel-sub">{students.length} student{students.length !== 1 ? 's' : ''} total</div>
-        </div>
-        <div className="stu-panel-actions">
+      <PageHeader
+        title="Student Roster"
+        subtitle={`${students.length} student${students.length !== 1 ? 's' : ''} total`}
+        actions={<>
           <button className="btn btn-ghost btn-sm" onClick={() => exportStudentRosterExcel({ students: sorted, classes, semester })} title="Export student roster as Excel (.xlsx)">
             <Download size={13} /> Excel
           </button>
@@ -1342,8 +1341,8 @@ export default function StudentsTab() {
             <ShieldCheck size={13} /> Audit
           </button>
           <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}><Plus size={16} /> Add Student</button>
-        </div>
-      </div>
+        </>}
+      />
 
       {/* Summary metric cards - also act as quick filters */}
       <div className="grid gap-2 mb-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))' }}>

@@ -6,6 +6,7 @@ import { CalendarCheck, Calendar, CheckCircle2, FileCheck, XCircle, Award, UserC
 import TakeAttendanceModal from '@/components/student/modals/TakeAttendanceModal'
 import StandingRing from '@/components/primitives/StandingRing'
 import EmptyState from '@/components/ds/EmptyState'
+import PageHeader from '@/components/ds/PageHeader'
 import { activeClassIds, activeSubjects } from '@/utils/active'
 import { courseShort } from '@/constants/courses'
 
@@ -208,6 +209,7 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
 
   return (
     <div className="student-attendance">
+      <PageHeader title="Attendance" />
       {/* Standing + Attendance Watch */}
       <div className="att2-standing">
         <div className="card att2-pad">

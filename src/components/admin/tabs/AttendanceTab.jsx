@@ -14,6 +14,7 @@ import Pagination from '@/components/primitives/Pagination'
 import QRCode from '@/components/primitives/QRCode'
 import KebabMenu from '@/components/primitives/KebabMenu'
 import EmptyState from '@/components/ds/EmptyState'
+import PageHeader from '@/components/ds/PageHeader'
 import { Download, Upload, AlertTriangle, Shuffle, RefreshCw, CalendarDays, Check, ClipboardList, X, ClipboardCheck, Archive, ArchiveRestore, UserCheck, UserX, Radio, Copy, ListFilter, Radar, TrendingDown, Star } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
@@ -1159,17 +1160,19 @@ export default function AttendanceTab() {
 
   return (
     <div>
-      <div className="sec-hdr mb-3">
-        <div className="sec-title">Attendance</div>
-        <button
-          className="btn btn-ghost btn-sm"
-          onClick={() => { setShowArchived(v => !v); setSelKey(null); setSearch('') }}
-        >
-          {showArchived
-            ? <><ArchiveRestore size={14} className="inline-block mr-1" />Active Classes</>
-            : <><Archive size={14} className="inline-block mr-1" />Archived Classes</>}
-        </button>
-      </div>
+      <PageHeader
+        title="Attendance"
+        actions={
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => { setShowArchived(v => !v); setSelKey(null); setSearch('') }}
+          >
+            {showArchived
+              ? <><ArchiveRestore size={14} className="inline-block mr-1" />Active Classes</>
+              : <><Archive size={14} className="inline-block mr-1" />Archived Classes</>}
+          </button>
+        }
+      />
 
       {showArchived && (
         <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg text-sm"

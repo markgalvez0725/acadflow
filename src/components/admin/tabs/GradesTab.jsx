@@ -16,6 +16,7 @@ import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import KebabMenu from '@/components/primitives/KebabMenu'
 import EmptyState from '@/components/ds/EmptyState'
+import PageHeader from '@/components/ds/PageHeader'
 import { Clock, Pencil, BarChart2, Upload, Download, Trash2, BarChart, RefreshCw, Archive, ArchiveRestore, FileSpreadsheet, Plus, ChevronDown, Sparkles, Undo2, Redo2, Check, Maximize2, AlertTriangle, Search, MessageSquare } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
@@ -1977,9 +1978,10 @@ export default function GradesTab() {
   return (
     <div>
       {/* Header */}
-      <div className="sec-hdr mb-3">
-        <div className="sec-title">Grades</div>
-        <div className="flex gap-2 flex-wrap">
+      <PageHeader
+        title="Grades"
+        subtitle={`${students.length} ${students.length === 1 ? 'student' : 'students'}`}
+        actions={<>
           <button
             className="btn btn-primary btn-sm"
             title="Export a master workbook with full grading computation for every student across all active classes"
@@ -1995,8 +1997,8 @@ export default function GradesTab() {
               ? <><ArchiveRestore size={14} className="inline-block mr-1" />Active Classes</>
               : <><Archive size={14} className="inline-block mr-1" />Archived Classes</>}
           </button>
-        </div>
-      </div>
+        </>}
+      />
 
       {/* Archived mode banner */}
       {showArchived && (

@@ -9,6 +9,7 @@ import Badge from '@/components/primitives/Badge'
 import Avatar from '@/components/primitives/Avatar'
 import Pagination from '@/components/primitives/Pagination'
 import EmptyState from '@/components/ds/EmptyState'
+import PageHeader from '@/components/ds/PageHeader'
 import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList, Pencil, Save, Rocket, FileText, X, Lock, Circle, Archive, ArchiveRestore, Sparkles, Wand2, FileUp, Copy, Lightbulb, ScanSearch, Fingerprint } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { extractTextFromFile } from '@/utils/lessonExtract'
@@ -1476,14 +1477,15 @@ export default function QuizTab() {
 
   return (
     <div>
-      <div className="sec-hdr mb-3">
-        <div className="sec-title">Quizzes</div>
-        <div className="flex gap-2 flex-wrap">
+      <PageHeader
+        title="Quizzes"
+        subtitle={`${activeQuizzes.length} active${archivedQuizzes.length ? ` · ${archivedQuizzes.length} archived` : ''}`}
+        actions={<>
           <button className="btn btn-ghost btn-sm" onClick={() => setShowImport(true)}><Download size={13} className="inline-block mr-1" />Import Response</button>
           <button className="btn btn-ghost btn-sm" onClick={() => setShowExport(true)}><Upload size={13} className="inline-block mr-1" />Export Template</button>
           <button className="btn btn-primary btn-sm" onClick={() => setShowLesson(true)}><Wand2 size={13} className="inline-block mr-1" />Generate from Lesson</button>
-        </div>
-      </div>
+        </>}
+      />
 
       {!activeQuizzes.length && !archivedQuizzes.length ? (
         <EmptyState

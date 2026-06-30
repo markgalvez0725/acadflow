@@ -4,6 +4,7 @@ import { useUI } from '@/context/UIContext'
 import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio } from 'lucide-react'
 import { courseShort } from '@/constants/courses'
 import EmptyState from '@/components/ds/EmptyState'
+import PageHeader from '@/components/ds/PageHeader'
 
 export default function OnlineClassesTab() {
   const { classes, meetings, saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting } = useData()
@@ -149,6 +150,8 @@ export default function OnlineClassesTab() {
   const activeClasses = useMemo(() => classes.filter(c => !c.archived), [classes])
 
   return (
+    <>
+    <PageHeader title="Online Classes" />
     <div className="online-classes-tab" style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
 
       <section className="card" style={{ padding: 12, background: 'var(--surface2)' }}>
@@ -375,6 +378,7 @@ export default function OnlineClassesTab() {
         )}
       </section>}
     </div>
+    </>
   )
 }
 

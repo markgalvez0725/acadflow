@@ -7,6 +7,7 @@ import {
 import { activeClassIds } from '@/utils/active'
 import { courseShort } from '@/constants/courses'
 import EmptyState from '@/components/ds/EmptyState'
+import PageHeader from '@/components/ds/PageHeader'
 import { useRedirectHighlight } from '@/navigation/useRedirectHighlight'
 
 const IMMINENT_MS = 15 * 60 * 1000 // a class "starting soon" - show one-tap join
@@ -115,7 +116,7 @@ export default function OnlineClassesTab({ student }) {
 
   return (
     <div className="pb-4">
-      <div style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--ink)', marginBottom: 14 }}>Online classes</div>
+      <PageHeader title="Online classes" />
 
       {/* Up next / Live hero + Session Watch */}
       <div className="oc-top">

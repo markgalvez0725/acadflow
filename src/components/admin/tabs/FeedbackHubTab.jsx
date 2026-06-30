@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import EmptyState from '@/components/ds/EmptyState'
+import PageHeader from '@/components/ds/PageHeader'
 import { useUI } from '@/context/UIContext'
 import { Sparkles, Bug, Lightbulb, MessageSquare, Search, CheckCircle2, Clock, Archive, RotateCcw } from 'lucide-react'
 
@@ -66,6 +67,10 @@ export default function FeedbackHubTab() {
 
   return (
     <div className="feedback-hub">
+      <PageHeader
+        title="Feedback"
+        subtitle={`${counts.new} new · ${counts.all} total`}
+      />
       <div className="sec-hdr mb-3" style={{ gap: 12, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {FILTERS.map(f => (

@@ -6,6 +6,7 @@ import { deadlineLabel, deadlineColor } from '@/utils/deadlines'
 import { subjectColor } from '@/utils/subjectColor'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 import EmptyState from '@/components/ds/EmptyState'
+import PageHeader from '@/components/ds/PageHeader'
 import StandingRing from '@/components/primitives/StandingRing'
 import {
   ClipboardList, ChevronRight, ListChecks, AlertTriangle, ArrowRightCircle,
@@ -155,10 +156,10 @@ export default function AssignmentsTab({ student: s, classes }) {
 
   return (
     <div className="student-assignments">
-      <div className="sec-hdr mb-3">
-        <div className="sec-title sec-title-ic"><ClipboardList /> Assignment tracker</div>
-        <span className="text-xs text-ink2">{counts.todo} to do · {counts.submitted} submitted · {counts.graded} graded</span>
-      </div>
+      <PageHeader
+        title={<><ClipboardList size={20} style={{ verticalAlign: -3, marginRight: 8 }} />Assignment tracker</>}
+        subtitle={`${counts.todo} to do · ${counts.submitted} submitted · ${counts.graded} graded`}
+      />
 
       {/* Workload ring + Workload Watch */}
       <div className="sact-top">

@@ -4,6 +4,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Pagination from '@/components/primitives/Pagination'
 import EmptyState from '@/components/ds/EmptyState'
+import PageHeader from '@/components/ds/PageHeader'
 import { ClipboardList, Check, Circle, Users, ShieldCheck, AlertTriangle, Clock, Hourglass, Trophy, CheckCircle2 } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import StandingRing from '@/components/primitives/StandingRing'
@@ -259,9 +260,10 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
 
   return (
     <div className="student-activities">
-      <div className="sec-hdr mb-3">
-        <div className="sec-title">Activities</div>
-      </div>
+      <PageHeader
+        title="Activities"
+        subtitle={`${counts.open} open${counts.missed ? ` · ${counts.missed} missed` : ''}`}
+      />
 
       {/* Standing ring + Activity Watch */}
       <div className="sact-top">

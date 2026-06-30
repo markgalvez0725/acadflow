@@ -10,6 +10,7 @@ import Modal from '@/components/primitives/Modal'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 import StandingRing from '@/components/primitives/StandingRing'
 import EmptyState from '@/components/ds/EmptyState'
+import PageHeader from '@/components/ds/PageHeader'
 import { activeClassIds } from '@/utils/active'
 import { subjectColor } from '@/utils/subjectColor'
 import { computeQuizScore } from '@/utils/quizScore'
@@ -718,10 +719,10 @@ export default function StudentQuizTab({ student, viewClassId }) {
 
   return (
     <div>
-      <div className="sec-hdr mb-3">
-        <div className="sec-title">My quizzes</div>
-        <span className="text-xs text-ink2">{counts.open} open now</span>
-      </div>
+      <PageHeader
+        title="My quizzes"
+        subtitle={`${counts.open} open now`}
+      />
 
       {/* Performance ring + Quiz Watch */}
       <div className="sact-top">

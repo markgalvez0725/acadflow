@@ -3,6 +3,7 @@ import { useData } from '@/context/DataContext'
 import Pagination from '@/components/primitives/Pagination'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 import EmptyState from '@/components/ds/EmptyState'
+import PageHeader from '@/components/ds/PageHeader'
 import { History, Search, GraduationCap, ClipboardList, Trash2, RefreshCw, ShieldCheck } from 'lucide-react'
 
 const PER_PAGE = 12
@@ -36,19 +37,22 @@ export default function AuditLogTab() {
 
   return (
     <div className="audit-log-tab">
-      <div className="sec-hdr mb-3">
-        <div className="sec-title">Audit Log</div>
-        <div style={{ position: 'relative', width: 'min(280px, 50vw)' }}>
-          <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--ink3)' }} />
-          <input
-            value={q}
-            onChange={e => { setQ(e.target.value); setPage(1) }}
-            placeholder="Search actions…"
-            aria-label="Search audit log"
-            style={{ width: '100%', padding: '7px 10px 7px 30px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink)', fontSize: 13 }}
-          />
-        </div>
-      </div>
+      <PageHeader
+        title="Audit Log"
+        subtitle={`${auditLog.length} ${auditLog.length === 1 ? 'event' : 'events'} recorded`}
+        actions={
+          <div style={{ position: 'relative', width: 'min(280px, 50vw)' }}>
+            <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--ink3)' }} />
+            <input
+              value={q}
+              onChange={e => { setQ(e.target.value); setPage(1) }}
+              placeholder="Search actions…"
+              aria-label="Search audit log"
+              style={{ width: '100%', padding: '7px 10px 7px 30px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink)', fontSize: 13 }}
+            />
+          </div>
+        }
+      />
 
       {!filtered.length ? (
         <EmptyState
