@@ -5,6 +5,7 @@ import AboutPanel from '@/components/primitives/AboutPanel'
 import { APP_VERSION } from '@/constants/changelog'
 import GoogleDriveTab from '@/components/admin/settings/GoogleDriveTab'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
+import SemesterCalendarChip from '@/components/primitives/SemesterCalendarChip'
 import FieldCheck, { SaveStatus, SmartCheckTag } from '@/components/primitives/FieldCheck'
 import { checkEmail, checkPassword, checkMatch, checkPin, checkAcademicYear, checkDateOrder } from '@/utils/settingsVerify'
 import { useData } from '@/context/DataContext'
@@ -117,10 +118,8 @@ function SemesterTab() {
       {semester && (
         <div className="bg-[var(--accent-l)] rounded-[10px] px-4 py-3 flex items-center justify-between flex-wrap gap-2">
           <div>
-            <div className="text-xs text-[var(--ink3)] mb-0.5">Current Semester</div>
-            <div className="font-bold text-[15px] text-[var(--accent)]">
-              {semester.label || `${semester.term} AY ${semester.year}`}
-            </div>
+            <div className="text-xs text-[var(--ink3)] mb-1">Current Semester</div>
+            <SemesterCalendarChip semester={semester} />
             {(semester.startDate || semester.endDate) && (
               <div className="text-[11px] text-[var(--ink3)] mt-0.5">
                 {semester.startDate && new Date(semester.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}

@@ -7,7 +7,6 @@ import ToastManager from '@/components/primitives/ToastManager'
 import Dialog from '@/components/primitives/Dialog'
 import StudentSidebar from './StudentSidebar'
 import { SkeletonRows, SkeletonDashboard, TabErrorBoundary } from '@/components/primitives/SkeletonLoader'
-import SemesterCalendarChip from '@/components/primitives/SemesterCalendarChip'
 import EmptyState from '@/components/ds/EmptyState'
 import CommandPaletteButton from '@/components/primitives/CommandPaletteButton'
 import InstallPrompt from '@/components/primitives/InstallPrompt'
@@ -470,7 +469,6 @@ export default function StudentLayout() {
             <ConnectionStatus />
             <CommandPaletteButton compact />
             <ThemeToggle style={{ position: 'static', width: 36, height: 36, borderRadius: 10 }} />
-            <span className="tb-desktop-only"><SemesterCalendarChip semester={semester} /></span>
             <button
               onClick={() => setStudentTab('notifications')}
               aria-label="Notifications"

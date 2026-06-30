@@ -59,7 +59,7 @@ export default function SemesterCalendarChip({ semester, className = '' }) {
 
   return (
     <div
-      className={`hidden md:inline-flex items-center gap-2 px-1 py-1 text-xs font-semibold select-none ${chipCls} ${className}`}
+      className={`inline-flex items-center gap-2 px-1 py-1 text-xs font-semibold select-none ${chipCls} ${className}`}
       title={`Semester: ${label}${daysDetail ? ` · ${daysDetail}` : ''}`}
     >
       {/* ── Mini calendar icon ── */}

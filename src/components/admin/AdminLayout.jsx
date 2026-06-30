@@ -7,7 +7,6 @@ import { SkeletonRows, TabErrorBoundary } from '@/components/primitives/Skeleton
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 import ToastManager from '@/components/primitives/ToastManager'
 import Dialog from '@/components/primitives/Dialog'
-import SemesterCalendarChip from '@/components/primitives/SemesterCalendarChip'
 import CommandPaletteButton from '@/components/primitives/CommandPaletteButton'
 import ConnectionStatus from '@/components/primitives/ConnectionStatus'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
@@ -75,7 +74,7 @@ const TAB_TITLES = {
 
 export default function AdminLayout() {
   const { adminTab, setAdminTab, toastQueue, dismissToast, dialog, resolveDialog, toast } = useUI()
-  const { fbReady, messages, semester, db, admin, adminNotifs } = useData()
+  const { fbReady, messages, db, admin, adminNotifs } = useData()
   const unreadNotifCount = (adminNotifs || []).filter(n => !n.read).length
   const { loginTime, lastLogin, logout } = useAuth()
 
@@ -152,7 +151,6 @@ export default function AdminLayout() {
             <ConnectionStatus />
             <CommandPaletteButton />
             <ThemeToggle style={{ position: 'static', width: 36, height: 36, borderRadius: 10 }} />
-            <span className="tb-desktop-only"><SemesterCalendarChip semester={semester} /></span>
             <span className="adm-clock tb-desktop-only">{clock}</span>
             <button
               onClick={() => setAdminTab('notifications')}
