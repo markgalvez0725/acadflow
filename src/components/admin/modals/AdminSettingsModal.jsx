@@ -928,9 +928,9 @@ function DataTab() {
   const [restoring, setRestoring] = useState(false)
   const [progress, setProgress]   = useState('')
 
-  function handleBackup() {
+  async function handleBackup() {
     try {
-      const backup = buildBackup()
+      const backup = await buildBackup()
       const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')

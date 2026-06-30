@@ -777,7 +777,7 @@ function threadTokenOf(conv) {
 }
 
 export default function MessagesTab() {
-  const { students, classes, messages, db, fbReady } = useData()
+  const { students, classes, messages, db, fbReady, loadMoreMessages, hasMoreMessages } = useData()
   const { toast, openDialog } = useUI()
   // Optimistic, not-yet-echoed outgoing bubbles. Each carries a threadToken so it
   // renders only in its thread, and a status ('sending' | 'failed').
@@ -1351,6 +1351,12 @@ export default function MessagesTab() {
                 <span className="feed-spinner" aria-hidden="true" />
                 <span>Loading more…</span>
               </div>
+            )}
+            {/* Client list exhausted but the server window has older threads. */}
+            {!hasMore && hasMoreMessages && (
+              <button type="button" className="msg-load-older" onClick={loadMoreMessages}>
+                Load older conversations
+              </button>
             )}
           </div>
         </div>

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react'
 import { onAuthStateChanged } from 'firebase/auth'
 import { fbInit, getFbConfigFromEnv, getFbAuth, getIdToken } from '@/firebase/firebaseInit'
-import { fbStartListening, stopListening } from '@/firebase/listeners'
+import { fbStartListening, stopListening, subscribeAdminMessages } from '@/firebase/listeners'
 import {
   persistStudentsSync, persistClassesSync, persistAdmin, loadAdminFromStorage,
   fbDeleteStudent, fbPurgeStudentData, fbSaveAnnouncement, fbDeleteAnnouncement, fbPushAnnouncementNotifs,
@@ -10,7 +10,7 @@ import {
   fbSaveMeetLink, fbScheduleMeeting, fbStartMeeting, fbEndMeeting, fbCancelMeeting, fbPushMeetingNotifs,
   fbSetSubjectRep, fbDeleteClassRelatedData, fbAddAuditLog, fbRestoreFromBackup,
   fbSubmitStudentFeedback, fbUpdateFeedbackStatus,
-  fbBackfillMessageActivity,
+  fbBackfillMessageActivity, fbFetchAllMessages,
 } from '@/firebase/persistence'
 import { fbPushReminderNotif } from '@/firebase/reminders'
 import { serializeStudents } from '@/utils/attendance'
@@ -57,6 +57,11 @@ export function DataProvider({ children }) {
   const [students, setStudents]         = useState([])
   const [classes, setClasses]           = useState([])
   const [messages, setMessages]         = useState([])
+  // Admin-only message pagination: the professor listens to the N most-recently-
+  // active threads (not the whole history); "load older" grows the window.
+  const [isAdminSession, setIsAdminSession] = useState(false)
+  const [messagesLimit, setMessagesLimit]   = useState(120)
+  const [hasMoreMessages, setHasMoreMessages] = useState(false)
   const [activities, setActivities]     = useState([])
   const [adminNotifs, setAdminNotifs]   = useState([])
   const [quizzes, setQuizzes]           = useState([])
@@ -139,6 +144,7 @@ export function DataProvider({ children }) {
       // listeners (own feedback / excuse requests) and skip the admin-only feeds.
       const _isAdmin = isAdminUser()
       const _studentId = currentStudentId()
+      setIsAdminSession(_isAdmin) // drives the admin-only paginated messages listener
       fbStartListening(db, {
         onStudentsUpdate: setStudents,
         onClassesUpdate:    setClasses,
@@ -194,7 +200,7 @@ export function DataProvider({ children }) {
       let started = false
       _authUnsubRef.current = onAuthStateChanged(auth, (user) => {
         if (user && !started) { started = true; loadData() }
-        else if (!user && started) { started = false; stopListening() }
+        else if (!user && started) { started = false; stopListening(); setIsAdminSession(false) }
       })
     }
 
@@ -214,6 +220,7 @@ export function DataProvider({ children }) {
     setFbReady(true)
     const _isAdmin = isAdminUser()
     const _studentId = currentStudentId()
+    setIsAdminSession(_isAdmin)
     fbStartListening(db, {
       onStudentsUpdate: setStudents,
       onClassesUpdate:    setClasses,
@@ -245,6 +252,22 @@ export function DataProvider({ children }) {
     }, { isAdmin: _isAdmin, studentId: _studentId })
     return true
   }, [])
+
+  // ── Admin-only paginated messages listener ─────────────────────────────
+  // The professor listens to the `messagesLimit` most-recently-active threads
+  // (ordered by lastActivityAt), re-subscribing when "load older" grows the
+  // window. Students use the broad listener in fbStartListening instead. A full
+  // page back means more may exist (hasMoreMessages).
+  useEffect(() => {
+    if (!fbReady || !isAdminSession || !dbRef.current) return
+    const unsub = subscribeAdminMessages(dbRef.current, (msgs, count) => {
+      setMessages(msgs)
+      setHasMoreMessages(count >= messagesLimit)
+    }, messagesLimit)
+    return () => { try { unsub() } catch (e) {} }
+  }, [fbReady, isAdminSession, messagesLimit])
+
+  const loadMoreMessages = useCallback(() => setMessagesLimit(n => n + 120), [])
 
   // ── Persistence helpers exposed to components ──────────────────────────
   // Deferred-purge bookkeeping. A deleted student's full cascade is scheduled to
@@ -538,30 +561,36 @@ export function DataProvider({ children }) {
   // Serializes the current in-memory data (students with Sets converted to
   // arrays) into a portable JSON object. Credentials and Firebase/EmailJS
   // config are intentionally excluded - this is academic data, not secrets.
-  const buildBackup = useCallback(() => ({
-    app: 'acadflow',
-    version: 1,
-    exportedAt: Date.now(),
-    counts: {
-      students: students.length, classes: classes.length, messages: messages.length,
-      activities: activities.length, quizzes: quizzes.length, announcements: announcements.length,
-      meetings: meetings.length, attendanceSessions: attendanceSessions.length, excuseRequests: excuseRequests.length,
-    },
-    data: {
-      students: serializeStudents(students),
-      classes,
-      messages,
-      activities,
-      quizzes,
-      announcements,
-      meetings,
-      attendanceSessions,
-      excuseRequests,
-      adminNotifs,   // included for record; not written back on restore
-      auditLog,      // included for record; not written back on restore
-      settings: { equivScale: eqScale, semester, latePolicy, gradeFloor, branding },
-    },
-  }), [students, classes, messages, activities, quizzes, announcements, meetings, attendanceSessions, excuseRequests, adminNotifs, auditLog, eqScale, semester, latePolicy, gradeFloor, branding])
+  const buildBackup = useCallback(async () => {
+    // The admin's live `messages` is now a paginated window, so fetch the COMPLETE
+    // set for the backup (falls back to the in-memory copy if the read fails).
+    let allMessages = messages
+    try { const fetched = await fbFetchAllMessages(dbRef.current); if (Array.isArray(fetched)) allMessages = fetched } catch (e) {}
+    return {
+      app: 'acadflow',
+      version: 1,
+      exportedAt: Date.now(),
+      counts: {
+        students: students.length, classes: classes.length, messages: allMessages.length,
+        activities: activities.length, quizzes: quizzes.length, announcements: announcements.length,
+        meetings: meetings.length, attendanceSessions: attendanceSessions.length, excuseRequests: excuseRequests.length,
+      },
+      data: {
+        students: serializeStudents(students),
+        classes,
+        messages: allMessages,
+        activities,
+        quizzes,
+        announcements,
+        meetings,
+        attendanceSessions,
+        excuseRequests,
+        adminNotifs,   // included for record; not written back on restore
+        auditLog,      // included for record; not written back on restore
+        settings: { equivScale: eqScale, semester, latePolicy, gradeFloor, branding },
+      },
+    }
+  }, [students, classes, messages, activities, quizzes, announcements, meetings, attendanceSessions, excuseRequests, adminNotifs, auditLog, eqScale, semester, latePolicy, gradeFloor, branding])
 
   const restoreBackup = useCallback(async (backup, onProgress) => {
     await fbRestoreFromBackup(dbRef.current, backup, onProgress)
@@ -1431,7 +1460,7 @@ export function DataProvider({ children }) {
       students, setStudents, saveStudents, saveGradeNote, markAccountActive, deleteStudent, purgeStudentEverywhere, schedulePurge, cancelPurge, restoreStudents,
       classes, setClasses, saveClasses, setSubjectRep, archiveClassWithStudents, unarchiveClassWithStudents, deleteClass,
       enrollInClass, unenrollFromClass,
-      messages, setMessages,
+      messages, setMessages, loadMoreMessages, hasMoreMessages,
       activities, setActivities,
       adminNotifs, setAdminNotifs,
       quizzes, setQuizzes,

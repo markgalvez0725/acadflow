@@ -126,16 +126,23 @@ export function fbStartListening(db, callbacks, opts = {}) {
   _unsub.push(u2);
 
   // ── messages collection ───────────────────────────────────────────────
-  const u3 = onSnapshot(
-    collection(db, 'messages'),
-    snap => {
-      const msgs = [];
-      snap.forEach(d => msgs.push(d.data()));
-      onMessagesUpdate(msgs);
-    },
-    e => console.error('[Firebase] messages listener error:', e.message)
-  );
-  _unsub.push(u3);
+  // Students load the whole collection (filtered to their own threads client-
+  // side - a per-user server query isn't possible without a participants[] array
+  // on each thread). The ADMIN instead uses a paginated, recency-ordered listener
+  // managed separately by DataContext (subscribeAdminMessages), so the professor's
+  // initial load is the most-recently-active threads, not the entire history.
+  if (!isAdmin) {
+    const u3 = onSnapshot(
+      collection(db, 'messages'),
+      snap => {
+        const msgs = [];
+        snap.forEach(d => msgs.push(d.data()));
+        onMessagesUpdate(msgs);
+      },
+      e => console.error('[Firebase] messages listener error:', e.message)
+    );
+    _unsub.push(u3);
+  }
 
   // ── activities collection ─────────────────────────────────────────────
   const u4 = onSnapshot(
@@ -324,6 +331,24 @@ export function fbStartListening(db, callbacks, opts = {}) {
 export function stopListening() {
   _unsub.forEach(u => { try { u(); } catch (e) {} });
   _unsub = [];
+}
+
+// Admin-only paginated messages listener: the `limitN` most-recently-active
+// threads, ordered by lastActivityAt (descending). Returns an unsubscribe; the
+// callback receives (msgs, count) so the caller can tell whether a full page came
+// back (more may exist). Kept separate from fbStartListening so DataContext can
+// grow the window for "load older" without tearing down every other listener.
+export function subscribeAdminMessages(db, onUpdate, limitN = 100) {
+  const q = query(collection(db, 'messages'), orderBy('lastActivityAt', 'desc'), limit(limitN));
+  return onSnapshot(
+    q,
+    snap => {
+      const msgs = [];
+      snap.forEach(d => msgs.push(d.data()));
+      onUpdate(msgs, snap.size);
+    },
+    e => console.error('[Firebase] admin messages listener error:', e.message)
+  );
 }
 
 // ── Eager config fetch (retries on SDK warm-up errors) ───────────────────

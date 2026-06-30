@@ -529,6 +529,17 @@ export async function fbBackfillMessageActivity(db) {
   return { scanned: snap.size, patched: writes.length }
 }
 
+// Fetch the COMPLETE messages collection (one read pass). Used by the admin
+// backup export, which must include every thread even though the admin's live
+// listener now holds only a paginated, most-recently-active window.
+export async function fbFetchAllMessages(db) {
+  if (!db) return null
+  const snap = await getDocs(collection(db, 'messages'))
+  const out = []
+  snap.forEach(d => out.push(d.data()))
+  return out
+}
+
 export async function fbPushAnnouncementNotifs(db, announcement, students) {
   if (!db || !announcement || !students?.length) return
   const targetIds = annClassIds(announcement)
