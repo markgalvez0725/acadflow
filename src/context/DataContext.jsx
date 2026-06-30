@@ -1449,6 +1449,7 @@ export function DataProvider({ children }) {
     fbNotifyAdmin(dbRef.current, {
       title: 'New excuse request',
       body: `${student.name || student.id} - ${subject} (${date})`,
+      link: `excuse:${res.id}`,
     })
     return res
   }, [])

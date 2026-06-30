@@ -167,6 +167,18 @@ export function UIProvider({ children }) {
   }, [])
   const clearPendingAdminConv = useCallback(() => setPendingAdminConvId(null), [])
 
+  // Open a specific pending excuse on the Attendance tab. Attendance is a
+  // class-filtered grid, so this carries the class+subject to select AND uses
+  // the generic highlight to glow the excuse row.
+  const [pendingExcuse, setPendingExcuse] = useState(null) // { classId, subject }
+  const openAttendanceExcuse = useCallback((excuse) => {
+    if (!excuse) return
+    setPendingExcuse({ classId: excuse.classId, subject: excuse.subject })
+    setPendingHighlight({ type: 'excuse', id: String(excuse.id), ts: Date.now() })
+    setAdminTab('attendance')
+  }, [])
+  const clearPendingExcuse = useCallback(() => setPendingExcuse(null), [])
+
   // ── Deep-link a student into a specific Stream announcement (e.g. from the
   // saved-announcements widget on the dashboard) so it scrolls into view and
   // glows briefly. ──
@@ -231,6 +243,7 @@ export function UIProvider({ children }) {
       pendingMessageId, openStudentMessageThread, clearPendingMessage,
       pendingDirectThread, openStudentDirectThread, clearPendingDirectThread,
       pendingAdminConvId, openAdminConversation, clearPendingAdminConv,
+      pendingExcuse, openAttendanceExcuse, clearPendingExcuse,
       pendingStreamAnnId, openStreamAnnouncement, clearPendingStreamAnn,
       pendingStreamClassId, clearPendingStreamClass, openStreamPost,
       pendingMessageDraft, pendingMessagePostRef, messageProfessorAboutPost, clearPendingMessageDraft,

@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect, lazy, Suspense } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
+import { useRedirectHighlight } from '@/navigation/useRedirectHighlight'
 import { sortByLastName, fmtDateShort } from '@/utils/format'
 import { getHeldDays } from '@/utils/grades'
 import { classTag, courseShort } from '@/utils/groupChat'
@@ -1063,7 +1064,8 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
 // ── AttendanceTab ──────────────────────────────────────────────────────────────
 export default function AttendanceTab() {
   const { classes, students, fbReady, excuseRequests, decideExcuseRequest } = useData()
-  const { toast } = useUI()
+  const { toast, pendingExcuse, clearPendingExcuse } = useUI()
+  const excuseHighlightId = useRedirectHighlight('excuse')
   const [showArchived,  setShowArchived]  = useState(false)
   const [excuseBusy, setExcuseBusy] = useState('')
   const activeClasses   = useMemo(() => classes.filter(c => !c.archived), [classes])
@@ -1099,6 +1101,15 @@ export default function AttendanceTab() {
     () => (excuseRequests || []).filter(r => r.status === 'pending' && r.classId === effectiveId),
     [excuseRequests, effectiveId]
   )
+
+  // Deep-linked from a "new excuse request" notification: select the excuse's
+  // class+subject so it shows in the (class-filtered) review list, then the
+  // useRedirectHighlight('excuse') above scrolls it into view and glows it.
+  useEffect(() => {
+    if (!pendingExcuse) return
+    setSelKey(`${pendingExcuse.classId}|||${pendingExcuse.subject}`)
+    clearPendingExcuse()
+  }, [pendingExcuse]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Triage (#26): on-device ranking + tagging of pending excuses ────────────
   const [triage, setTriage] = useState(null)     // { byId, order, modelUsed } | null
@@ -1206,7 +1217,7 @@ export default function AttendanceTab() {
             {orderedExcuses.map(r => {
               const m = triage?.byId[r.id]
               return (
-              <div key={r.id} className="flex items-center justify-between gap-3 flex-wrap"
+              <div key={r.id} id={`excuse-${r.id}`} className={`flex items-center justify-between gap-3 flex-wrap${excuseHighlightId === r.id ? ' redirect-glow' : ''}`}
                 style={{ padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 10 }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: 13 }}>
