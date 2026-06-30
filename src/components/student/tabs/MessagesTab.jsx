@@ -53,6 +53,22 @@ function toEntries(msgs) {
   return out.sort((a, b) => a.ts - b.ts)
 }
 
+// Stable identity for one rendered entry, matched between an optimistic bubble
+// and its eventual snapshot echo (same doc id + ts + sender). Used to reconcile
+// the two without flashing or duplicating.
+function reconcileKey(e) { return (e.isMain ? 'm:' : 'r:') + (e.msgId || '') + ':' + e.ts + ':' + e.from }
+
+// Merge still-in-flight optimistic bubbles into the canonical (snapshot) list.
+// A 'sending'/'failed' entry is kept only until its echo appears in `canonical`
+// (matched by reconcileKey); once the real doc arrives it wins, so the bubble
+// never blinks out and never doubles up. Failed entries linger (no echo ever
+// comes) so the user can retry.
+function mergePending(canonical, prev) {
+  const have = new Set(canonical.map(reconcileKey))
+  const pend = (prev || []).filter(e => (e.status === 'sending' || e.status === 'failed') && !have.has(reconcileKey(e)))
+  return pend.length ? [...canonical, ...pend].sort((a, b) => a.ts - b.ts) : canonical
+}
+
 function hiddenKey(sid) { return `acadflow_hidden_msgs_${sid}` }
 function loadHidden(sid) {
   try {
@@ -248,7 +264,8 @@ export default function MessagesTab({ student: s, messages }) {
     const src = activeKey === 'direct'
       ? allMsgs.filter(m => m.type !== 'announcement').sort((a, b) => a.ts - b.ts)
       : (messages.find(x => x.id === activeKey) ? [messages.find(x => x.id === activeKey)] : [])
-    setThreadEntries(toEntries(src))
+    // Merge (don't replace) so an optimistic bubble survives until its echo lands.
+    setThreadEntries(prev => mergePending(toEntries(src), prev))
   }, [messages, allMsgs, view, activeKey])
 
   // Scroll thread to bottom when opened
@@ -374,38 +391,56 @@ export default function MessagesTab({ student: s, messages }) {
     setSending(true)
     // Clear the composer optimistically for snappy UX; restored on failure.
     setReplyText(''); setSecureOn(false); setSecureTouched(false); setReplyingTo(null); setAttachedPost(null)
+    // Single ts shared by the optimistic bubble and the persisted doc so their
+    // reconcileKey matches and the echo replaces the pending bubble in place.
+    const ts = Date.now()
+    // Pre-compute the optimistic entry's key so we can flip it to 'failed' on error.
+    const newDocId = targetMsgId ? null : ('m' + ts + Math.random().toString(36).slice(2, 6))
+    const pendKey = targetMsgId
+      ? 'r:' + targetMsgId + ':' + ts + ':' + s.id
+      : 'm:' + newDocId + ':' + ts + ':' + s.id
     try {
       if (targetMsgId) {
-        const newReply = { from: s.id, body: text, ts: Date.now(), ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}), ...mentionObj, ...postObj }
-        setThreadEntries(prev => [...prev, { ...newReply, isMain: false, msgId: targetMsgId }])
+        const newReply = { from: s.id, body: text, ts, ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}), ...mentionObj, ...postObj }
+        setThreadEntries(prev => [...prev, { ...newReply, isMain: false, msgId: targetMsgId, status: 'sending' }])
         // Atomic append - won't clobber a professor reply sent at the same time.
         await fbAddMessageReply(db.current, targetMsgId, newReply, { readerId: s.id, adminRead: false })
         // Notify teacher: in-app badge + best-effort web push.
         notifyAdminMessage(db.current, s.name || s.id, text, 'reply', { secure })
         notifyMentioned(mentionedIds, text, secure)
       } else {
-        // New message to admin
-        const newId = 'm' + Date.now() + Math.random().toString(36).slice(2, 6)
+        // New message to admin - paint the bubble immediately (optimistic), then write.
         const msg = {
-          id: newId, from: s.id, to: 'admin',
+          id: newDocId, from: s.id, to: 'admin',
           subject: 'Message from ' + (s.name || s.id),
-          body: text, ts: Date.now(),
+          body: text, ts,
           read: [s.id], adminRead: false, replies: [], type: 'direct',
           ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}), ...postObj,
         }
-        await setDoc(doc(db.current, 'messages', newId), msg)
+        setThreadEntries(prev => [...prev, { from: s.id, body: text, ts, ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}), ...postObj, isMain: true, msgId: newDocId, status: 'sending' }])
+        await setDoc(doc(db.current, 'messages', newDocId), msg)
         // Anchor the open thread to the new doc so a follow-up message threads as
         // a reply instead of creating another top-level message.
-        setReplyMsgId(newId)
+        setReplyMsgId(newDocId)
         // Notify professor of a brand-new conversation (was previously missing).
         notifyAdminMessage(db.current, s.name || s.id, text, 'message', { secure })
       }
     } catch (e) {
       toast('Failed to send: ' + e.message, 'error')
       setReplyText(text) // restore the draft so it isn't lost
+      // Mark the optimistic bubble failed so it shows a Retry affordance.
+      setThreadEntries(prev => prev.map(en => (reconcileKey(en) === pendKey ? { ...en, status: 'failed' } : en)))
     } finally {
       setSending(false)
     }
+  }
+
+  // Retry a bubble that failed to send: drop the failed marker, refill the
+  // composer with its text, and resend on the next tick (once replyText applies).
+  function retryFailed(entry) {
+    setThreadEntries(prev => prev.filter(e => reconcileKey(e) !== reconcileKey(entry)))
+    setReplyText(entry.body || '')
+    setTimeout(() => sendReply(), 0)
   }
 
   // Record a detected screenshot as an in-thread system notice (shown to the
@@ -814,11 +849,15 @@ export default function MessagesTab({ student: s, messages }) {
                           onClick={showGroup ? () => setShowMembers(true) : undefined}
                         />
                       )}
-                      {/* Delivered/Sent hint under my newest bubble while it's still unseen. */}
+                      {/* Send-status / Delivered hint under my newest bubble while unseen. */}
                       {isSelf && i === lastSelfIdx && !entry.deleted && !seenMap.has(i) && (
-                        showGroup
-                          ? <div className="msg-seen" title="Delivered">{seenMap.size ? 'Sent' : 'Sent · seen by 0'}</div>
-                          : <div className="msg-seen" title="Delivered">Sent <CheckCheck size={12} /></div>
+                        entry.status === 'failed'
+                          ? <div className="msg-seen msg-seen-failed" title="Not delivered">Not sent · <button type="button" className="msg-retry-btn" onClick={() => retryFailed(entry)}>Retry</button></div>
+                          : entry.status === 'sending'
+                            ? <div className="msg-seen" title="Sending">Sending…</div>
+                            : showGroup
+                              ? <div className="msg-seen" title="Delivered">{seenMap.size ? 'Sent' : 'Sent · seen by 0'}</div>
+                              : <div className="msg-seen" title="Delivered">Sent <CheckCheck size={12} /></div>
                       )}
                     </React.Fragment>
                   )

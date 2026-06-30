@@ -383,7 +383,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
 }
 
 // ── Thread Panel ──────────────────────────────────────────────────────
-function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, onEditEntry, onDeleteEntry, onToggleReaction }) {
+function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, onEditEntry, onDeleteEntry, onToggleReaction, onRetry }) {
   const { setAdminTab } = useUI()
   const myId = 'admin'
   const messagesEndRef = useRef(null)
@@ -599,11 +599,15 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, o
                   onClick={isGroup ? () => setShowMembers(true) : undefined}
                 />
               )}
-              {/* Delivered/Sent hint under my newest bubble while it's still unseen. */}
+              {/* Send-status / Delivered hint under my newest bubble while unseen. */}
               {isAdmin && i === lastSelfIdx && !entry.deleted && !seenMap.has(i) && (
-                isGroup
-                  ? <div className="msg-seen" title="Delivered">{seenMap.size ? 'Sent' : 'Sent · seen by 0'}</div>
-                  : <div className="msg-seen" title={entry.readTitle}>Sent <CheckCheck size={12} /></div>
+                entry.status === 'failed'
+                  ? <div className="msg-seen msg-seen-failed" title="Not delivered">Not sent · <button type="button" className="msg-retry-btn" onClick={() => onRetry?.(entry)}>Retry</button></div>
+                  : entry.status === 'sending'
+                    ? <div className="msg-seen" title="Sending">Sending…</div>
+                    : isGroup
+                      ? <div className="msg-seen" title="Delivered">{seenMap.size ? 'Sent' : 'Sent · seen by 0'}</div>
+                      : <div className="msg-seen" title={entry.readTitle}>Sent <CheckCheck size={12} /></div>
               )}
             </React.Fragment>
           )
@@ -761,9 +765,21 @@ function RenameGroupModal({ current, autoName, onClose, onSave }) {
 
 // ── Main Tab ──────────────────────────────────────────────────────────
 
+// Stable identity for one rendered entry, matched between an optimistic bubble
+// and its snapshot echo (same doc id + ts + sender) so the two reconcile cleanly.
+function reconcileKey(e) { return (e.isMain ? 'm:' : 'r:') + (e.msgId || '') + ':' + e.ts + ':' + e.from }
+// Which open thread a pending bubble belongs to, so it only shows in its own thread.
+function threadTokenOf(conv) {
+  if (!conv) return null
+  return conv.type === 'conversation' ? 'c:' + conv.studentId : 'm:' + conv.msgId
+}
+
 export default function MessagesTab() {
   const { students, classes, messages, db, fbReady } = useData()
   const { toast, openDialog } = useUI()
+  // Optimistic, not-yet-echoed outgoing bubbles. Each carries a threadToken so it
+  // renders only in its thread, and a status ('sending' | 'failed').
+  const [pending, setPending] = useState([])
 
   const [search, setSearch]             = useState('')
   const [activeConv, setActiveConv]     = useState(null) // { type, studentId?, msgId? }
@@ -904,7 +920,7 @@ export default function MessagesTab() {
   }
 
   // ── Build thread data for panel ───────────────────────────────────
-  const thread = useMemo(() => {
+  const baseThread = useMemo(() => {
     if (!activeConv) return null
 
     if (activeConv.type === 'conversation') {
@@ -1046,6 +1062,31 @@ export default function MessagesTab() {
     return null
   }, [activeConv, messages, students, classes])
 
+  // Inject still-in-flight optimistic bubbles for THIS thread (merge, not
+  // replace) so a sent bubble paints instantly and never blinks out before its
+  // echo lands. Matched/echoed entries are pruned from `pending` by the effect
+  // below; failed ones linger so the professor can retry.
+  const activeToken = threadTokenOf(activeConv)
+  const thread = useMemo(() => {
+    if (!baseThread) return null
+    const have = new Set((baseThread.entries || []).map(reconcileKey))
+    const mine = pending.filter(p => p.threadToken === activeToken && !have.has(reconcileKey(p)))
+    if (!mine.length) return baseThread
+    return { ...baseThread, entries: [...baseThread.entries, ...mine].sort((a, b) => a.ts - b.ts) }
+  }, [baseThread, pending, activeToken])
+
+  // Once an optimistic bubble's real doc arrives in the snapshot, drop it from
+  // `pending` (its canonical copy now renders). Failed bubbles never match an
+  // echo, so they stay until retried/dismissed.
+  useEffect(() => {
+    if (!pending.length || !baseThread) return
+    const have = new Set((baseThread.entries || []).map(reconcileKey))
+    setPending(prev => {
+      const next = prev.filter(p => !have.has(reconcileKey(p)))
+      return next.length === prev.length ? prev : next
+    })
+  }, [baseThread]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Open conversation / message ──────────────────────────────────
   async function openConversation(sid) {
     // Mark the whole conversation (both directions) read.
@@ -1080,7 +1121,30 @@ export default function MessagesTab() {
     const mentionCandidates = thread.isGroup ? (thread.members || []).map(m => ({ id: m.id, name: m.name })) : []
     const mentionedIds = resolveMentions(text, mentionCandidates)
     const mentions = mentionCandidates.filter(c => mentionedIds.includes(c.id)).map(c => ({ id: c.id, name: c.name }))
-    const reply = { from: 'admin', body: text, ts: Date.now(), ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}), ...(mentions.length ? { mentions } : {}) }
+    // Single ts shared by the optimistic bubble and the persisted reply so their
+    // reconcileKey matches and the echo replaces the pending bubble in place.
+    const ts = Date.now()
+    const reply = { from: 'admin', body: text, ts, ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}), ...(mentions.length ? { mentions } : {}) }
+
+    // Work out which doc this lands in (and whether it's a fresh top-level doc)
+    // so the bubble can paint immediately, before the network round trip.
+    const token = threadTokenOf(activeConv)
+    let targetDocId, optimisticMain = false
+    if (thread.type === 'conversation') {
+      const studentMsgs = messages.filter(m => m.from === thread.studentId).sort((a, b) => b.ts - a.ts)
+      const targetMsg = studentMsgs[0]
+      if (targetMsg) { targetDocId = targetMsg.id }
+      else { targetDocId = msgId(); optimisticMain = true } // professor-started: fresh doc
+    } else {
+      targetDocId = thread.msgId
+    }
+    const pendKey = (optimisticMain ? 'm:' : 'r:') + targetDocId + ':' + ts + ':admin'
+    setPending(prev => [...prev, {
+      from: 'admin', body: text, ts, msgId: targetDocId, isMain: optimisticMain,
+      ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}), ...(mentions.length ? { mentions } : {}),
+      senderLabel: 'You', studentRead: false, readTitle: 'Delivered',
+      threadToken: token, status: 'sending',
+    }])
 
     try {
       if (thread.type === 'conversation') {
@@ -1088,22 +1152,19 @@ export default function MessagesTab() {
         // messaged (a professor-started conversation), there's nothing to attach a
         // reply to. Send a fresh direct message doc instead so the reply isn't
         // silently dropped.
-        const studentMsgs = messages.filter(m => m.from === thread.studentId).sort((a, b) => b.ts - a.ts)
-        const targetMsg = studentMsgs[0]
-        if (!targetMsg) {
-          const newId = msgId()
-          await setDoc(doc(db.current, 'messages', newId), {
-            id: newId, from: 'admin', to: thread.studentId, subject: '',
-            body: text, ts: Date.now(), read: [], adminRead: true, replies: [], type: 'direct',
+        if (optimisticMain) {
+          await setDoc(doc(db.current, 'messages', targetDocId), {
+            id: targetDocId, from: 'admin', to: thread.studentId, subject: '',
+            body: text, ts, read: [], adminRead: true, replies: [], type: 'direct',
             ...(secure ? { secure: true } : {}), ...(quote ? { quote } : {}),
           })
         } else {
-          await fbAddMessageReply(db.current, targetMsg.id, reply, { adminRead: true })
+          await fbAddMessageReply(db.current, targetDocId, reply, { adminRead: true })
         }
         notifyStudentMessage(db.current, thread.studentId, text, undefined, { secure })
       } else {
         const m = messages.find(x => x.id === thread.msgId)
-        if (!m) return
+        if (!m) { setPending(prev => prev.filter(p => reconcileKey(p) !== pendKey)); return }
         await fbAddMessageReply(db.current, m.id, reply, { adminRead: true })
         // Notify the recipient(s) of this thread.
         if (m.to === 'all') {
@@ -1127,7 +1188,15 @@ export default function MessagesTab() {
       }
     } catch (e) {
       toast('Failed to send reply: ' + e.message, 'red')
+      // Mark the optimistic bubble failed so it shows a Retry affordance.
+      setPending(prev => prev.map(p => (reconcileKey(p) === pendKey ? { ...p, status: 'failed' } : p)))
     }
+  }
+
+  // Retry a failed admin bubble: drop it from pending and resend its text.
+  function retryReply(entry) {
+    setPending(prev => prev.filter(p => reconcileKey(p) !== reconcileKey(entry)))
+    handleReply(entry.body || '', !!entry.secure, entry.quote || null)
   }
 
   // ── Edit / delete a single bubble ─────────────────────────────────
@@ -1297,6 +1366,7 @@ export default function MessagesTab() {
               onEditEntry={handleEditEntry}
               onDeleteEntry={handleDeleteEntry}
               onToggleReaction={handleToggleReaction}
+              onRetry={retryReply}
             />
           ) : (
             <div id="admin-conv-empty" className="flex-1 flex items-center justify-center text-ink3 text-sm">

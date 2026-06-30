@@ -2542,6 +2542,10 @@ textarea.input { resize: vertical; }
 /* Single "Seen / Sent" line under the last message of a run */
 .msg-seen { font-size: 0.7188rem; color: var(--ink3); text-align: right; padding-right: 4px; margin: -2px 0 8px; display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
 .msg-seen.read { color: var(--accent); }
+/* Failed send: muted-red hint with an inline Retry control under the bubble. */
+.msg-seen-failed { color: var(--red, #e5484d); }
+.msg-retry-btn { background: none; border: none; padding: 0; margin: 0; cursor: pointer; color: var(--accent); font: inherit; font-weight: 700; text-decoration: underline; }
+.msg-retry-btn:hover { opacity: 0.8; }
 /* Messenger-style "seen" receipt: a tiny avatar of the reader under the bubble */
 .msg-seen-ava { display: flex; justify-content: flex-end; padding-right: 3px; margin: 1px 0 8px; }
 .msg-seen-ava img, .msg-seen-ava .av-fallback {

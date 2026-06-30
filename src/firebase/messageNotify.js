@@ -4,7 +4,7 @@
 // then fires a best-effort web push. Push silently no-ops when FCM is not
 // configured or the recipient has no registered token - the in-app badge is
 // the guaranteed, free behavior and never depends on push.
-import { doc, runTransaction } from 'firebase/firestore'
+import { doc, runTransaction, writeBatch, arrayUnion } from 'firebase/firestore'
 import { fbWithTimeout } from './firebaseInit'
 import { sendPushToOwners } from './pushTokens'
 
@@ -62,12 +62,27 @@ export async function notifyStudentMessage(db, studentId, body, fromLabel = 'you
 export async function notifyStudentsBroadcast(db, studentIds, subject, { secure = false } = {}) {
   const ids = [...new Set((studentIds || []).filter(Boolean))]
   if (!ids.length) return
-  await Promise.all(ids.map(id => appendNotif(db, id, {
-    type: 'msg_out',
-    title: 'New announcement from your professor',
-    body: notifBody(subject, secure, 80),
-    link: 'messages',
-  })))
+  const title = 'New announcement from your professor'
+  const body = notifBody(subject, secure, 80)
+  // Fan out in BATCHED commits instead of one transaction per recipient. Each op
+  // is an arrayUnion append with no per-doc read, so a 200-student broadcast is a
+  // couple of round trips (Firestore caps a batch at 500 ops) rather than 200
+  // transactional read-modify-writes hammering the backend at once. The 200-item
+  // cap that appendNotif enforces is re-applied lazily the next time any single
+  // (non-broadcast) notif lands for that student, so arrays stay bounded.
+  const CHUNK = 450
+  try {
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const batch = writeBatch(db)
+      ids.slice(i, i + CHUNK).forEach(id => {
+        const item = { id: newId(), read: false, ts: Date.now(), type: 'msg_out', title, body, link: 'messages' }
+        batch.set(doc(db, 'notifications', id), { items: arrayUnion(item) }, { merge: true })
+      })
+      await fbWithTimeout(batch.commit())
+    }
+  } catch (e) {
+    console.warn('[notify] broadcast batch failed:', e.message)
+  }
   sendPushToOwners(db, ids, {
     title: 'New announcement',
     body: notifBody(subject, secure, 120) || 'Open AcadFlow to read it.',

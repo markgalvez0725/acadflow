@@ -387,19 +387,15 @@ export async function fbDeleteCommentReply(db, announcementId, commentId, replyI
 export async function fbAddMessageReply(db, msgId, reply, opts = {}) {
   if (!db || !msgId || !reply) return
   const ref = doc(db, 'messages', msgId)
-  return fbWithTimeout(runTransaction(db, async (transaction) => {
-    const snap = await transaction.get(ref)
-    if (!snap.exists()) throw new Error('Message not found')
-    const m = snap.data()
-    const replies = Array.isArray(m.replies) ? m.replies : []
-    const patch = { replies: [...replies, reply] }
-    if (opts.adminRead !== undefined) patch.adminRead = opts.adminRead
-    if (opts.readerId) {
-      const read = Array.isArray(m.read) ? m.read : []
-      if (!read.includes(opts.readerId)) patch.read = [...read, opts.readerId]
-    }
-    transaction.update(ref, patch)
-  }))
+  // Append-only fast path: arrayUnion is atomic and needs NO read, so it can't
+  // lose a concurrent reply (the lost-update race the old transaction guarded
+  // against) and never retries under group-chat contention. The read[]/adminRead
+  // updates piggy-back on the same single write. arrayUnion dedupes by value, so
+  // a repeated readerId is a no-op just like the old includes() check.
+  const patch = { replies: arrayUnion(reply) }
+  if (opts.adminRead !== undefined) patch.adminRead = opts.adminRead
+  if (opts.readerId) patch.read = arrayUnion(opts.readerId)
+  return fbWithTimeout(updateDoc(ref, patch))
 }
 
 // Patch exactly the first reply that matches {ts, from}. Replies have no stable
