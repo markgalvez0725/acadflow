@@ -2,7 +2,7 @@
 
 **Academic Management System** for admins (teachers/staff) and students - built with React, Vite, and Firebase Firestore.
 
-**Version 2.1.0**
+**Version 2.1.1**
 
 ---
 
@@ -103,6 +103,12 @@ VITE_EJS_SECRET=
 VITE_EJS_SALT=
 VITE_FB_SECRET=
 VITE_FB_SALT=
+
+# Optional - Google Drive uploads (Stream attachments + student activity
+# submissions). A public OAuth Web client id with the drive.file scope; add your
+# deployed origin to the client's Authorized JavaScript origins. When unset, the
+# Drive uploader is hidden and submissions fall back to link-paste only.
+VITE_GOOGLE_CLIENT_ID=
 ```
 
 > If env vars are absent, Firebase config can also be entered in-app via **Admin Settings → Firebase**. It is AES-encrypted before being stored in `localStorage`.
