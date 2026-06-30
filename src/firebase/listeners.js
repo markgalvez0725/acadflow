@@ -2,7 +2,7 @@
 // This module owns the _fbWriting flag so it can suppress onSnapshot echoes
 // during in-flight writes. It never imports React.
 import {
-  collection, doc, onSnapshot, getDoc, getDocs, setDoc, query, orderBy, limit,
+  collection, doc, onSnapshot, getDoc, query, orderBy, limit,
 } from 'firebase/firestore'
 import { deserializeStudents } from '@/utils/attendance'
 import { decryptEJS, encryptEJS } from '@/utils/crypto'
@@ -209,9 +209,6 @@ export function fbStartListening(db, callbacks) {
       e => console.error('[Firebase] attendanceSessions listener error:', e.message)
     );
     _unsub.push(uA);
-    getDocs(collection(db, 'attendanceSessions'))
-      .then(s => { const a = []; s.forEach(d => a.push(d.data())); onAttendanceSessionsUpdate(a); })
-      .catch(() => {});
   }
 
   // ── excuseRequests collection ─────────────────────────────────────────
@@ -226,9 +223,6 @@ export function fbStartListening(db, callbacks) {
       e => console.error('[Firebase] excuseRequests listener error:', e.message)
     );
     _unsub.push(uE);
-    getDocs(collection(db, 'excuseRequests'))
-      .then(s => { const a = []; s.forEach(d => a.push(d.data())); onExcuseRequestsUpdate(a); })
-      .catch(() => {});
   }
 
   // ── studentFeedback collection ────────────────────────────────────────
@@ -243,9 +237,6 @@ export function fbStartListening(db, callbacks) {
       e => console.error('[Firebase] studentFeedback listener error:', e.message)
     );
     _unsub.push(uFb);
-    getDocs(collection(db, 'studentFeedback'))
-      .then(s => { const a = []; s.forEach(d => a.push(d.data())); onStudentFeedbackUpdate(a); })
-      .catch(() => {});
   }
 
   // ── auditLog collection (admin action history) ────────────────────────
@@ -263,9 +254,6 @@ export function fbStartListening(db, callbacks) {
       e => console.error('[Firebase] auditLog listener error:', e.message)
     );
     _unsub.push(uAudit);
-    getDocs(auditQ)
-      .then(s => { const a = []; s.forEach(d => a.push(d.data())); onAuditLogUpdate(a); })
-      .catch(() => {});
   }
 
   // ── portal/settings (equiv scale, grade weights) ──────────────────────
@@ -295,81 +283,18 @@ export function fbStartListening(db, callbacks) {
 
   console.log('[Firebase] ✅ All listeners active.');
 
-  // Eager fetch - populate all collections immediately without waiting for
-  // onSnapshot warm-up. Each fetch is fire-and-forget; listeners stay live.
-  _eagerFetchAll(db, { onStudentsUpdate, onClassesUpdate, onMessagesUpdate, onActivitiesUpdate, onAdminNotifUpdate, onSettingsUpdate, onQuizzesUpdate, onAnnouncementsUpdate, onMeetingsUpdate });
+  // NOTE: there is intentionally NO eager getDocs() of the collections here.
+  // Each onSnapshot above already fires an initial snapshot with the full current
+  // data, so a parallel getDocs would just double-bill every read on cold start.
+  // On revisit, persistentLocalCache serves that initial snapshot from disk
+  // instantly (zero reads) before reconciling with the server. Only the single
+  // portal/config doc keeps an eager fetch (below), since it gates the EJS
+  // credential bootstrap and has warm-up retry logic.
 }
 
 export function stopListening() {
   _unsub.forEach(u => { try { u(); } catch (e) {} });
   _unsub = [];
-}
-
-// ── Eager fetch for all collections on connect ────────────────────────────
-async function _eagerFetchAll(db, { onStudentsUpdate, onClassesUpdate, onMessagesUpdate, onActivitiesUpdate, onAdminNotifUpdate, onSettingsUpdate, onQuizzesUpdate, onAnnouncementsUpdate, onMeetingsUpdate }) {
-  try {
-    const timeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('eager fetch timeout')), 20000)
-    );
-    const [studentsSnap, classesSnap, messagesSnap, activitiesSnap, notifsSnap, settingsSnap, quizzesSnap, announcementsSnap, meetingsSnap] = await Promise.race([
-      Promise.all([
-        getDocs(collection(db, 'students')),
-        getDoc(doc(db, 'portal', 'classes')),
-        getDocs(collection(db, 'messages')),
-        getDocs(collection(db, 'activities')),
-        getDocs(collection(db, 'notifications')),
-        getDoc(doc(db, 'portal', 'settings')),
-        getDocs(collection(db, 'quizzes')),
-        getDocs(collection(db, 'announcements')),
-        getDocs(collection(db, 'onlineMeetings')),
-      ]),
-      timeout,
-    ]);
-
-    const students = [];
-    studentsSnap.forEach(d => students.push(d.data()));
-    if (students.length) onStudentsUpdate(deserializeStudents(students));
-
-    if (classesSnap.exists()) {
-      const list = classesSnap.data()?.list;
-      if (Array.isArray(list)) onClassesUpdate(list);
-    }
-
-    const messages = [];
-    messagesSnap.forEach(d => messages.push(d.data()));
-    onMessagesUpdate(messages);
-
-    const activities = [];
-    activitiesSnap.forEach(d => activities.push(d.data()));
-    onActivitiesUpdate(activities);
-
-    const adminDoc = notifsSnap.docs.find(d => d.id === 'admin');
-    onAdminNotifUpdate(adminDoc ? (adminDoc.data().items || []) : []);
-
-    if (settingsSnap.exists()) onSettingsUpdate(settingsSnap.data());
-
-    if (onQuizzesUpdate) {
-      const quizzes = [];
-      quizzesSnap.forEach(d => quizzes.push(d.data()));
-      onQuizzesUpdate(quizzes);
-    }
-
-    if (onAnnouncementsUpdate) {
-      const anns = [];
-      announcementsSnap.forEach(d => anns.push(d.data()));
-      onAnnouncementsUpdate(anns);
-    }
-
-    if (onMeetingsUpdate) {
-      const mtgs = [];
-      meetingsSnap.forEach(d => mtgs.push(d.data()));
-      onMeetingsUpdate(mtgs);
-    }
-
-    console.log('[Firebase] ✅ Eager fetch complete.');
-  } catch (e) {
-    console.warn('[Firebase] Eager fetch failed (listeners will still deliver data):', e.message);
-  }
 }
 
 // ── Eager config fetch (retries on SDK warm-up errors) ───────────────────
