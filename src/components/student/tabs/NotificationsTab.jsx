@@ -53,7 +53,7 @@ function resolveAction(n) {
 
 export default function NotificationsTab({ student, notifs, setNotifs, onOpenProfile }) {
   const { db, fbReady, activities, quizzes, meetings } = useData()
-  const { setStudentTab, openDialog, toast, navigateToTarget, openStreamAnnouncement } = useUI()
+  const { setStudentTab, openDialog, toast, navigateToTarget, openStreamAnnouncement, openStudentMessageThread, openStudentDirectThread } = useUI()
   const [page, setPage] = useState(1)
 
   // Does the record a notification points at still exist? Prevents landing on a
@@ -88,6 +88,7 @@ export default function NotificationsTab({ student, notifs, setNotifs, onOpenPro
     const rec = parseRecordTarget(n)
     if (rec) {
       if (rec.type === 'announcement') { openStreamAnnouncement(rec.id); return }
+      if (rec.type === 'message') { openStudentMessageThread(rec.id); return } // broadcast/announcement thread
       if (rec.id && !recordExists(rec.type, rec.id)) {
         toast('That item is no longer available.', 'warn')
         setStudentTab(rec.tab) // land on the module rather than a blank panel
@@ -101,6 +102,9 @@ export default function NotificationsTab({ student, notifs, setNotifs, onOpenPro
       })
       return
     }
+
+    // Direct 1:1 professor message → open that conversation.
+    if (n.link === 'msgdirect') { openStudentDirectThread(); return }
 
     // Otherwise fall back to the tab-name routing.
     const action = resolveAction(n)

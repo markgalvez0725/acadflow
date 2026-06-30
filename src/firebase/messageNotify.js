@@ -50,7 +50,7 @@ export async function notifyStudentMessage(db, studentId, body, fromLabel = 'you
     type: 'msg_out',
     title,
     body: notifBody(body, secure, 80),
-    link: 'messages',
+    link: 'msgdirect', // opens the 1:1 professor thread (not a single message)
   })
   sendPushToOwners(db, [studentId], {
     title,
@@ -59,11 +59,13 @@ export async function notifyStudentMessage(db, studentId, body, fromLabel = 'you
 }
 
 /** Professor → many students (broadcast / announcement): in-app notif each + one push. */
-export async function notifyStudentsBroadcast(db, studentIds, subject, { secure = false } = {}) {
+export async function notifyStudentsBroadcast(db, studentIds, subject, { secure = false, msgId = null } = {}) {
   const ids = [...new Set((studentIds || []).filter(Boolean))]
   if (!ids.length) return
   const title = 'New announcement from your professor'
   const body = notifBody(subject, secure, 80)
+  // A broadcast is one message doc; carry its id so the click opens that thread.
+  const link = msgId ? `msg:${msgId}` : 'messages'
   // Fan out in BATCHED commits instead of one transaction per recipient. Each op
   // is an arrayUnion append with no per-doc read, so a 200-student broadcast is a
   // couple of round trips (Firestore caps a batch at 500 ops) rather than 200
@@ -75,7 +77,7 @@ export async function notifyStudentsBroadcast(db, studentIds, subject, { secure 
     for (let i = 0; i < ids.length; i += CHUNK) {
       const batch = writeBatch(db)
       ids.slice(i, i + CHUNK).forEach(id => {
-        const item = { id: newId(), read: false, ts: Date.now(), type: 'msg_out', title, body, link: 'messages' }
+        const item = { id: newId(), read: false, ts: Date.now(), type: 'msg_out', title, body, link }
         batch.set(doc(db, 'notifications', id), { items: arrayUnion(item) }, { merge: true })
       })
       await fbWithTimeout(batch.commit())

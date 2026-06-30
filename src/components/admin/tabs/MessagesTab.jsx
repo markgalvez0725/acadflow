@@ -290,15 +290,15 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
       await setDoc(doc(db.current, 'messages', id), msg)
       // Notify the recipient(s): in-app badge + best-effort web push.
       if (to === 'all') {
-        notifyStudentsBroadcast(db.current, students.map(s => s.id), snippet, { secure: secureOn })
+        notifyStudentsBroadcast(db.current, students.map(s => s.id), snippet, { secure: secureOn, msgId: id })
       } else if (isClassBroadcast) {
         const ids = students
           .filter(s => s.classId === classId || s.classIds?.includes(classId))
           .map(s => s.id)
-        notifyStudentsBroadcast(db.current, ids, snippet, { secure: secureOn })
+        notifyStudentsBroadcast(db.current, ids, snippet, { secure: secureOn, msgId: id })
       } else if (isSubjectBroadcast) {
         const ids = studentsInClasses(students, subjClassIds).map(s => s.id)
-        notifyStudentsBroadcast(db.current, ids, snippet, { secure: secureOn })
+        notifyStudentsBroadcast(db.current, ids, snippet, { secure: secureOn, msgId: id })
       } else {
         notifyStudentMessage(db.current, to, body.trim(), undefined, { secure: secureOn })
       }
@@ -1171,14 +1171,14 @@ export default function MessagesTab() {
         await fbAddMessageReply(db.current, m.id, reply, { adminRead: true })
         // Notify the recipient(s) of this thread.
         if (m.to === 'all') {
-          notifyStudentsBroadcast(db.current, students.map(s => s.id), text, { secure })
+          notifyStudentsBroadcast(db.current, students.map(s => s.id), text, { secure, msgId: m.id })
         } else if (typeof m.to === 'string' && m.to.startsWith('class:')) {
           const cid = m.to.slice(6)
           const ids = students.filter(s => s.classId === cid || s.classIds?.includes(cid)).map(s => s.id)
-          notifyStudentsBroadcast(db.current, ids, text, { secure })
+          notifyStudentsBroadcast(db.current, ids, text, { secure, msgId: m.id })
         } else if (typeof m.to === 'string' && m.to.startsWith('subject:')) {
           const ids = studentsInClasses(students, m.classIds).map(s => s.id)
-          notifyStudentsBroadcast(db.current, ids, text, { secure })
+          notifyStudentsBroadcast(db.current, ids, text, { secure, msgId: m.id })
         } else if (m.to && m.to !== 'admin') {
           notifyStudentMessage(db.current, m.to, text, undefined, { secure })
         }

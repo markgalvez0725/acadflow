@@ -80,7 +80,7 @@ function saveHidden(sid, h) { try { localStorage.setItem(hiddenKey(sid), JSON.st
 
 export default function MessagesTab({ student: s, messages }) {
   const { db, fbReady, classes, semester, students, reportScreenshot, admin } = useData()
-  const { toast, openDialog, pendingMessageId, clearPendingMessage, pendingMessageDraft, pendingMessagePostRef, clearPendingMessageDraft, openStreamPost } = useUI()
+  const { toast, openDialog, pendingMessageId, clearPendingMessage, pendingDirectThread, clearPendingDirectThread, pendingMessageDraft, pendingMessagePostRef, clearPendingMessageDraft, openStreamPost } = useUI()
 
   // The professor's display identity (shown to the student in place of a generic
   // "Professor"/"T"). Falls back to "Professor" until the admin sets a name.
@@ -334,6 +334,13 @@ export default function MessagesTab({ student: s, messages }) {
     const m = messages.find(x => x.id === pendingMessageId)
     if (m) { openMessage(pendingMessageId); clearPendingMessage() }
   }, [pendingMessageId, messages]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Deep-link to the 1:1 professor thread (from a direct-message notification).
+  useEffect(() => {
+    if (!pendingDirectThread) return
+    openConversation()
+    clearPendingDirectThread()
+  }, [pendingDirectThread]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // "Ask the professor about this post" from the Stream: open the direct thread
   // with the professor and pre-fill the post reference. The draft + post are
