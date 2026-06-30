@@ -745,19 +745,13 @@ function GradeEntryModal({ classId, subject, onClose }) {
 
   return (
     <>
-    <Modal onClose={onClose} wide>
-      <div className="flex items-start justify-between flex-wrap gap-2 mb-3">
-        <div>
-          <h3 className="mb-0"><Pencil size={16} className="inline-block mr-1 align-text-bottom" />Edit Grades</h3>
-          <p className="modal-sub mb-0">
-            Subject: <strong>{subject}</strong> · <span title={cls?.name || ''}>{courseShort(cls?.name)}</span> {cls?.section}
-          </p>
-        </div>
-        <div className="text-xs text-ink2">
-          {uploadTs
-            ? <><Upload size={12} className="inline-block mr-1 align-text-bottom" />Last uploaded: <strong>{new Date(uploadTs).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}</strong></>
-            : <span className="text-ink3">Not yet uploaded</span>}
-        </div>
+    <Modal onClose={onClose} wide sheetOnMobile icon={<Pencil size={18} />} title="Edit Grades"
+      subtitle={<>Subject: <strong>{subject}</strong> · <span title={cls?.name || ''}>{courseShort(cls?.name)}</span> {cls?.section}</>}
+    >
+      <div className="text-xs text-ink2 mb-3" style={{ textAlign: 'right' }}>
+        {uploadTs
+          ? <><Upload size={12} className="inline-block mr-1 align-text-bottom" />Last uploaded: <strong>{new Date(uploadTs).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}</strong></>
+          : <span className="text-ink3">Not yet uploaded</span>}
       </div>
 
       {/* Auto-first guide */}
@@ -1082,9 +1076,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
     </Modal>
 
     {pasteOpen && (
-      <Modal onClose={() => setPasteOpen(false)} size="md">
-        <h3 className="mb-1"><FileSpreadsheet size={16} className="inline-block mr-1 align-text-bottom" />Import / Paste scores</h3>
-        <p className="modal-sub mb-3">Fill the open grade sheet - review, then Save Grades to keep changes.</p>
+      <Modal onClose={() => setPasteOpen(false)} size="md" sheetOnMobile icon={<FileSpreadsheet size={18} />} title="Import / Paste scores" subtitle="Fill the open grade sheet - review, then Save Grades to keep changes.">
 
         {/* Excel file import */}
         <div className="mb-4 px-3 py-2.5 rounded-lg" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
@@ -1135,9 +1127,9 @@ function GradeEntryModal({ classId, subject, onClose }) {
     )}
 
     {noteFor && (
-      <Modal onClose={() => setNoteFor(null)} size="sm">
-        <h3 className="mb-1"><MessageSquare size={16} className="inline-block mr-1 align-text-bottom" />Note to {noteFor.name}</h3>
-        <p className="modal-sub mb-3">About their <strong>{subject}</strong> grade. The student sees this on their Grades tab.</p>
+      <Modal onClose={() => setNoteFor(null)} size="sm" sheetOnMobile icon={<MessageSquare size={18} />} title={`Note to ${noteFor.name}`}
+        subtitle={<>About their <strong>{subject}</strong> grade. The student sees this on their Grades tab.</>}
+      >
         <textarea
           className="input"
           style={{ width: '100%', minHeight: 110, fontSize: 13 }}
@@ -1583,13 +1575,9 @@ function GradeImportPreviewModal({ preview, cls, onCancel, onConfirm }) {
   )
 
   return (
-    <Modal onClose={onCancel} wide>
-      <div className="flex items-start justify-between flex-wrap gap-2 mb-1">
-        <div>
-          <h3 className="mb-0"><Sparkles size={16} className="inline-block mr-1 align-text-bottom" style={{ color: 'var(--accent)' }} />Review import - {sub}</h3>
-          <p className="modal-sub mb-0"><span title={cls?.name || ''}>{courseShort(cls?.name)}</span> {cls?.section} · <span className="text-ink3">{fileName}</span></p>
-        </div>
-      </div>
+    <Modal onClose={onCancel} wide sheetOnMobile icon={<Sparkles size={18} />} title={`Review import - ${sub}`}
+      subtitle={<><span title={cls?.name || ''}>{courseShort(cls?.name)}</span> {cls?.section} · <span className="text-ink3">{fileName}</span></>}
+    >
 
       <p className="text-xs text-ink3 mb-3" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <Sparkles size={12} style={{ color: 'var(--accent)' }} />

@@ -151,9 +151,7 @@ function AddStudentModal({ onClose }) {
   const classesReady = !!course.trim()
 
   return (
-    <Modal onClose={onClose} maxWidth={600}>
-      <h3>Add New Student</h3>
-      <p className="modal-sub">Enter the student's name, identifiers, then enroll them in classes.</p>
+    <Modal onClose={onClose} size="lg" sheetOnMobile icon={<Plus size={18} />} title="Add New Student" subtitle="Enter the student's name, identifiers, then enroll them in classes.">
       {err && <div className="err-msg mb-3">{err}</div>}
 
       {/* Name - captured in parts, stored as "SURNAME, First M.I." */}
@@ -413,18 +411,21 @@ function EditStudentModal({ student, onClose }) {
   }
 
   return (
-    <Modal onClose={onClose} size="lg">
-      <div className="pr-8 flex items-center gap-3 mb-4">
-        <div className="stu-avatar" style={{ width: 44, height: 44, fontSize: 18, flexShrink: 0, overflow: 'hidden' }}>
-          {student.photo
-            ? <img src={student.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-            : (student.name || '?').charAt(0).toUpperCase()}
+    <Modal onClose={onClose} size="lg" sheetOnMobile
+      header={
+        <div className="pr-8 flex items-center gap-3">
+          <div className="stu-avatar" style={{ width: 44, height: 44, fontSize: 18, flexShrink: 0, overflow: 'hidden' }}>
+            {student.photo
+              ? <img src={student.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+              : (student.name || '?').charAt(0).toUpperCase()}
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <h3 className="mb-0" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Pencil size={16} /> Edit student</h3>
+            <div className="text-xs text-ink2 truncate">{student.name} · #{student.id}</div>
+          </div>
         </div>
-        <div style={{ minWidth: 0 }}>
-          <h3 className="mb-0" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Pencil size={16} /> Edit student</h3>
-          <div className="text-xs text-ink2 truncate">{student.name} · #{student.id}</div>
-        </div>
-      </div>
+      }
+    >
       {err && <div className="err-msg mb-3">{err}</div>}
 
       <div className="text-[11px] font-bold uppercase tracking-wide text-ink3 mb-2">Identity</div>
@@ -677,9 +678,7 @@ function ResetPasswordModal({ student, onClose }) {
   }
 
   return (
-    <Modal onClose={onClose} maxWidth={440}>
-      <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}><KeyRound size={20} />Reset Password</h3>
-
+    <Modal onClose={onClose} size="sm" sheetOnMobile icon={<KeyRound size={18} />} title="Reset Password">
       {!opened ? (
         <>
           <p className="modal-sub">
@@ -904,9 +903,7 @@ function ImportStudentsModal({ onClose }) {
   }
 
   return (
-    <Modal onClose={onClose} maxWidth={680}>
-      <h3>Import Students</h3>
-      <p className="modal-sub">Download the Excel template, fill in one student per row, then upload it here. CSV files also work.</p>
+    <Modal onClose={onClose} size="lg" sheetOnMobile icon={<Upload size={18} />} title="Import Students" subtitle="Download the Excel template, fill in one student per row, then upload it here. CSV files also work.">
 
       {/* Template download */}
       <div className="bg-accent-l border border-accent/20 rounded-lg px-3 py-2.5 mb-4 flex items-center justify-between gap-3 flex-wrap">
@@ -1083,9 +1080,7 @@ function MessageSelectedModal({ recipients, onClose }) {
   }
 
   return (
-    <Modal onClose={onClose} maxWidth={520}>
-      <h3><Send size={18} /> Message {recipients.length} student{recipients.length === 1 ? '' : 's'}</h3>
-      <p className="modal-sub">Each recipient gets their own direct message thread. They can reply individually.</p>
+    <Modal onClose={onClose} size="lg" sheetOnMobile icon={<Send size={18} />} title={`Message ${recipients.length} student${recipients.length === 1 ? '' : 's'}`} subtitle="Each recipient gets their own direct message thread. They can reply individually.">
 
       <div className="field mb-3">
         <label>Subject <span className="text-red-500">*</span></label>

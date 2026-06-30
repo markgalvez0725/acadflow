@@ -145,11 +145,9 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
   }
 
   return (
-    <Modal onClose={onClose} size="md">
-      <h3 className="text-lg font-bold text-ink mb-1"><Upload size={18} className="inline-block mr-1 align-text-bottom" />Export Quiz Template</h3>
-      <p className="modal-sub">
-        Upload a lesson file (or type a topic), export the template JSON, send it to any chat assistant (Perplexity, ChatGPT, Claude…), then import the response back here.
-      </p>
+    <Modal onClose={onClose} size="md" sheetOnMobile icon={<Upload size={18} />} title="Export Quiz Template"
+      subtitle="Upload a lesson file (or type a topic), export the template JSON, send it to any chat assistant (Perplexity, ChatGPT, Claude…), then import the response back here."
+    >
 
       {/* Lesson file - questions are drawn from its content (read on your device) */}
       <div className="field mb-3">
@@ -274,11 +272,9 @@ function ImportResponseModal({ onClose, onImported }) {
   }
 
   return (
-    <Modal onClose={onClose} size="md">
-      <h3 className="text-lg font-bold text-ink mb-1"><Download size={18} className="inline-block mr-1 align-text-bottom" />Import Response</h3>
-      <p className="modal-sub">
-        Paste the JSON array returned by your chat assistant. The quiz will be auto-configured and ready to save.
-      </p>
+    <Modal onClose={onClose} size="md" sheetOnMobile icon={<Download size={18} />} title="Import Response"
+      subtitle="Paste the JSON array returned by your chat assistant. The quiz will be auto-configured and ready to save."
+    >
 
       <div className="field mb-3">
         <label className="text-xs font-semibold text-ink2 mb-1 block">Paste JSON Output <span className="text-red-500">*</span></label>
@@ -487,12 +483,11 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
   }
 
   return (
-    <Modal onClose={onClose} size="lg">
-      <h3 className="text-lg font-bold text-ink mb-1">
-        {isEdit ? <><Pencil size={16} className="inline-block mr-1 align-text-bottom" />Edit Quiz</> : <><FileText size={16} className="inline-block mr-1 align-text-bottom" />Configure &amp; Share Quiz</>}
-      </h3>
-      <p className="modal-sub">{isEdit ? `${questions.length} questions` : `${questions.length} questions imported`}. Review, edit, then share with classes.</p>
-
+    <Modal onClose={onClose} size="lg" sheetOnMobile
+      icon={isEdit ? <Pencil size={18} /> : <FileText size={18} />}
+      title={isEdit ? 'Edit Quiz' : 'Configure & Share Quiz'}
+      subtitle={`${questions.length} questions${isEdit ? '' : ' imported'}. Review, edit, then share with classes.`}
+    >
       {/* Tabs: Details · Questions */}
       <div className="inline-flex bg-[var(--surface2)] border border-[var(--border)] rounded-full p-0.5 mb-3">
         {[
@@ -1024,16 +1019,9 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
   }
 
   return (
-    <Modal onClose={onClose} size="lg">
-      <div className="mb-2 pr-8">
-        <h3 className="text-lg font-bold text-ink"><FileText size={18} className="inline-block mr-1 align-text-bottom" />{quiz.title}</h3>
-        <p className="text-xs text-ink2 mt-0.5">
-          {quiz.subject} · {quiz.questions?.length || 0} questions · {quiz.timeLimit} min time limit
-        </p>
-        <p className="text-xs text-ink2">
-          Opens: {openLabel} · Closes: {closeLabel}
-        </p>
-      </div>
+    <Modal onClose={onClose} size="lg" sheetOnMobile icon={<FileText size={18} />} title={quiz.title}
+      subtitle={<>{quiz.subject} · {quiz.questions?.length || 0} questions · {quiz.timeLimit} min time limit<br />Opens: {openLabel} · Closes: {closeLabel}</>}
+    >
 
       {isUpcoming && (
         <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12, color: 'var(--ink2)' }}>
@@ -1159,9 +1147,8 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
       </div>
 
       {mineOpen && mineResult && (
-        <Modal onClose={() => setMineOpen(false)} size="lg">
-          <h3 className="text-lg font-bold text-ink mb-1"><Wand2 size={16} className="inline-block mr-1 align-text-bottom" />Improve answer key</h3>
-          <p className="modal-sub">These student answers were marked wrong but mean roughly the same as your key. Tick the ones that should count - they'll be added to the key and matching attempts re-graded.</p>
+        <Modal onClose={() => setMineOpen(false)} size="lg" sheetOnMobile icon={<Wand2 size={18} />} title="Improve answer key"
+          subtitle="These student answers were marked wrong but mean roughly the same as your key. Tick the ones that should count - they'll be added to the key and matching attempts re-graded.">
           <div className="flex flex-col gap-3" style={{ maxHeight: '55vh', overflowY: 'auto', paddingRight: 4, marginTop: 8 }}>
             {mineResult.perQuestion.map(p => (
               <div key={p.qIndex} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '10px 12px', border: '1px solid var(--border)' }}>
@@ -1273,13 +1260,9 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
   const words = text.trim() ? text.trim().split(/\s+/).length : 0
 
   return (
-    <Modal onClose={onClose} size="md">
-      <h3 className="text-lg font-bold text-ink mb-1">
-        <Wand2 size={18} className="inline-block mr-1 align-text-bottom" />Generate Quiz from a Lesson
-      </h3>
-      <p className="modal-sub">
-        Upload your lesson file and AcadFlow drafts quiz questions from it. You review and edit everything before saving.
-      </p>
+    <Modal onClose={onClose} size="md" sheetOnMobile icon={<Wand2 size={18} />} title="Generate Quiz from a Lesson"
+      subtitle="Upload your lesson file and AcadFlow drafts quiz questions from it. You review and edit everything before saving."
+    >
 
       {/* Guide */}
       <div style={{ background: 'var(--accent-l)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: 'var(--ink2)' }}>

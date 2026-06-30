@@ -246,12 +246,8 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
   }
 
   return (
-    <Modal onClose={onClose} size="xl">
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <h3 className="mb-0"><Download size={16} className="inline-block mr-1 align-text-bottom" />Import Attendance</h3>
-          <p className="modal-sub mb-0">{subject}</p>
-        </div>
+    <Modal onClose={onClose} size="xl" sheetOnMobile icon={<Download size={18} />} title="Import Attendance" subtitle={subject}>
+      <div className="flex justify-end mb-3">
         <button className="btn btn-ghost text-xs" onClick={downloadTemplate}>
           <Download size={13} className="inline-block mr-1" />Download Template
         </button>
@@ -477,14 +473,9 @@ function AttendanceCalendarModal({ classId, subject, readOnly, onClose }) {
   const selDateIsWeekend = selDate ? ([0, 6].includes(new Date(selDate + 'T00:00:00').getDay())) : false
 
   return (
-    <Modal onClose={onClose} size="lg">
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <h3 className="mb-0"><CalendarDays size={16} className="inline-block mr-1 align-text-bottom" />Attendance</h3>
-          <p className="modal-sub mb-0">{subject} · <span title={cls?.name || ''}>{courseShort(cls?.name)}</span> {cls?.section}</p>
-        </div>
-      </div>
-
+    <Modal onClose={onClose} size="lg" sheetOnMobile icon={<CalendarDays size={18} />} title="Attendance"
+      subtitle={<>{subject} · <span title={cls?.name || ''}>{courseShort(cls?.name)}</span> {cls?.section}</>}
+    >
       {view === 'calendar' && (
         <>
           {/* Month navigation */}
@@ -698,13 +689,9 @@ function SetRepModal({ classId, subject, studs, onClose }) {
   }
 
   return (
-    <Modal onClose={onClose} size="sm">
-      <div className="flex items-center gap-2 mb-1">
-        <UserCheck size={16} />
-        <h3 className="mb-0">Set Attendance Representative</h3>
-      </div>
-      <p className="modal-sub mb-4">{subject} · <span title={cls?.name || ''}>{courseShort(cls?.name)}</span> {cls?.section}</p>
-
+    <Modal onClose={onClose} size="sm" sheetOnMobile icon={<UserCheck size={18} />} title="Set Attendance Representative"
+      subtitle={<>{subject} · <span title={cls?.name || ''}>{courseShort(cls?.name)}</span> {cls?.section}</>}
+    >
       {current && (
         <div className="rounded-lg p-3 mb-3 flex items-center justify-between gap-2"
           style={{ background: 'var(--accent-l)', border: '1px solid var(--accent)' }}>
