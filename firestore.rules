@@ -22,7 +22,7 @@ rules_version = '2';
 //   students · portal/* (classes, config, settings, admin, rubricLibrary) ·
 //   onlineMeetings · auditLog · messages · typing · activities · notifications ·
 //   quizzes · announcements · attendanceSessions · excuseRequests · studentFeedback ·
-//   pushTokens.  resetSessions/* is intentionally server-only (see bottom).
+//   pushTokens · studentSecrets.  resetSessions/* is intentionally server-only (see bottom).
 //
 // HOW TO APPLY (these rules only take effect once PUBLISHED):
 //   Firebase Console → project (collegeportal-d2b98) → Build → Firestore
@@ -198,6 +198,18 @@ service cloud.firestore {
     // read; the teacher updates the status from the Feedback Hub.
     match /studentFeedback/{docId}    { allow read, write: if signedIn(); }
     match /pushTokens/{docId}         { allow read, write: if signedIn(); }
+
+    // Server-only student secrets, extracted from the student doc: the temp
+    // password hash (account.pass) and the security-question answer hash. NEVER
+    // client-readable - this is what closes the C1 gap where the broad `students`
+    // read exposed every student's password hash. The professor (admin) writes the
+    // temp-password hash at provisioning; the server (service account, which
+    // bypasses these rules) writes the security answer and reads both for the
+    // verify-claim / verify-security-answer endpoints. Students never touch it.
+    match /studentSecrets/{sid} {
+      allow read:  if false;
+      allow write: if isAdmin();
+    }
 
     // resetSessions/* and faceSignatures/* are intentionally NOT matched here —
     // they are written and read only by the server (service account), which
