@@ -413,7 +413,7 @@ export default function MessagesTab({ student: s, messages }) {
         // Atomic append - won't clobber a professor reply sent at the same time.
         await fbAddMessageReply(db.current, targetMsgId, newReply, { readerId: s.id, adminRead: false })
         // Notify teacher: in-app badge + best-effort web push.
-        notifyAdminMessage(db.current, s.name || s.id, text, 'reply', { secure })
+        notifyAdminMessage(db.current, s.name || s.id, text, 'reply', { secure, studentId: s.id })
         notifyMentioned(mentionedIds, text, secure)
       } else {
         // New message to admin - paint the bubble immediately (optimistic), then write.
@@ -430,7 +430,7 @@ export default function MessagesTab({ student: s, messages }) {
         // a reply instead of creating another top-level message.
         setReplyMsgId(newDocId)
         // Notify professor of a brand-new conversation (was previously missing).
-        notifyAdminMessage(db.current, s.name || s.id, text, 'message', { secure })
+        notifyAdminMessage(db.current, s.name || s.id, text, 'message', { secure, studentId: s.id })
       }
     } catch (e) {
       toast('Failed to send: ' + e.message, 'error')

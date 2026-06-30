@@ -779,7 +779,7 @@ function threadTokenOf(conv) {
 
 export default function MessagesTab() {
   const { students, classes, messages, db, fbReady, loadMoreMessages, hasMoreMessages } = useData()
-  const { toast, openDialog } = useUI()
+  const { toast, openDialog, pendingAdminConvId, clearPendingAdminConv } = useUI()
   // Optimistic, not-yet-echoed outgoing bubbles. Each carries a threadToken so it
   // renders only in its thread, and a status ('sending' | 'failed').
   const [pending, setPending] = useState([])
@@ -1103,6 +1103,16 @@ export default function MessagesTab() {
     }
     setActiveConv({ type: 'conversation', studentId: sid })
   }
+
+  // Deep-link from a "message from student" notification: open that student's
+  // conversation once the roster has loaded, then clear the request.
+  useEffect(() => {
+    if (!pendingAdminConvId) return
+    if (students.some(s => s.id === pendingAdminConvId)) {
+      openConversation(pendingAdminConvId)
+      clearPendingAdminConv()
+    }
+  }, [pendingAdminConvId, students]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function openMessage(id) {
     const m = messages.find(x => x.id === id)

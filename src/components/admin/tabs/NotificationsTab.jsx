@@ -30,7 +30,7 @@ function categoryOf(type) {
 
 export default function NotificationsTab() {
   const { adminNotifs, setAdminNotifs, db, fbReady, activities, quizzes, meetings } = useData()
-  const { openDialog, setAdminTab, toast, navigateToTarget } = useUI()
+  const { openDialog, setAdminTab, toast, navigateToTarget, openAdminConversation } = useUI()
 
   // Guard against landing on a deleted record's blank panel.
   function recordExists(type, id) {
@@ -73,6 +73,9 @@ export default function NotificationsTab() {
   async function handleClick(n) {
     await markRead(n.id)
     if (!n.link) return
+
+    // A "message from student" notif opens that student's 1:1 conversation.
+    if (n.link.startsWith('conv:')) { openAdminConversation(n.link.slice(5)); return }
 
     // Specific-record link ("act:ID" etc.) → deep-link to that exact record.
     const rec = parseRecordTarget(n)

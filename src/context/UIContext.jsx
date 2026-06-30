@@ -158,6 +158,15 @@ export function UIProvider({ children }) {
   }, [])
   const clearPendingDirectThread = useCallback(() => setPendingDirectThread(false), [])
 
+  // Professor side: open the 1:1 conversation with a specific student (from a
+  // "message from student" notification). Admin threads are keyed by studentId.
+  const [pendingAdminConvId, setPendingAdminConvId] = useState(null)
+  const openAdminConversation = useCallback(id => {
+    setPendingAdminConvId(id || null)
+    setAdminTab('messages')
+  }, [])
+  const clearPendingAdminConv = useCallback(() => setPendingAdminConvId(null), [])
+
   // ── Deep-link a student into a specific Stream announcement (e.g. from the
   // saved-announcements widget on the dashboard) so it scrolls into view and
   // glows briefly. ──
@@ -221,6 +230,7 @@ export function UIProvider({ children }) {
       editGradesStudentId, openEditGradesForStudent, closeEditGrades,
       pendingMessageId, openStudentMessageThread, clearPendingMessage,
       pendingDirectThread, openStudentDirectThread, clearPendingDirectThread,
+      pendingAdminConvId, openAdminConversation, clearPendingAdminConv,
       pendingStreamAnnId, openStreamAnnouncement, clearPendingStreamAnn,
       pendingStreamClassId, clearPendingStreamClass, openStreamPost,
       pendingMessageDraft, pendingMessagePostRef, messageProfessorAboutPost, clearPendingMessageDraft,

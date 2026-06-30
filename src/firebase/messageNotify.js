@@ -119,13 +119,14 @@ export async function notifyPostFollowers(db, ownerIds, { fromName, postTitle, s
 }
 
 /** Student → teacher: in-app admin notif + best-effort web push to admin. */
-export async function notifyAdminMessage(db, studentName, body, kind = 'message', { secure = false } = {}) {
+export async function notifyAdminMessage(db, studentName, body, kind = 'message', { secure = false, studentId = null } = {}) {
   const title = (kind === 'reply' ? 'Reply from ' : 'Message from ') + (studentName || 'a student')
   await appendNotif(db, 'admin', {
     type: 'msg_in',
     title,
     body: notifBody(body, secure, 80),
-    link: 'messages',
+    // Opens the professor's 1:1 conversation with this student.
+    link: studentId ? `conv:${studentId}` : 'messages',
   })
   sendPushToOwners(db, ['admin'], {
     title,
