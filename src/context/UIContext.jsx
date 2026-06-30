@@ -20,8 +20,10 @@ function normalizeToastType(type) {
 
 export function UIProvider({ children }) {
   const [theme, setTheme]           = useState('light')
-  const [adminTab, setAdminTab]     = useState('dashboard')
-  const [studentTab, setStudentTab] = useState('overview')
+  // Selected tab persists across refresh (no URL to encode it in). Restored from
+  // localStorage on mount, re-saved on every change below.
+  const [adminTab, setAdminTab]     = useState(() => { try { return localStorage.getItem('acadflow_admin_tab') || 'dashboard' } catch { return 'dashboard' } })
+  const [studentTab, setStudentTab] = useState(() => { try { return localStorage.getItem('acadflow_student_tab') || 'overview' } catch { return 'overview' } })
   const [toastQueue, setToastQueue] = useState([])
   const [dialog, setDialog]         = useState(null) // { title, msg, type, confirmLabel, cancelLabel, showCancel }
   const dialogResolveRef = useRef(null)
@@ -30,6 +32,26 @@ export function UIProvider({ children }) {
   // Globally-shared "view student profile" target - any professor-side button can
   // open the same profile modal by id, keeping every entry point in sync.
   const [viewStudentId, setViewStudentId] = useState(null)
+
+  // Persist the selected tab so a browser refresh returns to the same panel.
+  useEffect(() => { try { localStorage.setItem('acadflow_admin_tab', adminTab) } catch (e) {} }, [adminTab])
+  useEffect(() => { try { localStorage.setItem('acadflow_student_tab', studentTab) } catch (e) {} }, [studentTab])
+
+  // ── Generic redirect-and-highlight deep link ──────────────────────────────
+  // Centralizes "switch to the right tab AND glow the exact record" for every
+  // module (the Stream announcement glow is the older, class-scoped special
+  // case). A destination list calls useRedirectHighlight(type) to consume this.
+  const [pendingHighlight, setPendingHighlight] = useState(null) // { type, id, ts }
+  const clearHighlight = useCallback(() => setPendingHighlight(null), [])
+  const navigateToTarget = useCallback((target) => {
+    if (!target || !target.tab) return
+    if (target.side === 'admin') setAdminTab(target.tab)
+    else setStudentTab(target.tab)
+    if (target.classId != null) setPendingStreamClassId(target.classId)
+    if (target.type && target.id != null) {
+      setPendingHighlight({ type: target.type, id: String(target.id), ts: Date.now() })
+    }
+  }, [])
 
   const startLoading = useCallback(() => {
     loadingCount.current += 1
@@ -186,6 +208,7 @@ export function UIProvider({ children }) {
       pendingStreamAnnId, openStreamAnnouncement, clearPendingStreamAnn,
       pendingStreamClassId, clearPendingStreamClass, openStreamPost,
       pendingMessageDraft, pendingMessagePostRef, messageProfessorAboutPost, clearPendingMessageDraft,
+      pendingHighlight, navigateToTarget, clearHighlight,
     }}>
       {children}
     </UIContext.Provider>

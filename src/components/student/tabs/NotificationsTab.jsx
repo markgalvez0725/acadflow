@@ -7,6 +7,7 @@ import { Mail, Upload, CheckCircle, BookOpen, MessageSquare, Bell, Trash2, Megap
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 import EmptyState from '@/components/ds/EmptyState'
 import { applyNotifPrefs, isNotifAllowed } from '@/utils/notifPrefs'
+import { parseRecordTarget, HIGHLIGHT_READY } from '@/navigation/notifTarget'
 
 const PER_PAGE = 10
 
@@ -51,9 +52,18 @@ function resolveAction(n) {
 }
 
 export default function NotificationsTab({ student, notifs, setNotifs, onOpenProfile }) {
-  const { db, fbReady } = useData()
-  const { setStudentTab, openDialog } = useUI()
+  const { db, fbReady, activities, quizzes, onlineMeetings } = useData()
+  const { setStudentTab, openDialog, toast, navigateToTarget, openStreamAnnouncement } = useUI()
   const [page, setPage] = useState(1)
+
+  // Does the record a notification points at still exist? Prevents landing on a
+  // blank panel for an activity/quiz/meeting the professor has since deleted.
+  function recordExists(type, id) {
+    if (type === 'activity') return (activities || []).some(a => a.id === id)
+    if (type === 'quiz')     return (quizzes || []).some(q => q.id === id)
+    if (type === 'meeting')  return (onlineMeetings || []).some(m => m.id === id)
+    return true // unknown types: don't block the redirect
+  }
 
   // Hide categories the student has muted in their notification preferences.
   const visible = applyNotifPrefs(notifs, student?.notifPrefs)
@@ -69,12 +79,31 @@ export default function NotificationsTab({ student, notifs, setNotifs, onOpenPro
   }
 
   async function handleClick(n) {
-    const action = resolveAction(n)
-    // Mark as read
+    // Mark as read first so the redirect can't swallow the state update.
     if (!n.read) {
-      const updated = notifs.map(x => x.id === n.id ? { ...x, read: true } : x)
-      await persistNotifs(updated)
+      await persistNotifs(notifs.map(x => x.id === n.id ? { ...x, read: true } : x))
     }
+
+    // A specific-record link ("act:ID" etc.) deep-links to that exact record.
+    const rec = parseRecordTarget(n)
+    if (rec) {
+      if (rec.type === 'announcement') { openStreamAnnouncement(rec.id); return }
+      if (rec.id && !recordExists(rec.type, rec.id)) {
+        toast('That item is no longer available.', 'warn')
+        setStudentTab(rec.tab) // land on the module rather than a blank panel
+        return
+      }
+      navigateToTarget({
+        side: 'student',
+        tab: rec.tab,
+        type: HIGHLIGHT_READY.has(rec.type) ? rec.type : undefined,
+        id: rec.id,
+      })
+      return
+    }
+
+    // Otherwise fall back to the tab-name routing.
+    const action = resolveAction(n)
     if (action?.tab === 'profile') onOpenProfile?.()
     else if (action) setStudentTab(action.tab)
   }

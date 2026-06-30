@@ -5,6 +5,7 @@ import { useUI } from '@/context/UIContext'
 import { sortByLastName, getInitials } from '@/utils/format'
 import { courseShort } from '@/constants/courses'
 import StudentMeta from '@/components/primitives/StudentMeta'
+import { useRedirectHighlight } from '@/navigation/useRedirectHighlight'
 import { getHeldDays, computeTerms, scoredPercent, round2 } from '@/utils/grades'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
@@ -909,7 +910,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       // Notify the student once, only on the first grade (autosave tweaks don't
       // re-notify); the grade also shows live in their Activities tab.
       if (fbReady && db.current && wasUngraded) {
-        pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} - Score: ${eff}/${act.maxScore}${penalized ? ` (late −${li.percent}%)` : ''}`, 'act_grade', 'activities')
+        pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} - Score: ${eff}/${act.maxScore}${penalized ? ` (late −${li.percent}%)` : ''}`, 'act_grade', `act:${act.id}`)
       }
       if (silent) {
         setScoreSaveState(prev => ({ ...prev, [s.id]: 'saved' }))
@@ -994,7 +995,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       toast(`Applied score of ${defScore} to ${missed.length} student${missed.length !== 1 ? 's' : ''}.`, 'green')
       if (fbReady && db.current) {
         for (const s of missed) {
-          pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} - Score: ${defScore}/${act.maxScore}`, 'act_grade', 'activities')
+          pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} - Score: ${defScore}/${act.maxScore}`, 'act_grade', `act:${act.id}`)
         }
       }
     } catch (e) {
@@ -1070,7 +1071,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       toast(`Saved grades for ${picks.length} student${picks.length !== 1 ? 's' : ''}.${autoCount ? ` ${autoCount} auto-graded from feedback.` : ''}${penalizedCount ? ` ${penalizedCount} late-penalized.` : ''}`, 'green')
       if (fbReady && db.current) {
         for (const { s } of picks) {
-          pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} - Score: ${effById[s.id]}/${act.maxScore}`, 'act_grade', 'activities')
+          pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} - Score: ${effById[s.id]}/${act.maxScore}`, 'act_grade', `act:${act.id}`)
         }
       }
     } catch (e) {
@@ -1258,7 +1259,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       ? `${act.subject} - this activity is past due. Please submit as soon as you can.`
       : `${act.subject} - due ${dlLabel}. Don't forget to submit.`
     if (fbReady && db.current) {
-      for (const id of ids) pushStudentNotif(db.current, id, title, body, 'act_grade', 'activities')
+      for (const id of ids) pushStudentNotif(db.current, id, title, body, 'act_grade', `act:${act.id}`)
       sendPushToOwners(db.current, ids, { title, body }, { url: 'activities', tag: 'deadline-reminder' })
     }
     setNudged(prev => { const n = { ...prev }; ids.forEach(id => { n[id] = true }); return n })
@@ -1616,6 +1617,7 @@ const PER_PAGE = 10
 export default function ActivitiesTab() {
   const { activities, students, classes, fbReady, db } = useData()
   const { toast, openDialog } = useUI()
+  const highlightId = useRedirectHighlight('activity')
   const [page,            setPage]           = useState(1)
   const [archivedPage,    setArchivedPage]   = useState(1)
   const [showCreate,      setShowCreate]     = useState(false)
@@ -1647,6 +1649,16 @@ export default function ActivitiesTab() {
     [activeActs, page]
   )
 
+  // Deep-linked from a notification: page to the activity (revealing the
+  // archived list if that's where it lives) so the card renders for the glow.
+  useEffect(() => {
+    if (!highlightId) return
+    const ai = activeActs.findIndex(a => a.id === highlightId)
+    if (ai >= 0) { setPage(Math.floor(ai / PER_PAGE) + 1); return }
+    const xi = archivedActs.findIndex(a => a.id === highlightId)
+    if (xi >= 0) { setShowArchivedActs(true); setArchivedPage(Math.floor(xi / PER_PAGE) + 1) }
+  }, [highlightId, activeActs, archivedActs])
+
   const archivedSlice = useMemo(
     () => archivedActs.slice((archivedPage - 1) * PER_PAGE, archivedPage * PER_PAGE),
     [archivedActs, archivedPage]
@@ -1675,7 +1687,7 @@ export default function ActivitiesTab() {
     const body = isPast
       ? `${act.subject} - this activity is past due. Please submit as soon as you can.`
       : `${act.subject} - due ${dlLabel}. Don't forget to submit.`
-    for (const id of ids) pushStudentNotif(db.current, id, title, body, 'act_grade', 'activities')
+    for (const id of ids) pushStudentNotif(db.current, id, title, body, 'act_grade', `act:${act.id}`)
     sendPushToOwners(db.current, ids, { title, body }, { url: 'activities', tag: 'deadline-reminder' })
     toast(`Reminder sent to ${ids.length} student${ids.length === 1 ? '' : 's'}.`, 'green')
     return true
@@ -1696,7 +1708,7 @@ export default function ActivitiesTab() {
     const subPct    = subDen ? Math.round(subNum / subDen * 100) : 0
     const gradePct  = subNum ? Math.round(graded / subNum * 100) : 0
     return (
-      <div className="card act-list-card">
+      <div id={`activity-${act.id}`} className={`card act-list-card${highlightId === act.id ? ' redirect-glow' : ''}`}>
         <div className={`act-stripe ${readOnly ? 'act-stripe-archived' : isPast ? 'act-stripe-closed' : 'act-stripe-open'}`} />
         <div className="act-body">
           <div className="flex items-start gap-2.5">

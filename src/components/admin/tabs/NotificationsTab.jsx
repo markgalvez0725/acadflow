@@ -5,6 +5,7 @@ import { useUI } from '@/context/UIContext'
 import { MessageSquare, Upload, CheckCircle, ClipboardList, Mail, Bell, Trash2, Megaphone, FileQuestion } from 'lucide-react'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 import EmptyState from '@/components/ds/EmptyState'
+import { parseRecordTarget, HIGHLIGHT_READY } from '@/navigation/notifTarget'
 
 const NOTIF_ICONS = {
   msg_in:    <MessageSquare size={16} />,
@@ -28,8 +29,16 @@ function categoryOf(type) {
 }
 
 export default function NotificationsTab() {
-  const { adminNotifs, setAdminNotifs, db, fbReady } = useData()
-  const { openDialog, setAdminTab } = useUI()
+  const { adminNotifs, setAdminNotifs, db, fbReady, activities, quizzes, onlineMeetings } = useData()
+  const { openDialog, setAdminTab, toast, navigateToTarget } = useUI()
+
+  // Guard against landing on a deleted record's blank panel.
+  function recordExists(type, id) {
+    if (type === 'activity') return (activities || []).some(a => a.id === id)
+    if (type === 'quiz')     return (quizzes || []).some(q => q.id === id)
+    if (type === 'meeting')  return (onlineMeetings || []).some(m => m.id === id)
+    return true
+  }
 
   const sorted = useMemo(() => [...adminNotifs].sort((a, b) => b.ts - a.ts), [adminNotifs])
 
@@ -64,8 +73,27 @@ export default function NotificationsTab() {
   async function handleClick(n) {
     await markRead(n.id)
     if (!n.link) return
+
+    // Specific-record link ("act:ID" etc.) → deep-link to that exact record.
+    const rec = parseRecordTarget(n)
+    if (rec) {
+      if (rec.id && rec.type !== 'announcement' && rec.type !== 'message' && !recordExists(rec.type, rec.id)) {
+        toast('That item is no longer available.', 'warn')
+        setAdminTab(rec.tab)
+        return
+      }
+      navigateToTarget({
+        side: 'admin',
+        tab: rec.tab,
+        type: HIGHLIGHT_READY.has(rec.type) ? rec.type : undefined,
+        id: rec.id,
+      })
+      return
+    }
+
+    // Bare tab-name links.
     if (n.link === 'messages') setAdminTab('messages')
-    else if (n.link === 'activities' || String(n.link || '').startsWith('act:')) setAdminTab('activities')
+    else if (n.link === 'activities') setAdminTab('activities')
   }
 
   if (!fbReady) return <SkeletonRows />

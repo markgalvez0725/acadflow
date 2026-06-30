@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { doc, updateDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -10,6 +10,7 @@ import StandingRing from '@/components/primitives/StandingRing'
 import SubmissionFileField from '@/components/student/SubmissionFileField'
 import SubmissionPreview from '@/components/primitives/SubmissionPreview'
 import StudentMeta from '@/components/primitives/StudentMeta'
+import { useRedirectHighlight } from '@/navigation/useRedirectHighlight'
 import { uploadSubmission } from '@/utils/googleDrive'
 import { extractSubmissionText } from '@/utils/submissionExtract'
 
@@ -47,6 +48,7 @@ async function pushAdminNotif(db, s, text, type, link) {
 export default function ActivitiesTab({ student: s, viewClassId, activities }) {
   const { db, fbReady, students } = useData()
   const { toast } = useUI()
+  const highlightId = useRedirectHighlight('activity')
 
   const [page, setPage] = useState(1)
   const [linkInputs, setLinkInputs] = useState({}) // actId → string
@@ -135,6 +137,16 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
   }, [derived, filter])
 
   const slice = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+
+  // Deep-linked from a notification: clear the filter and page to the activity
+  // so the card is actually rendered for the scroll-and-glow to land on.
+  useEffect(() => {
+    if (!highlightId) return
+    const idx = derived.findIndex(d => d.act.id === highlightId)
+    if (idx < 0) return
+    setFilter('all')
+    setPage(Math.floor(idx / PER_PAGE) + 1)
+  }, [highlightId, derived])
 
   function pickFilter(next) { setFilter(next); setPage(1) }
 
@@ -329,7 +341,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
           }
 
           return (
-            <div key={act.id} className="sa-act-card">
+            <div key={act.id} id={`activity-${act.id}`} className={`sa-act-card${highlightId === act.id ? ' redirect-glow' : ''}`}>
               <div className="sa-act-header">
                 <div className="sa-act-title">{act.title}</div>
                 <span className={`badge ${badgeCls}`}>{badgeLabel}</span>

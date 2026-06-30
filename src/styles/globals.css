@@ -3828,6 +3828,9 @@ textarea.input { resize: vertical; }
 ══════════════════════════════════════════ */
 .ig-post { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
 .ig-glow { animation: ig-bulb-glow 2.4s ease-out 1; }
+/* Generic redirect "you landed here" bulb - reuses the Stream glow keyframe so
+   the highlight is identical across every module (useRedirectHighlight). */
+.redirect-glow { animation: ig-bulb-glow 2.4s ease-out 1; border-radius: inherit; }
 @keyframes ig-bulb-glow {
   0%   { box-shadow: 0 0 0 0 rgba(245,180,40,0); border-color: var(--border); }
   12%  { box-shadow: 0 0 0 4px rgba(245,180,40,0.45), 0 0 22px 4px rgba(245,180,40,0.35); border-color: #f5b428; }
