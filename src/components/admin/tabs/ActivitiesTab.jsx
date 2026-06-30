@@ -740,9 +740,15 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
   const [saving,        setSaving]       = useState({})
   const [savingAll,     setSavingAll]    = useState(false)
   const [fbSaveState,   setFbSaveState]  = useState({}) // sid → 'saving' | 'saved' (feedback note autosave)
+  const [scoreSaveState, setScoreSaveState] = useState({}) // sid → 'saving' | 'saved' (score autosave)
   const fbTimers = useRef({})            // sid → debounce timer id for feedback autosave
-  // Cancel any pending feedback autosaves when the modal closes.
-  useEffect(() => () => { Object.values(fbTimers.current).forEach(t => clearTimeout(t)) }, [])
+  const scoreTimers = useRef({})         // sid → debounce timer id for score autosave
+  const saveScoreRef = useRef(null)      // always points at the latest handleSaveScore (fresh state)
+  // Cancel any pending autosaves when the modal closes.
+  useEffect(() => () => {
+    Object.values(fbTimers.current).forEach(t => clearTimeout(t))
+    Object.values(scoreTimers.current).forEach(t => clearTimeout(t))
+  }, [])
 
   // Group case-study grading state
   const isGroupAct = !!act.isGroup
@@ -786,17 +792,23 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       setScores(s => ({ ...s, [studentId]: String(autoScore) }))
       return { ...prev, [studentId]: updated }
     })
+    const stud = enrolledStudents.find(x => x.id === studentId)
+    if (stud) scheduleScoreSave(stud)
   }
 
-  async function handleSaveScore(s) {
+  // Save a student's score. `silent` (autosave) reports via the Saving/Saved chip
+  // instead of a toast, and does NOT flush the feedback field (feedback has its
+  // own autosave, so a stale value here could clobber it). Failures always toast,
+  // since a dropped grade write must never be invisible.
+  async function handleSaveScore(s, { silent = false } = {}) {
     const raw = scores[s.id]
     if (raw === undefined || raw === '') return
     const score = parseFloat(raw)
     if (isNaN(score) || score < 0 || score > act.maxScore) {
-      toast('Score must be 0-' + act.maxScore, 'red')
+      if (!silent) toast('Score must be 0-' + act.maxScore, 'red')
       return
     }
-    if (!fbReady || !db.current) { toast('Firebase not connected.', 'red'); return }
+    if (!fbReady || !db.current) { if (!silent) toast('Firebase not connected.', 'red'); return }
 
     const rubricSnapshot = hasRubric ? (rubricChecks[s.id] || {}) : undefined
 
@@ -806,8 +818,10 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
     const li  = lateInfo(sub, act, latePolicy)
     const eff = applyLatePenalty(score, sub, act, latePolicy, waived[s.id])
     const penalized = li.late && !waived[s.id] && eff !== score
+    const wasUngraded = sub.score == null
 
-    setSaving(prev => ({ ...prev, [s.id]: true }))
+    if (silent) setScoreSaveState(prev => ({ ...prev, [s.id]: 'saving' }))
+    else setSaving(prev => ({ ...prev, [s.id]: true }))
     try {
       const update = {
         [`submissions.${s.id}.score`]:  eff,
@@ -816,8 +830,8 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
         [`submissions.${s.id}.latePenalty`]: penalized ? { percent: li.percent, days: li.days, rawScore: score } : null,
       }
       if (rubricSnapshot !== undefined) update[`submissions.${s.id}.rubricChecks`] = rubricSnapshot
-      // Persist professor feedback only when the field was touched this session.
-      if (feedbacks[s.id] !== undefined) update[`submissions.${s.id}.feedback`] = feedbacks[s.id].trim()
+      // Only an explicit (non-silent) save also flushes a touched feedback field.
+      if (!silent && feedbacks[s.id] !== undefined) update[`submissions.${s.id}.feedback`] = feedbacks[s.id].trim()
       await updateDoc(doc(db.current, 'activities', act.id), update)
       // Recompute the student's grade against the effective score (patch the
       // in-memory activity so the new score is reflected immediately).
@@ -826,15 +840,36 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
         : a)
       const updated = buildUpdatedStudent(s, act.subject, act.classId, patchedActs, students)
       if (updated) await saveStudents(students.map(x => x.id === s.id ? updated : x), [s.id])
-      toast(penalized ? `Saved with late penalty (−${li.percent}%): ${eff}/${act.maxScore}` : 'Score saved!', 'green')
-      if (fbReady && db.current) {
+      // Notify the student once, only on the first grade (autosave tweaks don't
+      // re-notify); the grade also shows live in their Activities tab.
+      if (fbReady && db.current && wasUngraded) {
         pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} - Score: ${eff}/${act.maxScore}${penalized ? ` (late −${li.percent}%)` : ''}`, 'act_grade', 'activities')
       }
+      if (silent) {
+        setScoreSaveState(prev => ({ ...prev, [s.id]: 'saved' }))
+        setTimeout(() => setScoreSaveState(prev => { const n = { ...prev }; if (n[s.id] === 'saved') delete n[s.id]; return n }), 2000)
+      } else {
+        toast(penalized ? `Saved with late penalty (−${li.percent}%): ${eff}/${act.maxScore}` : 'Score saved!', 'green')
+      }
     } catch (e) {
-      toast('Save failed: ' + e.message, 'red')
+      if (silent) setScoreSaveState(prev => { const n = { ...prev }; delete n[s.id]; return n })
+      toast('Could not save score: ' + e.message, 'red')
     } finally {
-      setSaving(prev => ({ ...prev, [s.id]: false }))
+      if (!silent) setSaving(prev => ({ ...prev, [s.id]: false }))
     }
+  }
+  // Keep the ref pointing at THIS render's handleSaveScore so the debounced timer
+  // always runs against fresh state (scores/waived/rubricChecks), never a stale closure.
+  saveScoreRef.current = handleSaveScore
+
+  // Debounced score autosave: ~900ms after the last score/rubric/waive change.
+  function scheduleScoreSave(s) {
+    clearTimeout(scoreTimers.current[s.id])
+    scoreTimers.current[s.id] = setTimeout(() => { saveScoreRef.current?.(s, { silent: true }) }, 900)
+  }
+  function onScoreChange(s, val) {
+    setScores(prev => ({ ...prev, [s.id]: val }))
+    if (val !== '' && !isNaN(parseFloat(val))) scheduleScoreSave(s)
   }
 
   // Auto-save professor feedback notes ~1.1s after typing stops (debounced),
@@ -987,10 +1022,10 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
 
   function applyAiGrade(studentId) {
     if (!smartResult) return
+    const stud = enrolledStudents.find(x => x.id === studentId)
     setScores(prev => ({ ...prev, [studentId]: String(smartResult.score) }))
-    // Pre-fill the feedback box with the Smart's notes so the professor can review,
-    // edit, and save it for the student (previously it was shown but discarded).
-    if (smartResult.feedback) setFeedbacks(prev => ({ ...prev, [studentId]: smartResult.feedback }))
+    // Pre-fill the feedback box with the Smart notes (autosaves like any feedback edit).
+    if (smartResult.feedback) onFeedbackChange(studentId, smartResult.feedback)
     if (hasRubric && Array.isArray(smartResult.criteria)) {
       const checks = {}
       act.rubric.forEach(c => {
@@ -999,8 +1034,9 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       })
       setRubricChecks(prev => ({ ...prev, [studentId]: checks }))
     }
+    if (stud) scheduleScoreSave(stud) // autosave the applied score + rubric
     setAiFor(null); setAiText(''); setAiResult(null)
-    toast('Smart suggestion applied. Review and Save.', 'green')
+    toast('Smart grade applied and saved.', 'green')
   }
 
   // Warm the on-device model when the grading modal opens.
@@ -1218,6 +1254,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
             const checks = rubricChecks[s.id] || {}
             const li = lateInfo(sub, act, latePolicy)
             const fbState = fbSaveState[s.id]
+            const scoreState = scoreSaveState[s.id]
             return (
               <div className="act-review-card" key={s.id}>
                 <div className="flex items-center gap-2.5">
@@ -1248,12 +1285,17 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                 )}
 
                 <div className="flex gap-3 items-start flex-wrap" style={{ marginTop: 10 }}>
-                  <div style={{ width: 120 }}>
-                    <div className="ar-lbl">Score</div>
+                  <div style={{ width: 130 }}>
+                    <div className="ar-lbl flex items-center justify-between" style={{ gap: 6 }}>
+                      <span>Score</span>
+                      {scoreState === 'saving' && <span className="ar-save">Saving…</span>}
+                      {scoreState === 'saved' && <span className="ar-save ar-save-ok"><Check size={11} /> Saved</span>}
+                    </div>
                     <div className="flex items-center gap-1.5">
                       <input
                         type="number" min="0" max={act.maxScore} value={inputVal}
-                        onChange={e => setScores(prev => ({ ...prev, [s.id]: e.target.value }))}
+                        className="ar-score-input"
+                        onChange={e => onScoreChange(s, e.target.value)}
                         aria-label={`Score for ${s.name}`}
                         style={{ width: 64, padding: '6px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, textAlign: 'center', background: 'var(--surface)', color: 'var(--ink)' }}
                         placeholder="-"
@@ -1267,7 +1309,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                           <span> → <strong>{applyLatePenalty(parseFloat(inputVal), sub, act, latePolicy, false)}</strong></span>
                         )}
                         <label style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 2, color: 'var(--ink2)', cursor: 'pointer', fontWeight: 600 }}>
-                          <input type="checkbox" checked={!!waived[s.id]} onChange={() => setWaived(p => ({ ...p, [s.id]: !p[s.id] }))} style={{ width: 'auto', margin: 0 }} />
+                          <input type="checkbox" checked={!!waived[s.id]} onChange={() => { setWaived(p => ({ ...p, [s.id]: !p[s.id] })); scheduleScoreSave(s) }} style={{ width: 'auto', margin: 0 }} />
                           Waive penalty
                         </label>
                       </div>
@@ -1290,23 +1332,20 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                   </div>
                 </div>
 
-                <div className="flex gap-1.5 items-center justify-end" style={{ marginTop: 10 }}>
-                  {hasLink && (
+                {hasLink && (
+                  <div className="flex gap-1.5 items-center justify-end" style={{ marginTop: 10 }}>
                     <button className="btn btn-ghost btn-sm" title="Smart grading assistant" onClick={() => { setAiFor(s.id); setAiText(''); setAiResult(null) }}>
                       <Sparkles size={13} /> Smart grade
                     </button>
-                  )}
-                  <button className="btn btn-primary btn-sm" disabled={saving[s.id] || inputVal === ''} onClick={() => handleSaveScore(s)}>
-                    {saving[s.id] ? 'Saving…' : 'Save score'}
-                  </button>
-                </div>
+                  </div>
+                )}
               </div>
             )
           })}
         </div>
       )}
 
-      <p className="text-xs text-ink3 mb-4">Feedback notes save automatically as you type. Saving a score updates the student's grade components right away.</p>
+      <p className="text-xs text-ink3 mb-4">Scores and feedback notes save automatically as you type. The student's grade components update right away.</p>
 
       {/* Actions */}
       <div className="flex gap-2 flex-wrap items-center">
