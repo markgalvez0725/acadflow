@@ -393,12 +393,13 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, o
   const [editing, setEditing] = useState(null)   // entry key being edited
   const [editDraft, setEditDraft] = useState('')
   const [showMembers, setShowMembers] = useState(false)
+  const [reactKey, setReactKey] = useState(null) // entryKey whose reaction picker is open
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [thread])
   // Drop any pending reply target / open editor / members modal when the thread changes.
-  useEffect(() => { setReplyingTo(null); setEditing(null); setShowMembers(false) }, [chatKey])
+  useEffect(() => { setReplyingTo(null); setEditing(null); setShowMembers(false); setReactKey(null) }, [chatKey])
 
   function startReplyTo(entry) {
     const author = entry.from === 'admin' ? 'You' : (entry.senderLabel || 'Student')
@@ -504,9 +505,15 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, o
             { label: 'Delete for you', onClick: () => onDeleteEntry?.(entry, 'me') },
             isAdmin && { label: 'Delete for everyone', danger: true, onClick: () => onDeleteEntry?.(entry, 'everyone') },
           ].filter(Boolean)
+          const reactOpen = reactKey === eKey
           const Actions = !isEditing && !entry.deleted && (
-            <span className="msg-bubble-menu">
-              <ReactionPicker side={isAdmin ? 'sent' : 'received'} onPick={emoji => onToggleReaction?.(entry, emoji)} />
+            <span className={`msg-bubble-menu${reactOpen ? ' force-show' : ''}`}>
+              <ReactionPicker
+                side={isAdmin ? 'sent' : 'received'}
+                onPick={emoji => onToggleReaction?.(entry, emoji)}
+                open={reactOpen}
+                onOpenChange={v => setReactKey(v ? eKey : null)}
+              />
               {menuItems.length > 0 && <KebabMenu items={menuItems} icon={<MoreHorizontal size={15} />} size={15} label="Message actions" />}
             </span>
           )
@@ -514,7 +521,7 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, o
             <React.Fragment key={i}>
               {showDay && <div className="msg-day-sep"><span>{dayLabel(entry.ts)}</span></div>}
               {!isAdmin && isGroup && firstOfGroup && <div className="msg-sender-name">{entry.senderLabel}</div>}
-              <SwipeReply side={isAdmin ? 'sent' : 'received'} onReply={() => startReplyTo(entry)}>
+              <SwipeReply side={isAdmin ? 'sent' : 'received'} onReply={() => startReplyTo(entry)} onLongPress={entry.deleted ? undefined : () => setReactKey(eKey)}>
                 <div className={`msg-bubble-row ${isAdmin ? 'sent' : 'received'}`} style={{ marginTop: sameAsPrev ? 2 : 8 }} title={timeLabel(entry.ts)}>
                   {!isAdmin && (
                     <div className="msg-avatar-slot">

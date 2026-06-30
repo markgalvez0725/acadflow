@@ -142,6 +142,7 @@ export default function MessagesTab({ student: s, messages }) {
   const [editing, setEditing]    = useState(null) // entry key being edited
   const [editDraft, setEditDraft] = useState('')
   const [showMembers, setShowMembers] = useState(false)
+  const [reactKey, setReactKey] = useState(null) // entryKey whose reaction picker is open
   // Quoted reply: the bubble the student swiped / clicked the reply icon on.
   const [replyingTo, setReplyingTo] = useState(null) // { author, text } | null
   // A Stream post attached to the next message (from "Message professor about
@@ -166,7 +167,7 @@ export default function MessagesTab({ student: s, messages }) {
   // this post") is APPLIED here rather than cleared, so it survives the thread
   // switch deterministically (no timing race).
   useEffect(() => {
-    setReplyingTo(null); setSecureOn(false); setSecureTouched(false); setEditing(null); setShowMembers(false)
+    setReplyingTo(null); setSecureOn(false); setSecureTouched(false); setEditing(null); setShowMembers(false); setReactKey(null)
     const pend = pendingDraftRef.current
     if (pend) {
       setReplyText(pend.draft || '')
@@ -720,9 +721,15 @@ export default function MessagesTab({ student: s, messages }) {
                     { label: 'Delete for you', onClick: () => handleDeleteEntry(entry, 'me') },
                     isSelf && { label: 'Delete for everyone', danger: true, onClick: () => handleDeleteEntry(entry, 'everyone') },
                   ].filter(Boolean)
+                  const reactOpen = reactKey === eKey
                   const Actions = !isEditing && !entry.deleted && (
-                    <span className="msg-bubble-menu">
-                      <ReactionPicker side={isSelf ? 'sent' : 'received'} onPick={emoji => handleToggleReaction(entry, emoji)} />
+                    <span className={`msg-bubble-menu${reactOpen ? ' force-show' : ''}`}>
+                      <ReactionPicker
+                        side={isSelf ? 'sent' : 'received'}
+                        onPick={emoji => handleToggleReaction(entry, emoji)}
+                        open={reactOpen}
+                        onOpenChange={v => setReactKey(v ? eKey : null)}
+                      />
                       {menuItems.length > 0 && <KebabMenu items={menuItems} icon={<MoreHorizontal size={15} />} size={15} label="Message actions" />}
                     </span>
                   )
@@ -734,7 +741,7 @@ export default function MessagesTab({ student: s, messages }) {
                           {info.name}{info.teacher ? <ProfessorBadge size={12} /> : <VerifiedBadge studentId={info.id} students={students} size={12} />}
                         </div>
                       )}
-                      <SwipeReply side={isSelf ? 'sent' : 'received'} onReply={() => startReplyTo(entry)}>
+                      <SwipeReply side={isSelf ? 'sent' : 'received'} onReply={() => startReplyTo(entry)} onLongPress={entry.deleted ? undefined : () => setReactKey(eKey)}>
                         <div className={`msg-bubble-row ${isSelf ? 'sent' : 'received'}`} style={{ marginTop: sameAsPrev ? 2 : 8 }} title={timeLabel(entry.ts)}>
                           {!isSelf && (
                             <div className="msg-avatar-slot">

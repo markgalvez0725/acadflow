@@ -2602,6 +2602,14 @@ textarea.input { resize: vertical; }
 .msg-react-pill:hover { border-color: var(--accent); }
 .msg-react-pill.mine { background: var(--accent-l); border-color: var(--accent); color: var(--accent); font-weight: 700; }
 .msg-react-count { font-size: 0.7rem; line-height: 1; }
+/* Keep the action cluster (and its open popover) fully visible while a long-press
+   or click has the reaction picker open, overriding the hover/mobile fade. */
+.msg-bubble-menu.force-show { opacity: 1; }
+/* On touch, suppress the long-press text-selection magnifier / iOS callout so the
+   press-and-hold opens the reaction picker cleanly. Desktop keeps text selection. */
+@media (hover: none) {
+  .swipe-reply { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+}
 /* Mobile: the thread is full-screen and clipped by .msg-shell (overflow:hidden)
    + the scrolling message list, so an absolutely-positioned popover anchored to
    the tiny trigger lands out of view. Pin it to the viewport instead - centered
