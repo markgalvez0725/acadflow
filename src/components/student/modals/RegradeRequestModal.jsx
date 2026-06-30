@@ -3,6 +3,8 @@ import { doc, setDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Modal from '@/components/primitives/Modal'
+import Button from '@/components/ds/Button'
+import { Select, Textarea } from '@/components/ds/Field'
 import { notifyAdminMessage } from '@/firebase/messageNotify'
 import { computeFinalGradeFromTerms } from '@/utils/grades'
 import { RefreshCw } from 'lucide-react'
@@ -74,16 +76,14 @@ export default function RegradeRequestModal({ student: s, subjects = [], onClose
         Politely explain why you believe a grade should be reviewed. Your professor receives this in their messages and can reply to you.
       </p>
 
-      <label className="field-label" htmlFor="regrade-subject">Subject</label>
-      <select
+      <Select
+        label="Subject"
         id="regrade-subject"
-        className="input"
         value={subject}
         onChange={e => setSubject(e.target.value)}
-        style={{ marginBottom: 12 }}
       >
         {subjects.map(sub => <option key={sub} value={sub}>{sub}</option>)}
-      </select>
+      </Select>
 
       {currentGrade != null && (
         <div style={{ fontSize: 12, color: 'var(--ink2)', marginBottom: 12 }}>
@@ -91,24 +91,20 @@ export default function RegradeRequestModal({ student: s, subjects = [], onClose
         </div>
       )}
 
-      <label className="field-label" htmlFor="regrade-reason">Reason</label>
-      <textarea
+      <Textarea
+        label="Reason"
         id="regrade-reason"
-        className="input"
         rows={5}
         value={reason}
         onChange={e => setReason(e.target.value)}
         placeholder="e.g. I believe Activity 3 was not counted, or my quiz score looks incorrect…"
         maxLength={MAX_REASON}
-        style={{ resize: 'vertical' }}
       />
       <div style={{ textAlign: 'right', fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>{reason.length}/{MAX_REASON}</div>
 
       <div className="flex justify-end gap-2 mt-3">
-        <button className="btn btn-ghost btn-sm" onClick={onClose} disabled={sending}>Cancel</button>
-        <button className="btn btn-primary btn-sm" onClick={handleSubmit} disabled={sending}>
-          {sending ? 'Sending…' : 'Send request'}
-        </button>
+        <Button variant="ghost" size="sm" onClick={onClose} disabled={sending}>Cancel</Button>
+        <Button size="sm" loading={sending} loadingText="Sending…" onClick={handleSubmit}>Send request</Button>
       </div>
     </Modal>
   )
