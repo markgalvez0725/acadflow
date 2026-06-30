@@ -2,7 +2,7 @@
 // This module owns the _fbWriting flag so it can suppress onSnapshot echoes
 // during in-flight writes. It never imports React.
 import {
-  collection, doc, onSnapshot, getDoc, query, orderBy, limit,
+  collection, doc, onSnapshot, getDoc, query, where, orderBy, limit,
 } from 'firebase/firestore'
 import { deserializeStudents } from '@/utils/attendance'
 import { decryptEJS, encryptEJS } from '@/utils/crypto'
@@ -198,9 +198,15 @@ export function fbStartListening(db, callbacks) {
   }
 
   // ── attendanceSessions collection (live check-in) ─────────────────────
+  // Scoped to OPEN sessions only. Every consumer (student + admin AttendanceTab,
+  // StudentLayout check-in prompt) filters to `status === 'open'`; closed-session
+  // history lives on the student docs (_att Sets), never here. Without this the
+  // listener streamed every session ever created (classes x school-days = the
+  // most unbounded collection in the app). When a session closes, its status flips
+  // and it drops out of the result automatically.
   if (onAttendanceSessionsUpdate) {
     const uA = onSnapshot(
-      collection(db, 'attendanceSessions'),
+      query(collection(db, 'attendanceSessions'), where('status', '==', 'open')),
       snap => {
         const sessions = [];
         snap.forEach(d => sessions.push(d.data()));
