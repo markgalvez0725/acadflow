@@ -45,13 +45,30 @@ async function claimTempPassAccount(auth, snum, password) {
     return false
   }
   try {
-    try { await createdUser.getIdToken() } catch (e) { /* token mint best-effort */ }
-    const snap = await getDoc(doc(db, 'students', studentDocId(snum)))
-    const acct = snap.exists() ? (snap.data().account || null) : null
-    const legit = !!(acct && acct.registered && acct._tempPass && acct.pass &&
+    // The roster read right after account creation can be DENIED while the brand
+    // new auth token propagates to the Firestore SDK (the same race loginStudent's
+    // exists-check retries). Reading it only once meant a correct default password
+    // was intermittently rejected. Retry a few times, minting the token each
+    // attempt; only a SUCCESSFUL read that fails verification is a real rejection.
+    let acct = null, readOk = false
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        try { await createdUser.getIdToken() } catch (e) { /* token mint best-effort */ }
+        const snap = await getDoc(doc(db, 'students', studentDocId(snum)))
+        acct = snap.exists() ? (snap.data().account || null) : null
+        readOk = true
+        break
+      } catch (e) {
+        await new Promise(r => setTimeout(r, 400))
+      }
+    }
+    // legit requires a successful read AND a password match - so we never grant a
+    // claim we couldn't verify (a stranger still can't seize an account).
+    const legit = readOk && !!(acct && acct.registered && acct._tempPass && acct.pass &&
                      await verifyPassword(password, acct.pass))
     if (!legit) {
-      // Wrong password, or not a claimable account → undo the Auth user we made.
+      // Wrong password, unclaimable account, or the roster could never be read →
+      // undo the Auth user we made.
       await deleteUser(createdUser).catch(() => {})
       await signOut(auth).catch(() => {})
       return false
