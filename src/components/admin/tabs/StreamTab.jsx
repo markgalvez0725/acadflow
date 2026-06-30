@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { useData } from '@/context/DataContext'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import { useUI } from '@/context/UIContext'
-import Modal, { ModalHeader } from '@/components/primitives/Modal'
+import Modal from '@/components/primitives/Modal'
 import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, Clock, Users, Award, CheckCircle2, XCircle, AlertCircle, Plus, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered, Paperclip, Image as ImageIcon, FileText, Sparkles, Library, FolderOpen, RefreshCw, Check, Loader2, CheckSquare, Square } from 'lucide-react'
 import { composeAnnouncementMessage } from '@/utils/announceCompose'
 import { annClassIds, annIsBroadcast, announcementClassPills } from '@/utils/announce'
@@ -473,7 +473,7 @@ function AnnouncementFormModal({ ann, onClose }) {
   }
 
   return (
-    <Modal onClose={onClose} title={isEdit ? 'Edit Announcement' : 'New Announcement'}>
+    <Modal onClose={onClose} sheetOnMobile icon={<Megaphone size={18} />} title={isEdit ? 'Edit Announcement' : 'New Announcement'}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 320 }}>
         <div>
           <label className="form-label">Announcement type</label>
@@ -712,8 +712,7 @@ function AnnouncementDetailModal({ ann, classes, onClose, onEdit }) {
   const Icon = ann.type === 'no_class' ? CalendarOff : ann.type === 'online_class' ? Video : ann.type === 'resource_hub' ? Library : BookOpen
 
   return (
-    <Modal onClose={onClose} size="md">
-      <ModalHeader title={ann.title} onClose={onClose} />
+    <Modal onClose={onClose} size="md" sheetOnMobile icon={<Icon size={18} />} title={ann.title}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <Icon size={16} style={{ color: iconColor }} />
@@ -1265,22 +1264,16 @@ export default function StreamTab() {
         />
       )}
       {deleteId && (
-        <Modal onClose={() => { if (!deleting) setDeleteId(null) }} title="Delete announcement">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <span style={{ flexShrink: 0, width: 38, height: 38, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--red-l, rgba(239,68,68,.12))', color: 'var(--red)' }}>
-                <AlertCircle size={20} />
-              </span>
-              <div style={{ fontSize: 14, color: 'var(--ink2)', lineHeight: 1.5 }}>
-                Delete{' '}
-                <strong style={{ color: 'var(--ink)' }}>{announcements.find(a => a.id === deleteId)?.title || 'this announcement'}</strong>?
-                This removes it for everyone and cannot be undone. Attached Drive files are not deleted.
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button className="btn btn-ghost" onClick={() => setDeleteId(null)} disabled={deleting}>Cancel</button>
-              <button className="btn btn-danger" onClick={() => handleDelete(deleteId)} disabled={deleting}>{deleting ? 'Deleting…' : 'Delete'}</button>
-            </div>
+        <Modal onClose={() => { if (!deleting) setDeleteId(null) }} size="sm" sheetOnMobile icon={<AlertCircle size={18} />} title="Delete announcement"
+          footer={<>
+            <button className="btn btn-ghost" onClick={() => setDeleteId(null)} disabled={deleting}>Cancel</button>
+            <button className="btn btn-danger" onClick={() => handleDelete(deleteId)} disabled={deleting}>{deleting ? 'Deleting…' : 'Delete'}</button>
+          </>}
+        >
+          <div style={{ fontSize: 14, color: 'var(--ink2)', lineHeight: 1.5 }}>
+            Delete{' '}
+            <strong style={{ color: 'var(--ink)' }}>{announcements.find(a => a.id === deleteId)?.title || 'this announcement'}</strong>?
+            This removes it for everyone and cannot be undone. Attached Drive files are not deleted.
           </div>
         </Modal>
       )}

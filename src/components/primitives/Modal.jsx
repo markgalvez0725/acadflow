@@ -8,7 +8,7 @@ import { X } from 'lucide-react'
  *
  * @param {{ isOpen: boolean, onClose: () => void, size?: 'sm'|'md'|'lg', children: React.ReactNode, zIndex?: number }} props
  */
-export default function Modal({ isOpen = true, onClose, size = 'md', children, zIndex = 200, wide = false, header = null, footer = null, sheetOnMobile = false, padded = true }) {
+export default function Modal({ isOpen = true, onClose, size = 'md', children, zIndex = 200, wide = false, header = null, footer = null, sheetOnMobile = false, padded = true, title = null, subtitle = null, icon = null }) {
   const panelRef = useRef(null)
   const prevFocusRef = useRef(null)
 
@@ -68,8 +68,10 @@ export default function Modal({ isOpen = true, onClose, size = 'md', children, z
   // When a `header` or `footer` is supplied, the panel becomes a structured
   // shell: the header and footer stay pinned and only the middle body scrolls.
   // Modals that pass plain children (the long-standing pattern) are unaffected -
-  // they keep the single padded scroll area.
-  const structured = !!(header || footer)
+  // they keep the single padded scroll area. `title` (optionally with `subtitle`
+  // / `icon`) is a shorthand that builds the header for you.
+  const resolvedHeader = header || (title ? <ModalHeader flush icon={icon} title={title} subtitle={subtitle} /> : null)
+  const structured = !!(resolvedHeader || footer)
 
   return ReactDOM.createPortal(
     <div
@@ -96,7 +98,7 @@ export default function Modal({ isOpen = true, onClose, size = 'md', children, z
             <X size={18} />
           </button>
         )}
-        {header && <div className="modal-head">{header}</div>}
+        {resolvedHeader && <div className="modal-head">{resolvedHeader}</div>}
         <div className="modal-scroll" style={{ overflowY: 'auto', padding: structured ? 0 : 28, ...(structured ? { flex: '1 1 auto', minHeight: 0 } : {}) }}>
           {structured && padded ? <div className="modal-shell-body">{children}</div> : children}
         </div>
