@@ -37,7 +37,12 @@ let _unsub = [];
  *   onMeetingsUpdate: (meetings: any[]) => void,
  * }} callbacks
  */
-export function fbStartListening(db, callbacks) {
+export function fbStartListening(db, callbacks, opts = {}) {
+  // Role/identity scoping. Defaults keep the broad (admin) behavior if a caller
+  // omits opts. For a student we attach per-user listeners (their own feedback /
+  // excuse requests) instead of whole collections, and skip the admin-only
+  // notifications feed entirely.
+  const { isAdmin = true, studentId = null } = opts;
   const {
     onStudentsUpdate,
     onClassesUpdate,
@@ -144,16 +149,19 @@ export function fbStartListening(db, callbacks) {
   );
   _unsub.push(u4);
 
-  // ── notifications collection ──────────────────────────────────────────
-  const u6 = onSnapshot(
-    collection(db, 'notifications'),
-    snap => {
-      const adminDoc = snap.docs.find(d => d.id === 'admin');
-      onAdminNotifUpdate(adminDoc ? (adminDoc.data().items || []) : []);
-    },
-    e => console.error('[Firebase] notifications listener error:', e.message)
-  );
-  _unsub.push(u6);
+  // ── notifications/admin doc (admin feed only) ─────────────────────────
+  // This is the PROFESSOR's notification feed. Students read their own
+  // notifications/{studentId} doc directly in StudentLayout, so they don't need
+  // this at all. Listen to the single 'admin' doc instead of scanning the whole
+  // notifications collection (which held every user's feed) to find one doc.
+  if (onAdminNotifUpdate) {
+    const u6 = onSnapshot(
+      doc(db, 'notifications', 'admin'),
+      snap => onAdminNotifUpdate(snap.exists() ? (snap.data().items || []) : []),
+      e => console.error('[Firebase] notifications listener error:', e.message)
+    );
+    _unsub.push(u6);
+  }
 
   // ── quizzes collection ────────────────────────────────────────────────
   if (onQuizzesUpdate) {
@@ -218,31 +226,46 @@ export function fbStartListening(db, callbacks) {
   }
 
   // ── excuseRequests collection ─────────────────────────────────────────
+  // Admin manages all requests; a student only ever needs their own, so scope
+  // the student listener to where(studentId == me) instead of the whole
+  // collection. (A student with no derivable id simply skips it.)
   if (onExcuseRequestsUpdate) {
-    const uE = onSnapshot(
-      collection(db, 'excuseRequests'),
-      snap => {
-        const reqs = [];
-        snap.forEach(d => reqs.push(d.data()));
-        onExcuseRequestsUpdate(reqs);
-      },
-      e => console.error('[Firebase] excuseRequests listener error:', e.message)
-    );
-    _unsub.push(uE);
+    const exRef = isAdmin
+      ? collection(db, 'excuseRequests')
+      : (studentId ? query(collection(db, 'excuseRequests'), where('studentId', '==', studentId)) : null);
+    if (exRef) {
+      const uE = onSnapshot(
+        exRef,
+        snap => {
+          const reqs = [];
+          snap.forEach(d => reqs.push(d.data()));
+          onExcuseRequestsUpdate(reqs);
+        },
+        e => console.error('[Firebase] excuseRequests listener error:', e.message)
+      );
+      _unsub.push(uE);
+    }
   }
 
   // ── studentFeedback collection ────────────────────────────────────────
+  // Same pattern: admin reads the whole Feedback Hub; a student reads only their
+  // own submissions.
   if (onStudentFeedbackUpdate) {
-    const uFb = onSnapshot(
-      collection(db, 'studentFeedback'),
-      snap => {
-        const fb = [];
-        snap.forEach(d => fb.push(d.data()));
-        onStudentFeedbackUpdate(fb);
-      },
-      e => console.error('[Firebase] studentFeedback listener error:', e.message)
-    );
-    _unsub.push(uFb);
+    const fbRef = isAdmin
+      ? collection(db, 'studentFeedback')
+      : (studentId ? query(collection(db, 'studentFeedback'), where('studentId', '==', studentId)) : null);
+    if (fbRef) {
+      const uFb = onSnapshot(
+        fbRef,
+        snap => {
+          const fb = [];
+          snap.forEach(d => fb.push(d.data()));
+          onStudentFeedbackUpdate(fb);
+        },
+        e => console.error('[Firebase] studentFeedback listener error:', e.message)
+      );
+      _unsub.push(uFb);
+    }
   }
 
   // ── auditLog collection (admin action history) ────────────────────────

@@ -25,7 +25,7 @@ import { loadFbConfigFromStorage, readStoredEJS } from '@/utils/crypto'
 import { DEFAULT_EQ_SCALE } from '@/utils/grades'
 import { annClassIds, annIsBroadcast } from '@/utils/announce'
 import { computeSubjectGrade, gradeInputHash, makeHistoryEntry, appendGradeHistory } from '@/utils/gradeEngine'
-import { ADMIN_EMAIL } from '@/constants/auth'
+import { ADMIN_EMAIL, studentDocId } from '@/constants/auth'
 
 // The audit log is professor-only (its Firestore rule denies students). Only
 // attach its listener for the admin so student sessions don't trip a
@@ -35,6 +35,19 @@ function isAdminUser() {
     const email = getFbAuth()?.currentUser?.email || ''
     return !!email && email.toLowerCase() === ADMIN_EMAIL.toLowerCase()
   } catch { return false }
+}
+
+// The signed-in student's Firestore doc id, derived from their synthetic auth
+// email (<studentNumber>@acadflow.app). Returns null for the admin or when no
+// student is signed in. Used to scope per-user listeners (their own feedback /
+// excuse requests) instead of reading whole collections.
+function currentStudentId() {
+  try {
+    const email = getFbAuth()?.currentUser?.email || ''
+    if (!email || email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) return null
+    if (!email.toLowerCase().endsWith('@acadflow.app')) return null
+    return studentDocId(email.split('@')[0])
+  } catch { return null }
 }
 
 const DataContext = createContext(null)
@@ -121,20 +134,23 @@ export function DataProvider({ children }) {
         if (settings?.branding) setBranding(settings.branding)
       } catch (e) {}
 
-      // Real-time listeners.
+      // Real-time listeners. Role/identity scoping lets students attach per-user
+      // listeners (own feedback / excuse requests) and skip the admin-only feeds.
+      const _isAdmin = isAdminUser()
+      const _studentId = currentStudentId()
       fbStartListening(db, {
         onStudentsUpdate: setStudents,
         onClassesUpdate:    setClasses,
         onMessagesUpdate:   setMessages,
         onActivitiesUpdate: setActivities,
-        onAdminNotifUpdate: setAdminNotifs,
+        onAdminNotifUpdate: _isAdmin ? setAdminNotifs : undefined,
         onQuizzesUpdate:    setQuizzes,
         onAnnouncementsUpdate: setAnnouncements,
         onMeetingsUpdate: setMeetings,
         onAttendanceSessionsUpdate: setAttendanceSessions,
         onExcuseRequestsUpdate: setExcuseRequests,
         onStudentFeedbackUpdate: setStudentFeedback,
-        onAuditLogUpdate: isAdminUser() ? setAuditLog : undefined,
+        onAuditLogUpdate: _isAdmin ? setAuditLog : undefined,
         onRubricLibraryUpdate: setRubricLibrary,
         onConfigUpdate: ({ ejsConfig }) => {
           if (ejsConfig) {
@@ -150,7 +166,7 @@ export function DataProvider({ children }) {
           if (typeof data?.gradeFloor === 'number') setGradeFloor(data.gradeFloor)
           if (data?.branding) setBranding(data.branding)
         },
-      })
+      }, { isAdmin: _isAdmin, studentId: _studentId })
     }
 
     // Gate all data loading behind sign-in so locked Firestore rules
@@ -180,19 +196,21 @@ export function DataProvider({ children }) {
     if (!db) return false
     dbRef.current = db
     setFbReady(true)
+    const _isAdmin = isAdminUser()
+    const _studentId = currentStudentId()
     fbStartListening(db, {
       onStudentsUpdate: setStudents,
       onClassesUpdate:    setClasses,
       onMessagesUpdate:   setMessages,
       onActivitiesUpdate: setActivities,
-      onAdminNotifUpdate: setAdminNotifs,
+      onAdminNotifUpdate: _isAdmin ? setAdminNotifs : undefined,
       onQuizzesUpdate:    setQuizzes,
       onAnnouncementsUpdate: setAnnouncements,
       onMeetingsUpdate: setMeetings,
       onAttendanceSessionsUpdate: setAttendanceSessions,
       onExcuseRequestsUpdate: setExcuseRequests,
       onStudentFeedbackUpdate: setStudentFeedback,
-      onAuditLogUpdate: isAdminUser() ? setAuditLog : undefined,
+      onAuditLogUpdate: _isAdmin ? setAuditLog : undefined,
       onRubricLibraryUpdate: setRubricLibrary,
       onConfigUpdate: ({ ejsConfig }) => {
         if (ejsConfig) {
@@ -208,7 +226,7 @@ export function DataProvider({ children }) {
         if (typeof data?.gradeFloor === 'number') setGradeFloor(data.gradeFloor)
         if (data?.branding) setBranding(data.branding)
       },
-    })
+    }, { isAdmin: _isAdmin, studentId: _studentId })
     return true
   }, [])
 
