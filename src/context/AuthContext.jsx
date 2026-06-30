@@ -45,30 +45,51 @@ async function claimTempPassAccount(auth, snum, password) {
     return false
   }
   try {
-    // The roster read right after account creation can be DENIED while the brand
-    // new auth token propagates to the Firestore SDK (the same race loginStudent's
-    // exists-check retries). Reading it only once meant a correct default password
-    // was intermittently rejected. Retry a few times, minting the token each
-    // attempt; only a SUCCESSFUL read that fails verification is a real rejection.
-    let acct = null, readOk = false
-    for (let attempt = 0; attempt < 4; attempt++) {
+    // Verify the temp password SERVER-SIDE first, so the browser never reads
+    // account.pass (closes the C1 read gap) and verification doesn't suffer the
+    // auth-token-propagation race a client roster read does. The fresh idToken
+    // proves we're the account being claimed. We trust the server ONLY on a clean
+    // 200 {legit}; anything else (not configured, transient error, no token)
+    // degrades to the on-device check below, which retries through the token race.
+    let idToken = ''
+    try { idToken = await createdUser.getIdToken() } catch (e) { /* best-effort */ }
+    let legit = false, serverDecided = false
+    if (idToken) {
       try {
-        try { await createdUser.getIdToken() } catch (e) { /* token mint best-effort */ }
-        const snap = await getDoc(doc(db, 'students', studentDocId(snum)))
-        acct = snap.exists() ? (snap.data().account || null) : null
-        readOk = true
-        break
-      } catch (e) {
-        await new Promise(r => setTimeout(r, 400))
-      }
+        const r = await fetch('/api/verify-claim', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ studentNumber: snum, password, idToken }),
+        })
+        if (r.ok) {
+          const data = await r.json().catch(() => ({}))
+          if (typeof data.legit === 'boolean') { legit = data.legit; serverDecided = true }
+        }
+      } catch (e) { /* network error → fall through to on-device */ }
     }
-    // legit requires a successful read AND a password match - so we never grant a
-    // claim we couldn't verify (a stranger still can't seize an account).
-    const legit = readOk && !!(acct && acct.registered && acct._tempPass && acct.pass &&
+
+    if (!serverDecided) {
+      // On-device fallback (server unavailable). The roster read right after
+      // account creation can be denied while the new token propagates, so retry a
+      // few times; only a SUCCESSFUL read that fails verification is a real reject.
+      let acct = null, readOk = false
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+          try { await createdUser.getIdToken() } catch (e) { /* token mint best-effort */ }
+          const snap = await getDoc(doc(db, 'students', studentDocId(snum)))
+          acct = snap.exists() ? (snap.data().account || null) : null
+          readOk = true
+          break
+        } catch (e) {
+          await new Promise(r => setTimeout(r, 400))
+        }
+      }
+      legit = readOk && !!(acct && acct.registered && acct._tempPass && acct.pass &&
                      await verifyPassword(password, acct.pass))
+    }
+
     if (!legit) {
-      // Wrong password, unclaimable account, or the roster could never be read →
-      // undo the Auth user we made.
+      // Wrong password, unclaimable account, or could never verify → undo the
+      // Auth user we made (a stranger still can't seize an account).
       await deleteUser(createdUser).catch(() => {})
       await signOut(auth).catch(() => {})
       return false

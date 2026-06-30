@@ -306,6 +306,25 @@ export async function getStudentSecurityAnswer(projectId, accessToken, docId) {
   return (ans && typeof ans.stringValue === 'string') ? ans.stringValue : null
 }
 
+// Read the fields needed to verify a provisioning claim (the professor-set temp
+// password hash + the registered / _tempPass flags), server-side. Lets the first
+// sign-in verify the temp password WITHOUT the browser reading account.pass.
+export async function getStudentClaimSecret(projectId, accessToken, docId) {
+  const r = await fetch(`${fsBase(projectId)}/students/${encodeURIComponent(docId)}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (r.status === 404) return null
+  const data = await r.json()
+  if (!r.ok) throw new Error(data?.error?.message || 'Student read failed')
+  const acct = data.fields?.account?.mapValue?.fields || {}
+  const str = x => (x && typeof x.stringValue === 'string') ? x.stringValue : null
+  return {
+    pass: str(acct.pass),
+    registered: acct.registered?.booleanValue === true,
+    tempPass: acct._tempPass?.booleanValue === true,
+  }
+}
+
 // Set account.verified + account.verification on a student doc (admin write,
 // bypasses rules). Uses field-path masks so the rest of the account map is kept.
 export async function patchStudentVerification(projectId, accessToken, docId, { verified, verification }) {
