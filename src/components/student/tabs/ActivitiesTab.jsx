@@ -8,6 +8,7 @@ import { ClipboardList, Check, Circle, Users, ShieldCheck, AlertTriangle, Clock,
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import StandingRing from '@/components/primitives/StandingRing'
 import SubmissionFileField from '@/components/student/SubmissionFileField'
+import SubmissionPreview from '@/components/primitives/SubmissionPreview'
 import { uploadSubmission } from '@/utils/googleDrive'
 import { extractSubmissionText } from '@/utils/submissionExtract'
 
@@ -388,7 +389,9 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                     </div>
                   )}
                   {sub.link && (
-                    <a href={sub.link} target="_blank" rel="noreferrer" className="sa-act-link">View submission ↗</a>
+                    <div style={{ marginTop: 8 }}>
+                      <SubmissionPreview link={sub.link} name={act.title} compact fallbackLabel="View submission" />
+                    </div>
                   )}
                   {sub.feedback && (
                     <div style={{ marginTop: 8, padding: '8px 10px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8 }}>
@@ -418,7 +421,11 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                             {groupSub.submittedAt ? ` · ${new Date(groupSub.submittedAt).toLocaleDateString('en-PH', { dateStyle: 'medium' })}` : ''}
                           </div>
                           <div style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.5, whiteSpace: 'pre-wrap', maxHeight: 120, overflowY: 'auto' }}>{groupSub.text}</div>
-                          {groupSub.link && <a href={groupSub.link} target="_blank" rel="noreferrer" className="sa-act-link">Open attached link ↗</a>}
+                          {groupSub.link && (
+                            <div style={{ marginTop: 8 }}>
+                              <SubmissionPreview link={groupSub.link} name={`${myGroup.name} - ${act.title}`} compact fallbackLabel="Open attached link" />
+                            </div>
+                          )}
                           {!isPast && (
                             <button className="btn btn-ghost btn-sm mt-2" onClick={() => {
                               setEditing(prev => ({ ...prev, [act.id]: true }))
@@ -496,7 +503,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                   ) : (
                     <>
                       <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 4 }}>Submitted - awaiting grade</div>
-                      <a href={sub.link} target="_blank" rel="noreferrer" className="sa-act-link">View your submission ↗</a>
+                      <SubmissionPreview link={sub.link} name={act.title} compact fallbackLabel="View your submission" />
                       <div className="mt-2">
                         {!isPast ? (
                           <button

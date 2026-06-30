@@ -3847,6 +3847,15 @@ textarea.input { resize: vertical; }
 .s-media-file-meta { font-size: 0.75rem; color: var(--ink3); }
 .s-media-file-btn { flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; font-size: 0.8125rem; font-weight: 600; color: var(--accent); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; }
 
+/* Inline submission preview (activity review cards + student own view).
+   Reuses the Stream s-media tile/grid; just trims the IG card margins so it
+   sits flush, and a compact variant for the dense professor review cards. */
+.sub-preview { width: 100%; }
+.sub-preview .s-media-grid { border-radius: var(--radius); overflow: hidden; }
+.sub-preview .s-media-file { margin: 0; }
+.sub-preview-compact { max-width: 230px; }
+.sub-preview-compact .s-media-n1 .s-media-cell { aspect-ratio: 4 / 3; }
+
 /* Text-only post: renders the exact rich-editor HTML with a color accent */
 .s-textcard { position: relative; width: 100%; background: var(--surface); text-align: left; }
 .s-textcard-scroll { position: relative; max-height: 360px; overflow: hidden; padding: 16px 16px 12px; }

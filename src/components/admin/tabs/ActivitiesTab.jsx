@@ -9,7 +9,9 @@ import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
 import Badge from '@/components/primitives/Badge'
 import EmptyState from '@/components/ds/EmptyState'
-import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil, ClipboardList, AlarmClock, CircleDot, BarChart3, CheckCircle2, Check, Save, Plus, Copy, Users, ClipboardPaste, AlertTriangle, Trash2, ExternalLink } from 'lucide-react'
+import SubmissionPreview from '@/components/primitives/SubmissionPreview'
+import { extractSubmissionText } from '@/utils/submissionExtract'
+import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil, ClipboardList, AlarmClock, CircleDot, BarChart3, CheckCircle2, Check, Save, Plus, Copy, Users, ClipboardPaste, AlertTriangle, Trash2 } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { deviceRubric, smartInstructions, smartRubric, smartGrade, smartGradeGroups, autoFormGroups, prewarmActivitySmart, groupName } from '@/utils/activitySmart'
 import { sendPushToOwners } from '@/firebase/pushTokens'
@@ -30,6 +32,19 @@ function actId() {
 // A pasted submission link the serverless proxy can read text from.
 function isDocLink(link) {
   return /(docs|drive)\.google\.com/i.test(String(link || ''))
+}
+
+// Rebuild a base64 payload from the extract-doc proxy into a File the on-device
+// OCR/PDF reader can consume. Returns null if the string is not valid base64.
+function base64ToFile(b64, name, mime) {
+  try {
+    const bin = atob(String(b64 || ''))
+    const bytes = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+    return new File([bytes], name, { type: mime })
+  } catch {
+    return null
+  }
 }
 
 function defaultDeadlineStr() {
@@ -1028,16 +1043,33 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
   }
 
   // Phase B fallback for pasted-link submissions (no uploaded file to read):
-  // pull the public Google Doc/Drive text via the serverless proxy, then grade.
+  // ask the serverless proxy for the link's content, then grade. Google
+  // Docs/Slides/Sheets come back as plain `text`; a Drive image/PDF comes back
+  // as `binary` (base64) which we OCR/parse on-device with the SAME pipeline the
+  // student-upload path uses, so a pasted Drive file link still gets scanned.
   async function fetchFromLink(link) {
     if (!link) return
     setDocFetching(true)
     try {
       const r = await fetch('/api/extract-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: link }) })
       const data = await r.json().catch(() => ({}))
-      if (!r.ok || !data.text) { toast(data.error || 'Could not read text from that link. Make sure it is shared, or paste it manually.', 'warn', 7000); return }
-      setAiText(data.text)
-      runAiGrade(smartFor, data.text)
+      if (r.ok && data.text) {
+        setAiText(data.text)
+        runAiGrade(smartFor, data.text)
+        return
+      }
+      if (r.ok && data.binary) {
+        const file = base64ToFile(data.binary, data.name || 'submission', data.mime || 'application/octet-stream')
+        const ex = file ? await extractSubmissionText(file).catch(() => null) : null
+        if (ex?.text) {
+          setAiText(ex.text)
+          runAiGrade(smartFor, ex.text)
+        } else {
+          toast('Could not read text from that file. Open it to grade manually, or paste the text.', 'warn', 7000)
+        }
+        return
+      }
+      toast(data.error || 'Could not read text from that link. Make sure it is shared, or paste it manually.', 'warn', 7000)
     } catch (e) {
       toast('Could not reach the text reader. Paste the work manually.', 'warn', 6000)
     } finally { setDocFetching(false) }
@@ -1289,12 +1321,13 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                   {hasLink
                     ? <Badge variant="green"><CheckCircle2 size={14} /> Submitted</Badge>
                     : <Badge variant="gray" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>{isPast ? <><AlertCircle size={11} />Missed</> : <><Clock size={11} />Pending</>}</Badge>}
-                  {hasLink && (
-                    <a href={sub.link} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }}>
-                      <ExternalLink size={13} /> Open
-                    </a>
-                  )}
                 </div>
+
+                {hasLink && (
+                  <div style={{ marginTop: 10 }}>
+                    <SubmissionPreview link={sub.link} name={`${s.name} - ${act.title}`} compact fallbackLabel="Open submission" />
+                  </div>
+                )}
 
                 {hasRubric && (
                   <div className="flex flex-wrap gap-x-3 gap-y-1" style={{ marginTop: 10 }}>
@@ -1408,13 +1441,15 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                 This submission has no auto-read text (it is a pasted link, not an uploaded file). Open it, paste the work below, or pull the text from the link. On-device Smart grading drafts a score you review before saving. Nothing is uploaded.
               </div>
             )}
+            {sub.link && (
+              <div className="mb-2">
+                <SubmissionPreview link={sub.link} name={`${stud?.name || 'Submission'} - ${act.title}`} compact fallbackLabel="Open submission" />
+              </div>
+            )}
             <div className="flex items-center gap-2 mb-2 flex-wrap">
-              {sub.link && (
-                <a href={sub.link} target="_blank" rel="noopener noreferrer" className="link-btn" style={{ fontSize: 12, display: 'inline-block' }}>Open submission ↗</a>
-              )}
               {!sub.contentText && isDocLink(sub.link) && (
                 <button className="btn btn-ghost btn-sm" onClick={() => fetchFromLink(sub.link)} disabled={docFetching}>
-                  <ClipboardPaste size={13} className="inline-block mr-1" />{docFetching ? 'Fetching…' : 'Pull text from link'}
+                  <ClipboardPaste size={13} className="inline-block mr-1" />{docFetching ? 'Reading…' : 'Pull text from link'}
                 </button>
               )}
             </div>
