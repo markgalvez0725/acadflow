@@ -2,6 +2,8 @@
 
 **Academic Management System** for admins (teachers/staff) and students - built with React, Vite, and Firebase Firestore.
 
+**Version 2.1.0**
+
 ---
 
 ## Overview
@@ -138,6 +140,7 @@ api/                 # Vercel serverless functions (Node built-ins only)
   send-push.js       # FCM HTTP v1 web push
   cron-reminders.js  # Vercel Cron: deadline reminders for the closed app
   verify-account.js  # Server-side account verification
+  verify-claim.js    # Server-side first-login password-hash check (reads studentSecrets)
   admin-open-reset-session.js / claim-reset.js  # Teacher-coordinated password reset
 src/
   components/
@@ -205,9 +208,17 @@ Two storage patterns coexist:
 | `portal/settings` | Portal-wide settings |
 | `portal/admin` | Admin credentials (hashed password, email, reset PIN) |
 
+**Server-only collections** (Firestore rules deny all client reads; touched only by `api/` serverless functions):
+
+| Collection | Purpose |
+|---|---|
+| `studentSecrets` | Per-student password hash, kept off the client-readable `students` doc |
+| `faceSignatures` | Enrolled Face ID descriptors used for server-side identity matching |
+
 ## Security Notes
 
 - Passwords are SHA-256 hashed with a salt before storage - never stored in plaintext.
+- Password hashes live in a server-only `studentSecrets` collection (denied to all clients by Firestore rules), not on the broadly-readable `students` document, so no signed-in student can read another student's hash. First-login claim and account recovery verify the hash server-side via `api/verify-claim.js`.
 - Firebase config is AES-encrypted in `localStorage`.
 - Plaintext Firebase config is removed from `localStorage` 3 seconds after init.
 - Login has per-key brute-force lockout tracked in `sessionStorage`.
