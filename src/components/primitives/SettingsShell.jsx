@@ -61,7 +61,7 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
 
   // Drive the open slide via the SAME transform pipeline as drag/close (one
   // mechanism, no CSS keyframe). A keyframe animation with fill-mode would pin
-  // `transform` and override the drag offset, freezing the sheet — that was the
+  // `transform` and override the drag offset, freezing the sheet, that was the
   // bug. Park at translateY(100%), then rAF-flip to 0 so the transition animates.
   useEffect(() => {
     if (!open) { setEntered(false); return }
@@ -159,8 +159,11 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
       .sset-back { display:inline-flex; align-items:center; gap:4px; background:none; border:none; cursor:pointer; color:var(--ink2); font-size:13px; font-weight:600; padding:0; margin-bottom:8px }
       .sset-back:hover { color:var(--ink) }
       .sset-h { font-size:18px; font-weight:700; color:var(--ink); font-family:var(--font-display) }
-      .sset-search { display:flex; align-items:center; gap:8px; background:var(--surface2); border:1px solid var(--border); border-radius:999px; padding:8px 14px; margin-bottom:18px }
-      .sset-search input { border:none; background:none; outline:none; flex:1; font-size:13px; color:var(--ink) }
+      .sset-search { display:flex; align-items:center; gap:8px; background:var(--surface); border:1.5px solid var(--border2); border-radius:999px; padding:9px 14px; margin-bottom:18px; transition:border-color .15s, box-shadow .15s }
+      .sset-search:hover { border-color:color-mix(in srgb, var(--border2), var(--ink3) 45%) }
+      .sset-search:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-l) }
+      .sset-search input { border:none; background:none; outline:none; flex:1; font-size:0.9063rem; color:var(--ink); font-family:var(--font-body) }
+      .sset-search input::placeholder { color:var(--ink3) }
       .sset-x { position:absolute; top:14px; right:14px; z-index:2; background:none; border:none; cursor:pointer; color:var(--ink3); display:flex; padding:4px; border-radius:8px }
       .sset-x:hover { background:var(--bg2); color:var(--ink) }
       .sset-sheet-full { height:100vh; height:100dvh; padding-top:env(safe-area-inset-top) }
