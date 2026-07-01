@@ -1118,6 +1118,17 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
         </div>
       )}
 
+      {Array.isArray(act.attachments) && act.attachments.length > 0 && (
+        <div className="mb-3">
+          <div className="text-xs font-semibold text-ink2 mb-1">Attachments</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {act.attachments.map((at, i) => (
+              <SubmissionPreview key={i} link={at.link} name={at.name || act.title} compact fallbackLabel={at.name || 'Open attachment'} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Rubric summary */}
       {hasRubric && (
         <div className="mb-3" style={{ background: 'var(--surface2)', borderRadius: 6, padding: '10px 14px' }}>
