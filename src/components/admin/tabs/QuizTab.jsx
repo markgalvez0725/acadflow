@@ -986,9 +986,12 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
         if (!Array.isArray(sub.answers)) return
         const { score, total } = computeQuizScore(updatedQuestions, sub.answers, { partialCredit: !!quiz.partialCredit })
         if (score !== sub.score) {
+          const rawPct = total > 0 ? Math.round((score / total) * 10000) / 100 : 0
+          const effPct = Math.max(0, Math.round((rawPct - (sub.penaltyPct || 0)) * 100) / 100)
           update[`submissions.${sid}.score`] = score
           update[`submissions.${sid}.total`] = total
-          newScores[sid] = { score, total, pct: total > 0 ? Math.round((score / total) * 10000) / 100 : 0 }
+          update[`submissions.${sid}.pct`] = effPct
+          newScores[sid] = { score, total, pct: effPct }
         }
       })
 
@@ -1101,9 +1104,14 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
             {enrolledStudents.map(s => {
               const sub = submissions[s.id]
               const hasAttempt = !!sub
+              const prog = (quiz.progress || {})[s.id]
               const score = sub?.score
               const total = (sub?.total ?? quiz.totalPoints ?? quiz.questions?.length) || 1
-              const pct = score != null ? ((score / total) * 100).toFixed(1) : null
+              const rawPct = score != null ? (score / total) * 100 : null
+              const penalty = sub?.penaltyPct || 0
+              // Prefer the stored effective percentage (already penalized); fall back
+              // to the raw score for older submissions without it.
+              const effPct = sub?.pct != null ? sub.pct : (rawPct != null ? Math.round(rawPct * 10) / 10 : null)
               const timeTaken = sub?.timeTaken ? Math.round(sub.timeTaken / 60) + ' min' : '-'
               const limitSecs = (quiz.timeLimit || 0) * 60
               const tooFast = hasAttempt && sub?.timeTaken != null && limitSecs > 0 && sub.timeTaken < Math.max(20, limitSecs * 0.15)
@@ -1121,14 +1129,19 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
                   </td>
                   <td>
                     {hasAttempt
-                      ? <Badge variant="green"><CheckCircle size={11} className="inline-block mr-1 align-text-bottom" />Submitted</Badge>
-                      : <Badge variant="gray" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>{isClosed ? <><AlertCircle size={11} />Missed</> : <><Clock size={11} />Not yet</>}</Badge>}
+                      ? <Badge variant="green" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><CheckCircle size={11} />Submitted</Badge>
+                      : prog?.stage
+                        ? (prog.stage === 'almost'
+                            ? <Badge variant="yellow" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={11} />Almost done{prog.total ? ` ${prog.answered}/${prog.total}` : ''}</Badge>
+                            : <Badge variant="blue" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={11} />In progress{prog.total ? ` ${prog.answered}/${prog.total}` : ''}</Badge>)
+                        : <Badge variant="gray" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>{isClosed ? <><AlertCircle size={11} />Missed</> : <><Clock size={11} />Not yet</>}</Badge>}
                   </td>
                   <td>{score != null ? `${score}/${total}` : '-'}</td>
                   <td>
-                    {pct != null ? (
-                      <span style={{ fontWeight: 700, color: pct >= 75 ? 'var(--green)' : pct >= 50 ? '#f59e0b' : 'var(--red)' }}>
-                        {pct}%
+                    {effPct != null ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4 }}>
+                        <span style={{ fontWeight: 700, color: effPct >= 75 ? 'var(--green)' : effPct >= 50 ? '#f59e0b' : 'var(--red)' }}>{effPct}%</span>
+                        {penalty > 0 && <span title={`Left the quiz ${leftN}x - ${penalty}% deducted`} style={{ fontSize: 10, fontWeight: 700, color: 'var(--red)' }}>-{penalty}%</span>}
                       </span>
                     ) : '-'}
                   </td>
@@ -1588,7 +1601,7 @@ export default function QuizTab() {
                         </>
                       ) : (
                         <>
-                          <button className="btn btn-ghost btn-sm" onClick={() => setViewQuiz(q)}>View</button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => setViewQuiz(q)}>{now > q.closeAt ? 'Results' : 'Monitor'}</button>
                           <button className="btn btn-ghost btn-sm" onClick={() => setEditQuiz(q)}>Edit</button>
                         </>
                       )}

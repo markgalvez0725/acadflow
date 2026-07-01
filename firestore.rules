@@ -165,7 +165,7 @@ service cloud.firestore {
     match /quizzes/{docId} {
       allow read:           if signedIn();
       allow create, delete: if isAdmin();
-      allow update:         if isAdmin() || (signedIn() && onlyAffects(['submissions']));
+      allow update:         if isAdmin() || (signedIn() && onlyAffects(['submissions', 'progress']));
     }
 
     // Activities + attendance sessions: only the teacher creates or deletes them;

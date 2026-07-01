@@ -80,7 +80,7 @@ function useCountdown(deadlineMs) {
 
 // ── Quiz Taking Modal ─────────────────────────────────────────────────────────
 function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
-  const { db, fbReady, students, saveStudents, submitQuizResult } = useData()
+  const { db, fbReady, students, saveStudents, submitQuizResult, setQuizProgress } = useData()
   const { toast } = useUI()
 
   const totalSecs = quiz.timeLimit * 60
@@ -133,6 +133,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
   const [order, setOrder] = useState(() => shuffleIndices(quiz.questions.length))
   const [leftCount, setLeftCount] = useState(0)
   const leftCountRef = useRef(0)     // synchronous mirror of leftCount
+  const lastStageRef = useRef(null)  // last live-progress stage sent to the monitor
   const inFlightRef = useRef(false)  // suppress reset during submit/after submit
 
   // Sequential navigation: students must answer the current question before
@@ -158,6 +159,21 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
     if (submitted) return
     try { localStorage.setItem(draftKey, JSON.stringify({ answers, startedAt: startRef.current })) } catch (e) { /* ignore */ }
   }, [answers, submitted, draftKey])
+
+  // Live progress heartbeat for the professor's monitor. Coarse stages only
+  // (started/half/almost), written when the stage changes, so it costs only a
+  // few writes per attempt. Best-effort: silently no-ops if the write is denied
+  // (e.g. rules not yet deployed) so it never disrupts the student.
+  useEffect(() => {
+    if (submitted || !fbReady) return
+    const answered = answers.filter(Boolean).length
+    const n = quiz.questions.length || 1
+    const ratio = answered / n
+    const stage = ratio >= 0.8 ? 'almost' : ratio >= 0.5 ? 'half' : 'started'
+    if (stage === lastStageRef.current) return
+    lastStageRef.current = stage
+    Promise.resolve(setQuizProgress({ quizId: quiz.id, studentId: student.id, progress: { stage, answered, total: n, updatedAt: Date.now() } })).catch(() => {})
+  }, [answers, submitted, fbReady, quiz.id, student.id])
 
   // One-time notice when an in-progress draft is restored.
   const notifiedRef = useRef(false)
@@ -232,7 +248,10 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
 
     const timeTaken = Math.round((Date.now() - startRef.current) / 1000)
     const { score, total } = computeQuizScore(quiz.questions, answers, { partialCredit: !!quiz.partialCredit })
-    const pct = total > 0 ? Math.round((score / total) * 100 * 100) / 100 : 0
+    const rawPct = total > 0 ? Math.round((score / total) * 100 * 100) / 100 : 0
+    // Auto-deduction: 1 percentage point per tab-switch/leave (leftCount), no cap.
+    const penaltyPct = leftCountRef.current
+    const pct = Math.max(0, Math.round((rawPct - penaltyPct) * 100) / 100)
 
     try {
       if (!fbReady || !db.current) throw new Error('Firebase not ready')
@@ -254,13 +273,13 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
       await submitQuizResult({
         quizId: quiz.id,
         studentId: student.id,
-        submission: { score, total, timeTaken, leftCount: leftCountRef.current, answers, submittedAt: Date.now() },
+        submission: { score, total, timeTaken, leftCount: leftCountRef.current, penaltyPct, pct, answers, submittedAt: Date.now() },
         quizResults: { ...quizResults, [subject]: updatedList },
       })
 
       try { localStorage.removeItem(draftKey) } catch (e) { /* ignore */ }
       exitFullscreen() // leave focus mode; show the result card normally
-      setFinalScore({ score, total, pct })
+      setFinalScore({ score, total, pct, rawPct, penaltyPct })
       setSubmitted(true)
       toast(isAuto ? `Time's up! Score: ${score}/${total}` : `Submitted! Score: ${score}/${total}`, 'success')
       onSubmitted({ score, total, pct })
@@ -285,7 +304,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
 
   // Submitted result screen
   if (submitted && finalScore) {
-    const { score, total, pct } = finalScore
+    const { score, total, pct, rawPct, penaltyPct } = finalScore
     const passed = pct >= 75
     return (
       <Modal onClose={onClose} size="md" sheetOnMobile>
@@ -300,6 +319,9 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
           }}>
             <div style={{ fontSize: 36, fontWeight: 800 }}>{score}/{total}</div>
             <div style={{ fontSize: 20, fontWeight: 700 }}>{pct}%</div>
+            {penaltyPct > 0 && (
+              <div style={{ fontSize: 12, fontWeight: 600, marginTop: 2 }}>Includes a {penaltyPct}% deduction for leaving the quiz ({rawPct}% before).</div>
+            )}
             <div style={{ fontSize: 13, marginTop: 4 }}>{passed ? <>Passed <Check size={14} /></> : 'Below passing'}</div>
           </div>
           <p className="text-xs text-ink3 mb-6">Your score has been saved to your grades automatically.</p>

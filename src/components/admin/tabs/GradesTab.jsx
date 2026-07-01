@@ -157,6 +157,9 @@ function GradeEntryModal({ classId, subject, onClose }) {
       const qzInputs = qzCols.map(c => {
         if (c.quiz) {
           const sub = (c.quiz.submissions || {})[s.id]
+          // Prefer the stored effective percentage (already includes any cheat
+          // deduction); fall back to raw score for older submissions.
+          if (sub?.pct != null) return String(sub.pct)
           if (sub?.score != null) {
             const total = (sub.total ?? c.quiz.totalPoints ?? c.quiz.questions?.length) || 1
             return String(parseFloat(((sub.score / total) * 100).toFixed(1)))

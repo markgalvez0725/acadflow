@@ -13,6 +13,7 @@ import {
   fbBackfillMessageActivity, fbFetchAllMessages,
   fbWriteStudentSecret, fbMigrateStudentSecrets,
   fbSubmitQuizResult,
+  fbSetQuizProgress,
 } from '@/firebase/persistence'
 import { fbPushReminderNotif } from '@/firebase/reminders'
 import { serializeStudents } from '@/utils/attendance'
@@ -325,6 +326,7 @@ export function DataProvider({ children }) {
   // Student quiz submission routed through the data layer (echo-suppresses the
   // students-doc cache write). The quiz-doc submission is authoritative.
   const submitQuizResult = useCallback((args) => fbSubmitQuizResult(dbRef.current, args), [])
+  const setQuizProgress = useCallback((args) => fbSetQuizProgress(dbRef.current, args), [])
 
   const provisionStudentSecret = useCallback(async (studentId, passHash) => {
     if (!dbRef.current || !studentId || !passHash) return
@@ -1519,7 +1521,7 @@ export function DataProvider({ children }) {
 
   return (
     <DataContext.Provider value={{
-      students, setStudents, saveStudents, provisionStudentSecret, submitQuizResult, saveGradeNote, markAccountActive, deleteStudent, purgeStudentEverywhere, schedulePurge, cancelPurge, restoreStudents,
+      students, setStudents, saveStudents, provisionStudentSecret, submitQuizResult, setQuizProgress, saveGradeNote, markAccountActive, deleteStudent, purgeStudentEverywhere, schedulePurge, cancelPurge, restoreStudents,
       classes, setClasses, saveClasses, setSubjectRep, archiveClassWithStudents, unarchiveClassWithStudents, deleteClass,
       enrollInClass, unenrollFromClass,
       messages, setMessages, loadMoreMessages, hasMoreMessages,

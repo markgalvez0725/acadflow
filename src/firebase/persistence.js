@@ -591,6 +591,8 @@ export async function fbSubmitQuizResult(db, { quizId, studentId, submission, qu
     [`${sp}.total`]: submission.total,
     [`${sp}.timeTaken`]: submission.timeTaken,
     [`${sp}.leftCount`]: submission.leftCount,
+    [`${sp}.penaltyPct`]: submission.penaltyPct || 0,
+    [`${sp}.pct`]: submission.pct ?? null,
     [`${sp}.answers`]: submission.answers,
     [`${sp}.submittedAt`]: submission.submittedAt,
   }))
@@ -600,6 +602,16 @@ export async function fbSubmitQuizResult(db, { quizId, studentId, submission, qu
   } finally {
     setTimeout(() => setFbWriting(false), 1500)
   }
+}
+
+// Live progress heartbeat for the professor's quiz monitor. Writes a coarse
+// stage under progress.<studentId> (a field separate from submissions). Kept
+// best-effort by the caller: if the deployed rules do not yet allow the
+// `progress` field the write just fails and the monitor falls back to the
+// submitted / not-started view.
+export async function fbSetQuizProgress(db, { quizId, studentId, progress }) {
+  if (!db || !quizId || !studentId) return
+  await fbWithTimeout(updateDoc(doc(db, 'quizzes', quizId), { [`progress.${studentId}`]: progress }))
 }
 
 export async function fbPushAnnouncementNotifs(db, announcement, students) {
