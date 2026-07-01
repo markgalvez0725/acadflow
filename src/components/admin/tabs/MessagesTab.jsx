@@ -196,7 +196,7 @@ function RecipientPicker({ students, classes, classGroups, classBroadcasts, subj
 // ── Compose Modal ─────────────────────────────────────────────────────
 function ComposeModal({ onClose, replyToStudentId = null }) {
   const { students, classes, messages, semester, db, fbReady } = useData()
-  const { toast } = useUI()
+  const { toast, openDialog } = useUI()
   const [to, setTo]           = useState(replyToStudentId || 'all')
   const [body, setBody]       = useState('')
   const [err, setErr]         = useState('')
@@ -260,6 +260,28 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
     const msgType = (to === 'all' || isClassBroadcast || isSubjectBroadcast) ? 'announcement' : 'direct'
     const id = msgId()
     const snippet = body.trim().slice(0, 80)
+
+    // Prevent duplicate group chats: a class / subject / all-students broadcast
+    // is a persistent group chat keyed by its target, so exactly one should ever
+    // exist. If the chosen target already has a group chat, block the create and
+    // point the professor to the existing thread instead of spawning a copy.
+    const isBroadcast = to === 'all' || isClassBroadcast || isSubjectBroadcast
+    if (isBroadcast && messages.some(m => isGroupMessage(m) && m.to === to)) {
+      setSending(false)
+      const dupCls = isClassBroadcast ? classes.find(c => c.id === classId) : null
+      const dupLabel = to === 'all'
+        ? 'All Students'
+        : isClassBroadcast
+          ? (dupCls ? `${courseShort(dupCls.name)} ${dupCls.section || ''}`.trim() : 'This class')
+          : subjectName
+      await openDialog({
+        title: 'Group chat already exists',
+        msg: `${dupLabel} already has a group chat. Open it from your inbox and post your message there instead of creating a duplicate.`,
+        type: 'warning',
+        confirmLabel: 'Got it',
+      })
+      return
+    }
 
     if (isSubjectBroadcast && (!subjClassIds || !subjClassIds.length)) {
       setErr('That subject has no current-semester classes.'); setSending(false); return
