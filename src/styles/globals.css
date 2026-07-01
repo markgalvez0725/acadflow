@@ -628,6 +628,10 @@ input:-webkit-autofill { animation-name: onAutoFillStart; }
 .app-splash-bar { width: 150px; height: 4px; border-radius: 99px; background: rgba(255,255,255,.16); overflow: hidden; position: relative; z-index: 1; }
 .app-splash-bar > span { display: block; height: 100%; width: 42%; border-radius: 99px; background: #7c6cf2; animation: splashBar 1.25s ease-in-out infinite; }
 .app-splash-hint { font-size: .72rem; color: rgba(255,255,255,.5); letter-spacing: .04em; position: relative; z-index: 1; }
+/* Match the splash field to the active theme (same values as the #boot-splash
+   variants inlined in index.html - keep the two in sync). Frost twin lives in
+   the design-system.css frost block. */
+[data-theme="dark"] .app-splash { background: #0e1422; }
 /* Brand lockup (AcadFlowLogo) - swap color/white by theme so the wordmark
    never disappears on a dark surface. */
 .aflogo { display: inline-flex; align-items: center; }

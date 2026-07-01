@@ -778,6 +778,19 @@ html[data-theme="frost"] .toast.toast-dark {
   color: var(--ink);
 }
 
+/* Lazy-chunk loading splash (Suspense fallback): plum field like the boot
+   splash in index.html (same values - keep the two in sync). */
+html[data-theme="frost"] .app-splash {
+  background: radial-gradient(120% 90% at 20% 0%, #1c1430 0%, #130e22 100%);
+}
+html[data-theme="frost"] .app-splash-glow {
+  opacity: .6;
+  background:
+    radial-gradient(circle at 26% 18%, rgba(167,139,250,.50) 0, transparent 42%),
+    radial-gradient(circle at 82% 86%, rgba(244,114,182,.35) 0, transparent 40%);
+}
+html[data-theme="frost"] .app-splash-bar > span { background: #8b83ff; }
+
 /* ── Dark-parity fixes (frost copies of the [data-theme="dark"] patches) ── */
 html[data-theme="frost"] .aflogo-light { display: none; }
 html[data-theme="frost"] .aflogo-dark  { display: block; }

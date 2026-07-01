@@ -26,6 +26,23 @@
   <!-- PWA: installable + offline shell -->
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="theme-color" content="#16264a" />
+
+  <!-- Apply the saved theme BEFORE first paint so the boot splash (and the app
+       behind it) match from the very first frame: no light flash for dark/frost
+       users. Mirrors the UIContext init logic (which re-runs harmlessly after
+       hydration and stays the single owner of theme changes). -->
+  <script>
+    try {
+      var t = localStorage.getItem('acadflow_theme');
+      if (['light', 'dark', 'frost'].indexOf(t) < 0) {
+        t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.setAttribute('data-theme', t);
+      var tc = { light: '#16264a', dark: '#0e1422', frost: '#130e22' };
+      var m = document.querySelector('meta[name="theme-color"]');
+      if (m) m.setAttribute('content', tc[t] || tc.light);
+    } catch (e) {}
+  </script>
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -78,6 +95,12 @@
     #boot-splash .boot-bar{width:150px;height:4px;border-radius:99px;background:rgba(255,255,255,.16);overflow:hidden;position:relative;z-index:1}
     #boot-splash .boot-bar>span{position:absolute;top:0;left:0;height:100%;width:42%;border-radius:99px;background:#7c6cf2;animation:bootSlide 1.25s ease-in-out infinite}
     #boot-splash .boot-hint{font-size:.72rem;color:rgba(255,255,255,.5);letter-spacing:.04em;position:relative;z-index:1}
+    /* Per-theme splash field (data-theme is set pre-paint by the head script).
+       Light keeps the branded navy; dark and frost match their app canvases. */
+    html[data-theme="dark"] #boot-splash{background:#0e1422}
+    html[data-theme="frost"] #boot-splash{background:radial-gradient(120% 90% at 20% 0%,#1c1430 0%,#130e22 100%)}
+    html[data-theme="frost"] #boot-splash .boot-glow{opacity:.6;background:radial-gradient(circle at 26% 18%,rgba(167,139,250,.5) 0,transparent 42%),radial-gradient(circle at 82% 86%,rgba(244,114,182,.35) 0,transparent 40%)}
+    html[data-theme="frost"] #boot-splash .boot-bar>span{background:#8b83ff}
     @keyframes bootFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
     @keyframes bootPop{0%{opacity:0;transform:scale(.5) rotate(-8deg)}100%{opacity:1;transform:none}}
     @keyframes bootSlide{0%{transform:translateX(-130%)}100%{transform:translateX(330%)}}
