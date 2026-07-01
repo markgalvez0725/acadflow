@@ -4,9 +4,22 @@
 // features ships, so the "What's new" modal always reflects the current build.
 // User-facing copy: keep it plain, no em-dashes.
 
-export const APP_VERSION = '2.2.0'
+export const APP_VERSION = '2.3.0'
 
 export const CHANGELOG = [
+  {
+    version: '2.3.0',
+    date: 'July 2026',
+    title: 'Quiz drafts, live monitoring, and Smart Quiz',
+    changes: [
+      'Quizzes can now be saved as a draft and posted when you are ready. Drafts stay hidden from students and show a Draft badge with a one-tap Post, and a new Now button opens a quiz right away.',
+      'Watch a quiz as it happens: the new Monitor (which replaces View) shows who has not started, who is in progress, who is almost done, and who has submitted, updating live. Leaving the quiz now deducts 1% from the score each time, automatically.',
+      'Smart Quiz turns a lesson or a topic into questions and opens them in Perplexity in one click, with no key or setup. You can also download a template for ChatGPT, Claude, or Gemini, and pick easy, medium, or hard.',
+      'Keep me signed in keeps you logged in on your own device, so a quick browser refresh always loads the latest without retyping your password. Leave it off on shared or lab computers.',
+      'Teachers can attach files to an activity, shown to students with the same inline preview and full-screen viewer used across the app. For group work, one representative uploads for the whole group and the upload locks once submitted so nobody overwrites it (teachers can reopen it).',
+      'Smaller touches: the Grades quiz column now shows the running average of quiz results, and the Nudge all reminder only appears once an activity is past its deadline.',
+    ],
+  },
   {
     version: '2.2.0',
     date: 'July 2026',
