@@ -1979,45 +1979,30 @@ textarea.input { resize: vertical; }
 /* ══════════════════════════════════════════
    STUDENT SUBJECT GRADE CARD (GradesTab)
 ══════════════════════════════════════════ */
-.sg-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
-  margin-bottom: 14px;
-  overflow: hidden;
-}
-.sg-card-header {
+.sgc-card { padding: 14px 16px; }
+.sgc-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 16px 18px 14px;
-  border-bottom: 1px solid var(--border);
 }
-.sg-card-title { min-width: 0; flex: 1; }
+.sgc-title { min-width: 0; flex: 1; }
 .sg-subject-name {
-  font-size: 1.0313rem;
+  font-size: 0.9375rem;
   font-weight: 700;
   color: var(--ink);
   margin-bottom: 2px;
 }
-.sg-upload-label { font-size: 0.7813rem; }
-.sg-card-grade {
-  text-align: right;
-  flex-shrink: 0;
-}
-.sg-grade-num {
-  font-size: 1.8125rem;
-  font-weight: 700;
+.sg-upload-label { font-size: 0.7188rem; }
+.sg-upload-status svg { vertical-align: -2px; margin-right: 2px; }
+.sgc-grade { text-align: right; flex-shrink: 0; }
+.sgc-eq {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 800;
   line-height: 1.1;
 }
-.sg-grade-badges { margin-top: 4px; }
-.sg-breakdown {
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg);
-}
+.sgc-pct { font-size: 0.72rem; color: var(--ink3); margin-top: 2px; }
 .sg-section-label {
   font-size: 0.7188rem;
   font-weight: 700;
@@ -2026,31 +2011,35 @@ textarea.input { resize: vertical; }
   color: var(--ink3);
   margin-bottom: 10px;
 }
-.sg-bar-row { margin-bottom: 8px; }
-.sg-bar-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
+.sgc-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.sgc-chip {
+  font-size: 0.7rem;
+  padding: 3px 9px;
+  border-radius: 8px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--ink2);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.sgc-chip strong { font-weight: 700; }
+.sgc-chip-ok   { background: var(--green-l);  border-color: transparent; color: var(--green); font-weight: 600; }
+.sgc-chip-warn { background: var(--yellow-l); border-color: transparent; color: var(--gold-var); font-weight: 600; }
+.sgc-comps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+.sgc-comp-lb {
+  font-size: 0.62rem;
+  color: var(--ink3);
   margin-bottom: 3px;
-}
-.sg-bar-label { font-size: 0.8438rem; color: var(--ink2); font-weight: 500; }
-.sg-bar-weight { font-size: 0.7188rem; color: var(--ink3); }
-.sg-bar-val { font-size: 0.8438rem; font-weight: 700; }
-.sg-bar-track {
-  height: 6px;
-  border-radius: 3px;
-  background: var(--border);
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
-.sg-bar-fill {
-  height: 100%;
-  border-radius: 3px;
-  transition: width .4s cubic-bezier(.4,0,.2,1);
-}
-.sg-score-block {
-  padding: 12px 18px;
-  border-bottom: 1px solid var(--border);
-}
+.sgc-comp-track { height: 4px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.sgc-comp-fill { height: 100%; border-radius: 999px; }
+.sg-score-block { padding: 10px 0 0; }
+.sg-score-block + .sg-score-block { margin-top: 8px; border-top: 1px dashed var(--border); }
 .sg-score-row {
   display: flex;
   justify-content: space-between;
@@ -2072,7 +2061,7 @@ textarea.input { resize: vertical; }
   color: var(--ink2);
 }
 .sg-no-data {
-  padding: 20px 18px;
+  padding: 14px 0 4px;
   font-size: 0.8438rem;
   color: var(--ink3);
   text-align: center;
@@ -2094,176 +2083,100 @@ textarea.input { resize: vertical; }
   font-weight: 600;
 }
 
-/* ── Grade % sub-label under equiv ── */
-.sg-grade-pct {
-  font-size: 0.7813rem;
-  color: var(--ink3);
-  margin-top: 2px;
-  text-align: right;
-}
-
-/* ── GWA Banner ── */
-.sg-gwa-banner {
+/* ── Expander footer + in-place sections ── */
+.sgc-foot {
   display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+}
+.sgc-x {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  background: var(--grad-brand);
-  border: none;
-  border-radius: var(--radius-lg);
-  padding: 16px 20px;
-  margin-bottom: 14px;
-  box-shadow: var(--glow-sm);
-  position: relative;
-  overflow: hidden;
-}
-.sg-gwa-banner::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,.1) 0%, transparent 60%);
-  pointer-events: none;
-}
-.sg-gwa-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-.sg-gwa-right {
-  text-align: right;
-  flex-shrink: 0;
-}
-.sg-gwa-title {
-  font-size: 0.9063rem;
-  font-weight: 700;
-  color: rgba(255,255,255,.9);
-}
-.sg-gwa-sub {
-  font-size: 0.7813rem;
-  color: rgba(255,255,255,.65);
-  margin-top: 1px;
-}
-.sg-gwa-eq {
-  font-size: 1.9375rem;
-  font-weight: 800;
-  line-height: 1;
-  color: #fff;
-}
-.sg-gwa-remarks {
-  font-size: 0.7813rem;
-  font-weight: 700;
-  margin-top: 3px;
-  text-transform: uppercase;
-  letter-spacing: .05em;
-  color: rgba(255,255,255,.75);
-}
-
-/* ── Term Summary Grid ── */
-.sg-term-grid {
-  display: flex;
-  align-items: stretch;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg);
-}
-.sg-term-item {
-  flex: 1;
-  padding: 12px 14px;
-  text-align: center;
-}
-.sg-term-label {
-  font-size: 0.7188rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  color: var(--ink3);
-  margin-bottom: 6px;
-}
-.sg-term-val {
-  font-size: 1.375rem;
-  font-weight: 800;
-  line-height: 1.1;
-}
-.sg-term-val--final {
-  font-size: 1.5625rem;
-}
-.sg-term-eq {
-  font-size: 0.7813rem;
-  color: var(--ink3);
-  margin-top: 3px;
-}
-.sg-term-divider {
-  width: 1px;
-  background: var(--border);
-  align-self: stretch;
-  margin: 8px 0;
-}
-
-/* ── Grade Computation Trail ── */
-.sg-trail {
-  border-bottom: 1px solid var(--border);
-}
-.sg-trail-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 10px 18px;
+  gap: 5px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--accent);
   background: none;
   border: none;
   cursor: pointer;
-  gap: 8px;
-  transition: background .15s;
+  padding: 3px 7px;
+  border-radius: 7px;
 }
-.sg-trail-toggle:hover { background: var(--bg); }
-.sg-trail-toggle-label {
-  font-size: 0.8438rem;
-  font-weight: 600;
-  color: var(--accent);
-}
-.sg-trail-body {
-  padding: 0 18px 14px;
-  background: var(--bg);
-}
-.sg-trail-step {
-  margin-top: 10px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-.sg-trail-step-title {
-  padding: 7px 12px;
-  font-size: 0.7188rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .06em;
+.sgc-x:hover { background: var(--accent-l); }
+.sgc-x-dim { color: var(--ink2); }
+.sgc-x-dim:hover { background: var(--surface2); }
+
+/* ── Computation trail: plain-language explanation + step strip ── */
+.sgc-trail { margin-top: 10px; }
+.sgc-explain {
+  font-size: 0.8rem;
+  line-height: 1.6;
   color: var(--ink2);
-  background: var(--bg);
-  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+  border-radius: 10px;
+  padding: 9px 11px;
+  margin: 0 0 10px;
 }
-.sg-trail-row {
+.sgc-audit {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 5px 12px;
-  font-size: 0.8438rem;
-  border-bottom: 1px solid var(--border);
+  gap: 7px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  border-radius: 9px;
+  padding: 7px 10px;
+  margin: 0 0 10px;
 }
-.sg-trail-row:last-child { border-bottom: none; }
-.sg-trail-lbl { color: var(--ink2); }
-.sg-trail-val { font-weight: 700; color: var(--ink); }
-.sg-trail-sub { font-size: 0.7188rem; color: var(--ink3); margin-left: 6px; }
-.sg-trail-row--result {
-  background: color-mix(in srgb, var(--accent) 6%, transparent);
+.sgc-audit svg { flex-shrink: 0; }
+.sgc-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(122px, 1fr));
+  gap: 7px;
 }
-.sg-trail-row--result .sg-trail-lbl { color: var(--accent); font-weight: 600; }
-.sg-trail-row--result .sg-trail-val { color: var(--accent); }
-.sg-trail-row--final {
-  background: color-mix(in srgb, var(--green) 8%, transparent);
+.sgc-step {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  min-width: 0;
 }
-.sg-trail-row--final .sg-trail-lbl { color: var(--green); font-weight: 700; }
-.sg-trail-row--final .sg-trail-val { color: var(--green); font-size: 0.9688rem; }
+.sgc-step-lb {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--ink3);
+  margin-bottom: 2px;
+}
+.sgc-step-val { font-size: 0.86rem; font-weight: 700; color: var(--ink); }
+.sgc-step-sub { font-size: 0.64rem; color: var(--ink3); margin-top: 2px; line-height: 1.4; }
+.sgc-step--final { background: var(--accent-l); border-color: transparent; }
+.sgc-step--final .sgc-step-lb,
+.sgc-step--final .sgc-step-sub { color: var(--accent); }
+.sgc-step--final .sgc-step-val { color: var(--accent); }
+.sgc-scores { margin-top: 4px; }
+
+/* ── Grade Watch: collapse to the top finding on phones ── */
+.sgw-more { display: none; }
+@media (max-width: 679px) {
+  .sgw-list:not(.open) .sact-find:nth-child(n+2) { display: none; }
+  .sgw-more {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 7px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--accent);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px 4px;
+  }
+}
 
 /* ══════════════════════════════════════════
    STUDENT TABLE (StudentsTab)

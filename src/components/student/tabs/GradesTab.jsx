@@ -1,24 +1,43 @@
 import React, { useState, useMemo } from 'react'
-import { gradeInfo, combineEquiv } from '@/utils/grades'
+import { gradeInfo, combineEquiv, computeFinalGradeFromTerms } from '@/utils/grades'
 import { computeSubjectGrade, auditSubjectGrade, explainGradeText } from '@/utils/gradeEngine'
 import { useData } from '@/context/DataContext'
-import { BookOpen, Clock, ChevronDown, ChevronUp, Award, Check, RefreshCw, Target, MessageSquare } from 'lucide-react'
-import { activeClassIds, activeSubjects } from '@/utils/active'
+import { BookOpen, Clock, ChevronDown, ChevronUp, Check, CheckCircle2, RefreshCw, Target, MessageSquare, ShieldCheck, AlertTriangle, Hourglass, ListOrdered } from 'lucide-react'
+import { activeSubjects } from '@/utils/active'
 import EmptyState from '@/components/ds/EmptyState'
 import PageHeader from '@/components/ds/PageHeader'
 import { neededFinalsForRemarks } from '@/utils/whatIf'
 import RegradeRequestModal from '@/components/student/modals/RegradeRequestModal'
 import StudentMeta from '@/components/primitives/StudentMeta'
+import StandingRing from '@/components/primitives/StandingRing'
+
+// This tab's original color semantics: 75 is the passing grade, so ≥75 reads
+// green here (unlike utils/grades.pctColor, whose ≥85/≥75 bands would recolor
+// passing scores as warnings).
+const gcolor = v => (v == null ? 'var(--ink3)' : v >= 75 ? 'var(--green)' : v >= 60 ? 'var(--yellow)' : 'var(--red)')
 
 export default function GradesTab({ student: s, viewClassId, classes }) {
   const { activities, quizzes, students, eqScale, semester, gradeFloor } = useData()
   const [regradeOpen, setRegradeOpen] = useState(false)
+  const [watchOpen, setWatchOpen] = useState(false)
 
   // Current, non-archived classes only - archived/ended/removed subjects drop off.
-  const enrolledIds = activeClassIds(s, classes, semester)
   const subs = activeSubjects(s, classes, semester)
 
-  // GWA equivalency banner: average of uploaded subject equivalencies (true 1.00-5.00 scale)
+  // One engine pass per subject, shared by the Grade Watch findings and the
+  // cards below, so a finding can never disagree with the card it points at.
+  // The engine keeps receiving the same raw enrollment it always has.
+  const rows = useMemo(() => {
+    const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
+    const ctx = { activities, quizzes, students, classes, eqScale, enrolledIds, floor: gradeFloor }
+    return subs.map(sub => {
+      const gr = computeSubjectGrade(s, sub, ctx)
+      const audit = gr.published ? auditSubjectGrade(s, sub, ctx) : null
+      return { sub, gr, audit }
+    })
+  }, [subs, s, activities, quizzes, students, classes, eqScale, gradeFloor])
+
+  // GWA equivalency: average of uploaded subject equivalencies (true 1.00-5.00 scale)
   const gwaData = useMemo(() => {
     const equivNums = subs
       .map(sub => {
@@ -38,6 +57,66 @@ export default function GradesTab({ student: s, viewClassId, classes }) {
     return { avg, remarks, color, count: equivNums.length, total: subs.length }
   }, [subs, s, eqScale])
 
+  // Grade Watch: deterministic findings recomputed from the exact engine
+  // numbers the cards render. No network, no stored state.
+  const watch = useMemo(() => {
+    const f = []
+
+    // Unsubmitted activities/quizzes dragging class standing down.
+    rows.forEach(({ sub, gr }) => {
+      const miss = gr.detail.activityItems.filter(a => a.missing).length
+                 + gr.detail.quizItems.filter(q => q.missing).length
+      if (miss > 0) {
+        f.push({ tone: 'bad', Icon: AlertTriangle, lead: sub, text: ` - ${miss} item${miss !== 1 ? 's' : ''} not submitted, pulling your class standing down.` })
+      }
+    })
+
+    // Midterm posted, finals still open: surface the pass threshold.
+    rows.forEach(({ sub, gr }) => {
+      if (gr.midterm == null || gr.finals != null) return
+      const needs = neededFinalsForRemarks(gr.midterm, eqScale)
+      const pass = needs?.Passed
+      if (pass == null) {
+        f.push({ tone: 'bad', Icon: AlertTriangle, lead: sub, text: ' - a passing final grade is out of reach from the midterm alone; talk to your professor about your options.' })
+      } else if (pass <= 0) {
+        f.push({ tone: 'good', Icon: CheckCircle2, lead: sub, text: ' - a passing final grade is already secured before Finals.' })
+      } else {
+        f.push({ tone: 'warn', Icon: Target, lead: sub, text: ` - finals pending; score at least ${Math.round(pass * 10) / 10}% on the Finals term to pass.` })
+      }
+    })
+
+    // Posted grades whose source items changed since upload.
+    rows.forEach(({ sub, audit }) => {
+      if (audit?.drift) {
+        f.push({ tone: 'info', Icon: RefreshCw, lead: sub, text: ' - some items changed after the grade was posted; your professor will re-sync it.' })
+      }
+    })
+
+    // Posted grades that still match the live records.
+    const verified = rows.filter(r => r.audit && !r.audit.drift).map(r => r.sub)
+    if (verified.length === 1) {
+      f.push({ tone: 'good', Icon: ShieldCheck, lead: verified[0], text: ' verified - the posted grade matches your current activities, quizzes, and attendance.' })
+    } else if (verified.length > 1) {
+      const names = verified.slice(0, 3).join(', ') + (verified.length > 3 ? '…' : '')
+      f.push({ tone: 'good', Icon: ShieldCheck, lead: `${verified.length} subjects verified`, text: ` - posted grades match your live records (${names}).` })
+    }
+
+    // Subjects with nothing posted at all.
+    const blank = rows.filter(r => r.gr.midterm == null && r.gr.finals == null).map(r => r.sub)
+    if (blank.length) {
+      const names = blank.slice(0, 3).join(', ') + (blank.length > 3 ? '…' : '')
+      f.push({ tone: 'info', Icon: Hourglass, lead: `${blank.length} awaiting grades`, text: ` - nothing posted yet for ${names}.` })
+    }
+
+    if (!f.length) {
+      f.push({ tone: 'good', Icon: CheckCircle2, lead: "You're all caught up", text: ' - nothing needs attention.' })
+    }
+
+    const rank = { bad: 0, warn: 1, info: 2, good: 3 }
+    f.sort((a, b) => rank[a.tone] - rank[b.tone])
+    return { findings: f.slice(0, 6) }
+  }, [rows, eqScale])
+
   if (!subs.length) {
     return (
       <EmptyState
@@ -48,27 +127,15 @@ export default function GradesTab({ student: s, viewClassId, classes }) {
     )
   }
 
+  const postedCount = rows.filter(r => r.gr.published).length
+  const pendingCount = subs.length - postedCount
+  const ringRate = gwaData ? Math.round(((5 - gwaData.avg) / 4) * 100) : 0
+
   return (
     <div className="student-grades">
-      {gwaData && (
-        <div className="sg-gwa-banner">
-          <div className="sg-gwa-left">
-            <Award size={20} style={{ color: gwaData.color, flexShrink: 0 }} />
-            <div>
-              <div className="sg-gwa-title">Grade Weighted Average</div>
-              <div className="sg-gwa-sub">{gwaData.count} of {gwaData.total} subject{gwaData.total !== 1 ? 's' : ''} with uploaded grades</div>
-              <StudentMeta student={s} />
-            </div>
-          </div>
-          <div className="sg-gwa-right">
-            <div className="sg-gwa-eq" style={{ color: gwaData.color }}>{gwaData.avg.toFixed(2)}</div>
-            <div className="sg-gwa-remarks" style={{ color: gwaData.color }}>{gwaData.remarks}</div>
-          </div>
-        </div>
-      )}
       <PageHeader
         title="Grade Breakdown"
-        subtitle={`${subs.length} subject${subs.length !== 1 ? 's' : ''}`}
+        subtitle={`${subs.length} subject${subs.length !== 1 ? 's' : ''} · ${postedCount} posted${pendingCount ? ` · ${pendingCount} pending` : ''}`}
         actions={
           <button className="btn btn-ghost btn-sm" onClick={() => setRegradeOpen(true)} title="Ask your professor to review a grade">
             <RefreshCw size={14} /> Request regrade
@@ -78,35 +145,59 @@ export default function GradesTab({ student: s, viewClassId, classes }) {
       {regradeOpen && (
         <RegradeRequestModal student={s} subjects={subs} onClose={() => setRegradeOpen(false)} />
       )}
-      {subs.map(sub => (
-        <SubjectCard
-          key={sub}
-          sub={sub}
-          student={s}
-          classes={classes}
-          activities={activities}
-          quizzes={quizzes}
-          students={students}
-          eqScale={eqScale}
-          gradeFloor={gradeFloor}
-        />
-      ))}
-    </div>
-  )
-}
 
-function Bar({ val, label, weight }) {
-  if (val == null) return null
-  const pct = Math.min(100, Math.max(0, val))
-  const color = pct >= 75 ? 'var(--green)' : pct >= 60 ? 'var(--yellow)' : 'var(--red)'
-  return (
-    <div className="sg-bar-row">
-      <div className="sg-bar-meta">
-        <span className="sg-bar-label">{label} <span className="sg-bar-weight">({weight})</span></span>
-        <span className="sg-bar-val" style={{ color }}>{val}%</span>
+      {/* GWA ring + Grade Watch */}
+      <div className="sact-top">
+        <div className="sact-card sact-ring-card">
+          <StandingRing
+            rate={ringRate}
+            color={gwaData ? gwaData.color : 'var(--ink3)'}
+            label="GWA"
+            formatValue={() => (gwaData ? gwaData.avg.toFixed(2) : '-')}
+          />
+          <div className="sact-ring-meta">
+            {gwaData
+              ? <>
+                  <strong style={{ color: gwaData.color }}>{gwaData.remarks}</strong><br />
+                  {gwaData.count} of {gwaData.total} subject{gwaData.total !== 1 ? 's' : ''} with uploaded grades<br />
+                  <StudentMeta student={s} />
+                </>
+              : <>
+                  <strong>No GWA yet</strong><br />
+                  Appears once both terms are posted for a subject.<br />
+                  <StudentMeta student={s} />
+                </>}
+          </div>
+        </div>
+
+        <div className="sact-card sact-watch">
+          <div className="sact-watch-h">
+            <ShieldCheck size={17} style={{ color: 'var(--accent)' }} />
+            <span className="sact-watch-title">Grade Watch</span>
+            <span className="sact-chip-tag">on-device</span>
+          </div>
+          <div className="sact-watch-lead">Every finding is recomputed on this device from the same engine numbers the cards below show.</div>
+          <div className={`sgw-list${watchOpen ? ' open' : ''}`}>
+            {watch.findings.map((fd, i) => (
+              <div key={i} className={`sact-find sact-find-${fd.tone}`}>
+                <fd.Icon size={16} />
+                <div className="sact-find-txt"><strong>{fd.lead}</strong>{fd.text}</div>
+              </div>
+            ))}
+          </div>
+          {watch.findings.length > 1 && (
+            <button className="sgw-more" onClick={() => setWatchOpen(v => !v)} type="button">
+              {watchOpen ? <>Show less <ChevronUp size={12} /></> : <>Show all {watch.findings.length} findings <ChevronDown size={12} /></>}
+            </button>
+          )}
+        </div>
       </div>
-      <div className="sg-bar-track">
-        <div className="sg-bar-fill" style={{ width: `${pct}%`, background: color }} />
+
+      {/* Compact subject cards */}
+      <div className="sact-grid">
+        {rows.map(({ sub, gr, audit }) => (
+          <SubjectCard key={sub} sub={sub} student={s} gr={gr} audit={audit} eqScale={eqScale} />
+        ))}
       </div>
     </div>
   )
@@ -165,51 +256,27 @@ function WhatIfPanel({ midTerm, eqScale }) {
   )
 }
 
-// ── Trail Step: one row in the computation trail ──────────────────────────────
-function TrailRow({ label, value, sub, isResult, isFinal }) {
-  return (
-    <div className={`sg-trail-row${isResult ? ' sg-trail-row--result' : ''}${isFinal ? ' sg-trail-row--final' : ''}`}>
-      <span className="sg-trail-lbl">{label}</span>
-      <span className="sg-trail-val">{value}</span>
-      {sub && <span className="sg-trail-sub">{sub}</span>}
-    </div>
-  )
-}
-
-function SubjectCard({ sub, student: s, classes, activities, quizzes = [], students, eqScale, gradeFloor = 0 }) {
+function SubjectCard({ sub, student: s, gr, audit, eqScale }) {
   const [showTrail, setShowTrail] = useState(false)
+  const [showScores, setShowScores] = useState(false)
 
   const comp = s.gradeComponents?.[sub] || {}
-  const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
 
-  // Single source of truth: every number shown for this subject comes from the
-  // one GradeEngine, so the student page agrees with the professor's gradebook and
-  // the exports to the last decimal. Components are reconciled against the live
-  // activities/quizzes/attendance, so a deleted item never lingers.
-  const engineCtx = { activities, quizzes, students, classes, eqScale, enrolledIds, floor: gradeFloor }
-  const gr = computeSubjectGrade(s, sub, engineCtx)
-  // Plain-language summary + live verified status (grounded in engine numbers).
+  // Every number shown comes from the one GradeEngine pass done in the parent,
+  // so the card agrees with the professor's gradebook and the exports.
   const explanation = explainGradeText(gr)
-  const audit = gr.published ? auditSubjectGrade(s, sub, engineCtx) : null
 
   const midG = gr.midterm          // midterm TERM grade %
   const finG = gr.finals           // finals  TERM grade %
   const midExamRaw = comp.midtermExam ?? null  // raw midterm exam score
   const finExamRaw = comp.finalsExam  ?? null  // raw finals  exam score
-  const ts   = gr.uploadedAt
-  const gradeFullyUploaded = gr.published
+  const ts = gr.uploadedAt
+  const published = gr.published
   const g = gr.final
 
-  const tsLabel = ts
-    ? <span className="sg-upload-status sg-upload-status--done">
-        <Check size={14} /> Uploaded {new Date(ts).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
-      </span>
-    : <span className="sg-upload-status">Pending upload</span>
-
   const eq  = gr.equiv.eq
-  const ltr = gr.equiv.ltr
-  const rem = gradeFullyUploaded ? gr.equiv.rem : 'Pending'
-  const remarksColor = rem === 'Passed' ? 'badge-green' : rem === 'Conditional' ? 'badge-yellow' : rem === 'Failed' ? 'badge-red' : 'badge-gray'
+  const rem = published ? gr.equiv.rem : 'Pending'
+  const remColor = rem === 'Passed' ? 'var(--green)' : rem === 'Conditional' ? 'var(--yellow)' : rem === 'Failed' ? 'var(--red)' : 'var(--ink3)'
 
   // Class-standing components - all straight from the engine.
   const actVal      = gr.components.activities
@@ -225,50 +292,62 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
   const displayActs = gr.detail.activityItems.map(i => ({ title: i.title, score: i.score, max: i.max, pct: i.pct, missing: i.missing }))
   const qzEntries   = gr.detail.quizItems.map((q, i) => [`q${i + 1}`, q.pct, q.title || null, q.missing])
 
-  const hasAny = actVal != null || quizzesAvg != null || attitudeVal != null || midG != null || finG != null
-  const hasTrailData = (midG != null || finG != null)
+  const compAny = [actVal, quizzesAvg, attRate, attitudeVal].some(v => v != null)
+  const hasAny = compAny || midG != null || finG != null
+  const hasTrailData = midG != null || finG != null
+  const itemCount = displayActs.length + qzEntries.length
+  const hasScores = itemCount > 0 || comp.activities != null || quizzesAvg != null
 
-  const gradeColor = g != null ? (g >= 75 ? 'var(--green)' : g >= 60 ? 'var(--yellow)' : 'var(--red)') : 'var(--ink3)'
+  const gradeColor = g != null ? gcolor(g) : 'var(--ink3)'
+
+  const csParts = [
+    actVal      != null && `acts ${actVal}%`,
+    quizzesAvg  != null && `quiz ${quizzesAvg}%`,
+    attRate     != null && `attnd ${attRate}%`,
+    attitudeVal != null && `attitude ${attitudeVal}%`,
+  ].filter(Boolean).join(' · ')
 
   return (
-    <div className="sg-card">
+    <div className="sact-card sgc-card">
       {/* ── Header ── */}
-      <div className="sg-card-header">
-        <div className="sg-card-title">
+      <div className="sgc-head">
+        <div className="sgc-title">
           <div className="sg-subject-name">{sub}</div>
-          <div className="sg-upload-label">{tsLabel}</div>
+          <div className="sg-upload-label">
+            {ts
+              ? <span className="sg-upload-status sg-upload-status--done">
+                  <Check size={13} /> Uploaded {new Date(ts).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+              : <span className="sg-upload-status"><Clock size={12} /> Pending upload</span>}
+          </div>
         </div>
-        <div className="sg-card-grade">
-          {rem === 'Pending'
-            ? <>
-                <div className="sg-grade-num" style={{ color: 'var(--ink3)' }}>-</div>
-                <div className="sg-grade-badges">
-                  <span className="badge badge-gray" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                    <Clock size={11} />Pending
-                  </span>
-                  {midG != null && (
-                    <div style={{ marginTop: 6, fontSize: 10, color: 'var(--ink3)' }}>
-                      Midterm: <strong style={{ color: midG >= 75 ? 'var(--green)' : 'var(--yellow)' }}>{gradeInfo(midG, eqScale).eq}</strong>
-                    </div>
-                  )}
-                </div>
-              </>
-            : <>
-                <div className="sg-grade-num" style={{ color: gradeColor }} title={g != null ? `${g}%` : ''}>
-                  {eq !== '-' ? eq : '-'}
-                </div>
-                {g != null && <div className="sg-grade-pct">{g}%</div>}
-                <div className="sg-grade-badges">
-                  <span className={`badge ${remarksColor}`}>{rem}</span>
-                </div>
-              </>
-          }
+        <div className="sgc-grade">
+          <div className="sgc-eq" style={{ color: published && eq !== '-' ? gradeColor : 'var(--ink3)' }} title={g != null ? `${g}%` : ''}>
+            {published && eq !== '-' ? eq : '-'}
+          </div>
+          {published && eq !== '-'
+            ? <div className="sgc-pct">{g != null ? `${g}% · ` : ''}<span style={{ color: remColor, fontWeight: 700 }}>{rem}</span></div>
+            : <div className="sgc-pct">Pending</div>}
         </div>
+      </div>
+
+      {/* ── Term + audit chips ── */}
+      <div className="sgc-chips">
+        <span className="sgc-chip">
+          Mid {midG != null ? <strong style={{ color: gcolor(midG) }}>{midG}%</strong> : '-'}
+          {midG != null && midEq != null && <span style={{ color: 'var(--ink3)' }}> · {midEq}</span>}
+        </span>
+        <span className="sgc-chip">
+          Fin {finG != null ? <strong style={{ color: gcolor(finG) }}>{finG}%</strong> : '-'}
+          {finG != null && finEq != null && <span style={{ color: 'var(--ink3)' }}> · {finEq}</span>}
+        </span>
+        {audit && !audit.drift && <span className="sgc-chip sgc-chip-ok"><ShieldCheck size={11} /> Verified</span>}
+        {audit?.drift && <span className="sgc-chip sgc-chip-warn"><RefreshCw size={11} /> Re-sync pending</span>}
       </div>
 
       {/* ── Note from professor (plain text, React-escaped) ── */}
       {s.gradeNotes?.[sub]?.text && (
-        <div style={{ margin: '0 0 14px', padding: '9px 12px', borderLeft: '3px solid var(--accent)', background: 'var(--accent-l)', borderRadius: 4 }}>
+        <div style={{ margin: '10px 0 0', padding: '9px 12px', borderLeft: '3px solid var(--accent)', background: 'var(--accent-l)', borderRadius: 4 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--accent)', marginBottom: 3 }}>
             <MessageSquare size={13} /> Note from {s.gradeNotes[sub].by || 'your professor'}
           </div>
@@ -276,52 +355,17 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
         </div>
       )}
 
-      {/* ── Term Summary Grid ── */}
-      {(midG != null || finG != null) && (
-        <div className="sg-term-grid">
-          <div className="sg-term-item">
-            <div className="sg-term-label">Midterm Term</div>
-            {midG != null
-              ? <>
-                  <div className="sg-term-val" style={{ color: midG >= 75 ? 'var(--green)' : midG >= 60 ? 'var(--yellow)' : 'var(--red)' }}>{midG}%</div>
-                  <div className="sg-term-eq">{midEq}</div>
-                </>
-              : <div className="sg-term-val" style={{ color: 'var(--ink3)' }}>-</div>
-            }
-          </div>
-          <div className="sg-term-divider" />
-          <div className="sg-term-item">
-            <div className="sg-term-label">Finals Term</div>
-            {finG != null
-              ? <>
-                  <div className="sg-term-val" style={{ color: finG >= 75 ? 'var(--green)' : finG >= 60 ? 'var(--yellow)' : 'var(--red)' }}>{finG}%</div>
-                  <div className="sg-term-eq">{finEq}</div>
-                </>
-              : <div className="sg-term-val" style={{ color: 'var(--ink3)' }}>-</div>
-            }
-          </div>
-          <div className="sg-term-divider" />
-          <div className="sg-term-item">
-            <div className="sg-term-label">Final Grade</div>
-            {eq !== '-'
-              ? <>
-                  <div className="sg-term-val sg-term-val--final" style={{ color: gradeColor }}>{eq}</div>
-                  <div className="sg-term-eq">{g != null ? `${g}%` : ''}</div>
-                </>
-              : <div className="sg-term-val" style={{ color: 'var(--ink3)' }}>-</div>
-            }
-          </div>
-        </div>
-      )}
-
-      {/* ── Grade Breakdown Bars ── */}
-      {hasAny && (
-        <div className="sg-breakdown">
-          <div className="sg-section-label">Class Standing Components</div>
-          <Bar val={actVal}      label="Activities"          weight="CS" />
-          <Bar val={quizzesAvg}  label="Quizzes"             weight="CS" />
-          <Bar val={attRate}     label="Attendance"          weight="CS" />
-          <Bar val={attitudeVal} label="Attitude / Character" weight="CS" />
+      {/* ── Class-standing mini bars ── */}
+      {compAny && (
+        <div className="sgc-comps">
+          {[['Acts', actVal], ['Quiz', quizzesAvg], ['Attnd', attRate], ['Attitude', attitudeVal]].map(([lb, v]) => (
+            <div key={lb} title={v != null ? `${lb}: ${v}%` : `${lb}: no data yet`}>
+              <div className="sgc-comp-lb" style={v == null ? { opacity: .55 } : undefined}>{lb}{v != null ? ` ${v}%` : ''}</div>
+              <div className="sgc-comp-track">
+                {v != null && <div className="sgc-comp-fill" style={{ width: `${Math.min(100, Math.max(0, v))}%`, background: gcolor(v) }} />}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -330,180 +374,149 @@ function SubjectCard({ sub, student: s, classes, activities, quizzes = [], stude
         <WhatIfPanel midTerm={midG} eqScale={eqScale} />
       )}
 
-      {/* ── Grade Computation Trail (Best Feature) ── */}
-      {hasTrailData && (
-        <div className="sg-trail">
-          <button
-            className="sg-trail-toggle"
-            onClick={() => setShowTrail(v => !v)}
-            type="button"
-          >
-            <span className="sg-trail-toggle-label">How was this grade computed?</span>
-            {showTrail ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          </button>
-
-          {showTrail && (
-            <div className="sg-trail-body">
-              {/* Plain-language explanation - generated from the engine's exact
-                  numbers, so it can never disagree with the figures below. */}
-              {explanation && (
-                <p style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--ink2)', background: 'var(--bg2)', borderRadius: 12, padding: '10px 12px', margin: '0 0 12px' }}>
-                  {explanation}
-                </p>
-              )}
-              {audit && (
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 600,
-                  borderRadius: 10, padding: '8px 11px', margin: '0 0 12px',
-                  color: audit.drift ? 'var(--yellow)' : 'var(--green)',
-                  background: audit.drift ? 'rgba(234,179,8,.12)' : 'rgba(34,197,94,.10)',
-                }}>
-                  {audit.drift ? <RefreshCw size={14} /> : <Check size={14} />}
-                  {audit.drift
-                    ? 'Some items changed after this grade was posted - your professor will re-sync it.'
-                    : 'Verified - this grade matches your current activities, quizzes, and attendance.'}
-                </div>
-              )}
-              {/* Step 1: Class Standing */}
-              {(actVal != null || quizzesAvg != null || attitudeVal != null) && (
-                <div className="sg-trail-step">
-                  <div className="sg-trail-step-title">① Class Standing (CS)</div>
-                  {actVal      != null && <TrailRow label="Activities"          value={`${actVal}%`} />}
-                  {quizzesAvg  != null && <TrailRow label="Quizzes"             value={`${quizzesAvg}%`} />}
-                  {attRate     != null && <TrailRow label="Attendance"          value={`${attRate}%`} />}
-                  {attitudeVal != null && <TrailRow label="Attitude / Character" value={`${attitudeVal}%`} />}
-                  {cs          != null && <TrailRow label="→ CS Average"        value={`${cs}%`} isResult />}
-                </div>
-              )}
-
-              {/* Step 2: Midterm Term */}
-              {midG != null && (
-                <div className="sg-trail-step">
-                  <div className="sg-trail-step-title">② Midterm Term Grade</div>
-                  {cs          != null && <TrailRow label="Class Standing (CS)" value={`${cs}%`} />}
-                  {midExamRaw  != null && <TrailRow label="Midterm Exam"        value={`${midExamRaw}%`} />}
-                  <TrailRow
-                    label="→ Midterm Term"
-                    value={`${midG}%`}
-                    sub={`Equivalency: ${midEq}`}
-                    isResult
-                  />
-                </div>
-              )}
-
-              {/* Step 3: Finals Term */}
-              {finG != null && (
-                <div className="sg-trail-step">
-                  <div className="sg-trail-step-title">③ Finals Term Grade</div>
-                  {cs         != null && <TrailRow label="Class Standing (CS)" value={`${cs}%`} />}
-                  {finExamRaw != null && <TrailRow label="Finals Exam"         value={`${finExamRaw}%`} />}
-                  <TrailRow
-                    label="→ Finals Term"
-                    value={`${finG}%`}
-                    sub={`Equivalency: ${finEq}`}
-                    isResult
-                  />
-                </div>
-              )}
-
-              {/* Step 4: Final Grade */}
-              {midG != null && finG != null && eq !== '-' && (
-                <div className="sg-trail-step">
-                  <div className="sg-trail-step-title">④ Final Grade (School Equivalency Table)</div>
-                  <TrailRow label={`Midterm equiv`} value={String(midEq)} />
-                  <TrailRow label={`Finals equiv`}  value={String(finEq)} />
-                  <TrailRow
-                    label="→ Final Grade"
-                    value={`${eq}`}
-                    sub={rem !== 'Pending' ? rem : undefined}
-                    isFinal
-                  />
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Activity Scores ── */}
-      {displayActs.length > 0 && (
-        <div className="sg-score-block">
-          <div className="sg-section-label">Activity Scores</div>
-          {displayActs.map((a, i) => {
-            const col = a.pct == null ? 'var(--ink3)' : a.pct >= 75 ? 'var(--green)' : a.pct >= 60 ? 'var(--yellow)' : 'var(--red)'
-            const rawPct = a.score != null && a.max ? (a.score / a.max) * 100 : null
-            const floored = !a.missing && rawPct != null && Math.abs(a.pct - rawPct) > 0.01
-            const label = a.title
-              ? `Activity ${i + 1} - ${a.title.slice(0, 35)}${a.title.length > 35 ? '…' : ''}`
-              : `Activity ${i + 1}`
-            return (
-              <div key={i} className="sg-score-row">
-                <span className="sg-score-label">{label}{a.missing && <span style={{ color: 'var(--ink3)', fontWeight: 400 }}> · not submitted</span>}</span>
-                <span className="sg-score-val" style={{ color: col }}>
-                  {a.missing
-                    ? `${a.pct}%`
-                    : a.score != null
-                      ? `${a.score}${a.max !== 100 ? `/${a.max}` : '%'}${floored ? ` → ${a.pct}%` : ''}`
-                      : `${a.pct}%`}
-                </span>
-              </div>
-            )
-          })}
-          {actVal != null && (
-            <div className="sg-score-avg">
-              <span>Average</span>
-              <span style={{ color: 'var(--accent)' }}>{actVal}%</span>
-            </div>
-          )}
-        </div>
-      )}
-      {displayActs.length === 0 && comp.activities != null && (
-        <div className="sg-score-block">
-          <div className="sg-section-label">Activity Score</div>
-          <div className="sg-score-avg">
-            <span>Overall Average</span>
-            <span style={{ color: comp.activities >= 75 ? 'var(--green)' : comp.activities >= 60 ? 'var(--yellow)' : 'var(--red)' }}>{comp.activities}%</span>
-          </div>
-        </div>
-      )}
-
-      {/* ── Quiz Scores ── */}
-      {qzEntries.length > 0 && (
-        <div className="sg-score-block">
-          <div className="sg-section-label">Quiz Scores</div>
-          {qzEntries.map(([k, v, title, missing]) => {
-            const num = parseInt(k.slice(1))
-            const col = v == null ? 'var(--ink3)' : v >= 75 ? 'var(--green)' : v >= 60 ? 'var(--yellow)' : 'var(--red)'
-            const label = title
-              ? `Quiz ${isNaN(num) ? k : num} - ${title.slice(0, 30)}${title.length > 30 ? '…' : ''}`
-              : `Quiz ${isNaN(num) ? k : num}`
-            return (
-              <div key={k} className="sg-score-row">
-                <span className="sg-score-label">{label}{missing && <span style={{ color: 'var(--ink3)', fontWeight: 400 }}> · not taken</span>}</span>
-                <span className="sg-score-val" style={{ color: col }}>{v != null ? `${v}%` : '-'}</span>
-              </div>
-            )
-          })}
-          {quizzesAvg != null && (
-            <div className="sg-score-avg">
-              <span>Average</span>
-              <span style={{ color: 'var(--accent)' }}>{quizzesAvg}%</span>
-            </div>
-          )}
-        </div>
-      )}
-      {qzEntries.length === 0 && quizzesAvg != null && (
-        <div className="sg-score-block">
-          <div className="sg-section-label">Quiz Score</div>
-          <div className="sg-score-avg">
-            <span>Overall</span>
-            <span style={{ color: quizzesAvg >= 75 ? 'var(--green)' : quizzesAvg >= 60 ? 'var(--yellow)' : 'var(--red)' }}>{quizzesAvg}%</span>
-          </div>
-        </div>
-      )}
-
       {!hasAny && (
         <div className="sg-no-data">No grade components uploaded yet.</div>
+      )}
+
+      {/* ── In-place expanders ── */}
+      {(hasTrailData || hasScores) && (
+        <div className="sgc-foot">
+          {hasTrailData && (
+            <button className="sgc-x" onClick={() => setShowTrail(v => !v)} type="button">
+              <ListOrdered size={13} /> How it's computed {showTrail ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            </button>
+          )}
+          {hasScores && (
+            <button className="sgc-x sgc-x-dim" onClick={() => setShowScores(v => !v)} type="button">
+              Scores{itemCount ? ` (${itemCount})` : ''} {showScores ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── Computation trail: plain-language explanation + step strip ── */}
+      {showTrail && (
+        <div className="sgc-trail">
+          {explanation && <p className="sgc-explain">{explanation}</p>}
+          {audit && (
+            <div className="sgc-audit" style={{ color: audit.drift ? 'var(--gold-var)' : 'var(--green)', background: audit.drift ? 'var(--yellow-l)' : 'var(--green-l)' }}>
+              {audit.drift ? <RefreshCw size={14} /> : <Check size={14} />}
+              {audit.drift
+                ? 'Some items changed after this grade was posted - your professor will re-sync it.'
+                : 'Verified - this grade matches your current activities, quizzes, and attendance.'}
+            </div>
+          )}
+          <div className="sgc-strip">
+            {(cs != null || compAny) && (
+              <div className="sgc-step">
+                <div className="sgc-step-lb">① Class standing</div>
+                <div className="sgc-step-val">{cs != null ? `${cs}%` : '-'}</div>
+                {csParts && <div className="sgc-step-sub">{csParts}</div>}
+              </div>
+            )}
+            {midG != null && (
+              <div className="sgc-step">
+                <div className="sgc-step-lb">② Midterm term</div>
+                <div className="sgc-step-val">{midG}%{midEq != null ? ` · ${midEq}` : ''}</div>
+                <div className="sgc-step-sub">{cs != null && midExamRaw != null ? `CS ${cs}% + exam ${midExamRaw}%` : 'class standing + midterm exam'}</div>
+              </div>
+            )}
+            {finG != null && (
+              <div className="sgc-step">
+                <div className="sgc-step-lb">③ Finals term</div>
+                <div className="sgc-step-val">{finG}%{finEq != null ? ` · ${finEq}` : ''}</div>
+                <div className="sgc-step-sub">{cs != null && finExamRaw != null ? `CS ${cs}% + exam ${finExamRaw}%` : 'class standing + finals exam'}</div>
+              </div>
+            )}
+            {midG != null && finG != null && eq !== '-' && (
+              <div className="sgc-step sgc-step--final">
+                <div className="sgc-step-lb">④ Final grade</div>
+                <div className="sgc-step-val">{eq}{rem !== 'Pending' ? ` · ${rem}` : ''}</div>
+                <div className="sgc-step-sub">school equivalency table{g != null ? ` · ${g}%` : ''}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Per-item scores ── */}
+      {showScores && (
+        <div className="sgc-scores">
+          {displayActs.length > 0 && (
+            <div className="sg-score-block">
+              <div className="sg-section-label">Activity Scores</div>
+              {displayActs.map((a, i) => {
+                const col = a.pct == null ? 'var(--ink3)' : gcolor(a.pct)
+                const rawPct = a.score != null && a.max ? (a.score / a.max) * 100 : null
+                const floored = !a.missing && rawPct != null && Math.abs(a.pct - rawPct) > 0.01
+                const label = a.title
+                  ? `Activity ${i + 1} - ${a.title.slice(0, 35)}${a.title.length > 35 ? '…' : ''}`
+                  : `Activity ${i + 1}`
+                return (
+                  <div key={i} className="sg-score-row">
+                    <span className="sg-score-label">{label}{a.missing && <span style={{ color: 'var(--ink3)', fontWeight: 400 }}> · not submitted</span>}</span>
+                    <span className="sg-score-val" style={{ color: col }}>
+                      {a.missing
+                        ? `${a.pct}%`
+                        : a.score != null
+                          ? `${a.score}${a.max !== 100 ? `/${a.max}` : '%'}${floored ? ` → ${a.pct}%` : ''}`
+                          : `${a.pct}%`}
+                    </span>
+                  </div>
+                )
+              })}
+              {actVal != null && (
+                <div className="sg-score-avg">
+                  <span>Average</span>
+                  <span style={{ color: 'var(--accent)' }}>{actVal}%</span>
+                </div>
+              )}
+            </div>
+          )}
+          {displayActs.length === 0 && comp.activities != null && (
+            <div className="sg-score-block">
+              <div className="sg-section-label">Activity Score</div>
+              <div className="sg-score-avg">
+                <span>Overall Average</span>
+                <span style={{ color: gcolor(comp.activities) }}>{comp.activities}%</span>
+              </div>
+            </div>
+          )}
+
+          {qzEntries.length > 0 && (
+            <div className="sg-score-block">
+              <div className="sg-section-label">Quiz Scores</div>
+              {qzEntries.map(([k, v, title, missing]) => {
+                const num = parseInt(k.slice(1))
+                const col = v == null ? 'var(--ink3)' : gcolor(v)
+                const label = title
+                  ? `Quiz ${isNaN(num) ? k : num} - ${title.slice(0, 30)}${title.length > 30 ? '…' : ''}`
+                  : `Quiz ${isNaN(num) ? k : num}`
+                return (
+                  <div key={k} className="sg-score-row">
+                    <span className="sg-score-label">{label}{missing && <span style={{ color: 'var(--ink3)', fontWeight: 400 }}> · not taken</span>}</span>
+                    <span className="sg-score-val" style={{ color: col }}>{v != null ? `${v}%` : '-'}</span>
+                  </div>
+                )
+              })}
+              {quizzesAvg != null && (
+                <div className="sg-score-avg">
+                  <span>Average</span>
+                  <span style={{ color: 'var(--accent)' }}>{quizzesAvg}%</span>
+                </div>
+              )}
+            </div>
+          )}
+          {qzEntries.length === 0 && quizzesAvg != null && (
+            <div className="sg-score-block">
+              <div className="sg-section-label">Quiz Score</div>
+              <div className="sg-score-avg">
+                <span>Overall</span>
+                <span style={{ color: gcolor(quizzesAvg) }}>{quizzesAvg}%</span>
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   )
