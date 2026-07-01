@@ -1123,7 +1123,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
           <span className="act-missed-text">
             {missingStudents.length ? `${missingStudents.length} of ${enrolledStudents.length} haven't submitted` : 'Everyone enrolled has submitted'}
           </span>
-          {missingStudents.length > 0 && (
+          {missingStudents.length > 0 && isPast && (
             <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} onClick={handleNudgeAll} disabled={nudgingAll}>
               <AlarmClock size={13} /> {nudgingAll ? 'Sending…' : 'Nudge all'}
             </button>
@@ -1493,8 +1493,8 @@ export default function ActivitiesTab() {
               {missing.length
                 ? <AlertCircle size={15} style={{ color: 'var(--red)', flexShrink: 0 }} />
                 : <CheckCircle2 size={15} style={{ color: 'var(--green)', flexShrink: 0 }} />}
-              <span className="act-missed-text">{missing.length ? `${missing.length} missed` : 'Everyone submitted'}</span>
-              {missing.length > 0 && !readOnly && (
+              <span className="act-missed-text">{missing.length ? `${missing.length} ${isPast ? 'missed' : 'pending'}` : 'Everyone submitted'}</span>
+              {missing.length > 0 && isPast && !readOnly && (
                 <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} onClick={() => nudgeMissing(act, missing.map(s => s.id))}>
                   <AlarmClock size={13} /> Nudge all
                 </button>

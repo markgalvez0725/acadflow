@@ -9,7 +9,7 @@ import {
 import { exportMasterGradingReport } from '@/export/excelExport'
 import { exportGradingSheet, parseGradingSheetImport, exportCurrentGrades } from '@/export/gradingSheet'
 import { verifyGradeRows } from '@/utils/gradeImportVerifySmart'
-import { makeHistoryEntry, appendGradeHistory } from '@/utils/gradeEngine'
+import { makeHistoryEntry, appendGradeHistory, deriveQuizzes } from '@/utils/gradeEngine'
 import { classTag, courseShort } from '@/utils/groupChat'
 import { pushStudentNotif } from '@/firebase/studentNotif'
 import Modal from '@/components/primitives/Modal'
@@ -1179,7 +1179,7 @@ function SortIcon({ col, sort }) {
 }
 
 // ── SubjectCard ───────────────────────────────────────────────────────────────
-function SubjectCard({ cls, sub, studs, allStuds = [], eqScale, readOnly, onEdit, onClear, onExport, onExportGrades, onImport }) {
+function SubjectCard({ cls, sub, studs, allStuds = [], quizzes = [], eqScale, readOnly, onEdit, onClear, onExport, onExportGrades, onImport }) {
   const [sort, setSort]   = useState({ col: 'name', dir: 'asc' })
   const [page, setPage]   = useState(1)
   const [filter, setFilter] = useState('all') // all | passing | failing | nograde
@@ -1285,7 +1285,9 @@ function SubjectCard({ cls, sub, studs, allStuds = [], eqScale, readOnly, onEdit
     const st = complete ? stMap.complete : anyData ? stMap.partial : stMap.none
 
     const actsV = typeof comp.activities === 'number' ? comp.activities.toFixed(0) : '-'
-    const quizV = typeof comp.quizzes === 'number' ? comp.quizzes.toFixed(0) : '-'
+    const qzDerived = deriveQuizzes(s, sub, quizzes).pct
+    const quizV = qzDerived != null ? qzDerived.toFixed(0)
+      : (typeof comp.quizzes === 'number' ? comp.quizzes.toFixed(0) : '-')
     const attSize = s.attendance?.[sub]?.size ?? 0
     const attRate = heldDays > 0 ? Math.round((attSize / heldDays) * 100) : null
     const attColor = attRate == null ? 'var(--ink3)' : attRate >= 90 ? 'var(--green)' : attRate >= 75 ? 'var(--yellow)' : 'var(--red)'
@@ -2035,6 +2037,7 @@ export default function GradesTab() {
           sub={selSub}
           studs={filteredStuds}
           allStuds={students}
+          quizzes={quizzes}
           eqScale={eqScale}
           readOnly={showArchived}
           onEdit={showArchived ? null : sub => setEditModal(sub)}
