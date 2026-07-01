@@ -295,7 +295,7 @@ export default function CommandPalette() {
       onClick={() => setOpen(false)}
       style={{
         position: 'fixed', inset: 0, zIndex: 1200,
-        background: 'rgba(8,12,22,.5)', backdropFilter: 'blur(3px)',
+        background: 'var(--overlay-scrim, rgba(8,12,22,.5))', backdropFilter: 'blur(3px)',
         display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
         padding: '12vh 16px 16px', animation: 'cp-fade .14s ease',
       }}

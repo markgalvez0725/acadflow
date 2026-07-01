@@ -250,7 +250,7 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
       <>
         <div
           onClick={() => onClose?.()}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 800, opacity: fade, transition: dragging ? 'none' : 'opacity .26s ease', animation: 'ssetFade .18s ease' }}
+          style={{ position: 'fixed', inset: 0, background: 'var(--overlay-scrim, rgba(0,0,0,.45))', zIndex: 800, opacity: fade, transition: dragging ? 'none' : 'opacity .26s ease', animation: 'ssetFade .18s ease' }}
         />
         <div
           ref={sheetRef}
@@ -302,11 +302,12 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
   const selRow = (sel && findRow(sel)) || firstPanel
   return createPortal(
     <div
-      style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(10,20,50,.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, animation: 'ssetFade .15s ease' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'var(--overlay-scrim, rgba(10,20,50,.55))', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, animation: 'ssetFade .15s ease' }}
     >
       <div
         role="dialog"
         aria-modal="true"
+        className="glass-panel"
         style={{
           position: 'relative', width: 'min(900px, 96vw)', height: 'min(640px, 88vh)',
           background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16,
@@ -316,7 +317,7 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
         <button type="button" className="sset-x" aria-label="Close" onClick={() => onClose?.()}><X size={18} /></button>
 
         {/* Left: list */}
-        <div style={{ width: 288, flexShrink: 0, borderRight: '1px solid var(--border)', overflowY: 'auto', padding: '20px 14px', background: 'var(--bg)' }}>
+        <div className="sset-master" style={{ width: 288, flexShrink: 0, borderRight: '1px solid var(--border)', overflowY: 'auto', padding: '20px 14px', background: 'var(--bg)' }}>
           <div className="sset-h" style={{ margin: '0 4px 16px' }}>{title}</div>
           <HomeList />
         </div>

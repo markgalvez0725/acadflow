@@ -637,6 +637,11 @@ html[data-glass="off"] .sidebar { background: var(--navy) !important; }
   --glass-border:    rgba(255,255,255,.14);
   --glass-blur:      blur(26px) saturate(165%);
   --glass-shadow:    0 1px 0 rgba(255,255,255,.20) inset, 0 10px 32px rgba(0,0,0,.32);
+
+  /* Overlay scrim behind modals/dialogs/sheets/palette. Consumed inline as
+     var(--overlay-scrim, <per-theme fallback>): only frost defines it, so the
+     light/dark scrims are byte-identical to before. */
+  --overlay-scrim:   rgba(12,7,26,.62);
 }
 
 /* ── Canvas: plum vignette (static) + aurora blobs (drifting) ──────────────
@@ -645,7 +650,9 @@ html[data-glass="off"] .sidebar { background: var(--navy) !important; }
    z-index -1 behind everything, exactly like the existing aurora layer. */
 html[data-theme="frost"] body::before {
   content: '';
-  display: block;
+  /* !important: the Clean Academic block hides the aurora with an unscoped
+     `body::before { display: none !important; }`, which would otherwise win. */
+  display: block !important;
   position: fixed;
   inset: 0;
   z-index: -1;
@@ -679,6 +686,10 @@ html[data-theme="frost"] .card,
 html[data-theme="frost"] .ds-card,
 html[data-theme="frost"] .stat-card,
 html[data-theme="frost"] .s-stat-card,
+html[data-theme="frost"] .stream-card,
+html[data-theme="frost"] .ig-post,
+html[data-theme="frost"] .sact-card,
+html[data-theme="frost"] .auth2-card,
 html[data-theme="frost"] .kebab-menu,
 html[data-theme="frost"] .ds-sheet {
   background: var(--glass-bg) !important;
@@ -724,6 +735,38 @@ html[data-theme="frost"] .sb-nav .nav-item.active {
 html[data-theme="frost"] .sb-nav .nav-item:hover { background: rgba(255,255,255,.07); color: #fff; }
 html[data-theme="frost"] .admin-bottom-nav .abn-item.active::after { background: #8b83ff; }
 html[data-theme="frost"] .abn-dot { border-color: #1c1333; }
+
+/* The student portal re-skins its chrome with ID-scoped !important rules
+   (#student-portal ..., specificity 1-x-x), which beat the attribute-scoped
+   frost rules above. Re-state the frost chrome at ID strength. */
+html[data-theme="frost"] #student-portal .student-topbar,
+html[data-theme="frost"] #student-portal .student-bottom-nav {
+  background: var(--glass-bg) !important;
+  -webkit-backdrop-filter: var(--glass-blur) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  border: 1px solid var(--glass-border) !important;
+}
+html[data-theme="frost"] #student-portal .student-topbar { border-width: 0 0 1px; }
+
+/* Floating popovers and sheet furniture. */
+html[data-theme="frost"] .msg-react-bar-inner {
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 6px 20px rgba(0,0,0,.35);
+}
+html[data-theme="frost"] .ds-sheet-backdrop { background: var(--overlay-scrim); }
+/* Pinned modal footer: let the frosted panel show through instead of a solid bar. */
+html[data-theme="frost"] .modal-foot { background: transparent; }
+/* Settings shell: full-screen mobile sheet + desktop master column go frosted
+   (their backgrounds are inline styles, hence the !important). */
+html[data-theme="frost"] .sset-sheet-full {
+  background: var(--glass-bg-strong) !important;
+  -webkit-backdrop-filter: var(--glass-blur) !important;
+  backdrop-filter: var(--glass-blur) !important;
+}
+html[data-theme="frost"] .sset-master { background: rgba(255,255,255,.03) !important; }
 
 /* Neutral toast: frosted pill (colored success/error toasts keep their fills). */
 html[data-theme="frost"] .toast.toast-dark {
@@ -771,6 +814,10 @@ html[data-theme="frost"] .sa-act-graded    { border-color: rgba(139,131,255,.22)
   html[data-theme="frost"] .ds-card,
   html[data-theme="frost"] .stat-card,
   html[data-theme="frost"] .s-stat-card,
+  html[data-theme="frost"] .stream-card,
+  html[data-theme="frost"] .ig-post,
+  html[data-theme="frost"] .sact-card,
+  html[data-theme="frost"] .auth2-card,
   html[data-theme="frost"] .kebab-menu,
   html[data-theme="frost"] .ds-sheet,
   html[data-theme="frost"] .sidebar,
@@ -778,6 +825,10 @@ html[data-theme="frost"] .sa-act-graded    { border-color: rgba(139,131,255,.22)
   html[data-theme="frost"] .student-topbar,
   html[data-theme="frost"] .student-bottom-nav,
   html[data-theme="frost"] .admin-bottom-nav,
+  html[data-theme="frost"] #student-portal .student-topbar,
+  html[data-theme="frost"] #student-portal .student-bottom-nav,
+  html[data-theme="frost"] .msg-react-bar-inner,
+  html[data-theme="frost"] .sset-sheet-full,
   html[data-theme="frost"] .toast.toast-dark {
     background: var(--surface) !important;
     -webkit-backdrop-filter: none !important;
@@ -791,6 +842,10 @@ html[data-theme="frost"] .sa-act-graded    { border-color: rgba(139,131,255,.22)
   html[data-theme="frost"] .ds-card,
   html[data-theme="frost"] .stat-card,
   html[data-theme="frost"] .s-stat-card,
+  html[data-theme="frost"] .stream-card,
+  html[data-theme="frost"] .ig-post,
+  html[data-theme="frost"] .sact-card,
+  html[data-theme="frost"] .auth2-card,
   html[data-theme="frost"] .kebab-menu,
   html[data-theme="frost"] .ds-sheet,
   html[data-theme="frost"] .sidebar,
@@ -798,6 +853,10 @@ html[data-theme="frost"] .sa-act-graded    { border-color: rgba(139,131,255,.22)
   html[data-theme="frost"] .student-topbar,
   html[data-theme="frost"] .student-bottom-nav,
   html[data-theme="frost"] .admin-bottom-nav,
+  html[data-theme="frost"] #student-portal .student-topbar,
+  html[data-theme="frost"] #student-portal .student-bottom-nav,
+  html[data-theme="frost"] .msg-react-bar-inner,
+  html[data-theme="frost"] .sset-sheet-full,
   html[data-theme="frost"] .toast.toast-dark {
     background: var(--surface) !important;
     -webkit-backdrop-filter: none !important;

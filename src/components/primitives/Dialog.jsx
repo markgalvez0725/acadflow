@@ -30,7 +30,7 @@ export default function Dialog() {
   return ReactDOM.createPortal(
     <div
       className="fixed inset-0 flex items-center justify-center p-4"
-      style={{ background: 'rgba(10,20,50,.55)', zIndex: 1200, backdropFilter: 'blur(4px)' }}
+      style={{ background: 'var(--overlay-scrim, rgba(10,20,50,.55))', zIndex: 1200, backdropFilter: 'blur(4px)' }}
     >
       {/* Backdrop click no longer dismisses - use the Cancel/confirm buttons. */}
       <div

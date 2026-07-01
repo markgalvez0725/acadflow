@@ -107,7 +107,7 @@ export default function Modal({ isOpen = true, onClose, size = 'md', children, z
   return ReactDOM.createPortal(
     <div
       className={`fixed inset-0 flex items-center justify-center p-4${sheetOnMobile ? ' modal-overlay-sheet' : ''}`}
-      style={{ background: 'rgba(10,20,50,.55)', zIndex, backdropFilter: 'blur(4px)' }}
+      style={{ background: 'var(--overlay-scrim, rgba(10,20,50,.55))', zIndex, backdropFilter: 'blur(4px)' }}
     >
       {/* Backdrop click intentionally does NOT close - use the X (or Esc). */}
       <div
