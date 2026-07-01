@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext'
 import {
   Search, LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell,
   FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Users, GraduationCap,
-  Sun, Moon, Download, CornerDownLeft, ArrowUp, ArrowDown, User, Building2, Sparkles, History, ListChecks, MessageSquare, MessageSquarePlus, ShieldCheck,
+  Sun, Moon, Snowflake, Download, CornerDownLeft, ArrowUp, ArrowDown, User, Building2, Sparkles, History, ListChecks, MessageSquare, MessageSquarePlus, ShieldCheck,
 } from 'lucide-react'
 import { courseShort } from '@/constants/courses'
 
@@ -129,10 +129,13 @@ export default function CommandPalette() {
     const actions = [
       {
         id: 'theme',
-        label: theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme',
+        // Cycles light → dark → frost; the label/icon preview the NEXT theme.
+        label: theme === 'light' ? 'Switch to dark theme'
+             : theme === 'dark'  ? 'Switch to frosted glass theme'
+             :                     'Switch to light theme',
         section: 'Actions',
-        keywords: 'theme dark light mode appearance',
-        Icon: theme === 'dark' ? Sun : Moon,
+        keywords: 'theme dark light frost frosted glass plum mode appearance',
+        Icon: theme === 'light' ? Moon : theme === 'dark' ? Snowflake : Sun,
         run: () => { toggleTheme(); setOpen(false) },
       },
       {

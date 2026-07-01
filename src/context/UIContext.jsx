@@ -18,6 +18,12 @@ function normalizeToastType(type) {
   return TOAST_TYPE_ALIAS[type] || type || 'dark'
 }
 
+// The three appearance modes, in toggle-cycle order. 'frost' is the semi-dark
+// frosted-glass theme ([data-theme="frost"] block at the end of design-system.css).
+export const THEME_ORDER = ['light', 'dark', 'frost']
+// PWA chrome color per theme (kept in sync with the boot splash / canvas colors).
+const THEME_META_COLOR = { light: '#16264a', dark: '#0e1422', frost: '#130e22' }
+
 export function UIProvider({ children }) {
   const [theme, setTheme]           = useState('light')
   // Selected tab persists across refresh (no URL to encode it in). Restored from
@@ -64,26 +70,44 @@ export function UIProvider({ children }) {
   }, [])
 
   // ── Theme init (read localStorage + OS preference) ─────────────────────
+  // Three themes: light, dark, and frost (semi-dark warm-plum canvas with
+  // frosted-glass panels). `_applyThemeDom` is the single place the DOM attr,
+  // localStorage, and the PWA theme-color meta are kept in sync.
+  const _applyThemeDom = (next) => {
+    document.documentElement.setAttribute('data-theme', next)
+    try { localStorage.setItem('acadflow_theme', next) } catch (e) {}
+    try {
+      const meta = document.querySelector('meta[name="theme-color"]')
+      if (meta) meta.setAttribute('content', THEME_META_COLOR[next] || THEME_META_COLOR.light)
+    } catch (e) {}
+  }
+
   useEffect(() => {
     try {
       const saved = localStorage.getItem('acadflow_theme')
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-      const dark = saved ? saved === 'dark' : prefersDark
-      const next = dark ? 'dark' : 'light'
-      document.documentElement.setAttribute('data-theme', next)
+      const next = THEME_ORDER.includes(saved) ? saved : (prefersDark ? 'dark' : 'light')
+      _applyThemeDom(next)
       setTheme(next)
     } catch (e) {
       document.documentElement.setAttribute('data-theme', 'light')
     }
   }, [])
 
+  // Cycle light → dark → frost → light (the compact toggle button).
   const toggleTheme = useCallback(() => {
     setTheme(prev => {
-      const next = prev === 'dark' ? 'light' : 'dark'
-      document.documentElement.setAttribute('data-theme', next)
-      try { localStorage.setItem('acadflow_theme', next) } catch (e) {}
+      const next = THEME_ORDER[(THEME_ORDER.indexOf(prev) + 1) % THEME_ORDER.length]
+      _applyThemeDom(next)
       return next
     })
+  }, [])
+
+  // Jump straight to a specific theme (segmented pickers, command palette).
+  const setThemeMode = useCallback((next) => {
+    if (!THEME_ORDER.includes(next)) return
+    _applyThemeDom(next)
+    setTheme(next)
   }, [])
 
   // ── Toast ───────────────────────────────────────────────────────────────
@@ -232,7 +256,7 @@ export function UIProvider({ children }) {
 
   return (
     <UIContext.Provider value={{
-      theme, toggleTheme,
+      theme, toggleTheme, setThemeMode,
       adminTab, setAdminTab,
       studentTab, setStudentTab,
       toastQueue, toast, toastAction, dismissToast,

@@ -37,7 +37,7 @@ export default function Dialog() {
         role="alertdialog"
         aria-modal="true"
         aria-label={title}
-        className="bg-surface border border-border w-full max-w-[420px] overflow-hidden"
+        className="glass-panel bg-surface border border-border w-full max-w-[420px] overflow-hidden"
         style={{ borderRadius: 18, animation: 'dialogPop .22s cubic-bezier(.22,.8,.38,1) both' }}
       >
         <div className="dlg-body">

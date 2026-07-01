@@ -1064,7 +1064,7 @@ export default function AdminSettingsModal({ onClose, push }) {
       { id: 'firebase', Icon: Flame,          label: 'Firebase connection', sub: 'Database credentials',           panel: () => <FirebaseTab /> },
     ] },
     { title: 'Appearance', rows: [
-      { id: 'theme', Icon: Palette, label: 'Theme', sub: 'Light or dark mode', control: <ThemeToggle style={{ position: 'static', width: 36, height: 36, fontSize: 15, flexShrink: 0 }} /> },
+      { id: 'theme', Icon: Palette, label: 'Theme', sub: 'Light, dark, or frosted glass', control: <ThemeToggle style={{ position: 'static', width: 36, height: 36, fontSize: 15, flexShrink: 0 }} /> },
     ] },
     { title: 'About', rows: [
       { id: 'about', Icon: Info, label: 'About AcadFlow', sub: `Version ${APP_VERSION} · what's new`, panel: () => <AboutPanel /> },

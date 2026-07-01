@@ -51,7 +51,7 @@ export default function StudentActionSheet({
   push,
   initialView = 'home',
 }) {
-  const { theme, toggleTheme } = useUI()
+  const { theme, setThemeMode } = useUI()
   const { classes = [] } = useData()
   // Latch the "Get verified" banner for the whole time the sheet is open: when the
   // account flips to Active mid-flow the live flag drops, but we must keep the
@@ -79,8 +79,9 @@ export default function StudentActionSheet({
 
   const themeControl = (
     <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 999, overflow: 'hidden', flexShrink: 0 }}>
-      <button onClick={() => { if (theme !== 'light') toggleTheme() }} style={segBtn(theme === 'light')}>Light</button>
-      <button onClick={() => { if (theme !== 'dark') toggleTheme() }} style={segBtn(theme === 'dark')}>Dark</button>
+      <button onClick={() => setThemeMode('light')} style={segBtn(theme === 'light')}>Light</button>
+      <button onClick={() => setThemeMode('dark')} style={segBtn(theme === 'dark')}>Dark</button>
+      <button onClick={() => setThemeMode('frost')} style={segBtn(theme === 'frost')}>Frosted</button>
     </div>
   )
 
