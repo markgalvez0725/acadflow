@@ -15,6 +15,7 @@ import StudentMeta from '@/components/primitives/StudentMeta'
 import { useRedirectHighlight } from '@/navigation/useRedirectHighlight'
 import { uploadSubmission } from '@/utils/googleDrive'
 import { extractSubmissionText } from '@/utils/submissionExtract'
+import { activeClassIds } from '@/utils/active'
 
 const PER_PAGE = 10
 const SOON_MS = 48 * 3600000 // "due soon" window
@@ -47,8 +48,8 @@ async function pushAdminNotif(db, s, text, type, link) {
   } catch (e) {}
 }
 
-export default function ActivitiesTab({ student: s, viewClassId, activities }) {
-  const { db, fbReady, students } = useData()
+export default function ActivitiesTab({ student: s, activities }) {
+  const { db, fbReady, students, classes, semester } = useData()
   const { toast } = useUI()
   const highlightId = useRedirectHighlight('activity')
 
@@ -63,14 +64,19 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
   const [groupLink, setGroupLink] = useState({})    // actId → string (optional link)
   const [filter, setFilter] = useState('all')       // all | open | dueSoon | submitted | graded | missed
 
-  const classId = viewClassId || s.classId
+  // Show activities from EVERY active class the student is enrolled in, not just
+  // one "viewed" class. Matches the Assignments and Quizzes tabs, which already
+  // aggregate this way. Filtering to a single class hid activities from a
+  // multi-class student's other classes, and since the class switcher is
+  // desktop-only, those activities were unreachable on mobile.
+  const enrolledIds = useMemo(() => activeClassIds(s, classes, semester), [s, classes, semester])
   const idName = useMemo(() => Object.fromEntries((students || []).map(x => [x.id, x.name])), [students])
 
   const items = useMemo(() =>
     activities
-      .filter(a => a.classId === classId)
+      .filter(a => enrolledIds.includes(a.classId))
       .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)),
-    [activities, classId]
+    [activities, enrolledIds]
   )
 
   // Per-activity derived standing - computed once, reused by the ring, the
@@ -264,6 +270,8 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
     }
   }
 
+  if (!fbReady) return <SkeletonTable />
+
   if (!items.length) {
     return (
       <EmptyState
@@ -273,8 +281,6 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
       />
     )
   }
-
-  if (!fbReady) return <SkeletonTable />
 
   const PILLS = [
     { key: 'all',       label: 'All' },
