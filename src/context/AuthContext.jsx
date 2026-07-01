@@ -224,7 +224,7 @@ export function AuthProvider({ children }) {
   // ── Admin login (Firebase Auth) ───────────────────────────────────────────
   // Signs in with the fixed admin email; only the password is variable, so a
   // non-admin Firebase user can never gain the admin role here.
-  const loginAdmin = useCallback(async (_username, password) => {
+  const loginAdmin = useCallback(async (_username, password, persist = false) => {
     const lockMsg = isLockedOut('admin')
     if (lockMsg) return { ok: false, msg: lockMsg }
     const auth = getFbAuth()
@@ -242,7 +242,7 @@ export function AuthProvider({ children }) {
       return { ok: false, msg: friendlyAuthError(e) }
     }
     clearAttempts('admin')
-    _startSession('admin')
+    _startSession('admin', null, persist)
     return { ok: true }
   }, [])
 

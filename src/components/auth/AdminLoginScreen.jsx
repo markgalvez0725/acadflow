@@ -40,6 +40,7 @@ export default function AdminLoginScreen() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
+  const [keepSignedIn, setKeepSignedIn] = useState(true)
 
   const clearMessages = () => { setErr(''); setOkMsg('') }
 
@@ -49,7 +50,7 @@ export default function AdminLoginScreen() {
     clearMessages()
     setLoading(true)
     try {
-      const result = await loginAdmin(ADMIN_EMAIL, password)
+      const result = await loginAdmin(ADMIN_EMAIL, password, keepSignedIn)
       if (!result.ok) {
         setErr(result.msg)
         setPassword('')
@@ -172,6 +173,10 @@ export default function AdminLoginScreen() {
                 </button>
                 <label htmlFor="admin-password">Password</label>
               </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '2px 2px 0', cursor: 'pointer', fontSize: 13, color: 'var(--ink2)', userSelect: 'none' }}>
+                <input type="checkbox" checked={keepSignedIn} onChange={e => setKeepSignedIn(e.target.checked)} style={{ width: 15, height: 15, accentColor: 'var(--accent)', cursor: 'pointer' }} />
+                Keep me signed in on this device
+              </label>
               <Button type="submit" full loading={loading} loadingText="Signing in…" className="mt-2">
                 Sign In
               </Button>
