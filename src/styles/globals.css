@@ -5673,6 +5673,17 @@ html[data-glass="on"][data-theme="dark"] body::before {
 .gm-status { font-size: 0.7813rem; color: var(--ink3); display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; }
 .gm-status.seen { color: var(--green); }
 
+/* Reaction viewer modal - who reacted, filtered by emoji (reuses .gm-list/.gm-row/.gm-av) */
+.rv-tabs { display: flex; gap: 6px; padding: 2px 8px 10px; overflow-x: auto; }
+.rv-tab { flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; font-size: 0.8125rem; font-weight: 600; padding: 5px 11px; border-radius: 999px; background: var(--surface2); color: var(--ink2); border: 1px solid var(--border); cursor: pointer; }
+.rv-tab.on { background: var(--accent-l); color: var(--accent); border-color: transparent; }
+.rv-tab-n { font-size: 0.75rem; opacity: .85; }
+.gm-list.rv-list { max-height: 60vh; }
+.rv-prof { font-size: 0.6875rem; font-weight: 600; color: var(--accent); background: var(--accent-l); padding: 1px 7px; border-radius: 999px; flex-shrink: 0; }
+.rv-remove { font-size: 0.75rem; font-weight: 600; color: var(--red); background: none; border: none; cursor: pointer; flex-shrink: 0; padding: 2px 4px; }
+.rv-me-row { background: var(--accent-l); }
+.rv-me-row:hover { background: var(--accent-l); }
+
 /* Selection checkbox shown in multi-select mode. */
 .msg-checkbox {
   width: 18px; height: 18px; flex-shrink: 0;

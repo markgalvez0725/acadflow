@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import ReactDOM from 'react-dom'
 import { X } from 'lucide-react'
 
@@ -8,9 +8,15 @@ import { X } from 'lucide-react'
  *
  * @param {{ isOpen: boolean, onClose: () => void, size?: 'sm'|'md'|'lg', children: React.ReactNode, zIndex?: number }} props
  */
-export default function Modal({ isOpen = true, onClose, size = 'md', children, zIndex = 200, wide = false, header = null, footer = null, sheetOnMobile = false, padded = true, title = null, subtitle = null, icon = null }) {
+export default function Modal({ isOpen = true, onClose, size = 'md', children, zIndex = 200, wide = false, header = null, footer = null, sheetOnMobile = false, draggable = false, padded = true, title = null, subtitle = null, icon = null }) {
   const panelRef = useRef(null)
   const prevFocusRef = useRef(null)
+  // Drag-to-dismiss for the mobile bottom sheet (opt-in via `draggable`). The
+  // gesture only starts from the grabber handle, so inner scroll/inputs are
+  // untouched; listeners live on window (never the handle) so a release outside
+  // the handle can't freeze the drag - same pattern as SettingsShell.
+  const [dragY, setDragY] = useState(0)
+  const [dragging, setDragging] = useState(false)
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -73,6 +79,31 @@ export default function Modal({ isOpen = true, onClose, size = 'md', children, z
   const resolvedHeader = header || (title ? <ModalHeader flush icon={icon} title={title} subtitle={subtitle} /> : null)
   const structured = !!(resolvedHeader || footer)
 
+  // Begin a drag from the sheet grabber. No-op unless we're in the mobile
+  // bottom-sheet mode; drags down and dismisses past a threshold, else snaps back.
+  function startDrag(e) {
+    if (!draggable || !sheetOnMobile) return
+    if (typeof window !== 'undefined' && window.matchMedia && !window.matchMedia('(max-width: 640px)').matches) return
+    const startY = e.clientY
+    let dy = 0
+    setDragging(true)
+    const move = ev => { dy = Math.max(0, ev.clientY - startY); setDragY(dy) }
+    const end = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', end)
+      window.removeEventListener('pointercancel', end)
+      setDragging(false)
+      if (dy > 90) onClose?.()
+      setDragY(0)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', end)
+    window.addEventListener('pointercancel', end)
+  }
+  const sheetDrag = (draggable && sheetOnMobile)
+    ? { transform: dragY ? `translateY(${dragY}px)` : undefined, transition: dragging ? 'none' : 'transform .2s ease' }
+    : null
+
   return ReactDOM.createPortal(
     <div
       className={`fixed inset-0 flex items-center justify-center p-4${sheetOnMobile ? ' modal-overlay-sheet' : ''}`}
@@ -86,8 +117,9 @@ export default function Modal({ isOpen = true, onClose, size = 'md', children, z
         tabIndex={-1}
         onKeyDown={handleKeyDown}
         className={`glass-panel bg-surface border border-border rounded-lg w-full ${maxW} max-h-[90vh] shadow-lg${sheetOnMobile ? ' modal-sheet' : ''}`}
-        style={{ position: 'relative', display: 'flex', flexDirection: 'column', overflow: 'hidden', outline: 'none' }}
+        style={{ position: 'relative', display: 'flex', flexDirection: 'column', overflow: 'hidden', outline: 'none', ...sheetDrag }}
       >
+        {draggable && sheetOnMobile && <div className="modal-grab" onPointerDown={startDrag} aria-hidden="true" />}
         {onClose && (
           <button
             type="button"

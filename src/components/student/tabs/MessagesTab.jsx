@@ -6,6 +6,7 @@ import { relativeTime, dayLabel, getInitials, fmtTime as timeLabel } from '@/uti
 import { getStudentMessages } from '@/utils/studentMessages'
 import { groupName, isGroupMessage, groupMembers } from '@/utils/groupChat'
 import ChatMembersModal from '@/components/primitives/ChatMembersModal'
+import ReactionViewerModal from '@/components/primitives/ReactionViewerModal'
 import SeenAvatars from '@/components/primitives/SeenAvatars'
 import { anchorMap as seenAnchorMap } from '@/utils/seenReceipts'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
@@ -159,6 +160,7 @@ export default function MessagesTab({ student: s, messages }) {
   const [editDraft, setEditDraft] = useState('')
   const [showMembers, setShowMembers] = useState(false)
   const [reactKey, setReactKey] = useState(null) // entryKey whose reaction picker is open
+  const [reactionView, setReactionView] = useState(null) // entry whose reactions are being viewed
   // Quoted reply: the bubble the student swiped / clicked the reply icon on.
   const [replyingTo, setReplyingTo] = useState(null) // { author, text } | null
   // A Stream post attached to the next message (from "Message professor about
@@ -845,6 +847,7 @@ export default function MessagesTab({ student: s, messages }) {
                           myId={s.id}
                           side={isSelf ? 'sent' : 'received'}
                           onToggle={emoji => handleToggleReaction(entry, emoji)}
+                          onView={() => setReactionView(entry)}
                         />
                       )}
                       {/* Read receipts: avatars sit under the last bubble each reader
@@ -877,6 +880,17 @@ export default function MessagesTab({ student: s, messages }) {
                   readerIds={Array.isArray(groupMsg.read) ? groupMsg.read : []}
                   readAt={groupMsg.readAt || {}}
                   onClose={() => setShowMembers(false)}
+                />
+              )}
+
+              {reactionView && (
+                <ReactionViewerModal
+                  reactions={reactionView.reactions}
+                  students={students}
+                  admin={admin}
+                  myId={s.id}
+                  onToggle={emoji => handleToggleReaction(reactionView, emoji)}
+                  onClose={() => setReactionView(null)}
                 />
               )}
 

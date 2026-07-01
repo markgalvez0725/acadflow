@@ -72,11 +72,28 @@ export function ReactionBar({ side = 'received', onPick, onClose }) {
 // The reaction count chips that sit under a bubble. Your own reaction is tinted
 // and tapping it removes you; tapping someone else's chip joins it. Renders
 // nothing when the bubble has no reactions.
-export function ReactionPills({ reactions, myId, side = 'received', onToggle }) {
+export function ReactionPills({ reactions, myId, side = 'received', onToggle, onView }) {
+  // Tap a pill toggles your reaction; a long-press (touch) or right-click
+  // (desktop) opens the reaction viewer via onView, without breaking the tap.
+  const pressTimer = useRef(null)
+  const longFired = useRef(false)
   const entries = reactionEntries(reactions)
   if (!entries.length) return null
+
+  const startPress = e => {
+    if (!onView || (e && e.button)) return // primary button / touch only
+    longFired.current = false
+    clearTimeout(pressTimer.current)
+    pressTimer.current = setTimeout(() => { longFired.current = true; onView() }, 450)
+  }
+  const cancelPress = () => clearTimeout(pressTimer.current)
+  const handleClick = emoji => {
+    if (longFired.current) { longFired.current = false; return } // the long-press already opened the viewer
+    onToggle?.(emoji)
+  }
+
   return (
-    <div className={`msg-react-pills ${side}`}>
+    <div className={`msg-react-pills ${side}`} onContextMenu={onView ? (e => { e.preventDefault(); onView() }) : undefined}>
       {entries.map(([emoji, ids]) => {
         const mine = ids.includes(myId)
         return (
@@ -84,8 +101,12 @@ export function ReactionPills({ reactions, myId, side = 'received', onToggle }) 
             key={emoji}
             type="button"
             className={`msg-react-pill${mine ? ' mine' : ''}`}
-            onClick={() => onToggle?.(emoji)}
-            title={mine ? 'Remove your reaction' : 'React'}
+            onClick={() => handleClick(emoji)}
+            onPointerDown={startPress}
+            onPointerUp={cancelPress}
+            onPointerLeave={cancelPress}
+            onPointerCancel={cancelPress}
+            title={onView ? 'Tap to toggle · long-press or right-click to see who reacted' : (mine ? 'Remove your reaction' : 'React')}
           >
             <EmojiIcon emoji={emoji} size={15} />
             <span className="msg-react-count">{ids.length}</span>

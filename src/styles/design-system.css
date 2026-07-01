@@ -546,6 +546,9 @@ html[data-glass="off"] .sidebar { background: var(--navy) !important; }
   flex-shrink: 0;
 }
 
+/* Grabber handle for the draggable mobile sheet (Modal `draggable`). */
+.modal-grab { display: none; }
+
 /* Mobile: opt-in full-screen bottom sheet (Modal `sheetOnMobile`). The panel
    fills the width and anchors to the bottom for thumb reach. */
 @media (max-width: 640px) {
@@ -555,5 +558,6 @@ html[data-glass="off"] .sidebar { background: var(--navy) !important; }
     max-height: 94vh !important;
     border-radius: 16px 16px 0 0 !important;
   }
+  .modal-grab { display: block; width: 40px; height: 5px; border-radius: 999px; background: var(--border2); margin: 9px auto 1px; flex-shrink: 0; touch-action: none; cursor: grab; }
   .modal-foot .btn { flex: 1 1 0; justify-content: center; }
 }

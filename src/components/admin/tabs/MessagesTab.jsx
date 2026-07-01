@@ -7,6 +7,7 @@ import { groupFlags, previewText } from '@/utils/messageThread'
 import { isClassCurrent } from '@/utils/active'
 import { isGroupMessage, autoGroupName, groupName, studentTag, groupMembers, courseShort } from '@/utils/groupChat'
 import ChatMembersModal from '@/components/primitives/ChatMembersModal'
+import ReactionViewerModal from '@/components/primitives/ReactionViewerModal'
 import SeenAvatars from '@/components/primitives/SeenAvatars'
 import { anchorMap as seenAnchorMap } from '@/utils/seenReceipts'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
@@ -402,9 +403,10 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
 }
 
 // ── Thread Panel ──────────────────────────────────────────────────────
-function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, onEditEntry, onDeleteEntry, onToggleReaction, onRetry }) {
+function ThreadPanel({ thread, students, admin, onReply, onClose, onDelete, onRename, onEditEntry, onDeleteEntry, onToggleReaction, onRetry }) {
   const { setAdminTab } = useUI()
   const myId = 'admin'
+  const [reactionView, setReactionView] = useState(null) // entry whose reactions are being viewed
   const messagesEndRef = useRef(null)
   const chatKey = thread ? (thread.type === 'conversation' ? 'direct_' + thread.studentId : 'group_' + thread.msgId) : null
   const { typers, notifyTyping, stopTyping } = useTyping(chatKey, { id: 'admin', name: 'Professor' })
@@ -608,6 +610,7 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, o
                   myId={myId}
                   side={isAdmin ? 'sent' : 'received'}
                   onToggle={emoji => onToggleReaction?.(entry, emoji)}
+                  onView={() => setReactionView(entry)}
                 />
               )}
               {/* Read receipts: avatars sit under the last bubble each reader has
@@ -644,6 +647,17 @@ function ThreadPanel({ thread, students, onReply, onClose, onDelete, onRename, o
       {/* Members + read receipts (opened from the header "See chat members") */}
       {showMembers && isGroup && (
         <ChatMembersModal members={thread.members} readerIds={thread.readerIds} readAt={thread.readAt} onClose={() => setShowMembers(false)} />
+      )}
+
+      {reactionView && (
+        <ReactionViewerModal
+          reactions={reactionView.reactions}
+          students={students}
+          admin={admin}
+          myId={myId}
+          onToggle={emoji => onToggleReaction?.(reactionView, emoji)}
+          onClose={() => setReactionView(null)}
+        />
       )}
     </div>
   )
@@ -793,7 +807,7 @@ function threadTokenOf(conv) {
 }
 
 export default function MessagesTab() {
-  const { students, classes, messages, db, fbReady, loadMoreMessages, hasMoreMessages } = useData()
+  const { students, classes, messages, db, fbReady, loadMoreMessages, hasMoreMessages, admin } = useData()
   const { toast, openDialog, pendingAdminConvId, clearPendingAdminConv } = useUI()
   // Optimistic, not-yet-echoed outgoing bubbles. Each carries a threadToken so it
   // renders only in its thread, and a status ('sending' | 'failed').
@@ -1393,6 +1407,7 @@ export default function MessagesTab() {
             <ThreadPanel
               thread={thread}
               students={students}
+              admin={admin}
               onReply={handleReply}
               onClose={() => setActiveConv(null)}
               onDelete={() => deleteTokens([thread.type === 'conversation' ? 'conv:' + thread.studentId : 'msg:' + thread.msgId])}
