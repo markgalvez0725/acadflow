@@ -13,6 +13,8 @@ import EmptyState from '@/components/ds/EmptyState'
 import PageHeader from '@/components/ds/PageHeader'
 import Avatar from '@/components/primitives/Avatar'
 import SubmissionPreview from '@/components/primitives/SubmissionPreview'
+import RichTextEditor from '@/components/primitives/RichTextEditor'
+import RichText from '@/components/primitives/RichText'
 import GroupsModal from '@/components/admin/modals/GroupsModal'
 import { extractSubmissionText } from '@/utils/submissionExtract'
 import { uploadFile, isConfigured as driveConfigured } from '@/utils/googleDrive'
@@ -431,7 +433,7 @@ function ActivityFormModal({ act, onClose }) {
             <Sparkles size={12} className="inline-block mr-1" />{smartBusyInstr ? 'Writing…' : 'Auto-write'}
           </button>
         </div>
-        <textarea className="input w-full" rows={3} value={instructions} onChange={e => setInstructions(e.target.value)} placeholder="Brief instructions for students…" />
+        <RichTextEditor value={instructions} onChange={setInstructions} rows={3} placeholder="Brief instructions for students…" />
       </div>
 
       <div className="field mb-3">
@@ -473,7 +475,7 @@ function ActivityFormModal({ act, onClose }) {
         {isGroup && (
           <div className="mt-2" style={{ marginLeft: 24 }}>
             <label className="text-xs font-semibold text-ink2 mb-1 block">Case prompt / scenario</label>
-            <textarea className="input w-full" rows={3} value={casePrompt} onChange={e => setCasePrompt(e.target.value)}
+            <RichTextEditor value={casePrompt} onChange={setCasePrompt} rows={3}
               placeholder="Describe the case or scenario the groups must analyze…" />
             <p className="text-xs text-ink3 mt-1">Used to check each group actually addresses the case.</p>
             <button type="button" className="btn btn-ghost btn-sm mt-2" onClick={() => setGroupsOpen(true)}>
@@ -1113,8 +1115,8 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       )}
 
       {act.instructions && (
-        <div className="text-xs text-ink2 mb-3 p-2 rounded" style={{ background: 'var(--surface2)', borderRadius: 6 }}>
-          {act.instructions}
+        <div className="mb-3 p-2 rounded" style={{ background: 'var(--surface2)', borderRadius: 6 }}>
+          <RichText html={act.instructions} />
         </div>
       )}
 
@@ -1153,7 +1155,10 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
             </button>
           </div>
           {act.casePrompt && (
-            <div className="text-xs text-ink2 mb-2 p-2 rounded" style={{ background: 'var(--surface2)' }}><strong>Case:</strong> {act.casePrompt}</div>
+            <div className="mb-2 p-2 rounded" style={{ background: 'var(--surface2)' }}>
+              <div className="text-xs font-semibold text-ink2 mb-1">Case</div>
+              <RichText html={act.casePrompt} />
+            </div>
           )}
           <div className="flex flex-col gap-2" style={{ maxHeight: '40vh', overflowY: 'auto', paddingRight: 4 }}>
             {(act.groups || []).map(g => {

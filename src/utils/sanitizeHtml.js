@@ -12,3 +12,11 @@ export const ANNOUNCEMENT_SANITIZE_CONFIG = {
 export function sanitizeAnnouncementHtml(html) {
   return DOMPurify.sanitize(html || '', ANNOUNCEMENT_SANITIZE_CONFIG)
 }
+
+// Generic aliases: the same whitelist now backs ALL rich text in the app
+// (announcements, activity instructions + case prompts, quiz questions +
+// explanations, feedback), not just announcements. New code should import the
+// generic names via <RichTextEditor> / <RichText> rather than duplicating the
+// config.
+export const RICH_TEXT_SANITIZE_CONFIG = ANNOUNCEMENT_SANITIZE_CONFIG
+export const sanitizeRichHtml = sanitizeAnnouncementHtml

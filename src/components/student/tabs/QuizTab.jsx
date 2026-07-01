@@ -7,6 +7,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { useRedirectHighlight } from '@/navigation/useRedirectHighlight'
 import Modal from '@/components/primitives/Modal'
+import RichText from '@/components/primitives/RichText'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 import StandingRing from '@/components/primitives/StandingRing'
 import EmptyState from '@/components/ds/EmptyState'
@@ -418,9 +419,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', marginBottom: 8 }}>
           Question {currentQ + 1} of {total} · {q.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
         </div>
-        <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', marginBottom: 14, lineHeight: 1.5 }}>
-          {q.question}
-        </p>
+        <RichText html={q.question} style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', marginBottom: 14, lineHeight: 1.5 }} />
 
         {/* Multiple choice */}
         {q.type === 'multiple_choice' && q.options && (
@@ -562,7 +561,7 @@ function ReviewRow({ q, index, isCorrect, partial, studentAns }) {
             ? <span style={{ color: '#f59e0b' }}><CheckCircle2 size={14} /> Partial credit</span>
             : <><XCircle size={14} /> Wrong</>}
       </div>
-      <p style={{ fontSize: 13, color: 'var(--ink)', marginBottom: 6 }}>{q.question}</p>
+      <RichText html={q.question} style={{ fontSize: 13, color: 'var(--ink)', marginBottom: 6 }} />
       <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
         Your answer: <span style={{ fontWeight: 600, color: isCorrect ? 'var(--green)' : 'var(--red)' }}>
           {studentAns || '-'}
@@ -578,7 +577,7 @@ function ReviewRow({ q, index, isCorrect, partial, studentAns }) {
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
             <Lightbulb size={12} /> Explanation
           </div>
-          <div style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.55 }}>{exp}</div>
+          <RichText html={exp} style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.55 }} />
         </div>
       )}
     </div>

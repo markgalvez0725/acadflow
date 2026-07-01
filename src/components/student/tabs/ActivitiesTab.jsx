@@ -10,6 +10,7 @@ import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import StandingRing from '@/components/primitives/StandingRing'
 import SubmissionFileField from '@/components/student/SubmissionFileField'
 import SubmissionPreview from '@/components/primitives/SubmissionPreview'
+import RichText from '@/components/primitives/RichText'
 import StudentMeta from '@/components/primitives/StudentMeta'
 import { useRedirectHighlight } from '@/navigation/useRedirectHighlight'
 import { uploadSubmission } from '@/utils/googleDrive'
@@ -379,7 +380,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
 
 
               {act.instructions && (
-                <div className="sa-act-desc">{act.instructions}</div>
+                <RichText html={act.instructions} className="sa-act-desc" />
               )}
               {Array.isArray(act.attachments) && act.attachments.length > 0 && (
                 <div style={{ marginTop: 8 }}>
@@ -446,7 +447,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                   {sub.feedback && (
                     <div style={{ marginTop: 8, padding: '8px 10px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3 }}>Professor feedback</div>
-                      <div style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{sub.feedback}</div>
+                      <RichText html={sub.feedback} style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.55 }} />
                     </div>
                   )}
                 </div>

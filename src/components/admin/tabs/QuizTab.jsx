@@ -5,6 +5,8 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { useRedirectHighlight } from '@/navigation/useRedirectHighlight'
 import Modal from '@/components/primitives/Modal'
+import RichTextEditor from '@/components/primitives/RichTextEditor'
+import RichText from '@/components/primitives/RichText'
 import Badge from '@/components/primitives/Badge'
 import Avatar from '@/components/primitives/Avatar'
 import Pagination from '@/components/primitives/Pagination'
@@ -693,7 +695,7 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
                     onClick={() => removeQuestion(q.id)}><X size={11} /></button>
                 </div>
               </div>
-              <p style={{ fontSize: 12, color: 'var(--ink)', marginBottom: 4 }}>{q.question || <em style={{ color: 'var(--ink3)' }}>No question text</em>}</p>
+              <div style={{ marginBottom: 4 }}>{q.question ? <RichText html={q.question} style={{ fontSize: 12, color: 'var(--ink)' }} /> : <em style={{ fontSize: 12, color: 'var(--ink3)' }}>No question text</em>}</div>
               {q.type === 'multiple_choice' && q.options && (
                 <div className="flex flex-wrap gap-1">
                   {q.options.map((opt, oi) => (
@@ -740,9 +742,12 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
                 )
               })()}
               {q.explanation && editingQ !== q.id && (
-                <div style={{ display: 'flex', gap: 5, alignItems: 'baseline', marginTop: 6, fontSize: 11, color: 'var(--ink3)', lineHeight: 1.5 }}>
+                <div style={{ display: 'flex', gap: 5, alignItems: 'baseline', marginTop: 6 }}>
                   <Lightbulb size={12} style={{ flexShrink: 0, color: 'var(--yellow)', transform: 'translateY(2px)' }} />
-                  <span><span style={{ fontWeight: 600, color: 'var(--ink2)' }}>Explanation:</span> {q.explanation}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink2)' }}>Explanation: </span>
+                    <RichText html={q.explanation} style={{ display: 'inline', fontSize: 11, color: 'var(--ink3)', lineHeight: 1.5 }} />
+                  </div>
                 </div>
               )}
               {editingQ === q.id && (
@@ -763,8 +768,7 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
                   </div>
                   <div className="field mb-2">
                     <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 4 }}>Question</label>
-                    <textarea className="input w-full" rows={2} style={{ fontSize: 12 }} value={q.question}
-                      onChange={e => updateQuestion(q.id, 'question', e.target.value)} />
+                    <RichTextEditor value={q.question} onChange={html => updateQuestion(q.id, 'question', html)} rows={2} />
                   </div>
                   {q.type === 'multiple_choice' && (
                     <div className="field mb-2">
@@ -813,9 +817,7 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
                     <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink2)', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
                       <Lightbulb size={11} style={{ color: 'var(--yellow)' }} />Explanation <span className="text-ink3" style={{ fontWeight: 500 }}>(shown to students on review)</span>
                     </label>
-                    <textarea className="input w-full" rows={2} style={{ fontSize: 12 }} placeholder="Why this answer is correct…"
-                      value={q.explanation || ''}
-                      onChange={e => updateQuestion(q.id, 'explanation', e.target.value)} />
+                    <RichTextEditor value={q.explanation || ''} onChange={html => updateQuestion(q.id, 'explanation', html)} rows={2} placeholder="Why this answer is correct…" />
                   </div>
                 </div>
               )}
@@ -876,7 +878,7 @@ function QuizItemAnalysis({ quiz }) {
           <div key={it.index} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
               <span style={{ fontWeight: 700, fontSize: 12, color: 'var(--ink2)', flexShrink: 0 }}>Q{it.index + 1}</span>
-              <span style={{ fontSize: 13, color: 'var(--ink)', flex: 1, minWidth: 0 }}>{it.question}</span>
+              <RichText html={it.question} style={{ fontSize: 13, color: 'var(--ink)', flex: 1, minWidth: 0 }} />
               <span style={{ fontWeight: 700, fontSize: 13, color: col, flexShrink: 0 }}>{it.correctPct}%</span>
             </div>
             <div style={{ height: 6, borderRadius: 3, background: 'var(--surface2)', marginTop: 6, overflow: 'hidden' }}>
