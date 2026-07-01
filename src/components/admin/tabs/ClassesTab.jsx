@@ -94,6 +94,12 @@ function AddClassModal({ onClose, prefill = null }) {
       icon={isDuplicate ? <Copy size={18} /> : <Plus size={18} />}
       title={isDuplicate ? 'Duplicate to New Section' : 'Add New Class'}
       subtitle={isDuplicate ? 'Same course and subjects, new section. Set a unique section, then save.' : 'Fill in the class details below.'}
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={handleAdd} disabled={saving}>
+          {saving ? 'Saving…' : 'Add Class'}
+        </button>
+      </>}
     >
       <div className="input-row">
         <div className="field">
@@ -169,12 +175,6 @@ function AddClassModal({ onClose, prefill = null }) {
         </label>
       </div>
       {err && <div className="err-msg mb-2">{err}</div>}
-      <div className="modal-footer">
-        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={handleAdd} disabled={saving}>
-          {saving ? 'Saving…' : 'Add Class'}
-        </button>
-      </div>
     </Modal>
   )
 }
@@ -279,7 +279,14 @@ function EditClassModal({ cls, onClose }) {
   }
 
   return (
-    <Modal onClose={onClose} sheetOnMobile icon={<Pencil size={18} />} title="Edit Class" subtitle="Update class details and subjects below.">
+    <Modal onClose={onClose} sheetOnMobile icon={<Pencil size={18} />} title="Edit Class" subtitle="Update class details and subjects below."
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+          {saving ? 'Saving…' : 'Save Changes'}
+        </button>
+      </>}
+    >
       <div className="input-row">
         <div className="field">
           <label>Course Name <span className="text-red-500">*</span></label>
@@ -356,12 +363,6 @@ function EditClassModal({ cls, onClose }) {
         </label>
       </div>
       {err && <div className="err-msg mb-2">{err}</div>}
-      <div className="modal-footer">
-        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-          {saving ? 'Saving…' : 'Save Changes'}
-        </button>
-      </div>
     </Modal>
   )
 }

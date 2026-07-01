@@ -179,6 +179,18 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
   return (
     <Modal onClose={onClose} size="md" sheetOnMobile icon={<Sparkles size={18} />} title="Smart Quiz"
       subtitle="Upload a lesson (or type a topic), open it in Perplexity - or download the template for ChatGPT, Claude, or Gemini - then paste the questions back here."
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-ghost" onClick={onSwitchToImport}>
+          <Download size={13} className="inline-block mr-1" />Paste response
+        </button>
+        <button className="btn btn-ghost" onClick={handleExport} disabled={(!topic.trim() && !lessonText.trim()) || !qTypes.length || extracting}>
+          <Upload size={13} className="inline-block mr-1" />Download template
+        </button>
+        <button className="btn btn-primary" onClick={handleOpenPerplexity} disabled={(!topic.trim() && !lessonText.trim()) || !qTypes.length || extracting}>
+          <ExternalLink size={13} className="inline-block mr-1" />Open in Perplexity
+        </button>
+      </>}
     >
 
       {/* Lesson file - questions are drawn from its content (read on your device) */}
@@ -282,18 +294,6 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
         </pre>
       </div>
 
-      <div className="modal-footer">
-        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-ghost" onClick={onSwitchToImport}>
-          <Download size={13} className="inline-block mr-1" />Paste response
-        </button>
-        <button className="btn btn-ghost" onClick={handleExport} disabled={(!topic.trim() && !lessonText.trim()) || !qTypes.length || extracting}>
-          <Upload size={13} className="inline-block mr-1" />Download template
-        </button>
-        <button className="btn btn-primary" onClick={handleOpenPerplexity} disabled={(!topic.trim() && !lessonText.trim()) || !qTypes.length || extracting}>
-          <ExternalLink size={13} className="inline-block mr-1" />Open in Perplexity
-        </button>
-      </div>
     </Modal>
   )
 }
@@ -321,6 +321,12 @@ function ImportResponseModal({ onClose, onImported }) {
   return (
     <Modal onClose={onClose} size="md" sheetOnMobile icon={<Download size={18} />} title="Import Response"
       subtitle="Paste the JSON array returned by your chat assistant. The quiz will be auto-configured and ready to save."
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={handleImport} disabled={!jsonInput.trim()}>
+          Import & Configure Quiz →
+        </button>
+      </>}
     >
 
       <div className="field mb-3">
@@ -337,13 +343,6 @@ function ImportResponseModal({ onClose, onImported }) {
       </div>
 
       {jsonErr && <div className="err-msg mb-2">{jsonErr}</div>}
-
-      <div className="modal-footer">
-        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={handleImport} disabled={!jsonInput.trim()}>
-          Import & Configure Quiz →
-        </button>
-      </div>
     </Modal>
   )
 }
@@ -550,22 +549,44 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
       icon={isEdit ? <Pencil size={18} /> : <FileText size={18} />}
       title={isEdit ? 'Edit Quiz' : 'Configure & Share Quiz'}
       subtitle={`${questions.length} questions${isEdit ? '' : ' imported'}. Review, edit, then share with classes.`}
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        {wasPublished ? (
+          <>
+            {!hasSubmissions && (
+              <button className="btn btn-ghost" onClick={() => handleSave('draft')} disabled={saving}>
+                <FileText size={13} className="inline-block mr-1" />Unpublish to draft
+              </button>
+            )}
+            <button className="btn btn-primary" onClick={() => handleSave('published')} disabled={saving}>
+              {saving ? 'Saving…' : <><Save size={13} className="inline-block mr-1" />Save Changes</>}
+            </button>
+          </>
+        ) : (
+          <>
+            <button className="btn btn-ghost" onClick={() => handleSave('draft')} disabled={saving}>
+              <FileText size={13} className="inline-block mr-1" />Save as draft
+            </button>
+            <button className="btn btn-primary" onClick={() => handleSave('published')} disabled={saving}>
+              {saving ? 'Saving…' : <><Rocket size={13} className="inline-block mr-1" />{isEdit ? 'Publish now' : 'Publish'}</>}
+            </button>
+          </>
+        )}
+      </>}
     >
       {/* Tabs: Details · Questions */}
-      <div className="inline-flex bg-[var(--surface2)] border border-[var(--border)] rounded-full p-0.5 mb-3">
+      <div className="seg-filter mb-3">
         {[
-          { id: 'details', label: 'Details' },
-          { id: 'questions', label: `Questions · ${questions.length}` },
+          { id: 'details', label: 'Details', count: null },
+          { id: 'questions', label: 'Questions', count: questions.length },
         ].map(t => (
           <button
             key={t.id}
             type="button"
             onClick={() => setTab(t.id)}
-            className={`text-xs font-medium px-3.5 py-1.5 rounded-full transition-colors ${
-              tab === t.id ? 'bg-[var(--surface)] text-[var(--accent)] shadow-sm' : 'text-[var(--ink3)] hover:text-[var(--ink2)]'
-            }`}
+            className={`seg-btn${tab === t.id ? ' active' : ''}`}
           >
-            {t.label}
+            {t.label}{t.count != null && <span className="seg-count">{t.count}</span>}
           </button>
         ))}
       </div>
@@ -827,30 +848,6 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
       </div>
       )}
 
-      <div className="modal-footer">
-        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        {wasPublished ? (
-          <>
-            {!hasSubmissions && (
-              <button className="btn btn-ghost" onClick={() => handleSave('draft')} disabled={saving}>
-                <FileText size={13} className="inline-block mr-1" />Unpublish to draft
-              </button>
-            )}
-            <button className="btn btn-primary" onClick={() => handleSave('published')} disabled={saving}>
-              {saving ? 'Saving…' : <><Save size={13} className="inline-block mr-1" />Save Changes</>}
-            </button>
-          </>
-        ) : (
-          <>
-            <button className="btn btn-ghost" onClick={() => handleSave('draft')} disabled={saving}>
-              <FileText size={13} className="inline-block mr-1" />Save as draft
-            </button>
-            <button className="btn btn-primary" onClick={() => handleSave('published')} disabled={saving}>
-              {saving ? 'Saving…' : <><Rocket size={13} className="inline-block mr-1" />{isEdit ? 'Publish now' : 'Publish'}</>}
-            </button>
-          </>
-        )}
-      </div>
     </Modal>
   )
 }
@@ -1108,21 +1105,27 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
   return (
     <Modal onClose={onClose} size="lg" sheetOnMobile icon={<FileText size={18} />} title={quiz.title}
       subtitle={<>{quiz.subject} · {quiz.questions?.length || 0} questions · {quiz.timeLimit} min time limit<br />Opens: {openLabel} · Closes: {closeLabel}</>}
+      footer={<>
+        <button className="btn btn-ghost btn-sm" onClick={onEdit}><Pencil size={13} className="inline-block mr-1" />Edit</button>
+        <button className="btn btn-ghost btn-sm" onClick={handleClone}><Copy size={13} className="inline-block mr-1" />Duplicate</button>
+        <button className="btn btn-danger btn-sm" onClick={handleDelete}>Delete</button>
+        <button className="btn btn-ghost btn-sm" onClick={onClose}>Close</button>
+      </>}
     >
 
       {isUpcoming && (
-        <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12, color: 'var(--ink2)' }}>
-          <Clock size={13} className="inline-block mr-1 align-text-bottom" />Upcoming - opens {openLabel}
+        <div className="note-banner">
+          <Clock size={14} /><span>Upcoming - opens {openLabel}</span>
         </div>
       )}
       {isOpen && (
-        <div style={{ background: 'var(--green-l)', color: 'var(--green)', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12 }}>
-          <Circle size={13} className="inline-block mr-1 align-text-bottom" style={{ fill: 'var(--green)', color: 'var(--green)' }} />Open - closes {closeLabel}
+        <div className="note-banner note-banner--ok">
+          <Circle size={14} style={{ fill: 'var(--green)', color: 'var(--green)' }} /><span>Open - closes {closeLabel}</span>
         </div>
       )}
       {isClosed && (
-        <div style={{ background: 'var(--red-l)', color: 'var(--red)', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12 }}>
-          <Lock size={13} className="inline-block mr-1 align-text-bottom" />Closed - {attempted}/{enrolledStudents.length} attempted · {graded} auto-graded
+        <div className="note-banner note-banner--danger">
+          <Lock size={14} /><span>Closed - {attempted}/{enrolledStudents.length} attempted · {graded} auto-graded</span>
         </div>
       )}
 
@@ -1245,7 +1248,13 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
 
       {mineOpen && mineResult && (
         <Modal onClose={() => setMineOpen(false)} size="lg" sheetOnMobile icon={<Wand2 size={18} />} title="Improve answer key"
-          subtitle="These student answers were marked wrong but mean roughly the same as your key. Tick the ones that should count - they'll be added to the key and matching attempts re-graded.">
+          subtitle="These student answers were marked wrong but mean roughly the same as your key. Tick the ones that should count - they'll be added to the key and matching attempts re-graded."
+          footer={<>
+            <button className="btn btn-ghost" onClick={() => setMineOpen(false)} disabled={applying}>Cancel</button>
+            <button className="btn btn-primary" onClick={applyKeyImprovements} disabled={applying}>
+              {applying ? 'Applying…' : 'Add selected & re-grade'}
+            </button>
+          </>}>
           <div className="flex flex-col gap-3" style={{ maxHeight: '55vh', overflowY: 'auto', paddingRight: 4, marginTop: 8 }}>
             {mineResult.perQuestion.map(p => (
               <div key={p.qIndex} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '10px 12px', border: '1px solid var(--border)' }}>
@@ -1268,21 +1277,8 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
               </div>
             ))}
           </div>
-          <div className="modal-footer">
-            <button className="btn btn-ghost" onClick={() => setMineOpen(false)} disabled={applying}>Cancel</button>
-            <button className="btn btn-primary" onClick={applyKeyImprovements} disabled={applying}>
-              {applying ? 'Applying…' : 'Add selected & re-grade'}
-            </button>
-          </div>
         </Modal>
       )}
-
-      <div className="flex gap-2 flex-wrap">
-        <button className="btn btn-ghost btn-sm" onClick={onEdit}><Pencil size={13} className="inline-block mr-1" />Edit</button>
-        <button className="btn btn-ghost btn-sm" onClick={handleClone}><Copy size={13} className="inline-block mr-1" />Duplicate</button>
-        <button className="btn btn-danger btn-sm" onClick={handleDelete}>Delete</button>
-        <button className="btn btn-ghost btn-sm ml-auto" onClick={onClose}>Close</button>
-      </div>
     </Modal>
   )
 }
@@ -1365,6 +1361,20 @@ function GenerateFromLessonModal({ onClose, onGenerated, onSwitchToImport }) {
   return (
     <Modal onClose={onClose} size="md" sheetOnMobile icon={<Wand2 size={18} />} title="Draft from lesson"
       subtitle="Upload your lesson file and AcadFlow drafts quiz questions from it on your device - or open it in Perplexity. You review and edit everything before saving."
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        {onSwitchToImport && (
+          <button className="btn btn-ghost" onClick={onSwitchToImport}>
+            <Download size={13} className="inline-block mr-1" />Paste response
+          </button>
+        )}
+        <button className="btn btn-ghost" onClick={handleOpenPerplexity} disabled={busy || extracting || !text.trim()}>
+          <ExternalLink size={13} className="inline-block mr-1" />Open in Perplexity
+        </button>
+        <button className="btn btn-primary" onClick={handleGenerate} disabled={busy || extracting || !text.trim()}>
+          <Sparkles size={13} className="inline-block mr-1" />{busy ? 'Creating…' : 'Create draft'}
+        </button>
+      </>}
     >
 
       {/* Guide */}
@@ -1480,20 +1490,6 @@ function GenerateFromLessonModal({ onClose, onGenerated, onSwitchToImport }) {
         </div>
       </div>
 
-      <div className="modal-footer">
-        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        {onSwitchToImport && (
-          <button className="btn btn-ghost" onClick={onSwitchToImport}>
-            <Download size={13} className="inline-block mr-1" />Paste response
-          </button>
-        )}
-        <button className="btn btn-ghost" onClick={handleOpenPerplexity} disabled={busy || extracting || !text.trim()}>
-          <ExternalLink size={13} className="inline-block mr-1" />Open in Perplexity
-        </button>
-        <button className="btn btn-primary" onClick={handleGenerate} disabled={busy || extracting || !text.trim()}>
-          <Sparkles size={13} className="inline-block mr-1" />{busy ? 'Creating…' : 'Create draft'}
-        </button>
-      </div>
     </Modal>
   )
 }

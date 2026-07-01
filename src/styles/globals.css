@@ -1584,8 +1584,11 @@ html[data-theme="dark"] .aflogo-dark { display: block; }
 /* ══════════════════════════════════════════
    FORM MESSAGES
 ══════════════════════════════════════════ */
+/* Rendered conditionally by React ({err && ...}), so they display by default.
+   (The old `display: none` default silently hid every call site that forgot
+   the inline display:block escape hatch.) */
 .err-msg, .ok-msg {
-  display: none;
+  display: block;
   padding: 9px 12px;
   border-radius: var(--radius);
   font-size: 0.8438rem;
@@ -1742,23 +1745,6 @@ textarea.input { resize: vertical; }
   margin-top: 16px;
   border-top: 1px solid var(--border);
   flex-wrap: wrap;
-}
-/* Sticky variant - pins the action bar to the modal bottom while the body
-   scrolls. Negative margins bleed past .modal-scroll's 28px padding so the
-   bar sits flush with the panel edge. */
-.modal-footer-sticky {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  position: sticky;
-  bottom: -28px;
-  margin: 18px -28px -28px;
-  padding: 14px 28px;
-  background: var(--surface);
-  border-top: 1px solid var(--border);
-  z-index: 3;
 }
 .input-row {
   display: grid;

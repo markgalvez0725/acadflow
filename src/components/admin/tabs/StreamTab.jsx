@@ -3,7 +3,7 @@ import { useData } from '@/context/DataContext'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
 import { useUI } from '@/context/UIContext'
 import Modal from '@/components/primitives/Modal'
-import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, Clock, Users, Award, CheckCircle2, XCircle, AlertCircle, Plus, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered, Paperclip, Image as ImageIcon, FileText, Sparkles, Library, FolderOpen, RefreshCw, Check, Loader2, CheckSquare, Square } from 'lucide-react'
+import { Megaphone, ClipboardList, BookOpen, CalendarCheck, FileQuestion, Clock, Users, Award, CheckCircle2, XCircle, AlertCircle, Plus, CalendarOff, Video, Link, X, MessageSquare, CornerDownRight, Send, Bold, Italic, Underline, Highlighter, List, ListOrdered, Paperclip, Image as ImageIcon, FileText, Sparkles, Library, FolderOpen, RefreshCw, Check, Loader2, CheckSquare, Square, Pencil } from 'lucide-react'
 import { composeAnnouncementMessage } from '@/utils/announceCompose'
 import { annClassIds, annIsBroadcast, announcementClassPills } from '@/utils/announce'
 import { isConfigured as driveConfigured, getConnection as getDriveConnection, uploadFile as driveUpload, listDriveFiles } from '@/utils/googleDrive'
@@ -326,7 +326,12 @@ function AnnouncementFormModal({ ann, onClose }) {
   }
 
   return (
-    <Modal onClose={onClose} sheetOnMobile icon={<Megaphone size={18} />} title={isEdit ? 'Edit Announcement' : 'New Announcement'}>
+    <Modal onClose={onClose} sheetOnMobile icon={<Megaphone size={18} />} title={isEdit ? 'Edit Announcement' : 'New Announcement'}
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? (pendingFiles.length ? 'Uploading…' : 'Saving…') : isEdit ? 'Update' : 'Post Announcement'}</button>
+      </>}
+    >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 320 }}>
         <div>
           <label className="form-label">Announcement type</label>
@@ -539,11 +544,7 @@ function AnnouncementFormModal({ ann, onClose }) {
           <label className="form-label">Expires at <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(optional)</span></label>
           <input type="datetime-local" className="form-input" value={expiresAt} onChange={e => setExpiresAt(e.target.value)} />
         </div>
-        {err && <div style={{ color: 'var(--red)', fontSize: 13 }}>{err}</div>}
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
-          <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? (pendingFiles.length ? 'Uploading…' : 'Saving…') : isEdit ? 'Update' : 'Post Announcement'}</button>
-        </div>
+        {err && <div className="err-msg" style={{ marginBottom: 0 }}>{err}</div>}
       </div>
     </Modal>
   )
@@ -565,7 +566,12 @@ function AnnouncementDetailModal({ ann, classes, onClose, onEdit }) {
   const Icon = ann.type === 'no_class' ? CalendarOff : ann.type === 'online_class' ? Video : ann.type === 'resource_hub' ? Library : BookOpen
 
   return (
-    <Modal onClose={onClose} size="md" sheetOnMobile icon={<Icon size={18} />} title={ann.title}>
+    <Modal onClose={onClose} size="md" sheetOnMobile icon={<Icon size={18} />} title={ann.title}
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose}>Close</button>
+        <button className="btn btn-primary" onClick={() => { onClose(); onEdit(ann) }}><Pencil size={14} className="inline-block mr-1" />Edit</button>
+      </>}
+    >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <Icon size={16} style={{ color: iconColor }} />
@@ -600,10 +606,6 @@ function AnnouncementDetailModal({ ann, classes, onClose, onEdit }) {
           {ann.expiresAt && <span>Expires: {formatDate(ann.expiresAt)}</span>}
         </div>
         <CommentsSection ann={ann} authorId={admin?.user || 'admin'} authorName={admin?.user || 'Professor'} role="teacher" />
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button className="btn btn-ghost" onClick={onClose}>Close</button>
-          <button className="btn btn-primary btn-sm" onClick={() => { onClose(); onEdit(ann) }}>Edit</button>
-        </div>
       </div>
     </Modal>
   )

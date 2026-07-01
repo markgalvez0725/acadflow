@@ -546,6 +546,33 @@ html[data-glass="off"] .sidebar { background: var(--navy) !important; }
   flex-shrink: 0;
 }
 
+/* Status banner used inside modals/cards (deadline open/passed, on-device
+   notes). Token-tinted so dark and frost inherit the right colors - replaces
+   the old inline styles with hardcoded pastel borders. */
+.note-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.5;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--ink2);
+  margin-bottom: 12px;
+}
+.note-banner svg { flex-shrink: 0; margin-top: 3px; }
+.note-banner strong { font-weight: 700; }
+.note-banner--ok     { background: var(--green-l);  color: var(--green); border-color: rgba(26,122,74,.22); }
+.note-banner--danger { background: var(--red-l);    color: var(--red);   border-color: rgba(185,50,50,.22); }
+.note-banner--info   { background: var(--accent-l); color: var(--ink2); }
+[data-theme="dark"] .note-banner--ok,
+html[data-theme="frost"] .note-banner--ok     { border-color: rgba(74,222,128,.25); }
+[data-theme="dark"] .note-banner--danger,
+html[data-theme="frost"] .note-banner--danger { border-color: rgba(248,113,113,.25); }
+
 /* Grabber handle for the draggable mobile sheet (Modal `draggable`). */
 .modal-grab { display: none; }
 

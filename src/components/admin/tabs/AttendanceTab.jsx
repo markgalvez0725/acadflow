@@ -246,7 +246,19 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
   }
 
   return (
-    <Modal onClose={onClose} size="xl" sheetOnMobile icon={<Download size={18} />} title="Import Attendance" subtitle={subject}>
+    <Modal onClose={onClose} size="xl" sheetOnMobile icon={<Download size={18} />} title="Import Attendance" subtitle={subject}
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        {preview && preview.matched.length > 0 && (
+          <button className="btn btn-primary" onClick={applyImport} disabled={saving}>
+            {saving ? 'Importing…' : `Import ${preview.matched.length} Student(s)`}
+          </button>
+        )}
+        {!preview && (
+          <button className="btn btn-ghost" onClick={reset} disabled={!file}>Clear</button>
+        )}
+      </>}
+    >
       <div className="flex justify-end mb-3">
         <button className="btn btn-ghost text-xs" onClick={downloadTemplate}>
           <Download size={13} className="inline-block mr-1" />Download Template
@@ -350,17 +362,6 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
         </>
       )}
 
-      <div className="modal-footer">
-        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        {preview && preview.matched.length > 0 && (
-          <button className="btn btn-primary" onClick={applyImport} disabled={saving}>
-            {saving ? 'Importing…' : `Import ${preview.matched.length} Student(s)`}
-          </button>
-        )}
-        {!preview && (
-          <button className="btn btn-ghost" onClick={reset} disabled={!file}>Clear</button>
-        )}
-      </div>
     </Modal>
   )
 }
@@ -475,6 +476,18 @@ function AttendanceCalendarModal({ classId, subject, readOnly, onClose }) {
   return (
     <Modal onClose={onClose} size="lg" sheetOnMobile icon={<CalendarDays size={18} />} title="Attendance"
       subtitle={<>{subject} · <span title={cls?.name || ''}>{courseShort(cls?.name)}</span> {cls?.section}</>}
+      footer={view === 'calendar' ? (
+        <button className="btn btn-ghost" onClick={onClose}>Close</button>
+      ) : (
+        <>
+          <button className="btn btn-ghost" onClick={() => setView('calendar')}>← Back</button>
+          {!readOnly && (
+            <button className="btn btn-primary" onClick={saveDay} disabled={saving}>
+              {saving ? 'Saving…' : 'Save Attendance'}
+            </button>
+          )}
+        </>
+      )}
     >
       {view === 'calendar' && (
         <>
@@ -548,9 +561,6 @@ function AttendanceCalendarModal({ classId, subject, readOnly, onClose }) {
             <span className="text-xs font-semibold" style={{ color: 'var(--accent)' }}>{readOnly ? '(archived - read-only)' : <><CalendarDays size={12} className="inline-block mr-1 align-text-bottom" />Click any day to mark attendance</>}</span>
           </div>
 
-          <div className="modal-footer">
-            <button className="btn btn-ghost" onClick={onClose}>Close</button>
-          </div>
         </>
       )}
 
@@ -638,14 +648,6 @@ function AttendanceCalendarModal({ classId, subject, readOnly, onClose }) {
 
           <p className="text-xs text-ink2 mt-2.5">{readOnly ? 'This class is archived - attendance records are read-only.' : <>Toggle each student's status then click Save. <ClipboardList size={12} className="inline-block mx-0.5 align-text-bottom" />Excused counts separately from absent.</>}</p>
 
-          <div className="modal-footer">
-            <button className="btn btn-ghost" onClick={() => setView('calendar')}>← Back</button>
-            {!readOnly && (
-              <button className="btn btn-primary" onClick={saveDay} disabled={saving}>
-                {saving ? 'Saving…' : 'Save Attendance'}
-              </button>
-            )}
-          </div>
         </>
       )}
     </Modal>
@@ -691,6 +693,7 @@ function SetRepModal({ classId, subject, studs, onClose }) {
   return (
     <Modal onClose={onClose} size="sm" sheetOnMobile icon={<UserCheck size={18} />} title="Set Attendance Representative"
       subtitle={<>{subject} · <span title={cls?.name || ''}>{courseShort(cls?.name)}</span> {cls?.section}</>}
+      footer={<button className="btn btn-ghost" onClick={onClose}>Cancel</button>}
     >
       {current && (
         <div className="rounded-lg p-3 mb-3 flex items-center justify-between gap-2"
@@ -725,9 +728,6 @@ function SetRepModal({ classId, subject, studs, onClose }) {
             </button>
           )
         })}
-      </div>
-      <div className="modal-footer">
-        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
       </div>
     </Modal>
   )

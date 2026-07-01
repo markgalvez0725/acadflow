@@ -476,16 +476,12 @@ export default function EnrollmentTab({ student }) {
       </div>
 
       {/* Segmented filter */}
-      <div className="inline-flex bg-[var(--surface2)] border border-[var(--border)] rounded-full p-0.5">
+      <div className="seg-filter">
         {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setFilter(tab.id)}
-            className={`relative text-xs font-medium px-3.5 py-1.5 rounded-full transition-colors ${
-              filter === tab.id
-                ? 'bg-[var(--surface)] text-[var(--accent)] shadow-sm'
-                : 'text-[var(--ink3)] hover:text-[var(--ink2)]'
-            }`}
+            className={`seg-btn relative${filter === tab.id ? ' active' : ''}`}
           >
             {tab.label}
             {tab.highlight && filter !== tab.id && (

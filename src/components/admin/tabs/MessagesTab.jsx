@@ -344,7 +344,14 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
   })()
 
   return (
-    <Modal onClose={onClose} size="md" sheetOnMobile icon={<Pencil size={18} />} title="New Message" subtitle="Send a direct message or start a group chat - no subject needed.">
+    <Modal onClose={onClose} size="md" sheetOnMobile icon={<Pencil size={18} />} title="New Message" subtitle="Send a direct message or start a group chat - no subject needed."
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={handleSend} disabled={sending || !body.trim()}>
+          {sending ? 'Sending…' : <><Send size={16} /> Send</>}
+        </button>
+      </>}
+    >
       <div className="field mb-1">
         <label className="text-xs font-semibold text-ink2 mb-1 block">To</label>
         <RecipientPicker
@@ -391,13 +398,6 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
       </div>
 
       {err && <div className="err-msg mb-2">{err}</div>}
-
-      <div className="modal-footer">
-        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={handleSend} disabled={sending || !body.trim()}>
-          {sending ? 'Sending…' : <><Send size={16} /> Send</>}
-        </button>
-      </div>
     </Modal>
   )
 }
@@ -776,7 +776,12 @@ function ConvItem({ isActive, isUnread, avatarChar, photo, isAnnounce, name, bad
 function RenameGroupModal({ current, autoName, onClose, onSave }) {
   const [name, setName] = useState(current || autoName)
   return (
-    <Modal onClose={onClose} size="sm" sheetOnMobile icon={<Pencil size={18} />} title="Rename group chat" subtitle="Give this group chat a custom name, or reset to the auto name (subject · course year).">
+    <Modal onClose={onClose} size="sm" sheetOnMobile icon={<Pencil size={18} />} title="Rename group chat" subtitle="Give this group chat a custom name, or reset to the auto name (subject · course year)."
+      footer={<>
+        <button className="btn btn-ghost" onClick={() => onSave('')}>Reset to auto</button>
+        <button className="btn btn-primary" onClick={() => onSave(name.trim())}>Save</button>
+      </>}
+    >
       <input
         className="input w-full mb-1"
         value={name}
@@ -787,10 +792,6 @@ function RenameGroupModal({ current, autoName, onClose, onSave }) {
         placeholder={autoName}
       />
       <div className="text-xs text-ink3 mb-4">Auto name: {autoName}</div>
-      <div className="modal-footer">
-        <button className="btn btn-ghost" onClick={() => onSave('')}>Reset to auto</button>
-        <button className="btn btn-primary" onClick={() => onSave(name.trim())}>Save</button>
-      </div>
     </Modal>
   )
 }

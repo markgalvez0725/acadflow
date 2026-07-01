@@ -372,22 +372,26 @@ function ActivityFormModal({ act, onClose }) {
       icon={isEdit ? <Pencil size={18} /> : <ClipboardList size={18} />}
       title={isEdit ? 'Edit Activity' : 'New Activity'}
       subtitle={isEdit ? 'Update activity details below.' : 'Fill in the activity details below.'}
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+          {saving ? 'Saving…' : isEdit ? <><Save size={16} /> Save Changes</> : <><ClipboardList size={16} /> Post Activity</>}
+        </button>
+      </>}
     >
       {/* Tabs: Details · Rubric */}
-      <div className="inline-flex bg-[var(--surface2)] border border-[var(--border)] rounded-full p-0.5 mb-3">
+      <div className="seg-filter mb-3">
         {[
-          { id: 'details', label: 'Details' },
-          { id: 'rubric', label: `Rubric${rubric.length ? ` · ${rubric.length}` : ''}` },
+          { id: 'details', label: 'Details', count: null },
+          { id: 'rubric', label: 'Rubric', count: rubric.length || null },
         ].map(t => (
           <button
             key={t.id}
             type="button"
             onClick={() => setTab(t.id)}
-            className={`text-xs font-medium px-3.5 py-1.5 rounded-full transition-colors ${
-              tab === t.id ? 'bg-[var(--surface)] text-[var(--accent)] shadow-sm' : 'text-[var(--ink3)] hover:text-[var(--ink2)]'
-            }`}
+            className={`seg-btn${tab === t.id ? ' active' : ''}`}
           >
-            {t.label}
+            {t.label}{t.count != null && <span className="seg-count">{t.count}</span>}
           </button>
         ))}
       </div>
@@ -591,13 +595,6 @@ function ActivityFormModal({ act, onClose }) {
       )}
 
       {err && <div className="err-msg mb-2">{err}</div>}
-
-      <div className="modal-footer">
-        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-          {saving ? 'Saving…' : isEdit ? <><Save size={16} /> Save Changes</> : <><ClipboardList size={16} /> Post Activity</>}
-        </button>
-      </div>
     </Modal>
   )
 }
@@ -1101,16 +1098,29 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
   return (
     <Modal onClose={onClose} size="lg" sheetOnMobile icon={<ClipboardList size={18} />} title={act.title}
       subtitle={<>{act.subject} · Max {act.maxScore} pts · Deadline: {dlLabel}<br />{submitted}/{enrolledStudents.length} submitted · {graded} graded</>}
+      footer={<>
+        {isPast && (
+          <button className="btn btn-ghost btn-sm" onClick={handleApplyDefault}>Apply Missed Grade ({missedDefaultScore(act.maxScore)})</button>
+        )}
+        <button className="btn btn-ghost btn-sm" onClick={handleExtend}>Extend Deadline</button>
+        <button className="btn btn-ghost btn-sm" onClick={onEdit}><Pencil size={16} /> Edit</button>
+        <button className="btn btn-ghost btn-sm" onClick={handleClone}><Copy size={16} /> Duplicate</button>
+        <button className="btn btn-danger btn-sm" onClick={handleDelete}>Delete</button>
+        <button className="btn btn-ghost btn-sm" onClick={onClose}>Close</button>
+        <button className="btn btn-primary btn-sm" onClick={handleSaveAll} disabled={savingAll}>
+          {savingAll ? 'Saving…' : <><Save size={16} /> Save All Grades</>}
+        </button>
+      </>}
     >
 
       {/* Deadline banner */}
       {isPast ? (
-        <div style={{ background: 'var(--red-l)', color: 'var(--red)', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12 }}>
-          <AlarmClock size={14} /> <strong>Deadline passed.</strong> Students can no longer submit.
+        <div className="note-banner note-banner--danger">
+          <AlarmClock size={14} /> <span><strong>Deadline passed.</strong> Students can no longer submit.</span>
         </div>
       ) : (
-        <div style={{ background: 'var(--green-l)', color: 'var(--green)', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 12, fontWeight: 600, padding: '10px 14px', marginBottom: 12 }}>
-          <CircleDot size={14} /> <strong>Open - {timeLeft} remaining.</strong> Students can still submit.
+        <div className="note-banner note-banner--ok">
+          <CircleDot size={14} /> <span><strong>Open - {timeLeft} remaining.</strong> Students can still submit.</span>
         </div>
       )}
 
@@ -1354,21 +1364,6 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
 
       <p className="text-xs text-ink3 mb-4">Scores and feedback notes save automatically as you type. The student's grade components update right away.</p>
 
-      {/* Actions */}
-      <div className="flex gap-2 flex-wrap items-center">
-        {isPast && (
-          <button className="btn btn-ghost btn-sm" onClick={handleApplyDefault}>Apply Missed Grade ({missedDefaultScore(act.maxScore)})</button>
-        )}
-        <button className="btn btn-ghost btn-sm" onClick={handleExtend}>Extend Deadline</button>
-        <button className="btn btn-ghost btn-sm" onClick={onEdit}><Pencil size={16} /> Edit</button>
-        <button className="btn btn-ghost btn-sm" onClick={handleClone}><Copy size={16} /> Duplicate</button>
-        <button className="btn btn-danger btn-sm" onClick={handleDelete}>Delete</button>
-        <button className="btn btn-ghost btn-sm ml-auto" onClick={onClose}>Close</button>
-        <button className="btn btn-primary btn-sm" onClick={handleSaveAll} disabled={savingAll}>
-          {savingAll ? 'Saving…' : <><Save size={16} /> Save All Grades</>}
-        </button>
-      </div>
-
       {smartFor && (() => {
         const stud = enrolledStudents.find(x => x.id === smartFor)
         const sub = (act.submissions || {})[smartFor] || {}
@@ -1377,21 +1372,22 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
             icon={<Sparkles size={18} />}
             title={<>Grading Assist <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--green)', background: 'var(--green-l)', padding: '2px 8px', borderRadius: 999, marginLeft: 6, verticalAlign: 'middle' }}>on-device</span></>}
             subtitle={<>{stud?.name} · {act.title}</>}
+            footer={<button className="btn btn-ghost" onClick={() => setAiFor(null)}>Close</button>}
           >
             {sub.contentText ? (
-              <div style={{ fontSize: 12, color: 'var(--green)', background: 'var(--green-l)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', margin: '8px 0 12px' }}>
-                <Check size={13} className="inline-block mr-1 align-text-bottom" />Read automatically from the submitted file{sub.contentMeta?.method ? ` (${sub.contentMeta.method === 'ocr' ? 'image OCR' : sub.contentMeta.method.toUpperCase()})` : ''}. The score below is drafted from it - review and edit before applying. Nothing is uploaded.
+              <div className="note-banner note-banner--ok">
+                <Check size={14} /><span>Read automatically from the submitted file{sub.contentMeta?.method ? ` (${sub.contentMeta.method === 'ocr' ? 'image OCR' : sub.contentMeta.method.toUpperCase()})` : ''}. The score below is drafted from it - review and edit before applying. Nothing is uploaded.</span>
               </div>
             ) : docFetching ? (
-              <div style={{ fontSize: 12, color: 'var(--ink2)', background: 'var(--accent-l)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', margin: '8px 0 12px' }}>
-                <Sparkles size={13} className="inline-block mr-1 align-text-bottom" />Reading the submitted file (OCR for images, text layer for PDFs)… This runs on your device and may take a moment the first time.
+              <div className="note-banner note-banner--info">
+                <Sparkles size={14} /><span>Reading the submitted file (OCR for images, text layer for PDFs)… This runs on your device and may take a moment the first time.</span>
               </div>
             ) : isDocLink(sub.link) ? (
-              <div style={{ fontSize: 12, color: 'var(--ink2)', background: 'var(--accent-l)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', margin: '8px 0 12px' }}>
+              <div className="note-banner note-banner--info">
                 The submitted file is read automatically (image OCR / PDF). If the draft looks off, read it again or paste the text below. Nothing is uploaded.
               </div>
             ) : (
-              <div style={{ fontSize: 12, color: 'var(--ink2)', background: 'var(--accent-l)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', margin: '8px 0 12px' }}>
+              <div className="note-banner note-banner--info">
                 This submission has no auto-read file (it is a plain link). Open it and paste the work below. On-device Smart grading drafts a score you review before saving. Nothing is uploaded.
               </div>
             )}
@@ -1440,9 +1436,6 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                 </div>
               </div>
             )}
-            <div className="modal-footer">
-              <button className="btn btn-ghost" onClick={() => setAiFor(null)}>Close</button>
-            </div>
           </Modal>
         )
       })()}

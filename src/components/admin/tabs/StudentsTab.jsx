@@ -151,7 +151,14 @@ function AddStudentModal({ onClose }) {
   const classesReady = !!course.trim()
 
   return (
-    <Modal onClose={onClose} size="lg" sheetOnMobile icon={<Plus size={18} />} title="Add New Student" subtitle="Enter the student's name, identifiers, then enroll them in classes.">
+    <Modal onClose={onClose} size="lg" sheetOnMobile icon={<Plus size={18} />} title="Add New Student" subtitle="Enter the student's name, identifiers, then enroll them in classes."
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={handleAdd} disabled={saving}>
+          {saving ? 'Adding…' : <><Plus size={16} /> Add Student</>}
+        </button>
+      </>}
+    >
       {err && <div className="err-msg mb-3">{err}</div>}
 
       {/* Name - captured in parts, stored as "SURNAME, First M.I." */}
@@ -279,12 +286,6 @@ function AddStudentModal({ onClose }) {
         {passErr && <div className="err-msg">{passErr}</div>}
       </div>
 
-      <div className="modal-footer">
-        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={handleAdd} disabled={saving}>
-          {saving ? 'Adding…' : <><Plus size={16} /> Add Student</>}
-        </button>
-      </div>
     </Modal>
   )
 }
@@ -425,6 +426,12 @@ function EditStudentModal({ student, onClose }) {
           </div>
         </div>
       }
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+          {saving ? 'Saving…' : <><Save size={16} /> Save Changes</>}
+        </button>
+      </>}
     >
       {err && <div className="err-msg mb-3">{err}</div>}
 
@@ -631,12 +638,6 @@ function EditStudentModal({ student, onClose }) {
         </div>
       )}
 
-      <div className="modal-footer-sticky">
-        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-          {saving ? 'Saving…' : <><Save size={16} /> Save Changes</>}
-        </button>
-      </div>
     </Modal>
   )
 }
@@ -678,7 +679,18 @@ function ResetPasswordModal({ student, onClose }) {
   }
 
   return (
-    <Modal onClose={onClose} size="sm" sheetOnMobile icon={<KeyRound size={18} />} title="Reset Password">
+    <Modal onClose={onClose} size="sm" sheetOnMobile icon={<KeyRound size={18} />} title="Reset Password"
+      footer={!opened ? (
+        <>
+          <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleOpenSession} disabled={saving}>
+            {saving ? 'Opening…' : 'Open Reset Window'}
+          </button>
+        </>
+      ) : (
+        <button className="btn btn-primary" onClick={onClose}>Done</button>
+      )}
+    >
       {!opened ? (
         <>
           <p className="modal-sub">
@@ -695,28 +707,16 @@ function ResetPasswordModal({ student, onClose }) {
           </div>
 
           {err && <div className="err-msg mb-3">{err}</div>}
-
-          <div className="modal-footer">
-            <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleOpenSession} disabled={saving}>
-              {saving ? 'Opening…' : 'Open Reset Window'}
-            </button>
-          </div>
         </>
       ) : (
-        <>
-          <p className="modal-sub" style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-            <CheckCircle2 size={18} style={{ flexShrink: 0, marginTop: 2, color: 'var(--green)' }} />
-            <span>
-              Reset window is <strong>open for 10 minutes</strong>. As soon as
-              <strong> {student.name}</strong> taps <em>Start</em> on their Forgot Password screen,
-              they'll be prompted to set a new password and signed in automatically.
-            </span>
-          </p>
-          <div className="modal-footer">
-            <button className="btn btn-primary" onClick={onClose}>Done</button>
-          </div>
-        </>
+        <p className="modal-sub" style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <CheckCircle2 size={18} style={{ flexShrink: 0, marginTop: 2, color: 'var(--green)' }} />
+          <span>
+            Reset window is <strong>open for 10 minutes</strong>. As soon as
+            <strong> {student.name}</strong> taps <em>Start</em> on their Forgot Password screen,
+            they'll be prompted to set a new password and signed in automatically.
+          </span>
+        </p>
       )}
     </Modal>
   )
@@ -903,7 +903,14 @@ function ImportStudentsModal({ onClose }) {
   }
 
   return (
-    <Modal onClose={onClose} size="lg" sheetOnMobile icon={<Upload size={18} />} title="Import Students" subtitle="Download the Excel template, fill in one student per row, then upload it here. CSV files also work.">
+    <Modal onClose={onClose} size="lg" sheetOnMobile icon={<Upload size={18} />} title="Import Students" subtitle="Download the Excel template, fill in one student per row, then upload it here. CSV files also work."
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={handleImport} disabled={saving || !validRows.length}>
+          {saving ? 'Importing…' : <><Upload size={13} /> Import {validRows.length > 0 ? `${validRows.length} Student${validRows.length !== 1 ? 's' : ''}` : 'Students'}</>}
+        </button>
+      </>}
+    >
 
       {/* Template download */}
       <div className="bg-accent-l border border-accent/20 rounded-lg px-3 py-2.5 mb-4 flex items-center justify-between gap-3 flex-wrap">
@@ -1028,12 +1035,6 @@ function ImportStudentsModal({ onClose }) {
         {' '}- students will be required to change it on first login.
       </div>
 
-      <div className="modal-footer">
-        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={handleImport} disabled={saving || !validRows.length}>
-          {saving ? 'Importing…' : <><Upload size={13} /> Import {validRows.length > 0 ? `${validRows.length} Student${validRows.length !== 1 ? 's' : ''}` : 'Students'}</>}
-        </button>
-      </div>
     </Modal>
   )
 }
@@ -1080,7 +1081,14 @@ function MessageSelectedModal({ recipients, onClose }) {
   }
 
   return (
-    <Modal onClose={onClose} size="lg" sheetOnMobile icon={<Send size={18} />} title={`Message ${recipients.length} student${recipients.length === 1 ? '' : 's'}`} subtitle="Each recipient gets their own direct message thread. They can reply individually.">
+    <Modal onClose={onClose} size="lg" sheetOnMobile icon={<Send size={18} />} title={`Message ${recipients.length} student${recipients.length === 1 ? '' : 's'}`} subtitle="Each recipient gets their own direct message thread. They can reply individually."
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose} disabled={sending}>Cancel</button>
+        <button className="btn btn-primary" onClick={handleSend} disabled={sending}>
+          {sending ? 'Sending…' : <><Send size={16} /> Send to {recipients.length}</>}
+        </button>
+      </>}
+    >
 
       <div className="field mb-3">
         <label>Subject <span className="text-red-500">*</span></label>
@@ -1092,13 +1100,6 @@ function MessageSelectedModal({ recipients, onClose }) {
       </div>
 
       {err && <div className="err-msg mb-2">{err}</div>}
-
-      <div className="modal-footer">
-        <button className="btn btn-ghost" onClick={onClose} disabled={sending}>Cancel</button>
-        <button className="btn btn-primary" onClick={handleSend} disabled={sending}>
-          {sending ? 'Sending…' : <><Send size={16} /> Send to {recipients.length}</>}
-        </button>
-      </div>
     </Modal>
   )
 }

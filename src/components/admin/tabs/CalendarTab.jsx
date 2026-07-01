@@ -3,6 +3,8 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { ChevronLeft, ChevronRight, CalendarDays, X, ClipboardList, FileQuestion, Megaphone, Clock3 } from 'lucide-react'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
+import PageHeader from '@/components/ds/PageHeader'
+import MetricCard from '@/components/ds/MetricCard'
 import { courseShort } from '@/constants/courses'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -146,67 +148,32 @@ export default function CalendarTab() {
 
   return (
     <div className="space-y-4">
-      {/* Hero header */}
-      <div
-        className="card"
-        style={{
-          padding: 18,
-          background: 'linear-gradient(135deg, var(--accent-l), transparent 70%)',
-          border: '1px solid var(--border)',
-        }}
-      >
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div
-              className="flex items-center justify-center"
-              style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--accent)', color: '#fff', flexShrink: 0 }}
-            >
-              <CalendarDays size={20} />
-            </div>
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink3">Academic Planner</div>
-              <h3 className="text-base font-bold text-ink mt-0.5">Calendar Overview</h3>
-              <p className="text-xs text-ink2 mt-0.5">Track deadlines, quiz windows, and stream activity by class and date.</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ background: 'var(--surface)', color: 'var(--ink2)', border: '1px solid var(--border)' }}>
-              {monthEventCount} this month
-            </span>
-            <span className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ background: 'var(--surface)', color: 'var(--ink2)', border: '1px solid var(--border)' }}>
-              {upcomingEvents.length} upcoming
-            </span>
-          </div>
-        </div>
-      </div>
+      {/* Page header (shared pattern across content tabs) */}
+      <PageHeader
+        title="Calendar"
+        subtitle="Track deadlines, quiz windows, and stream activity by class and date."
+        actions={<>
+          <span className="badge badge-gray">{monthEventCount} this month</span>
+          <span className="badge badge-gray">{upcomingEvents.length} upcoming</span>
+        </>}
+      />
 
       {/* Summary stat cards */}
       <div className="grid gap-3 sm:grid-cols-3">
-        {Object.entries(EVENT_COLORS).map(([type, color]) => {
-          const Icon = color.Icon
-          return (
-            <div
-              key={type}
-              className="card flex items-center gap-3"
-              style={{ padding: 14 }}
-            >
-              <div
-                className="flex items-center justify-center"
-                style={{ width: 38, height: 38, borderRadius: 10, background: color.bg, color: color.text, flexShrink: 0 }}
-              >
-                <Icon size={18} />
-              </div>
-              <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-ink3">{color.label}</div>
-                <div className="text-xl font-bold text-ink leading-tight">{monthTypeCounts[type] || 0}</div>
-              </div>
-            </div>
-          )
-        })}
+        {Object.entries(EVENT_COLORS).map(([type, color]) => (
+          <MetricCard
+            key={type}
+            Icon={color.Icon}
+            color={{ activity: 'blue', quiz: 'purple', announcement: 'green' }[type]}
+            label={color.label}
+            value={monthTypeCounts[type] || 0}
+            sub="this month"
+          />
+        ))}
       </div>
 
       {/* Calendar card: header + grid in one surface */}
-      <div className="card overflow-hidden p-0" style={{ border: '1px solid var(--border)' }}>
+      <div className="card card--static overflow-hidden p-0">
         {/* Header bar */}
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
           <div className="flex items-center gap-1">
@@ -349,7 +316,7 @@ export default function CalendarTab() {
 
       {/* Selected day detail */}
       {selectedKey && (
-        <div className="card p-4" style={{ border: '1px solid var(--border)' }}>
+        <div className="card card--static p-4">
           <div className="flex items-center justify-between mb-4">
             <h4 className="font-semibold text-ink text-sm flex items-center gap-2">
               <CalendarDays size={15} className="text-accent" />
@@ -410,7 +377,7 @@ export default function CalendarTab() {
       )}
 
       {/* Upcoming agenda */}
-      <div className="card p-4" style={{ border: '1px solid var(--border)' }}>
+      <div className="card card--static p-4">
         <div className="flex items-center justify-between mb-3">
           <h4 className="font-semibold text-ink text-sm flex items-center gap-2">
             <Clock3 size={15} className="text-accent" /> Upcoming Agenda

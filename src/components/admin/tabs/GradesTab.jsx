@@ -750,6 +750,12 @@ function GradeEntryModal({ classId, subject, onClose }) {
     <>
     <Modal onClose={onClose} wide sheetOnMobile icon={<Pencil size={18} />} title="Edit Grades"
       subtitle={<>Subject: <strong>{subject}</strong> · <span title={cls?.name || ''}>{courseShort(cls?.name)}</span> {cls?.section}</>}
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+          {saving ? 'Saving…' : 'Save Grades'}
+        </button>
+      </>}
     >
       <div className="text-xs text-ink2 mb-3" style={{ textAlign: 'right' }}>
         {uploadTs
@@ -1070,16 +1076,17 @@ function GradeEntryModal({ classId, subject, onClose }) {
         )}
       </div>
 
-      <div className="modal-footer">
-        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-          {saving ? 'Saving…' : 'Save Grades'}
-        </button>
-      </div>
     </Modal>
 
     {pasteOpen && (
-      <Modal onClose={() => setPasteOpen(false)} size="md" sheetOnMobile icon={<FileSpreadsheet size={18} />} title="Import / Paste scores" subtitle="Fill the open grade sheet - review, then Save Grades to keep changes.">
+      <Modal onClose={() => setPasteOpen(false)} size="md" sheetOnMobile icon={<FileSpreadsheet size={18} />} title="Import / Paste scores" subtitle="Fill the open grade sheet - review, then Save Grades to keep changes."
+        footer={<>
+          <button className="btn btn-ghost" onClick={() => setPasteOpen(false)}>Cancel</button>
+          <button className="btn btn-primary" onClick={applyPaste} disabled={pastePreview.matched === 0}>
+            Apply {pastePreview.matched > 0 ? pastePreview.matched : ''} score{pastePreview.matched === 1 ? '' : 's'}
+          </button>
+        </>}
+      >
 
         {/* Excel file import */}
         <div className="mb-4 px-3 py-2.5 rounded-lg" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
@@ -1120,18 +1127,18 @@ function GradeEntryModal({ classId, subject, onClose }) {
           )}
         </div>
 
-        <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={() => setPasteOpen(false)}>Cancel</button>
-          <button className="btn btn-primary" onClick={applyPaste} disabled={pastePreview.matched === 0}>
-            Apply {pastePreview.matched > 0 ? pastePreview.matched : ''} score{pastePreview.matched === 1 ? '' : 's'}
-          </button>
-        </div>
       </Modal>
     )}
 
     {noteFor && (
       <Modal onClose={() => setNoteFor(null)} size="sm" sheetOnMobile icon={<MessageSquare size={18} />} title={`Note to ${noteFor.name}`}
         subtitle={<>About their <strong>{subject}</strong> grade. The student sees this on their Grades tab.</>}
+        footer={<>
+          <button className="btn btn-ghost" onClick={() => setNoteFor(null)} disabled={noteSaving}>Cancel</button>
+          <button className="btn btn-primary" onClick={saveNote} disabled={noteSaving}>
+            {noteSaving ? 'Saving…' : (noteDraft.trim() ? 'Save note' : 'Remove note')}
+          </button>
+        </>}
       >
         <textarea
           className="input"
@@ -1145,12 +1152,6 @@ function GradeEntryModal({ classId, subject, onClose }) {
           {noteDraft.trim()
             ? 'Saving notifies the student.'
             : 'Saving an empty note removes any existing one (no notification).'}
-        </div>
-        <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={() => setNoteFor(null)} disabled={noteSaving}>Cancel</button>
-          <button className="btn btn-primary" onClick={saveNote} disabled={noteSaving}>
-            {noteSaving ? 'Saving…' : (noteDraft.trim() ? 'Save note' : 'Remove note')}
-          </button>
         </div>
       </Modal>
     )}
