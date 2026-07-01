@@ -334,6 +334,7 @@ export default function StudentLayout() {
     const now = Date.now()
     const studentClassIds = activeClassIds(student, classes, semester)
     return quizzes.filter(q =>
+      q.status !== 'draft' &&
       q.classIds?.some(id => studentClassIds.includes(id)) &&
       now >= q.openAt && now <= q.closeAt &&
       !q.submissions?.[student.id]

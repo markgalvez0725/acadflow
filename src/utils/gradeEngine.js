@@ -113,8 +113,11 @@ export function deriveActivities(s, sub, activities = [], enrolledIds = enrolled
 // is lifted to the floor if below.
 export function deriveQuizzes(s, sub, quizzes = [], enrolledIds = enrolledIdsOf(s), floor = 0) {
   const comp = s.gradeComponents?.[sub] || {}
-  const liveQuizIds = new Set((quizzes || []).map(q => q.id))
-  const subjectQuizzes = (quizzes || []).filter(q => q.subject === sub && (q.classIds || []).some(id => enrolledIds.includes(id)))
+  // Drafts are not live quizzes - they never count toward a grade or show up as
+  // "missed" under the floor policy.
+  const live = (quizzes || []).filter(q => q.status !== 'draft')
+  const liveQuizIds = new Set(live.map(q => q.id))
+  const subjectQuizzes = live.filter(q => q.subject === sub && (q.classIds || []).some(id => enrolledIds.includes(id)))
   const hadResults = (s.quizResults?.[sub] || []).length > 0
   const hadScores = !!(comp.quizScores && Object.keys(comp.quizScores).length)
   const fl = floor > 0 ? floor : 0

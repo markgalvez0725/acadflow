@@ -302,10 +302,19 @@ function ImportResponseModal({ onClose, onImported }) {
 }
 
 // ── Create/Edit Quiz Modal ────────────────────────────────────────────────────
+function toLocalInput(ts) {
+  const d = new Date(ts)
+  const pad = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+const nowLocalInput = () => toLocalInput(Date.now())
+
 function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', onClose }) {
   const { classes, db, fbReady, students } = useData()
   const { toast } = useUI()
   const isEdit = !!quiz
+  const wasPublished = isEdit && (quiz.status === undefined || quiz.status === 'published')
+  const hasSubmissions = isEdit && Object.keys(quiz.submissions || {}).length > 0
 
   const [title, setTitle] = useState(quiz?.title || '')
   const [classIds, setClassIds] = useState(quiz?.classIds || [])
@@ -441,7 +450,7 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
     }
   }
 
-  async function handleSave() {
+  async function handleSave(status = 'published') {
     setErr('')
     if (!title.trim()) { setTab('details'); setErr('Quiz title is required.'); return }
     if (!classIds.length) { setTab('details'); setErr('Select at least one class.'); return }
@@ -452,28 +461,35 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
     const closeTs = new Date(closeAt).getTime()
     if (isNaN(openTs) || isNaN(closeTs)) { setTab('details'); setErr('Invalid date range.'); return }
     if (closeTs <= openTs) { setTab('details'); setErr('Close time must be after open time.'); return }
+    if (status === 'published' && closeTs <= Date.now()) { setTab('details'); setErr('Close time is already in the past - adjust the schedule before publishing.'); return }
     if (!fbReady || !db.current) { setErr('Firebase is required.'); return }
 
     const totalPoints = questions.reduce((sum, q) => sum + ((typeof q.points === 'number' && q.points > 0) ? q.points : 1), 0)
     const payload = {
       title: title.trim(), classIds, subject,
       timeLimit: parseInt(timeLimit), openAt: openTs, closeAt: closeTs,
-      questions, totalPoints, partialCredit, difficulty,
+      questions, totalPoints, partialCredit, difficulty, status,
       submissions: quiz?.submissions || {},
       createdAt: quiz?.createdAt || Date.now(), createdBy: 'admin',
     }
 
+    // Only notify when the quiz transitions INTO published (first share, or a
+    // draft being posted). Re-saving an already-live quiz stays quiet.
+    const becomesPublished = status === 'published' && !wasPublished
+    const docId = isEdit ? quiz.id : quizId()
+
     setSaving(true)
     try {
       if (isEdit) {
-        await updateDoc(doc(db.current, 'quizzes', quiz.id), { ...payload })
+        await updateDoc(doc(db.current, 'quizzes', docId), { ...payload })
       } else {
-        const id = quizId()
-        await setDoc(doc(db.current, 'quizzes', id), { id, ...payload })
-        // Notify enrolled students (deep-links + glows the quiz card).
-        fbPushQuizNotifs(db.current, { id, ...payload }, students)
+        await setDoc(doc(db.current, 'quizzes', docId), { id: docId, ...payload })
       }
-      toast(isEdit ? 'Quiz updated!' : 'Quiz created and shared!', 'green')
+      if (becomesPublished) {
+        // Notify enrolled students (deep-links + glows the quiz card).
+        fbPushQuizNotifs(db.current, { id: docId, ...payload }, students)
+      }
+      toast(status === 'draft' ? 'Draft saved.' : (becomesPublished ? 'Quiz posted and shared!' : 'Quiz updated!'), 'green')
       onClose()
     } catch (e) {
       setErr('Save failed: ' + e.message)
@@ -569,7 +585,10 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
             onChange={e => setTimeLimit(Math.max(1, parseInt(e.target.value) || 1))} />
         </div>
         <div className="field flex-1">
-          <label className="text-xs font-semibold text-ink2 mb-1 block">Opens At <span className="text-red-500">*</span></label>
+          <label className="text-xs font-semibold text-ink2 mb-1 flex items-center justify-between gap-2">
+            <span>Opens At <span className="text-red-500">*</span></span>
+            <button type="button" onClick={() => setOpenAt(nowLocalInput())} className="btn btn-ghost" style={{ fontSize: 10.5, padding: '1px 8px', height: 'auto', lineHeight: 1.6 }} title="Open immediately">Now</button>
+          </label>
           <input className="input w-full" type="datetime-local" value={openAt} onChange={e => setOpenAt(e.target.value)} />
         </div>
         <div className="field flex-1">
@@ -763,9 +782,27 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
 
       <div className="modal-footer">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-          {saving ? 'Saving…' : isEdit ? <><Save size={13} className="inline-block mr-1" />Save Changes</> : <><Rocket size={13} className="inline-block mr-1" />Share Quiz</>}
-        </button>
+        {wasPublished ? (
+          <>
+            {!hasSubmissions && (
+              <button className="btn btn-ghost" onClick={() => handleSave('draft')} disabled={saving}>
+                <FileText size={13} className="inline-block mr-1" />Unpublish to draft
+              </button>
+            )}
+            <button className="btn btn-primary" onClick={() => handleSave('published')} disabled={saving}>
+              {saving ? 'Saving…' : <><Save size={13} className="inline-block mr-1" />Save Changes</>}
+            </button>
+          </>
+        ) : (
+          <>
+            <button className="btn btn-ghost" onClick={() => handleSave('draft')} disabled={saving}>
+              <FileText size={13} className="inline-block mr-1" />Save as draft
+            </button>
+            <button className="btn btn-primary" onClick={() => handleSave('published')} disabled={saving}>
+              {saving ? 'Saving…' : <><Rocket size={13} className="inline-block mr-1" />{isEdit ? 'Publish now' : 'Publish'}</>}
+            </button>
+          </>
+        )}
       </div>
     </Modal>
   )
@@ -1388,7 +1425,8 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
 }
 
 export default function QuizTab() {
-  const { quizzes, classes, fbReady } = useData()
+  const { quizzes, classes, fbReady, db, students } = useData()
+  const { toast, openDialog } = useUI()
   const highlightId = useRedirectHighlight('quiz')
   const [page, setPage] = useState(1)
   const [archivedPage, setArchivedPage] = useState(1)
@@ -1444,9 +1482,34 @@ export default function QuizTab() {
   const now = Date.now()
 
   function statusInfo(q) {
+    if (q.status === 'draft') return { label: 'Draft', variant: 'gray' }
     if (now < q.openAt) return { label: 'Upcoming', variant: 'blue' }
     if (now > q.closeAt) return { label: 'Closed', variant: 'red' }
     return { label: 'Open', variant: 'green' }
+  }
+
+  // Publish a draft immediately - it respects its existing open/close schedule
+  // and notifies enrolled students, exactly like a first-time share.
+  async function publishQuiz(q) {
+    if (!db?.current) return
+    try {
+      await updateDoc(doc(db.current, 'quizzes', q.id), { status: 'published' })
+      fbPushQuizNotifs(db.current, { ...q, status: 'published' }, students)
+      toast('Quiz posted and shared!', 'green')
+    } catch (e) {
+      toast('Could not post the quiz. Please try again.', 'red')
+    }
+  }
+
+  async function deleteDraft(q) {
+    const ok = await openDialog({ title: 'Delete draft?', msg: `"${q.title}" will be permanently deleted. This cannot be undone.`, type: 'danger', confirmLabel: 'Delete', showCancel: true })
+    if (!ok) return
+    try {
+      await deleteDoc(doc(db.current, 'quizzes', q.id))
+      toast('Draft deleted.', 'green')
+    } catch (e) {
+      toast('Could not delete the draft. Please try again.', 'red')
+    }
   }
 
   function handleImported(qs, difficulty = 'medium') {
@@ -1511,12 +1574,24 @@ export default function QuizTab() {
                         {clsNames} · {q.questions?.length || 0} questions · {q.timeLimit} min
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 3 }}>
-                        Open: {openLabel} → Close: {closeLabel} · {attempted} submitted
+                        {q.status === 'draft'
+                          ? 'Draft · hidden from students until you post it'
+                          : `Open: ${openLabel} → Close: ${closeLabel} · ${attempted} submitted`}
                       </div>
                     </div>
                     <div className="flex gap-1.5 flex-shrink-0">
-                      <button className="btn btn-ghost btn-sm" onClick={() => setViewQuiz(q)}>View</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => setEditQuiz(q)}>Edit</button>
+                      {q.status === 'draft' ? (
+                        <>
+                          <button className="btn btn-primary btn-sm" onClick={() => publishQuiz(q)}><Rocket size={13} className="inline-block mr-1" />Post now</button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => setEditQuiz(q)}>Edit</button>
+                          <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} onClick={() => deleteDraft(q)}>Delete</button>
+                        </>
+                      ) : (
+                        <>
+                          <button className="btn btn-ghost btn-sm" onClick={() => setViewQuiz(q)}>View</button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => setEditQuiz(q)}>Edit</button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

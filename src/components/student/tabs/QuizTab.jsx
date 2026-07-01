@@ -603,7 +603,7 @@ export default function StudentQuizTab({ student, viewClassId }) {
   // Filter quizzes assigned to this student's classes
   const myQuizzes = useMemo(() => {
     return quizzes
-      .filter(q => q.classIds?.some(id => studentClassIds.includes(id)))
+      .filter(q => q.status !== 'draft' && q.classIds?.some(id => studentClassIds.includes(id)))
       .sort((a, b) => {
         // Open first, then upcoming, then closed
         const statusOrder = q => {

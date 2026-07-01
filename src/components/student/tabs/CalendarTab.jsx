@@ -97,6 +97,7 @@ export default function CalendarTab({ student, viewClassId, classes }) {
     })
 
     quizzes.forEach(q => {
+      if (q.status === 'draft') return
       if (!q.closeAt) return
       if (!q.classIds?.some(id => studentClassIds.includes(id))) return
       const taken = !!(q.submissions || {})[student?.id]

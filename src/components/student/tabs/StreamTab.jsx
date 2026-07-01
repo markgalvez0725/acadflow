@@ -356,6 +356,7 @@ export default function StreamTab({ student, viewClassId, classes }) {
     // Quizzes
     if (filterType === 'all' || filterType === 'quiz') {
       quizzes.forEach(quiz => {
+        if (quiz.status === 'draft') return
         const matchesClass = (quiz.classIds || []).some(id => effectiveClassIds.includes(id))
         if (!matchesClass) return
         if (filterSubject !== 'all' && quiz.subject !== filterSubject) return
