@@ -1632,9 +1632,9 @@ export default function ActivitiesTab() {
             </button>
           </div>
           {slice.length === 0 ? (
-            <div style={{ padding: '28px 4px', textAlign: 'center', fontSize: 13, color: 'var(--ink3)' }}>
-              {filter === 'active' ? 'No open activities right now.' : 'No ended activities yet.'}
-            </div>
+            filter === 'active'
+              ? <EmptyState Icon={ClipboardList} title="No active activities" text="Activities with an upcoming deadline appear here." />
+              : <EmptyState Icon={CheckCircle2} title="No ended activities" text="Activities past their deadline appear here." />
           ) : (
             <>
               <div className="act-grid mb-3">

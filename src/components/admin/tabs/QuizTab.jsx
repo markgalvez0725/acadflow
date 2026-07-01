@@ -860,7 +860,7 @@ function QuizItemAnalysis({ quiz }) {
   const { responseCount, items } = useMemo(() => quizItemAnalysis(quiz), [quiz])
 
   if (!responseCount) {
-    return <div style={{ fontSize: 12, color: 'var(--ink2)', padding: '8px 0' }}>No submissions yet - analysis appears once students have taken the quiz.</div>
+    return <EmptyState Icon={ScanSearch} title="No submissions yet" text="Item analysis appears once students have taken the quiz." tone="muted" compact />
   }
 
   const avgPct = Math.round(items.reduce((t, it) => t + it.correctPct, 0) / (items.length || 1))
@@ -1712,9 +1712,9 @@ export default function QuizTab() {
             </button>
           </div>
           {slice.length === 0 ? (
-            <div style={{ padding: '28px 4px', textAlign: 'center', fontSize: 13, color: 'var(--ink3)' }}>
-              {filter === 'active' ? 'No active quizzes right now.' : 'No ended quizzes yet.'}
-            </div>
+            filter === 'active'
+              ? <EmptyState Icon={FileText} title="No active quizzes" text="Drafts, upcoming, and open quizzes appear here." />
+              : <EmptyState Icon={CheckCircle} title="No ended quizzes" text="Quizzes past their close time appear here." />
           ) : (
             <>
               <div className="act-grid mb-3">
