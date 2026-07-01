@@ -10,7 +10,7 @@ import Avatar from '@/components/primitives/Avatar'
 import Pagination from '@/components/primitives/Pagination'
 import EmptyState from '@/components/ds/EmptyState'
 import PageHeader from '@/components/ds/PageHeader'
-import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList, Pencil, Save, Rocket, FileText, X, Lock, Circle, Archive, ArchiveRestore, Sparkles, Wand2, FileUp, Copy, Lightbulb, ScanSearch, Fingerprint } from 'lucide-react'
+import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList, Pencil, Save, Rocket, FileText, X, Lock, Circle, Archive, ArchiveRestore, Sparkles, Wand2, FileUp, Copy, Lightbulb, ScanSearch, Fingerprint, ExternalLink } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { extractTextFromFile } from '@/utils/lessonExtract'
 import { generateDraftQuestions } from '@/utils/quizGen'
@@ -35,7 +35,7 @@ const TYPE_LABELS = {
   identification: 'Identification',
 }
 
-function buildTemplate(topic, count, types, generalPrompt, lesson) {
+function buildTemplate(topic, count, types, generalPrompt, lesson, difficulty) {
   const extraContext = generalPrompt?.trim()
     ? `\nAdditional instructions from the teacher: ${generalPrompt.trim()}\n`
     : ''
@@ -63,10 +63,15 @@ function buildTemplate(topic, count, types, generalPrompt, lesson) {
     ? `Base every question STRICTLY on the lesson material in the "lesson" field below; do not invent facts or use outside knowledge.${topic?.trim() ? ` Focus on: ${topic.trim()}.` : ''}`
     : `Generate questions about this topic: ${topic?.trim() || '(none provided)'}.`
 
+  const diffGuide = {
+    easy: 'Difficulty: EASY - test recall and basic understanding; keep wording simple and direct.',
+    medium: 'Difficulty: MEDIUM - mix recall with application; some questions should require reasoning.',
+    hard: 'Difficulty: HARD - emphasize analysis and multi-step reasoning; avoid trivial recall.',
+  }
   const instructions = `INSTRUCTIONS:
 Generate exactly ${count} quiz questions.
 ${source}
-Use ${typeLabel}. Do NOT generate any other question type.
+${diffGuide[difficulty] ? diffGuide[difficulty] + '\n' : ''}Use ${typeLabel}. Do NOT generate any other question type.
 ${extraContext}
 Rules:
 ${rules}
@@ -84,9 +89,27 @@ ${examples}
     ...(hasLesson && { lesson: lesson.slice(0, 18000) }),
     question_count: count,
     question_types: types,
+    ...(difficulty && { difficulty }),
     ...(generalPrompt?.trim() && { general_prompt: generalPrompt.trim() }),
     expected_output_format: 'JSON array',
   }
+}
+
+// Compose the template into one plain-text prompt for a chat assistant.
+function buildPromptText(topic, count, types, generalPrompt, lesson, difficulty) {
+  const t = buildTemplate(topic, count, types, generalPrompt, lesson, difficulty)
+  return t._instructions + (t.lesson ? `\n\nLESSON MATERIAL:\n${t.lesson}` : '')
+}
+
+// Copy a ready-made prompt to the clipboard and open Perplexity. Short prompts
+// (a topic, no lesson) pre-fill the search box; long ones (with a lesson) open a
+// blank tab so the teacher can paste - the clipboard already holds the prompt.
+function openInPerplexity(prompt) {
+  try { navigator.clipboard?.writeText(prompt) } catch (e) { /* clipboard best-effort */ }
+  const url = prompt.length < 1200
+    ? 'https://www.perplexity.ai/search?q=' + encodeURIComponent(prompt)
+    : 'https://www.perplexity.ai/'
+  window.open(url, '_blank', 'noopener')
 }
 
 const ASSISTANT_PROMPT_TEXT = `I have a quiz template JSON file. Please read the _instructions field inside it carefully and generate the quiz questions exactly as described.
@@ -105,6 +128,7 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
   const [fileName, setFileName] = useState('')
   const [lessonText, setLessonText] = useState('')
   const [extracting, setExtracting] = useState(false)
+  const [difficulty, setDifficulty] = useState('medium')
 
   async function handleFile(file) {
     if (!file) return
@@ -131,7 +155,7 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
 
   function handleExport() {
     if ((!topic.trim() && !lessonText.trim()) || !qTypes.length) return
-    const template = buildTemplate(topic.trim(), qCount, qTypes, generalPrompt, lessonText)
+    const template = buildTemplate(topic.trim(), qCount, qTypes, generalPrompt, lessonText, difficulty)
     const json = JSON.stringify(template, null, 2)
     const blob = new Blob([json], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
@@ -144,9 +168,15 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
     toast('Template exported! Send it to your chat assistant.', 'green')
   }
 
+  function handleOpenPerplexity() {
+    if ((!topic.trim() && !lessonText.trim()) || !qTypes.length) return
+    openInPerplexity(buildPromptText(topic.trim(), qCount, qTypes, generalPrompt, lessonText, difficulty))
+    toast('Prompt copied and Perplexity opened in a new tab. Paste its JSON answer back with Paste response.', 'green', 6000)
+  }
+
   return (
-    <Modal onClose={onClose} size="md" sheetOnMobile icon={<Upload size={18} />} title="Export Quiz Template"
-      subtitle="Upload a lesson file (or type a topic), export the template JSON, send it to any chat assistant (Perplexity, ChatGPT, Claude…), then import the response back here."
+    <Modal onClose={onClose} size="md" sheetOnMobile icon={<Sparkles size={18} />} title="Smart Quiz"
+      subtitle="Upload a lesson (or type a topic), open it in Perplexity - or download the template for ChatGPT, Claude, or Gemini - then paste the questions back here."
     >
 
       {/* Lesson file - questions are drawn from its content (read on your device) */}
@@ -186,6 +216,19 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
         />
       </div>
 
+      <div className="field mb-3">
+        <label className="text-xs font-semibold text-ink2 mb-2 block">Difficulty</label>
+        <div className="flex gap-2">
+          {['easy', 'medium', 'hard'].map(d => (
+            <button key={d} type="button" onClick={() => setDifficulty(d)}
+              className={`btn btn-sm ${difficulty === d ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ flex: 1, fontSize: 12, textTransform: 'capitalize' }}>
+              {d}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="field mb-4">
         <label className="text-xs font-semibold text-ink2 mb-2 block">Question Types</label>
         <div className="flex flex-wrap gap-2">
@@ -215,10 +258,9 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
       <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 12, color: 'var(--ink2)' }}>
         <strong style={{ color: 'var(--ink)' }}>How it works:</strong>
         <ol style={{ margin: '6px 0 0 16px', lineHeight: 1.8 }}>
-          <li>Click <strong>Export Template</strong> to download a <code>.json</code> file</li>
-          <li>Go to ChatGPT, Gemini, Claude, or any chat assistant</li>
-          <li>Copy the prompt below, paste it, then attach or paste the <code>.json</code> file contents</li>
-          <li>Copy the assistant’s JSON output, then click <strong>Import Response</strong></li>
+          <li>Click <strong>Open in Perplexity</strong> - the prompt is copied and Perplexity opens in a new tab</li>
+          <li>Paste if needed and send; or use <strong>Download template</strong> for ChatGPT, Claude, or Gemini</li>
+          <li>Copy the JSON answer, then click <strong>Paste response</strong> to add the questions</li>
         </ol>
       </div>
 
@@ -241,10 +283,13 @@ function ExportTemplateModal({ onClose, onSwitchToImport }) {
       <div className="modal-footer">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
         <button className="btn btn-ghost" onClick={onSwitchToImport}>
-          <Download size={13} className="inline-block mr-1" />Import Response
+          <Download size={13} className="inline-block mr-1" />Paste response
         </button>
-        <button className="btn btn-primary" onClick={handleExport} disabled={(!topic.trim() && !lessonText.trim()) || !qTypes.length || extracting}>
-          <Upload size={13} className="inline-block mr-1" />Export Template
+        <button className="btn btn-ghost" onClick={handleExport} disabled={(!topic.trim() && !lessonText.trim()) || !qTypes.length || extracting}>
+          <Upload size={13} className="inline-block mr-1" />Download template
+        </button>
+        <button className="btn btn-primary" onClick={handleOpenPerplexity} disabled={(!topic.trim() && !lessonText.trim()) || !qTypes.length || extracting}>
+          <ExternalLink size={13} className="inline-block mr-1" />Open in Perplexity
         </button>
       </div>
     </Modal>
@@ -1244,7 +1289,7 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
 const PER_PAGE = 10
 
 // ── Generate from Lesson File Modal ───────────────────────────────────────
-function GenerateFromLessonModal({ onClose, onGenerated }) {
+function GenerateFromLessonModal({ onClose, onGenerated, onSwitchToImport }) {
   const { toast } = useUI()
   const [fileName, setFileName] = useState('')
   const [text, setText] = useState('')
@@ -1307,11 +1352,17 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
     }
   }
 
+  function handleOpenPerplexity() {
+    if (!text.trim()) { toast('Upload a lesson file first.', 'warn'); return }
+    openInPerplexity(buildPromptText('', count, qTypes, '', text, difficulty))
+    toast('Prompt copied and Perplexity opened in a new tab. Paste its JSON answer back with Paste response.', 'green', 6000)
+  }
+
   const words = text.trim() ? text.trim().split(/\s+/).length : 0
 
   return (
-    <Modal onClose={onClose} size="md" sheetOnMobile icon={<Wand2 size={18} />} title="Generate Quiz from a Lesson"
-      subtitle="Upload your lesson file and AcadFlow drafts quiz questions from it. You review and edit everything before saving."
+    <Modal onClose={onClose} size="md" sheetOnMobile icon={<Wand2 size={18} />} title="Draft from lesson"
+      subtitle="Upload your lesson file and AcadFlow drafts quiz questions from it on your device - or open it in Perplexity. You review and edit everything before saving."
     >
 
       {/* Guide */}
@@ -1320,7 +1371,7 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
         <ol style={{ margin: '6px 0 0', paddingLeft: 20, listStyleType: 'decimal', lineHeight: 1.7 }}>
           <li>Upload a <strong>PDF, Word (.docx), or PowerPoint (.pptx)</strong> lesson file. It is read on your device only, never uploaded.</li>
           <li>Pick how many questions and which types you want.</li>
-          <li>Click <strong>Generate</strong>. The draft opens for you to review, edit, and then save.</li>
+          <li>Click <strong>Create draft</strong> (or <strong>Open in Perplexity</strong>). The draft opens for you to review, edit, and then save.</li>
         </ol>
       </div>
 
@@ -1429,8 +1480,16 @@ function GenerateFromLessonModal({ onClose, onGenerated }) {
 
       <div className="modal-footer">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        {onSwitchToImport && (
+          <button className="btn btn-ghost" onClick={onSwitchToImport}>
+            <Download size={13} className="inline-block mr-1" />Paste response
+          </button>
+        )}
+        <button className="btn btn-ghost" onClick={handleOpenPerplexity} disabled={busy || extracting || !text.trim()}>
+          <ExternalLink size={13} className="inline-block mr-1" />Open in Perplexity
+        </button>
         <button className="btn btn-primary" onClick={handleGenerate} disabled={busy || extracting || !text.trim()}>
-          <Sparkles size={13} className="inline-block mr-1" />{busy ? 'Generating…' : 'Generate'}
+          <Sparkles size={13} className="inline-block mr-1" />{busy ? 'Creating…' : 'Create draft'}
         </button>
       </div>
     </Modal>
@@ -1540,9 +1599,9 @@ export default function QuizTab() {
         title="Quizzes"
         subtitle={`${activeQuizzes.length} active${archivedQuizzes.length ? ` · ${archivedQuizzes.length} archived` : ''}`}
         actions={<>
-          <button className="btn btn-ghost btn-sm" onClick={() => setShowImport(true)}><Download size={13} className="inline-block mr-1" />Import Response</button>
-          <button className="btn btn-ghost btn-sm" onClick={() => setShowExport(true)}><Upload size={13} className="inline-block mr-1" />Export Template</button>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowLesson(true)}><Wand2 size={13} className="inline-block mr-1" />Generate from Lesson</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowImport(true)}><Download size={13} className="inline-block mr-1" />Paste response</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowExport(true)}><Sparkles size={13} className="inline-block mr-1" />Smart Quiz</button>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowLesson(true)}><Wand2 size={13} className="inline-block mr-1" />Draft from lesson</button>
         </>}
       />
 
@@ -1692,6 +1751,7 @@ export default function QuizTab() {
         <GenerateFromLessonModal
           onClose={() => setShowLesson(false)}
           onGenerated={(qs, difficulty) => { setShowLesson(false); handleImported(qs, difficulty) }}
+          onSwitchToImport={() => { setShowLesson(false); setShowImport(true) }}
         />
       )}
 
