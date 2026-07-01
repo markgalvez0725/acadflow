@@ -15,6 +15,7 @@ import Avatar from '@/components/primitives/Avatar'
 import SubmissionPreview from '@/components/primitives/SubmissionPreview'
 import GroupsModal from '@/components/admin/modals/GroupsModal'
 import { extractSubmissionText } from '@/utils/submissionExtract'
+import { uploadFile, isConfigured as driveConfigured } from '@/utils/googleDrive'
 import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil, ClipboardList, AlarmClock, CircleDot, BarChart3, CheckCircle2, Check, Save, Plus, Copy, Users, ClipboardPaste } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { deviceRubric, smartInstructions, smartRubric, smartGrade, smartGradeGroups, prewarmActivitySmart } from '@/utils/activitySmart'
@@ -184,6 +185,32 @@ function ActivityFormModal({ act, onClose }) {
     return defaultDeadlineStr()
   })
   const [instructions, setInstructions] = useState(act?.instructions || '')
+  const [attachments, setAttachments] = useState(() => Array.isArray(act?.attachments) ? act.attachments : [])
+  const [attachLink, setAttachLink] = useState('')
+  const [attachBusy, setAttachBusy] = useState(false)
+  const attachInputRef = useRef(null)
+  async function handleAttachFile(e) {
+    const file = e.target.files?.[0]
+    if (attachInputRef.current) attachInputRef.current.value = ''
+    if (!file) return
+    setAttachBusy(true)
+    try {
+      const res = await uploadFile(file, { classLabel: classes.find(c => c.id === classId)?.name || 'General' })
+      const link = res.link || (res.driveId ? `https://drive.google.com/file/d/${res.driveId}/view` : '')
+      if (link) setAttachments(prev => [...prev, { link, name: res.name || file.name }])
+    } catch (err) {
+      toast('Upload failed: ' + err.message, 'error')
+    } finally {
+      setAttachBusy(false)
+    }
+  }
+  function addAttachLink() {
+    const link = attachLink.trim()
+    if (!link) return
+    if (!/^https?:\/\/.+/.test(link)) { toast('Link must start with http:// or https://', 'warn'); return }
+    setAttachments(prev => [...prev, { link, name: link }])
+    setAttachLink('')
+  }
   const [rubric, setRubric] = useState(() => act?.rubric?.length ? act.rubric : [])
   const [err,     setErr]     = useState('')
   const [saving,  setSaving]  = useState(false)
@@ -317,14 +344,14 @@ function ActivityFormModal({ act, onClose }) {
       if (isEdit) {
         await updateDoc(doc(db.current, 'activities', act.id), {
           title: title.trim(), classId, subject, maxScore, deadline: dlTs,
-          instructions: instructions.trim(), rubric: cleanRubric,
+          instructions: instructions.trim(), rubric: cleanRubric, attachments: attachments.filter(a => a?.link),
           isGroup, casePrompt: isGroup ? casePrompt.trim() : '', groups: cleanGroups,
         })
       } else {
         const id = actId()
         await setDoc(doc(db.current, 'activities', id), {
           id, title: title.trim(), classId, subject, maxScore, deadline: dlTs,
-          instructions: instructions.trim(), rubric: cleanRubric,
+          instructions: instructions.trim(), rubric: cleanRubric, attachments: attachments.filter(a => a?.link),
           isGroup, casePrompt: isGroup ? casePrompt.trim() : '', groups: cleanGroups,
           createdAt: Date.now(), createdBy: 'admin', submissions: {}, groupSubmissions: {},
         })
@@ -405,6 +432,33 @@ function ActivityFormModal({ act, onClose }) {
           </button>
         </div>
         <textarea className="input w-full" rows={3} value={instructions} onChange={e => setInstructions(e.target.value)} placeholder="Brief instructions for students…" />
+      </div>
+
+      <div className="field mb-3">
+        <label className="text-xs font-semibold text-ink2 mb-1 block">Attachments <span className="font-normal text-ink3">(optional, shown to students)</span></label>
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-2">
+            {attachments.map((a, i) => (
+              <span key={i} className="badge badge-gray" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: 220 }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name || a.link}</span>
+                <button type="button" onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))} style={{ display: 'inline-flex' }} aria-label="Remove attachment"><X size={12} /></button>
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2 flex-wrap items-center">
+          {driveConfigured() && (
+            <>
+              <input ref={attachInputRef} type="file" onChange={handleAttachFile} style={{ display: 'none' }} />
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => attachInputRef.current?.click()} disabled={attachBusy}>
+                <Plus size={13} className="inline-block mr-1" />{attachBusy ? 'Uploading…' : 'Upload file'}
+              </button>
+            </>
+          )}
+          <input className="input" style={{ flex: 1, minWidth: 160 }} placeholder="or paste a link (https://…)" value={attachLink}
+            onChange={e => setAttachLink(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addAttachLink() } }} />
+          <button type="button" className="btn btn-ghost btn-sm" onClick={addAttachLink} disabled={!attachLink.trim()}>Add</button>
+        </div>
       </div>
 
       {/* Group case-study mode */}
@@ -910,6 +964,18 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
   // Warm the on-device model when the grading modal opens.
   useEffect(() => { prewarmActivitySmart() }, [])
 
+  // Clear a group's locked submission so the group can upload again.
+  async function reopenGroup(g) {
+    const ok = await openDialog({ title: 'Reopen group upload?', msg: `This clears ${g.name}'s current submission so the group can upload again. Their submitted text and file link will be removed.`, type: 'warning', confirmLabel: 'Reopen', showCancel: true })
+    if (!ok) return
+    try {
+      await updateDoc(doc(db.current, 'activities', act.id), { [`groupSubmissions.${g.id}`]: {} })
+      toast(`${g.name} can submit again.`, 'green')
+    } catch (e) {
+      toast('Could not reopen: ' + e.message, 'red')
+    }
+  }
+
   // Auto-grade every group at once, then pre-fill each member's score/feedback/
   // rubric so the existing Save-All path persists it (per-member adjustable).
   async function runGroupGrade() {
@@ -1086,7 +1152,12 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                 <div key={g.id} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <span className="text-xs font-semibold text-ink">{g.name}</span>
-                    {r && <span className="text-xs font-bold" style={{ color: 'var(--accent)' }}>{r.score}/{act.maxScore}</span>}
+                    <div className="flex items-center gap-2">
+                      {(act.groupSubmissions || {})[g.id]?.submittedBy && (
+                        <button type="button" className="btn btn-ghost btn-xs" onClick={() => reopenGroup(g)}>Reopen upload</button>
+                      )}
+                      {r && <span className="text-xs font-bold" style={{ color: 'var(--accent)' }}>{r.score}/{act.maxScore}</span>}
+                    </div>
                   </div>
                   <div className="text-xs text-ink3 mb-1.5">{memberNames.join(', ') || 'No members'}</div>
                   <textarea className="input w-full" rows={3} style={{ fontSize: 12 }}

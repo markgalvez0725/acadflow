@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { doc, updateDoc } from 'firebase/firestore'
+import { doc, updateDoc, runTransaction } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import Pagination from '@/components/primitives/Pagination'
@@ -214,25 +214,51 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
     const text = (groupText[actId] ?? '').trim()
     if (!text) { toast('Add your group\'s analysis first.', 'warn'); return }
     if (!fbReady || !db.current) { toast('Activities require Firebase to be connected.', 'warn'); return }
-    const link = (groupLink[actId] ?? '').trim()
+    let link = (groupLink[actId] ?? '').trim()
     if (link && !/^https?:\/\/.+/.test(link)) { toast('Link must start with http:// or https://', 'warn'); return }
+    const act = activities.find(a => a.id === actId)
     setSubmitting(prev => ({ ...prev, [actId]: true }))
     try {
-      const gp = `groupSubmissions.${group.id}`
-      await updateDoc(doc(db.current, 'activities', actId), {
-        [`${gp}.text`]: text,
-        [`${gp}.link`]: link,
-        [`${gp}.submittedBy`]: s.id,
-        [`${gp}.submittedByName`]: s.name,
-        [`${gp}.submittedAt`]: Date.now(),
+      // One representative uploads on behalf of the group. A staged file goes to
+      // Drive first and its share link is stored.
+      const file = pendingFiles[actId]
+      if (file) {
+        setUploadPct(prev => ({ ...prev, [actId]: 0 }))
+        const res = await uploadSubmission(file, {
+          folderPath: [act?.subject || 'General', act?.title || 'Activity', group.name],
+          onProgress: pct => setUploadPct(prev => ({ ...prev, [actId]: pct })),
+        })
+        link = res.link
+        setUploadPct(prev => ({ ...prev, [actId]: null }))
+      }
+      // First-writer-wins lock: once anyone submits, the group upload is closed.
+      // A concurrent second submit re-reads the doc inside the transaction and
+      // aborts, so no upload silently overwrites another member's.
+      const ref = doc(db.current, 'activities', actId)
+      await runTransaction(db.current, async (tx) => {
+        const snap = await tx.get(ref)
+        const existing = ((snap.data() || {}).groupSubmissions || {})[group.id]
+        if (existing && existing.submittedBy) throw new Error('LOCKED:' + (existing.submittedByName || 'a member'))
+        const gp = `groupSubmissions.${group.id}`
+        tx.update(ref, {
+          [`${gp}.text`]: text,
+          [`${gp}.link`]: link,
+          [`${gp}.submittedBy`]: s.id,
+          [`${gp}.submittedByName`]: s.name,
+          [`${gp}.submittedAt`]: Date.now(),
+        })
       })
-      setEditing(prev => ({ ...prev, [actId]: false }))
-      const act = activities.find(a => a.id === actId)
+      setPendingFiles(prev => ({ ...prev, [actId]: null }))
       await pushAdminNotif(db.current, s, `Group submitted: ${act?.title || actId} (${group.name})`, 'act_sub', 'act:' + actId)
-      toast('Group submission saved!', 'success')
+      toast('Group submission locked in!', 'success')
     } catch (e) {
-      toast('Failed to submit: ' + e.message, 'error')
+      if (String(e.message).startsWith('LOCKED:')) {
+        toast(`Already submitted by ${e.message.slice(7)} - the group upload is locked. Ask your professor to reopen it if it needs changing.`, 'warn')
+      } else {
+        toast('Failed to submit: ' + e.message, 'error')
+      }
     } finally {
+      setUploadPct(prev => ({ ...prev, [actId]: null }))
       setSubmitting(prev => ({ ...prev, [actId]: false }))
     }
   }
@@ -355,6 +381,16 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
               {act.instructions && (
                 <div className="sa-act-desc">{act.instructions}</div>
               )}
+              {Array.isArray(act.attachments) && act.attachments.length > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink2)', marginBottom: 4 }}>Attachments</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {act.attachments.map((at, i) => (
+                      <SubmissionPreview key={i} link={at.link} name={at.name || act.title} compact fallbackLabel={at.name || 'Open attachment'} />
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {act.deadline && (
                 <div className="sa-act-due">
@@ -428,7 +464,7 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                       <div style={{ fontSize: 11, color: 'var(--ink3)', marginBottom: 6 }}>
                         {(myGroup.memberIds || []).map(id => idName[id] || id).join(', ')}
                       </div>
-                      {groupSub?.text && !editing[act.id] ? (
+                      {groupSub?.text ? (
                         <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px' }}>
                           <div style={{ fontSize: 11, color: 'var(--ink3)', marginBottom: 4 }}>
                             Submitted by {groupSub.submittedByName || idName[groupSub.submittedBy] || 'a member'}
@@ -440,15 +476,9 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                               <SubmissionPreview link={groupSub.link} name={`${myGroup.name} - ${act.title}`} compact fallbackLabel="Open attached link" />
                             </div>
                           )}
-                          {!isPast && (
-                            <button className="btn btn-ghost btn-sm mt-2" onClick={() => {
-                              setEditing(prev => ({ ...prev, [act.id]: true }))
-                              setGroupText(prev => ({ ...prev, [act.id]: groupSub.text }))
-                              setGroupLink(prev => ({ ...prev, [act.id]: groupSub.link || '' }))
-                            }}>Edit group submission</button>
-                          )}
+                          <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 6 }}>The group upload is locked. Ask your professor to reopen it if it needs changing.</div>
                         </div>
-                      ) : isPast && !groupSub?.text ? (
+                      ) : isPast ? (
                         <div style={{ fontSize: 12, color: 'var(--red)' }}>The deadline passed with no group submission.</div>
                       ) : (
                         <div className="sa-act-submit-form">
@@ -461,16 +491,19 @@ export default function ActivitiesTab({ student: s, viewClassId, activities }) {
                               <SubmissionPreview link={(groupLink[act.id] || '').trim()} name={`${myGroup.name} - ${act.title}`} compact previewOnly />
                             </div>
                           )}
+                          <SubmissionFileField
+                            file={pendingFiles[act.id] || null}
+                            onPick={f => setPendingFiles(prev => ({ ...prev, [act.id]: f }))}
+                            progress={uploadPct[act.id] ?? null}
+                            disabled={submitting[act.id]}
+                          />
                           <div className="flex gap-2 mt-2">
                             <button className="btn btn-primary btn-sm" onClick={() => submitGroup(act.id, myGroup)}
                               disabled={submitting[act.id] || !(groupText[act.id] ?? '').trim() || isPast}>
-                              {submitting[act.id] ? 'Saving…' : 'Submit for group →'}
+                              {submitting[act.id] ? (uploadPct[act.id] != null ? `Uploading ${uploadPct[act.id]}%…` : 'Saving…') : 'Submit for group →'}
                             </button>
-                            {editing[act.id] && (
-                              <button className="btn btn-ghost btn-sm" onClick={() => setEditing(prev => ({ ...prev, [act.id]: false }))}>Cancel</button>
-                            )}
                           </div>
-                          <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>Any member can submit or update on behalf of the whole group.</div>
+                          <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>Only one representative submits for the whole group. Once submitted, the upload locks.</div>
                         </div>
                       )}
                     </>
