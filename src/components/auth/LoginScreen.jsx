@@ -62,6 +62,7 @@ export default function LoginScreen({ onRevealFaculty }) {
   // Login form
   const [snum, setSnum] = useState('')
   const [pass, setPass] = useState('')
+  const [keepSignedIn, setKeepSignedIn] = useState(true)
 
   // Forgot-password (live, professor-coordinated) reset
   const [rpNum,      setRpNum]      = useState('')
@@ -83,7 +84,7 @@ export default function LoginScreen({ onRevealFaculty }) {
     clearMessages()
     setLoading(true)
     try {
-      const result = await loginStudent(snum.trim(), pass)
+      const result = await loginStudent(snum.trim(), pass, keepSignedIn)
       if (!result.ok) {
         setErr(result.msg)
         setPass('')
@@ -105,7 +106,7 @@ export default function LoginScreen({ onRevealFaculty }) {
     try {
       const { snum: bsnum, password } = await biometricUnlock()
       setSnum(bsnum)
-      const result = await loginStudent((bsnum || '').trim(), password)
+      const result = await loginStudent((bsnum || '').trim(), password, keepSignedIn)
       if (!result.ok) setErr(result.msg)
     } catch (e) {
       setErr(e?.message || 'Biometric sign-in failed. Please use your password.')
@@ -367,6 +368,10 @@ export default function LoginScreen({ onRevealFaculty }) {
                 </button>
                 <label htmlFor="login-pass">Password</label>
               </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '2px 2px 0', cursor: 'pointer', fontSize: 13, color: 'var(--ink2)', userSelect: 'none' }}>
+                <input type="checkbox" checked={keepSignedIn} onChange={e => setKeepSignedIn(e.target.checked)} style={{ width: 15, height: 15, accentColor: 'var(--accent)', cursor: 'pointer' }} />
+                Keep me signed in on this device
+              </label>
               <Button type="submit" full loading={loading} loadingText="Signing in…" className="mt-2">
                 Sign In
               </Button>

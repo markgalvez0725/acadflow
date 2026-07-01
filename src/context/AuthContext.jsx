@@ -128,15 +128,24 @@ export function AuthProvider({ children }) {
     }
   }, [sessionRole, pinLocked])
 
+  // Reads the "keep me signed in" flag off the stored session.
+  function _sessionPersist() {
+    try { const raw = localStorage.getItem(SESSION_KEY); return raw ? !!JSON.parse(raw).persist : false } catch (e) { return false }
+  }
+
   // When the session is idle-expired, prefer a PIN lock (keep the Firebase
   // session, just hide the app) if the user set a quick-unlock PIN and is still
-  // signed in. Otherwise fall back to a full logout.
+  // signed in. With "keep me signed in" on we never idle-logout; otherwise fall
+  // back to a full logout.
   function _maybeLockOrLogout(reason) {
     let fbUser = null
     try { fbUser = getFbAuth()?.currentUser } catch (e) {}
     if (sessionRole && fbUser && hasQuickPin(sessionRole, currentStudent?.id)) {
       clearTimeout(sessionTimerRef.current)
       setPinLocked(true)
+    } else if (_sessionPersist()) {
+      // "Keep me signed in" with no quick PIN: stay signed in - just stop the timer.
+      clearTimeout(sessionTimerRef.current)
     } else {
       logout(reason)
     }
@@ -156,7 +165,7 @@ export function AuthProvider({ children }) {
     sessionTimerRef.current = setTimeout(() => _maybeLockOrLogout('timeout'), SESSION_TIMEOUT_MS)
   }
 
-  function _startSession(role, studentObj = null) {
+  function _startSession(role, studentObj = null, persist = false) {
     const now = Date.now()
     const lastLoginKey = LAST_LOGIN_PREFIX + (role === 'admin' ? 'admin' : (studentObj?.id || 'student'))
 
@@ -171,7 +180,7 @@ export function AuthProvider({ children }) {
     try { localStorage.setItem(lastLoginKey, JSON.stringify({ ts: now })) } catch (e) {}
 
     try {
-      localStorage.setItem(SESSION_KEY, JSON.stringify({ role, studentId: studentObj?.id || null, ts: now, loginTime: now, lastLogin: prevTs }))
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ role, studentId: studentObj?.id || null, ts: now, loginTime: now, lastLogin: prevTs, persist: !!persist }))
     } catch (e) {}
 
     // Replace the current history entry so pressing Back after login
@@ -190,13 +199,20 @@ export function AuthProvider({ children }) {
       if (!raw) return
       const sess = JSON.parse(raw)
       if (!sess?.role || !sess?.ts) return
-      if (Date.now() - sess.ts > SESSION_TIMEOUT_MS) {
+      const idleExpired = Date.now() - sess.ts > SESSION_TIMEOUT_MS
+      if (idleExpired && !sess.persist) {
+        // No "keep me signed in": drop the stale session as before.
         localStorage.removeItem(SESSION_KEY)
         return
       }
       setSessionRole(sess.role)
       setLoginTime(sess.loginTime || null)
       setLastLogin(sess.lastLogin || null)
+      // "Keep me signed in" survives a long idle; if the student set a quick PIN,
+      // a long idle still returns to the PIN screen rather than wide open.
+      if (idleExpired && sess.persist && hasQuickPin(sess.role, sess.studentId)) {
+        setPinLocked(true)
+      }
       // currentStudent will be populated from DataContext.students once loaded
       if (sess.studentId) {
         // Defer: store the ID and AppRouter/StudentLayout will match it
@@ -231,7 +247,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   // ── Student login (Firebase Auth) ─────────────────────────────────────────
-  const loginStudent = useCallback(async (studentId, password) => {
+  const loginStudent = useCallback(async (studentId, password, persist = false) => {
     const snum = (studentId || '').trim()
     const key = 'student_' + snum.toLowerCase()
     const lockMsg = isLockedOut(key)
@@ -279,7 +295,7 @@ export function AuthProvider({ children }) {
       return { ok: false, msg: 'Your student record was not found. Please contact your professor.' }
     }
 
-    _startSession('student', { id: studentDocId(snum), _pending: true })
+    _startSession('student', { id: studentDocId(snum), _pending: true }, persist)
     return { ok: true, student: { id: studentDocId(snum) } }
   }, [])
 
