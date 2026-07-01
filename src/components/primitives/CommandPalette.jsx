@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext'
 import {
   Search, LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell,
   FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Users, GraduationCap,
-  Sun, Moon, Snowflake, Download, CornerDownLeft, ArrowUp, ArrowDown, User, Building2, Sparkles, History, ListChecks, MessageSquare, MessageSquarePlus, ShieldCheck,
+  Sun, Moon, Snowflake, Download, CornerDownLeft, ArrowUp, ArrowDown, User, Building2, History, ListChecks, MessageSquare, MessageSquarePlus, ShieldCheck,
 } from 'lucide-react'
 import { courseShort } from '@/constants/courses'
 
@@ -125,11 +125,13 @@ export default function CommandPalette() {
       run: () => go(t.id),
     }))
 
-    const glassOn = typeof document !== 'undefined' && document.documentElement.dataset.glass === 'on'
     const actions = [
       {
         id: 'theme',
         // Cycles light → dark → frost; the label/icon preview the NEXT theme.
+        // (The old data-glass "Turn on frosted glass" toggle was removed: the
+        // frost THEME replaced it, and flipping data-glass under frost broke
+        // the glass styling.)
         label: theme === 'light' ? 'Switch to dark theme'
              : theme === 'dark'  ? 'Switch to frosted glass theme'
              :                     'Switch to light theme',
@@ -137,26 +139,6 @@ export default function CommandPalette() {
         keywords: 'theme dark light frost frosted glass plum mode appearance',
         Icon: theme === 'light' ? Moon : theme === 'dark' ? Snowflake : Sun,
         run: () => { toggleTheme(); setOpen(false) },
-      },
-      {
-        id: 'glass',
-        label: glassOn ? 'Turn off frosted glass' : 'Turn on frosted glass',
-        section: 'Actions',
-        keywords: 'glass frosted blur transparency translucent appearance performance',
-        Icon: Sparkles,
-        run: () => {
-          if (glassOn) delete document.documentElement.dataset.glass
-          else document.documentElement.dataset.glass = 'on'
-          try { localStorage.setItem('acadflow_glass', glassOn ? 'off' : 'on') } catch (e) {}
-          // Nudge a repaint so the newly-added/removed backdrop-filter applies
-          // immediately - Chrome can otherwise defer it until the next scroll.
-          try {
-            const els = document.querySelectorAll('.glass-panel, .card, .sidebar, .admin-topbar, .student-topbar, .student-bottom-nav')
-            els.forEach(el => { el.style.willChange = 'backdrop-filter' })
-            requestAnimationFrame(() => els.forEach(el => { el.style.willChange = '' }))
-          } catch (e) {}
-          setOpen(false)
-        },
       },
     ]
     if (deferredInstall) {
