@@ -226,9 +226,9 @@ function ActivityFormModal({ act, onClose }) {
 
   const selectedClass = classes.find(c => c.id === classId)
 
-  // Roster for the selected class (registered students), for group building.
+  // Roster for the selected class (all enrolled students), for group building.
   const roster = useMemo(
-    () => sortByLastName((students || []).filter(s => s.classId === classId && s.account?.registered)),
+    () => sortByLastName((students || []).filter(s => s.classId === classId || s.classIds?.includes(classId))),
     [students, classId]
   )
   // Count of students placed into a group - shown on the "Set up groups" button.
@@ -648,7 +648,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
   const dlLabel = new Date(act.deadline).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
 
   const enrolledStudents = useMemo(
-    () => sortByLastName(students.filter(s => s.classId === act.classId && s.account?.registered)),
+    () => sortByLastName(students.filter(s => s.classId === act.classId || s.classIds?.includes(act.classId))),
     [students, act.classId]
   )
   const idName = useMemo(() => Object.fromEntries((students || []).map(s => [s.id, s.name])), [students])
@@ -773,7 +773,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
 
   async function handleApplyDefault() {
     const missed = enrolledStudents.filter(s => !(act.submissions || {})[s.id]?.link)
-    if (!missed.length) { toast('All registered students have already submitted.', 'green'); return }
+    if (!missed.length) { toast('Everyone enrolled has already submitted.', 'green'); return }
     // Never exceed the activity's max (rubric totals can be < 50, and a score
     // above max would push the activity component over 100%).
     const defScore = Math.min(50, act.maxScore || 100)
@@ -1469,8 +1469,18 @@ export default function ActivitiesTab() {
   const studsByClass = useMemo(() => {
     const m = new Map()
     students.forEach(s => {
-      if (!s.account?.registered) return
-      const arr = m.get(s.classId); if (arr) arr.push(s); else m.set(s.classId, [s])
+      // Count EVERY enrolled student, matching the Classes/Grades/Attendance
+      // roster (which is what the professor's "N students" total reflects). We do
+      // NOT require an activated account here: a student who hasn't logged in yet
+      // is still enrolled and should show as pending, not silently vanish.
+      // A student can be enrolled in several classes via classIds[]; bucket them
+      // under EVERY class they belong to (union of classId + classIds), matching
+      // the app-wide "s.classId === id || s.classIds?.includes(id)" roster rule.
+      // Keying only on the singular classId hid multi-class students from an
+      // activity whose class was not their primary one.
+      const ids = new Set(s.classIds || [])
+      if (s.classId) ids.add(s.classId)
+      ids.forEach(cid => { const arr = m.get(cid); if (arr) arr.push(s); else m.set(cid, [s]) })
     })
     return m
   }, [students])
