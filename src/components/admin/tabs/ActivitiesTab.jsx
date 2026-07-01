@@ -1463,6 +1463,7 @@ export default function ActivitiesTab() {
   const [viewAct,         setViewAct]        = useState(null)
   const [editAct,         setEditAct]        = useState(null)
   const [showArchivedActs, setShowArchivedActs] = useState(false)
+  const [filter,          setFilter]         = useState('active') // 'active' (deadline ahead) | 'ended' (past)
 
   // O(1) lookups instead of classes.find()/students.filter() per activity card.
   const classMap = useMemo(() => new Map(classes.map(c => [c.id, c])), [classes])
@@ -1493,20 +1494,26 @@ export default function ActivitiesTab() {
   const activeActs   = useMemo(() => sorted.filter(a => !classMap.get(a.classId)?.archived), [sorted, classMap])
   const archivedActs = useMemo(() => sorted.filter(a =>  classMap.get(a.classId)?.archived), [sorted, classMap])
 
-  const slice = useMemo(
-    () => activeActs.slice((page - 1) * PER_PAGE, page * PER_PAGE),
-    [activeActs, page]
-  )
+  // Split the live (non-archived-class) activities into Active (deadline still
+  // ahead) and Ended (deadline passed) for the segmented filter. Captured once
+  // per data change so the deep-link effect below keeps stable deps.
+  const [openActs, endedActs] = useMemo(() => {
+    const t = Date.now(), open = [], ended = []
+    activeActs.forEach(a => (a.deadline >= t ? open : ended).push(a))
+    return [open, ended]
+  }, [activeActs])
 
   // Deep-linked from a notification: page to the activity (revealing the
   // archived list if that's where it lives) so the card renders for the glow.
   useEffect(() => {
     if (!highlightId) return
-    const ai = activeActs.findIndex(a => a.id === highlightId)
-    if (ai >= 0) { setPage(Math.floor(ai / PER_PAGE) + 1); return }
+    const oi = openActs.findIndex(a => a.id === highlightId)
+    if (oi >= 0) { setFilter('active'); setPage(Math.floor(oi / PER_PAGE) + 1); return }
+    const ei = endedActs.findIndex(a => a.id === highlightId)
+    if (ei >= 0) { setFilter('ended'); setPage(Math.floor(ei / PER_PAGE) + 1); return }
     const xi = archivedActs.findIndex(a => a.id === highlightId)
     if (xi >= 0) { setShowArchivedActs(true); setArchivedPage(Math.floor(xi / PER_PAGE) + 1) }
-  }, [highlightId, activeActs, archivedActs])
+  }, [highlightId, openActs, endedActs, archivedActs])
 
   const archivedSlice = useMemo(
     () => archivedActs.slice((archivedPage - 1) * PER_PAGE, archivedPage * PER_PAGE),
@@ -1516,6 +1523,8 @@ export default function ActivitiesTab() {
   if (!fbReady) return <SkeletonTable />
 
   const now = Date.now()
+  const shownActs = filter === 'active' ? openActs : endedActs
+  const slice = shownActs.slice((page - 1) * PER_PAGE, page * PER_PAGE)
 
   // Remind students who haven't submitted (reused by the list card "Nudge all").
   async function nudgeMissing(act, ids, { confirm = true } = {}) {
@@ -1550,63 +1559,46 @@ export default function ActivitiesTab() {
     const graded    = Object.values(act.submissions || {}).filter(s => s.score != null).length
     const groupCount     = act.isGroup ? (act.groups || []).length : 0
     const groupsSubmitted = act.isGroup ? Object.values(act.groupSubmissions || {}).filter(g => g?.text).length : 0
-    const dlLabel   = new Date(act.deadline).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+    const dlLabel   = new Date(act.deadline).toLocaleString('en-PH', { month: 'short', day: 'numeric' })
     const missing   = missingStudentsFor(act, subs)
     const subDen    = act.isGroup ? groupCount : subs.length
     const subNum    = act.isGroup ? groupsSubmitted : submitted
     const subPct    = subDen ? Math.round(subNum / subDen * 100) : 0
-    const gradePct  = subNum ? Math.round(graded / subNum * 100) : 0
     return (
       <div id={`activity-${act.id}`} className={`card act-list-card${highlightId === act.id ? ' redirect-glow' : ''}`}>
         <div className={`act-stripe ${readOnly ? 'act-stripe-archived' : isPast ? 'act-stripe-closed' : 'act-stripe-open'}`} />
         <div className="act-body">
-          <div className="flex items-start gap-2.5">
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <strong style={{ fontSize: 14, color: 'var(--ink)' }}>{act.title}</strong>
-              <div className="flex items-center gap-1.5 flex-wrap" style={{ marginTop: 7 }}>
-                <span className="act-chip act-chip-class">{cls ? courseShort(cls.name) + ' ' + cls.section : '-'}</span>
-                <span className="act-chip">{act.subject}</span>
-                {act.isGroup && <span className="act-chip act-chip-group"><Users size={11} /> Group</span>}
-                <span className="act-chip">{act.maxScore} pts</span>
-                {readOnly && <span className="act-chip" style={{ color: 'var(--gold)' }}>Archived</span>}
-              </div>
-            </div>
-            <span className={`act-status ${isPast ? 'act-status-closed' : 'act-status-open'}`}>{isPast ? 'Closed' : 'Open'}</span>
-          </div>
-
-          <div className="act-prog-row">
-            <div>
-              <div className="act-prog-head"><span>{act.isGroup ? 'Groups submitted' : 'Submitted'}</span><strong>{subNum} / {subDen}</strong></div>
-              <div className="act-prog-track"><div className="act-prog-fill" style={{ width: subPct + '%', background: 'var(--accent)' }} /></div>
-            </div>
-            <div>
-              <div className="act-prog-head"><span>Graded</span><strong>{graded} / {subNum}</strong></div>
-              <div className="act-prog-track"><div className="act-prog-fill" style={{ width: gradePct + '%', background: 'var(--green)' }} /></div>
-            </div>
-          </div>
-
-          {subs.length > 0 && (
-            <div className={`act-missed ${missing.length ? '' : 'act-missed-ok'}`} style={{ marginTop: 12 }}>
-              {missing.length
-                ? <AlertCircle size={15} style={{ color: 'var(--red)', flexShrink: 0 }} />
-                : <CheckCircle2 size={15} style={{ color: 'var(--green)', flexShrink: 0 }} />}
-              <span className="act-missed-text">{missing.length ? `${missing.length} ${isPast ? 'missed' : 'pending'}` : 'Everyone submitted'}</span>
-              {missing.length > 0 && isPast && !readOnly && (
-                <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} onClick={() => nudgeMissing(act, missing.map(s => s.id))}>
-                  <AlarmClock size={13} /> Nudge all
-                </button>
-              )}
-            </div>
-          )}
-
-          <div className="act-foot">
-            <span style={{ fontSize: 12, color: isPast ? 'var(--red)' : 'var(--ink2)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-              <Clock size={13} /> {dlLabel} <span style={{ color: 'var(--ink3)' }}>· {relTime(act.deadline - now)}</span>
+          <div className="act-top">
+            <strong className="act-ctitle">{act.title}</strong>
+            <span className={`act-status ${readOnly ? 'act-status-archived' : isPast ? 'act-status-closed' : 'act-status-open'}`}>
+              {readOnly ? 'Archived' : isPast ? 'Closed' : 'Open'}
             </span>
-            <div className="flex gap-1.5 flex-shrink-0">
-              <button className="btn btn-ghost btn-sm" onClick={() => setViewAct(act)}>View</button>
-              {!readOnly && <button className="btn btn-ghost btn-sm" onClick={() => setEditAct(act)}>Edit</button>}
-            </div>
+          </div>
+          <div className="act-meta2">
+            <span className="m-cls">{cls ? courseShort(cls.name) + ' ' + cls.section : '-'}</span>
+            {' · '}{act.subject}{act.isGroup ? ' · Group' : ''}{' · '}{act.maxScore} pts
+          </div>
+
+          <div className="act-cprog">
+            <div className="act-prog-head"><span>{act.isGroup ? 'Groups submitted' : 'Submitted'}</span><strong>{subNum} / {subDen}</strong></div>
+            <div className="act-prog-track"><div className="act-prog-fill" style={{ width: subPct + '%', background: 'var(--accent)' }} /></div>
+          </div>
+
+          <div className="act-cfoot">
+            <span className="act-due" style={{ color: isPast ? 'var(--red)' : 'var(--ink3)' }}>
+              <Clock size={12} /> {isPast ? dlLabel : relTime(act.deadline - now)}{graded ? ` · Graded ${graded}` : ''}
+            </span>
+            {subs.length > 0 && (missing.length
+              ? <span className="act-pill act-pill-warn"><AlertCircle size={11} /> {missing.length} {isPast ? 'missed' : 'pending'}</span>
+              : <span className="act-pill act-pill-ok"><CheckCircle2 size={11} /> All in</span>)}
+            <span style={{ flex: 1 }} />
+            {missing.length > 0 && isPast && !readOnly && (
+              <button className="btn btn-ghost btn-xs" style={{ color: 'var(--red)' }} onClick={() => nudgeMissing(act, missing.map(s => s.id))}>
+                <AlarmClock size={12} /> Nudge
+              </button>
+            )}
+            <button className="btn btn-ghost btn-xs" onClick={() => setViewAct(act)}>View</button>
+            {!readOnly && <button className="btn btn-ghost btn-xs" onClick={() => setEditAct(act)}>Edit</button>}
           </div>
         </div>
       </div>
@@ -1618,7 +1610,7 @@ export default function ActivitiesTab() {
       {/* Header */}
       <PageHeader
         title="Activities"
-        subtitle={`${activeActs.length} active${archivedActs.length ? ` · ${archivedActs.length} archived` : ''}`}
+        subtitle={`${openActs.length} active · ${endedActs.length} ended${archivedActs.length ? ` · ${archivedActs.length} archived` : ''}`}
         actions={<button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}><Plus size={16} /> New Activity</button>}
       />
 
@@ -1631,10 +1623,26 @@ export default function ActivitiesTab() {
         />
       ) : (
         <>
-          <div className="flex flex-col gap-3 mb-3">
-            {slice.map(act => <ActivityCard key={act.id} act={act} readOnly={false} />)}
+          <div className="seg-filter mb-3">
+            <button className={`seg-btn${filter === 'active' ? ' active' : ''}`} onClick={() => { setFilter('active'); setPage(1) }}>
+              Active <span className="seg-count">{openActs.length}</span>
+            </button>
+            <button className={`seg-btn${filter === 'ended' ? ' active' : ''}`} onClick={() => { setFilter('ended'); setPage(1) }}>
+              Ended <span className="seg-count">{endedActs.length}</span>
+            </button>
           </div>
-          <Pagination total={activeActs.length} perPage={PER_PAGE} page={page} onChange={setPage} />
+          {slice.length === 0 ? (
+            <div style={{ padding: '28px 4px', textAlign: 'center', fontSize: 13, color: 'var(--ink3)' }}>
+              {filter === 'active' ? 'No open activities right now.' : 'No ended activities yet.'}
+            </div>
+          ) : (
+            <>
+              <div className="act-grid mb-3">
+                {slice.map(act => <ActivityCard key={act.id} act={act} readOnly={false} />)}
+              </div>
+              <Pagination total={shownActs.length} perPage={PER_PAGE} page={page} onChange={setPage} />
+            </>
+          )}
         </>
       )}
 
@@ -1656,7 +1664,7 @@ export default function ActivitiesTab() {
                 <Archive size={13} className="inline-block mr-1 align-text-bottom" />
                 These activities belong to archived classes and are read-only.
               </div>
-              <div className="flex flex-col gap-3 mb-3">
+              <div className="act-grid mb-3">
                 {archivedSlice.map(act => <ActivityCard key={act.id} act={act} readOnly={true} />)}
               </div>
               <Pagination total={archivedActs.length} perPage={PER_PAGE} page={archivedPage} onChange={setArchivedPage} />

@@ -12,7 +12,7 @@ import Avatar from '@/components/primitives/Avatar'
 import Pagination from '@/components/primitives/Pagination'
 import EmptyState from '@/components/ds/EmptyState'
 import PageHeader from '@/components/ds/PageHeader'
-import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList, Pencil, Save, Rocket, FileText, X, Lock, Circle, Archive, ArchiveRestore, Sparkles, Wand2, FileUp, Copy, Lightbulb, ScanSearch, Fingerprint, ExternalLink } from 'lucide-react'
+import { Clock, AlertCircle, Upload, Download, Check, CheckCircle, ClipboardList, Pencil, Save, Rocket, FileText, X, Lock, Circle, Archive, ArchiveRestore, Sparkles, Wand2, FileUp, Copy, Lightbulb, ScanSearch, Fingerprint, ExternalLink, EyeOff } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { extractTextFromFile } from '@/utils/lessonExtract'
 import { generateDraftQuestions } from '@/utils/quizGen'
@@ -1505,6 +1505,7 @@ export default function QuizTab() {
   const [page, setPage] = useState(1)
   const [archivedPage, setArchivedPage] = useState(1)
   const [showArchivedQuizzes, setShowArchivedQuizzes] = useState(false)
+  const [filter, setFilter] = useState('active') // 'active' (draft/upcoming/open) | 'ended' (closed)
   const [showExport, setShowExport] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [showLesson, setShowLesson] = useState(false)
@@ -1533,20 +1534,26 @@ export default function QuizTab() {
     [sorted, classMap]
   )
 
-  const slice = useMemo(
-    () => activeQuizzes.slice((page - 1) * PER_PAGE, page * PER_PAGE),
-    [activeQuizzes, page]
-  )
+  // Split the live quizzes into Active (draft, upcoming, or open) and Ended (past
+  // its close time) for the segmented filter. Captured once per data change so
+  // the deep-link effect below keeps stable deps.
+  const [openQuizzes, endedQuizzes] = useMemo(() => {
+    const t = Date.now(), open = [], ended = []
+    activeQuizzes.forEach(q => ((q.status !== 'draft' && t > q.closeAt) ? ended : open).push(q))
+    return [open, ended]
+  }, [activeQuizzes])
 
   // Deep-linked from elsewhere: page to the quiz (revealing the archived list
   // if needed) so its card renders for the scroll-and-glow.
   useEffect(() => {
     if (!highlightId) return
-    const ai = activeQuizzes.findIndex(q => q.id === highlightId)
-    if (ai >= 0) { setPage(Math.floor(ai / PER_PAGE) + 1); return }
+    const oi = openQuizzes.findIndex(q => q.id === highlightId)
+    if (oi >= 0) { setFilter('active'); setPage(Math.floor(oi / PER_PAGE) + 1); return }
+    const ei = endedQuizzes.findIndex(q => q.id === highlightId)
+    if (ei >= 0) { setFilter('ended'); setPage(Math.floor(ei / PER_PAGE) + 1); return }
     const xi = archivedQuizzes.findIndex(q => q.id === highlightId)
     if (xi >= 0) { setShowArchivedQuizzes(true); setArchivedPage(Math.floor(xi / PER_PAGE) + 1) }
-  }, [highlightId, activeQuizzes, archivedQuizzes])
+  }, [highlightId, openQuizzes, endedQuizzes, archivedQuizzes])
 
   const archivedSlice = useMemo(
     () => archivedQuizzes.slice((archivedPage - 1) * PER_PAGE, archivedPage * PER_PAGE),
@@ -1595,11 +1602,86 @@ export default function QuizTab() {
 
   if (!fbReady) return <SkeletonTable />
 
+  const shownQuizzes = filter === 'active' ? openQuizzes : endedQuizzes
+  const slice = shownQuizzes.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+
+  function QuizCard({ q, readOnly }) {
+    const { label } = statusInfo(q)
+    const isDraft    = q.status === 'draft'
+    const isUpcoming = !isDraft && now < q.openAt
+    const isClosed   = !isDraft && now > q.closeAt
+    const clsNames = (q.classIds || []).map(id => { const c = classMap.get(id); return c ? `${courseShort(c.name)} ${c.section}` : id }).join(', ')
+    const subsArr   = Object.values(q.submissions || {})
+    const attempted = subsArr.length
+    // Enrolled union across the quiz's classes - matches how activities count the
+    // roster (s.classId === id || s.classIds includes id).
+    const enrolled  = (q.classIds || []).length
+      ? students.filter(s => (q.classIds || []).some(id => s.classId === id || s.classIds?.includes(id))).length
+      : 0
+    const totalPts  = q.totalPoints || q.questions?.length || 0
+    const avgPct    = attempted && totalPts ? Math.round(subsArr.reduce((t, s) => t + (s.score || 0), 0) / attempted / totalPts * 100) : null
+    const subPct    = enrolled ? Math.round(attempted / enrolled * 100) : 0
+    const openLabel  = new Date(q.openAt).toLocaleString('en-PH', { month: 'short', day: 'numeric' })
+    const closeLabel = new Date(q.closeAt).toLocaleString('en-PH', { month: 'short', day: 'numeric' })
+    const state    = readOnly ? 'archived' : isDraft ? 'draft' : isUpcoming ? 'upcoming' : isClosed ? 'closed' : 'open'
+    const stripeCls = { archived: 'act-stripe-archived', draft: 'act-stripe-draft', upcoming: 'act-stripe-upcoming', closed: 'act-stripe-closed', open: 'act-stripe-open' }[state]
+    const statusCls = { archived: 'act-status-archived', draft: 'act-status-draft', upcoming: 'act-status-upcoming', closed: 'act-status-closed', open: 'act-status-open' }[state]
+    return (
+      <div id={`quiz-${q.id}`} className={`card act-list-card${highlightId === q.id ? ' redirect-glow' : ''}`}>
+        <div className={`act-stripe ${stripeCls}`} />
+        <div className="act-body">
+          <div className="act-top">
+            <strong className="act-ctitle">{q.title}</strong>
+            <span className={`act-status ${statusCls}`}>{readOnly ? 'Archived' : label}</span>
+          </div>
+          <div className="act-meta2">
+            <span className="m-cls">{clsNames || '-'}</span>
+            {' · '}{q.subject}{' · '}{q.questions?.length || 0} Qs{' · '}{q.timeLimit} min{q.difficulty ? ' · ' + q.difficulty.charAt(0).toUpperCase() + q.difficulty.slice(1) : ''}
+          </div>
+
+          {isDraft ? (
+            <div className="act-due" style={{ marginTop: 11, color: 'var(--ink3)' }}>
+              <EyeOff size={12} /> Hidden until you post it
+            </div>
+          ) : (
+            <div className="act-cprog">
+              <div className="act-prog-head"><span>Submitted</span><strong>{attempted} / {enrolled}</strong></div>
+              <div className="act-prog-track"><div className="act-prog-fill" style={{ width: subPct + '%', background: 'var(--accent)' }} /></div>
+            </div>
+          )}
+
+          <div className="act-cfoot">
+            {!isDraft && (
+              <span className="act-due" style={{ color: isClosed ? 'var(--red)' : 'var(--ink3)' }}>
+                <Clock size={12} /> {isClosed ? 'closed' : isUpcoming ? `opens ${openLabel}` : `closes ${closeLabel}`}{avgPct != null ? ` · Avg ${avgPct}%` : ''}
+              </span>
+            )}
+            <span style={{ flex: 1 }} />
+            {readOnly ? (
+              <button className="btn btn-ghost btn-xs" onClick={() => setViewQuiz(q)}>View</button>
+            ) : isDraft ? (
+              <>
+                <button className="btn btn-primary btn-xs" onClick={() => publishQuiz(q)}><Rocket size={12} className="inline-block mr-1" />Post now</button>
+                <button className="btn btn-ghost btn-xs" onClick={() => setEditQuiz(q)}>Edit</button>
+                <button className="btn btn-ghost btn-xs" style={{ color: 'var(--red)' }} onClick={() => deleteDraft(q)}>Delete</button>
+              </>
+            ) : (
+              <>
+                <button className="btn btn-ghost btn-xs" onClick={() => setViewQuiz(q)}>{isClosed ? 'Results' : 'Monitor'}</button>
+                <button className="btn btn-ghost btn-xs" onClick={() => setEditQuiz(q)}>Edit</button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div>
       <PageHeader
         title="Quizzes"
-        subtitle={`${activeQuizzes.length} active${archivedQuizzes.length ? ` · ${archivedQuizzes.length} archived` : ''}`}
+        subtitle={`${openQuizzes.length} active · ${endedQuizzes.length} ended${archivedQuizzes.length ? ` · ${archivedQuizzes.length} archived` : ''}`}
         actions={<>
           <button className="btn btn-ghost btn-sm" onClick={() => setShowImport(true)}><Download size={13} className="inline-block mr-1" />Paste response</button>
           <button className="btn btn-ghost btn-sm" onClick={() => setShowExport(true)}><Sparkles size={13} className="inline-block mr-1" />Smart Quiz</button>
@@ -1621,58 +1703,26 @@ export default function QuizTab() {
         />
       ) : (
         <>
-          <div className="flex flex-col gap-3 mb-3">
-            {slice.map(q => {
-              const { label, variant } = statusInfo(q)
-              const clsNames = (q.classIds || []).map(id => {
-                const c = classMap.get(id)
-                return c ? `${courseShort(c.name)} ${c.section}` : id
-              }).join(', ')
-              const attempted = Object.keys(q.submissions || {}).length
-              const openLabel = new Date(q.openAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
-              const closeLabel = new Date(q.closeAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
-
-              return (
-                <div key={q.id} id={`quiz-${q.id}`} className={`card card-pad${highlightId === q.id ? ' redirect-glow' : ''}`}>
-                  <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <strong style={{ fontSize: 14 }}>{q.title}</strong>
-                        <Badge variant={variant}>{label}</Badge>
-                        <Badge variant="blue">{q.subject}</Badge>
-                        {q.difficulty && (
-                          <Badge variant={q.difficulty === 'easy' ? 'green' : q.difficulty === 'hard' ? 'red' : 'gray'}>{q.difficulty.charAt(0).toUpperCase() + q.difficulty.slice(1)}</Badge>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
-                        {clsNames} · {q.questions?.length || 0} questions · {q.timeLimit} min
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 3 }}>
-                        {q.status === 'draft'
-                          ? 'Draft · hidden from students until you post it'
-                          : `Open: ${openLabel} → Close: ${closeLabel} · ${attempted} submitted`}
-                      </div>
-                    </div>
-                    <div className="flex gap-1.5 flex-shrink-0">
-                      {q.status === 'draft' ? (
-                        <>
-                          <button className="btn btn-primary btn-sm" onClick={() => publishQuiz(q)}><Rocket size={13} className="inline-block mr-1" />Post now</button>
-                          <button className="btn btn-ghost btn-sm" onClick={() => setEditQuiz(q)}>Edit</button>
-                          <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} onClick={() => deleteDraft(q)}>Delete</button>
-                        </>
-                      ) : (
-                        <>
-                          <button className="btn btn-ghost btn-sm" onClick={() => setViewQuiz(q)}>{now > q.closeAt ? 'Results' : 'Monitor'}</button>
-                          <button className="btn btn-ghost btn-sm" onClick={() => setEditQuiz(q)}>Edit</button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
+          <div className="seg-filter mb-3">
+            <button className={`seg-btn${filter === 'active' ? ' active' : ''}`} onClick={() => { setFilter('active'); setPage(1) }}>
+              Active <span className="seg-count">{openQuizzes.length}</span>
+            </button>
+            <button className={`seg-btn${filter === 'ended' ? ' active' : ''}`} onClick={() => { setFilter('ended'); setPage(1) }}>
+              Ended <span className="seg-count">{endedQuizzes.length}</span>
+            </button>
           </div>
-          <Pagination total={activeQuizzes.length} perPage={PER_PAGE} page={page} onChange={setPage} />
+          {slice.length === 0 ? (
+            <div style={{ padding: '28px 4px', textAlign: 'center', fontSize: 13, color: 'var(--ink3)' }}>
+              {filter === 'active' ? 'No active quizzes right now.' : 'No ended quizzes yet.'}
+            </div>
+          ) : (
+            <>
+              <div className="act-grid mb-3">
+                {slice.map(q => <QuizCard key={q.id} q={q} readOnly={false} />)}
+              </div>
+              <Pagination total={shownQuizzes.length} perPage={PER_PAGE} page={page} onChange={setPage} />
+            </>
+          )}
         </>
       )}
 
@@ -1694,40 +1744,8 @@ export default function QuizTab() {
                 <Archive size={13} className="inline-block mr-1 align-text-bottom" />
                 These quizzes belong to archived classes and are read-only.
               </div>
-              <div className="flex flex-col gap-3 mb-3">
-                {archivedSlice.map(q => {
-                  const { label, variant } = statusInfo(q)
-                  const clsNames = (q.classIds || []).map(id => {
-                    const c = classMap.get(id)
-                    return c ? `${courseShort(c.name)} ${c.section}` : id
-                  }).join(', ')
-                  const attempted = Object.keys(q.submissions || {}).length
-                  const openLabel = new Date(q.openAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
-                  const closeLabel = new Date(q.closeAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
-                  return (
-                    <div key={q.id} id={`quiz-${q.id}`} className={`card card-pad${highlightId === q.id ? ' redirect-glow' : ''}`} style={{ opacity: 0.85 }}>
-                      <div className="flex items-start justify-between gap-3 flex-wrap">
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <strong style={{ fontSize: 14 }}>{q.title}</strong>
-                            <Badge variant={variant}>{label}</Badge>
-                            <Badge variant="blue">{q.subject}</Badge>
-                            <Badge variant="yellow">Archived</Badge>
-                          </div>
-                          <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
-                            {clsNames} · {q.questions?.length || 0} questions · {q.timeLimit} min
-                          </div>
-                          <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 3 }}>
-                            Open: {openLabel} → Close: {closeLabel} · {attempted} submitted
-                          </div>
-                        </div>
-                        <div className="flex gap-1.5 flex-shrink-0">
-                          <button className="btn btn-ghost btn-sm" onClick={() => setViewQuiz(q)}>View</button>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
+              <div className="act-grid mb-3">
+                {archivedSlice.map(q => <QuizCard key={q.id} q={q} readOnly={true} />)}
               </div>
               <Pagination total={archivedQuizzes.length} perPage={PER_PAGE} page={archivedPage} onChange={setArchivedPage} />
             </>

@@ -3050,6 +3050,8 @@ textarea.input { resize: vertical; }
 .act-stripe-open { background: var(--green); }
 .act-stripe-closed { background: var(--red); }
 .act-stripe-archived { background: var(--gold); }
+.act-stripe-draft { background: var(--ink3); }
+.act-stripe-upcoming { background: var(--accent); }
 .act-body { flex: 1; min-width: 0; padding: 14px 16px; }
 /* Shared student-context chip line (course / year / section / subject). One
    look across professor + student cards via the StudentMeta primitive. */
@@ -3077,6 +3079,22 @@ textarea.input { resize: vertical; }
 .act-missed-ok { border-color: var(--green); background: var(--green-l); }
 .act-missed-text { font-size: 0.8125rem; font-weight: 700; color: var(--red); flex: 1; min-width: 0; }
 .act-missed-ok .act-missed-text { color: var(--green); }
+
+/* Compact activity/quiz cards + responsive grid (Active/Ended redesign) */
+.act-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); }
+.act-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.act-ctitle { font-size: 0.8125rem; font-weight: 700; color: var(--ink); line-height: 1.35; min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.act-meta2 { font-size: 0.7188rem; color: var(--ink2); margin-top: 5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.act-meta2 .m-cls { color: var(--accent); font-weight: 600; }
+.act-cprog { margin-top: 9px; }
+.act-cfoot { display: flex; align-items: center; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+.act-due { font-size: 0.6875rem; display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.act-pill { font-size: 0.6875rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.act-pill-warn { background: var(--red-l); color: var(--red); }
+.act-pill-ok { background: var(--green-l); color: var(--green); }
+.act-status-archived { background: var(--surface2); color: var(--gold); }
+.act-status-upcoming { background: var(--accent-l); color: var(--accent); }
+.act-status-draft { background: var(--bg2); color: var(--ink2); }
 
 /* ── Attendance-style per-student review card ────────────────────────────── */
 .ar-card-missed { border-color: var(--red); }
@@ -3717,6 +3735,11 @@ textarea.input { resize: vertical; }
 .kebab-item--danger { color: var(--red); }
 
 /* Segmented status filter (e.g. All / With Class / Unassigned) */
+.seg-filter { display: inline-flex; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 3px; gap: 2px; }
+.seg-btn { border: none; background: none; font: inherit; font-size: 0.8125rem; font-weight: 600; color: var(--ink2); padding: 6px 14px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; transition: background .12s, color .12s; }
+.seg-btn:hover { color: var(--ink); }
+.seg-count { font-size: 0.6875rem; font-weight: 700; background: var(--bg2); color: var(--ink2); padding: 1px 7px; border-radius: 999px; }
+@media (max-width: 560px) { .seg-filter { display: flex; width: 100%; } .seg-filter .seg-btn { flex: 1; justify-content: center; } }
 
 
 
