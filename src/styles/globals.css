@@ -3096,6 +3096,75 @@ textarea.input { resize: vertical; }
 .act-pill { font-size: 0.6875rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .act-pill-warn { background: var(--red-l); color: var(--red); }
 .act-pill-ok { background: var(--green-l); color: var(--green); }
+
+/* ── Online Classes tab (professor): live hero + date-chip meeting rows ──
+   Built on .card so light/dark/frost theming applies automatically. */
+.olc-hero {
+  border-left: 4px solid var(--red);
+  border-color: rgba(239,68,68,.35);
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px;
+  box-shadow: 0 6px 18px rgba(239,68,68,.10);
+}
+.olc-pulse {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: var(--red-l); color: var(--red);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; position: relative;
+}
+.olc-pulse::after {
+  content: '';
+  position: absolute; inset: 0; border-radius: 10px;
+  border: 2px solid rgba(239,68,68,.5);
+  animation: olc-pulse 1.6s ease-out infinite;
+}
+@keyframes olc-pulse {
+  0%   { opacity: .9; transform: scale(1); }
+  100% { opacity: 0;  transform: scale(1.35); }
+}
+@media (prefers-reduced-motion: reduce) { .olc-pulse::after { animation: none; opacity: 0; } }
+.olc-hero-t { flex: 1; min-width: 0; }
+.olc-hero-t b { font-size: 0.9063rem; font-weight: 800; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--ink); }
+.olc-hero-t span { font-size: 0.7813rem; color: var(--ink3); }
+.olc-live-chip { font-size: 0.625rem; font-weight: 800; letter-spacing: .06em; color: #fff; background: var(--red); border-radius: 999px; padding: 2px 8px; }
+.olc-hero-actions { display: flex; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
+
+.olc-row { display: flex; align-items: center; gap: 12px; padding: 11px 14px; }
+.olc-row.past { opacity: .72; }
+.olc-dchip { width: 44px; flex-shrink: 0; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; text-align: center; }
+.olc-dchip-mo { display: block; font-size: 0.5938rem; font-weight: 800; letter-spacing: .08em; color: #fff; background: var(--accent); padding: 2px 0; text-transform: uppercase; }
+.olc-row.past .olc-dchip-mo { background: var(--ink3); }
+.olc-dchip-dy { display: block; font-family: var(--font-display); font-size: 1.0625rem; font-weight: 800; padding: 2px 0 3px; color: var(--ink); }
+.olc-row-t { flex: 1; min-width: 0; }
+.olc-row-t b { font-size: 0.875rem; font-weight: 700; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
+.olc-row-t span { font-size: 0.7813rem; color: var(--ink3); }
+.olc-cd { display: inline-flex; align-items: center; gap: 4px; font-size: 0.7188rem; font-weight: 700; color: var(--accent); background: var(--accent-l); border-radius: 999px; padding: 3px 10px; flex-shrink: 0; white-space: nowrap; }
+.olc-cd-soon { color: var(--gold-var); background: var(--gold-l); }
+.olc-cd-done { color: var(--green); background: var(--green-l); }
+.olc-row-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
+
+/* Meet-link cards */
+.olc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; }
+.olc-lc-h { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.olc-lc-ic { width: 34px; height: 34px; border-radius: 10px; background: var(--accent-l); color: var(--accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.olc-lc-name { min-width: 0; flex: 1; }
+.olc-lc-name b { display: block; font-weight: 700; font-size: 0.875rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.olc-lc-name span { font-size: 0.6875rem; color: var(--ink3); }
+.olc-sec-chip { font-size: 0.625rem; font-weight: 700; color: var(--accent); background: var(--accent-l); border-radius: 999px; padding: 3px 9px; flex-shrink: 0; }
+.olc-sub-lb { font-size: 0.75rem; font-weight: 600; color: var(--ink2); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+.olc-nolink { font-size: 0.6875rem; color: var(--gold-var); font-weight: 600; }
+
+/* Red live-count variant of the segmented-filter count chip */
+.seg-count-live { background: var(--red-l); color: var(--red); }
+
+@media (max-width: 560px) {
+  .olc-hero { flex-wrap: wrap; }
+  .olc-hero-actions { width: 100%; }
+  .olc-hero-actions .btn { flex: 1; justify-content: center; }
+  .olc-row { flex-wrap: wrap; }
+  .olc-row-actions { width: 100%; }
+  .olc-row-actions .btn { flex: 1 1 auto; justify-content: center; }
+}
 .act-status-archived { background: var(--surface2); color: var(--gold); }
 .act-status-upcoming { background: var(--accent-l); color: var(--accent); }
 .act-status-draft { background: var(--bg2); color: var(--ink2); }

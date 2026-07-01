@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio } from 'lucide-react'
@@ -6,11 +6,45 @@ import { courseShort } from '@/constants/courses'
 import EmptyState from '@/components/ds/EmptyState'
 import PageHeader from '@/components/ds/PageHeader'
 
+// Relative-time pill for a scheduled meeting ("in 45 m", "in 2 h 15 m",
+// "Fri · in 2 days", then a plain date once it is over a week out).
+function fmtCountdown(ts, now) {
+  const d = ts - now
+  if (d <= 0) return 'now'
+  const m = Math.round(d / 60000)
+  if (m < 60) return `in ${m} m`
+  if (m < 24 * 60) {
+    const h = Math.floor(m / 60)
+    const r = m % 60
+    return r ? `in ${h} h ${r} m` : `in ${h} h`
+  }
+  const days = Math.round(d / 86400000)
+  if (days <= 7) return `${new Date(ts).toLocaleDateString('en-PH', { weekday: 'short' })} · in ${days} day${days !== 1 ? 's' : ''}`
+  return new Date(ts).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
+}
+
+// Elapsed time since going live. Instant meetings stamp scheduledAt at go-live,
+// so "now - scheduledAt" is the true elapsed for them (and a close-enough one
+// for scheduled meetings started around their planned time).
+function fmtElapsed(ms) {
+  const m = Math.floor(ms / 60000)
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m} min ago`
+  return `${Math.floor(m / 60)} h ${m % 60} m ago`
+}
+
 export default function OnlineClassesTab() {
   const { classes, meetings, saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting } = useData()
   const { toast } = useUI()
   const [panel, setPanel] = useState('links')
   const [goingLive, setGoingLive] = useState('') // key of the link currently going live
+
+  // Half-minute tick so the countdown/elapsed pills stay fresh while open.
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30000)
+    return () => clearInterval(t)
+  }, [])
 
   // ── Section 1: Meet Links ─────────────────────────────────────────────
   const [linkDrafts, setLinkDrafts] = useState({})
@@ -114,6 +148,10 @@ export default function OnlineClassesTab() {
       .sort((a, b) => b.scheduledAt - a.scheduledAt),
     [meetings]
   )
+  // The live hero (pinned above every panel) owns live sessions; the upcoming
+  // list shows only the still-scheduled ones so nothing renders twice.
+  const liveNow = useMemo(() => upcoming.filter(m => m.status === 'live'), [upcoming])
+  const scheduledOnly = useMemo(() => upcoming.filter(m => m.status === 'scheduled'), [upcoming])
 
   async function handleStart(m) {
     if (!m.meetLink?.trim()) {
@@ -148,62 +186,77 @@ export default function OnlineClassesTab() {
   }
 
   const activeClasses = useMemo(() => classes.filter(c => !c.archived), [classes])
+  const linkedCount = useMemo(() =>
+    activeClasses.filter(c =>
+      (c.meetLink || '').trim() || Object.values(c.meetLinks || {}).some(v => (v || '').trim())
+    ).length,
+    [activeClasses]
+  )
+
+  const subtitle = [
+    liveNow.length ? `${liveNow.length} live now` : null,
+    `${scheduledOnly.length} upcoming`,
+    `${linkedCount} of ${activeClasses.length} class${activeClasses.length !== 1 ? 'es' : ''} linked`,
+  ].filter(Boolean).join(' · ')
 
   return (
     <>
-    <PageHeader title="Online Classes" />
-    <div className="online-classes-tab" style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+    <PageHeader title="Online Classes" subtitle={subtitle} />
+    <div className="online-classes-tab" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
-      <section className="card" style={{ padding: 12, background: 'var(--surface2)' }}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button
-            className={`btn btn-sm ${panel === 'links' ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => setPanel('links')}
-          >
-            <Video size={14} /> Meet Links
-          </button>
-          <button
-            className={`btn btn-sm ${panel === 'schedule' ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => setPanel('schedule')}
-          >
-            <CalendarPlus size={14} /> Schedule
-          </button>
-          <button
-            className={`btn btn-sm ${panel === 'meetings' ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => setPanel('meetings')}
-          >
-            <Clock size={14} /> Meetings
-          </button>
+      <div className="seg-filter">
+        <button className={`seg-btn${panel === 'links' ? ' active' : ''}`} onClick={() => setPanel('links')}>
+          <Video size={14} /> Meet Links <span className="seg-count">{linkedCount}</span>
+        </button>
+        <button className={`seg-btn${panel === 'schedule' ? ' active' : ''}`} onClick={() => setPanel('schedule')}>
+          <CalendarPlus size={14} /> Schedule
+        </button>
+        <button className={`seg-btn${panel === 'meetings' ? ' active' : ''}`} onClick={() => setPanel('meetings')}>
+          <Clock size={14} /> Meetings{' '}
+          <span className={`seg-count${liveNow.length ? ' seg-count-live' : ''}`}>
+            {liveNow.length ? `● ${liveNow.length}` : scheduledOnly.length}
+          </span>
+        </button>
+      </div>
+
+      {/* Live hero: pinned above every panel so an ongoing class is unmissable. */}
+      {liveNow.map(m => (
+        <div key={m.id} className="card olc-hero">
+          <span className="olc-pulse"><Radio size={17} /></span>
+          <div className="olc-hero-t">
+            <b>{m.title} <span className="olc-live-chip">LIVE</span></b>
+            <span>{m.className}{m.subject ? ` · ${m.subject}` : ''} · started {fmtElapsed(now - m.scheduledAt)}</span>
+          </div>
+          <div className="olc-hero-actions">
+            {!!m.meetLink?.trim() && (
+              <button className="btn btn-primary btn-sm" onClick={() => window.open(m.meetLink, '_blank', 'noopener,noreferrer')} title="Open the Meet in a new tab">
+                <ExternalLink size={14} style={{ marginRight: 4 }} /> Open Meet
+              </button>
+            )}
+            <button className="btn btn-sm" style={{ background: 'var(--red)', color: '#fff' }} onClick={() => handleEnd(m)} title="End the class for everyone">
+              <VideoOff size={14} style={{ marginRight: 4 }} /> End class
+            </button>
+          </div>
         </div>
-      </section>
+      ))}
 
       {/* Section 1 - Class Meet Links */}
       {panel === 'links' && <section>
-        <div className="sec-hdr mb-3">
-          <div className="sec-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Video size={18} /> Class Meet Links
-          </div>
-        </div>
         {activeClasses.length === 0 && (
           <EmptyState Icon={Video} title="No classes found." text="Add classes first." />
         )}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))', gap: 14 }}>
+        <div className="olc-grid">
           {activeClasses.map(cls => {
             const subjects = cls.subjects?.length ? cls.subjects : null
             return (
               <div key={cls.id} className="card" style={{ padding: 16 }}>
-                {/* Card header */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                  <span style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--accent-l)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Video size={17} />
-                  </span>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={cls.name}>{courseShort(cls.name)}</div>
-                    <div style={{ fontSize: 11, color: 'var(--ink3)' }}>{subjects ? `${subjects.length} subject${subjects.length !== 1 ? 's' : ''}` : 'No subjects yet'}</div>
+                <div className="olc-lc-h">
+                  <span className="olc-lc-ic"><Video size={17} /></span>
+                  <div className="olc-lc-name">
+                    <b title={cls.name}>{courseShort(cls.name)}</b>
+                    <span>{subjects ? `${subjects.length} subject${subjects.length !== 1 ? 's' : ''}` : 'No subjects yet'}</span>
                   </div>
-                  {cls.section && (
-                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-l)', borderRadius: 999, padding: '3px 9px', flexShrink: 0 }}>{cls.section}</span>
-                  )}
+                  {cls.section && <span className="olc-sec-chip">{cls.section}</span>}
                 </div>
 
                 {/* Per-subject Meet links */}
@@ -214,8 +267,11 @@ export default function OnlineClassesTab() {
                     return (
                       <div key={sub || '_general'}>
                         {sub && (
-                          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink2)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                            {sub}{saved && <CheckCircle size={12} style={{ color: 'var(--green)' }} />}
+                          <div className="olc-sub-lb">
+                            {sub}
+                            {saved
+                              ? <CheckCircle size={12} style={{ color: 'var(--green)' }} />
+                              : <span className="olc-nolink">no link yet</span>}
                           </div>
                         )}
                         <div style={{ display: 'flex', gap: 6 }}>
@@ -238,7 +294,7 @@ export default function OnlineClassesTab() {
                         {liveMeetingFor(cls.id, sub) ? (
                           <button
                             className="btn btn-sm"
-                            style={{ marginTop: 6, width: '100%', background: '#ef4444', color: '#fff' }}
+                            style={{ marginTop: 6, width: '100%', background: 'var(--red)', color: '#fff' }}
                             onClick={() => setPanel('meetings')}
                             title="This class is live - manage or end it in the Meetings tab"
                           >
@@ -267,13 +323,15 @@ export default function OnlineClassesTab() {
       </section>}
 
       {/* Section 2 - Schedule Meeting Form */}
-      {panel === 'schedule' && <section>
-        <div className="sec-hdr mb-3">
-          <div className="sec-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <CalendarPlus size={18} /> Schedule a Meeting
+      {panel === 'schedule' && <section className="card" style={{ padding: 18, maxWidth: 560 }}>
+        <div className="olc-lc-h" style={{ marginBottom: 14 }}>
+          <span className="olc-lc-ic"><CalendarPlus size={17} /></span>
+          <div className="olc-lc-name">
+            <b>Schedule a meeting</b>
+            <span>Students are notified as soon as it is saved</span>
           </div>
         </div>
-        <form onSubmit={handleSchedule} style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 520 }}>
+        <form onSubmit={handleSchedule} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
               <label className="label">Class</label>
@@ -347,33 +405,30 @@ export default function OnlineClassesTab() {
 
       {/* Section 3 - Meetings List */}
       {panel === 'meetings' && <section>
-        <div className="sec-hdr mb-3">
-          <div className="sec-title">Meetings</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              className={`btn btn-sm ${listTab === 'upcoming' ? 'btn-primary' : 'btn-ghost'}`}
-              onClick={() => setListTab('upcoming')}
-            >Upcoming</button>
-            <button
-              className={`btn btn-sm ${listTab === 'past' ? 'btn-primary' : 'btn-ghost'}`}
-              onClick={() => setListTab('past')}
-            >Past</button>
-          </div>
+        <div className="seg-filter mb-3">
+          <button className={`seg-btn${listTab === 'upcoming' ? ' active' : ''}`} onClick={() => setListTab('upcoming')}>
+            Upcoming <span className="seg-count">{scheduledOnly.length}</span>
+          </button>
+          <button className={`seg-btn${listTab === 'past' ? ' active' : ''}`} onClick={() => setListTab('past')}>
+            Past <span className="seg-count">{past.length}</span>
+          </button>
         </div>
 
         {listTab === 'upcoming' && (
-          upcoming.length === 0
-            ? <EmptyState Icon={CalendarPlus} title="No upcoming meetings." />
-            : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {upcoming.map(m => <MeetingRow key={m.id} m={m} onStart={handleStart} onEnd={handleEnd} onCancel={handleCancel} />)}
+          scheduledOnly.length === 0
+            ? (liveNow.length
+                ? <EmptyState Icon={CalendarPlus} title="No other upcoming meetings" text="Your live class is pinned above." tone="muted" compact />
+                : <EmptyState Icon={CalendarPlus} title="No upcoming meetings" text="Schedule one, or go live straight from Meet Links." />)
+            : <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                {scheduledOnly.map(m => <MeetingRow key={m.id} m={m} now={now} onStart={handleStart} onCancel={handleCancel} />)}
               </div>
         )}
 
         {listTab === 'past' && (
           past.length === 0
-            ? <EmptyState Icon={CheckCircle} title="No past meetings." />
-            : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {past.map(m => <MeetingRow key={m.id} m={m} />)}
+            ? <EmptyState Icon={CheckCircle} title="No past meetings" text="Ended classes will appear here." tone="muted" compact />
+            : <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                {past.map(m => <MeetingRow key={m.id} m={m} now={now} />)}
               </div>
         )}
       </section>}
@@ -386,57 +441,45 @@ function classLabel(cls) {
   return cls?.section ? `${courseShort(cls.name)} - ${cls.section}` : courseShort(cls?.name) || 'Class'
 }
 
-function MeetingRow({ m, onStart, onEnd, onCancel }) {
+// One meeting as a date-chip row: calendar chip, title + meta, a countdown pill
+// (amber inside 3 hours) or a green Ended chip, and Start/Cancel actions.
+function MeetingRow({ m, now, onStart, onCancel }) {
   const dt = new Date(m.scheduledAt)
-  const dateStr = dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+  const ended = m.status === 'ended'
+  const mo = dt.toLocaleDateString('en-PH', { month: 'short' })
   const timeStr = dt.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })
+  const soon = !ended && m.scheduledAt - now < 3 * 3600000
+  // Duration only when it is trustworthy: endedAt is stamped at End, so guard
+  // against docs that ended long after (or were backfilled without) a start.
+  const durMs = ended && m.endedAt ? m.endedAt - m.scheduledAt : 0
+  const durMin = durMs > 0 && durMs < 12 * 3600000 ? Math.max(1, Math.round(durMs / 60000)) : null
 
   return (
-    <div className="card" style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>{m.title}</div>
-        <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 4 }}>{m.className}{m.subject ? ` · ${m.subject}` : ''}</div>
-        <div style={{ fontSize: 12, color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Clock size={12} /> {dateStr} at {timeStr}
-        </div>
-        {m.description && <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 4 }}>{m.description}</div>}
+    <div className={`card olc-row${ended ? ' past' : ''}`}>
+      <div className="olc-dchip">
+        <span className="olc-dchip-mo">{mo}</span>
+        <span className="olc-dchip-dy">{dt.getDate()}</span>
       </div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-        <StatusBadge status={m.status} />
-        {m.status === 'scheduled' && onStart && (
+      <div className="olc-row-t">
+        <b>{m.title}</b>
+        <span>{m.className}{m.subject ? ` · ${m.subject}` : ''} · {timeStr}{durMin ? ` · ${durMin} min` : ''}</span>
+        {m.description && <span style={{ display: 'block' }}>{m.description}</span>}
+      </div>
+      {ended
+        ? <span className="olc-cd olc-cd-done"><CheckCircle size={12} /> Ended</span>
+        : <span className={`olc-cd${soon ? ' olc-cd-soon' : ''}`}>{fmtCountdown(m.scheduledAt, now)}</span>}
+      {!ended && onStart && (
+        <div className="olc-row-actions">
           <button className="btn btn-primary btn-sm" onClick={() => onStart(m)} title="Start meeting">
             <ExternalLink size={14} style={{ marginRight: 4 }} /> Start
           </button>
-        )}
-        {m.status === 'scheduled' && onCancel && (
-          <button className="btn btn-ghost btn-sm" onClick={() => onCancel(m)} title="Cancel meeting">
-            <Trash2 size={14} />
-          </button>
-        )}
-        {m.status === 'live' && onEnd && (
-          <button className="btn btn-sm" style={{ background: 'var(--red, #ef4444)', color: '#fff' }} onClick={() => onEnd(m)} title="End meeting">
-            <VideoOff size={14} style={{ marginRight: 4 }} /> End
-          </button>
-        )}
-        {m.status === 'ended' && <CheckCircle size={16} style={{ color: 'var(--green, #22c55e)' }} />}
-      </div>
+          {onCancel && (
+            <button className="btn btn-ghost btn-sm" onClick={() => onCancel(m)} title="Cancel meeting">
+              <Trash2 size={14} />
+            </button>
+          )}
+        </div>
+      )}
     </div>
-  )
-}
-
-function StatusBadge({ status }) {
-  const map = {
-    scheduled: { label: 'Scheduled', color: 'var(--accent, #0ea5e9)' },
-    live:      { label: 'LIVE',      color: 'var(--red, #ef4444)' },
-    ended:     { label: 'Ended',     color: 'var(--ink3, #94a3b8)' },
-  }
-  const s = map[status] || map.ended
-  return (
-    <span style={{
-      fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
-      background: s.color + '22', color: s.color, letterSpacing: '0.03em',
-    }}>
-      {s.label}
-    </span>
   )
 }
