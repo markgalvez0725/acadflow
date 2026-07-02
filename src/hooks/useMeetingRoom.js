@@ -13,11 +13,14 @@
 //    renegotiation needed) and reverts when the browser's Stop-sharing fires.
 //  - Share latency: the mesh encodes the share once PER PEER, so an uncapped
 //    retina grab (8-14MP frames) backs up the encoder queue - that queue IS
-//    the multi-second share lag. Fixes: capture capped at 1080p, encode fps
-//    laddered by room size, degradationPreference maintain-resolution (text
-//    drops frames under pressure, never blurs), receivers run a zero-target
-//    jitter buffer, and x-google-start-bitrate skips the slow first-seconds
-//    bitrate ramp.
+//    the multi-second share lag. Fixes: capture capped at 1080p (720p past
+//    16 peers, applied at the SOURCE via applyConstraints), H.264 preferred
+//    when the device has a hardware encoder (VP8 is software-only on every
+//    common laptop - the reason long/repeated shares built up delay), encode
+//    fps laddered by room size, degradationPreference maintain-resolution
+//    (text drops frames under pressure, never blurs), receivers run a
+//    zero-target jitter buffer, and x-google-start-bitrate skips the slow
+//    first-seconds bitrate ramp.
 //  - No TURN server ($0 constraint): a strict-NAT pair may fail to connect;
 //    that peer's tile shows a connection warning instead of killing the room.
 
@@ -140,6 +143,8 @@ export default function useMeetingRoom({ db, roomId, self }) {
     let myJoinedAt = 0
     let local = null
     let screenTrack = null
+    let preferH264 = false // set once at start(): this device has a hardware H.264 encoder
+    let shareCapW = 0      // capture width bucket currently applied to the share track
     let heartbeat = null
     let presence = null
     let leaving = false
@@ -265,6 +270,21 @@ export default function useMeetingRoom({ db, roomId, self }) {
       // (a backed-up encoder is exactly what share lag is). Slides are static
       // so low fps is invisible; what moves stays in sync, just fewer frames.
       const shareFps = n > 16 ? 10 : n > 6 ? 15 : 30
+      // Big rooms downscale the CAPTURE itself (720p past 16 peers): scaling
+      // at the source is paid once, while scaleResolutionDownBy would make
+      // all N encoders resize 1080p frames separately. Smaller frames also
+      // mean smaller keyframes - what keeps low-bitrate links from stalling
+      // for seconds whenever one is needed.
+      if (screenTrack) {
+        const w = n > 16 ? 1280 : 1920
+        if (w !== shareCapW && screenTrack.applyConstraints) {
+          shareCapW = w
+          screenTrack.applyConstraints({
+            width: { max: w },
+            height: { max: w === 1280 ? 720 : 1080 },
+          }).catch(() => { /* capture keeps its current size */ })
+        }
+      }
       for (const sender of videoSenders.values()) {
         try {
           const p = sender.getParameters()
@@ -295,6 +315,36 @@ export default function useMeetingRoom({ db, roomId, self }) {
       }
     }
 
+    // Chrome's default codec (VP8) has NO hardware encoder on any common
+    // laptop - it is pure CPU, and the mesh runs one encoder per peer. That
+    // is why long or repeated shares build up delay: the encoders fall
+    // behind and the backlog only grows. When this device reports a power-
+    // efficient (hardware) H.264 encoder, steering the calls onto H.264
+    // moves that work to the GPU/media block and encode time stays flat no
+    // matter how long, how often, or to how many people you present.
+    // Devices that report no hardware H.264 keep today's behavior.
+    async function detectHwH264() {
+      try {
+        const mc = navigator.mediaCapabilities
+        if (!mc || !mc.encodingInfo) return false
+        const tries = [
+          'video/h264;profile-level-id=42e01f;packetization-mode=1',
+          'video/h264;profile-level-id=42e01f',
+          'video/h264',
+        ]
+        for (const contentType of tries) {
+          try {
+            const info = await mc.encodingInfo({
+              type: 'webrtc',
+              video: { contentType, width: 1280, height: 720, framerate: 30, bitrate: 1_500_000 },
+            })
+            if (info && info.supported) return !!info.powerEfficient
+          } catch { /* this contentType shape not accepted, try the next */ }
+        }
+      } catch { /* stay on defaults */ }
+      return false
+    }
+
     function makePc(peerId) {
       const pc = new RTCPeerConnection(RTC_CONFIG)
       pcs.set(peerId, pc)
@@ -310,6 +360,23 @@ export default function useMeetingRoom({ db, roomId, self }) {
         try { vSender = pc.addTransceiver('video', { direction: 'sendrecv' }).sender } catch { /* very old browser */ }
       }
       if (vSender) videoSenders.set(peerId, vSender)
+      // H.264-first codec order when this device has the hardware encoder.
+      // Reorder ONLY - nothing is removed, so a peer without H.264 falls
+      // back through the list exactly as before. The answering side's
+      // preference decides a pair's codec, so two VP8-only devices between
+      // themselves are completely untouched.
+      if (preferH264 && vSender) {
+        try {
+          const caps = RTCRtpReceiver.getCapabilities && RTCRtpReceiver.getCapabilities('video')
+          const codecs = caps && caps.codecs
+          if (codecs && codecs.length && codecs.some(c => /h264/i.test(c.mimeType || ''))) {
+            const isH264 = c => /h264/i.test(c.mimeType || '')
+            const tr = pc.getTransceivers().find(t => t.sender === vSender)
+            if (tr && tr.setCodecPreferences)
+              tr.setCodecPreferences([...codecs.filter(isH264), ...codecs.filter(c => !isH264(c))])
+          }
+        } catch { /* codec order is best-effort */ }
+      }
       // If a share is already running, the new peer should get the screen.
       if (screenTrack && vSender) vSender.replaceTrack(screenTrack).catch(() => {})
       pc.onicecandidate = e => { if (e.candidate) send(peerId, 'ice', e.candidate.toJSON()) }
@@ -447,6 +514,9 @@ export default function useMeetingRoom({ db, roomId, self }) {
     }
 
     async function start() {
+      // Codec decision must exist before the first connection is built.
+      preferH264 = await detectHwH264()
+      if (dead) return
       // Camera + mic; degrade to audio-only (camera busy/denied) before failing.
       let camOk = true
       const AUDIO = { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
@@ -571,6 +641,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
         }
         screenTrack = ds.getVideoTracks()[0]
         if (!screenTrack) return
+        shareCapW = 1920 // matches the capture constraints above
         try { screenTrack.contentHint = 'detail' } catch { /* advisory */ }
         for (const sender of videoSenders.values()) sender.replaceTrack(screenTrack).catch(() => {})
         applyMediaBudget()
@@ -585,6 +656,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
         if (!screenTrack) return
         try { screenTrack.stop() } catch { /* noop */ }
         screenTrack = null
+        shareCapW = 0
         const cam = local && local.getVideoTracks()[0]
         for (const sender of videoSenders.values()) sender.replaceTrack(cam || null).catch(() => {})
         applyMediaBudget()
