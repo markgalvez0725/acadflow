@@ -5919,7 +5919,10 @@ html[data-glass="on"][data-theme="dark"] body::before {
     filter: blur(22px) brightness(0.55);
     transform: scale(1.3);
   }
-  .mr-video-fit { position: relative; object-fit: contain; }
+  /* Compound selector on purpose: the base .mr-video rule (object-fit:
+     cover) is declared LATER in this file and would win a same-specificity
+     tie - this must always beat it so tile video is NEVER crop-zoomed. */
+  .mr-video.mr-video-fit { position: relative; object-fit: contain; }
   .mr-more-count { font-size: 19px; font-weight: 700; color: #e8eaed; }
   .mr-strip .mr-tile-more { width: 132px; flex-shrink: 0; }
   .mr-strip .mr-more-count { font-size: 14px; }
@@ -5997,6 +6000,17 @@ html[data-glass="on"][data-theme="dark"] body::before {
     font-weight: 700;
   }
   .mr-avatar-sm { width: 30px; height: 30px; font-size: 11px; }
+  /* Big fill-grid tiles carry a prominent avatar that scales with the tile
+     (the filmstrip, mini player, and self view keep their small circles). */
+  .mr-row .mr-avatar-circle,
+  .mr-present .mr-avatar-circle {
+    height: 42%;
+    min-height: 44px;
+    max-height: 128px;
+    width: auto;
+    aspect-ratio: 1;
+    font-size: clamp(15px, 3.2vh, 30px);
+  }
   .mr-avatar-photo { overflow: hidden; }
   .mr-avatar-photo img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 50%; }
   .mr-tile-hint {
