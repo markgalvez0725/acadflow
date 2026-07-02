@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio, MonitorPlay, Sparkles, Play, Share2, FileText, Loader2, Users, MessageSquare, CircleDot, MonitorUp, Zap, Info, AlertTriangle, Check } from 'lucide-react'
+import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio, MonitorPlay, Sparkles, Play, Share2, FileText, Loader2, Users, MessageSquare, CircleDot, MonitorUp, Zap, Info, AlertTriangle, Check, Copy } from 'lucide-react'
 import RecapModal from '@/components/meeting/RecapModal'
+import RecordingPlayerModal from '@/components/meeting/RecordingPlayerModal'
 import { shareDriveFile, checkDriveVideoProcessedNow } from '@/utils/googleDrive'
 import { courseShort } from '@/constants/courses'
 import { isValidUrl, parseFutureTs } from '@/utils/validators'
@@ -38,7 +39,7 @@ function fmtElapsed(ms) {
 }
 
 export default function OnlineClassesTab() {
-  const { classes, meetings, saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting, generateMeetingRecap, markMeetingRecordingReady, saveAnnouncement, pushAnnouncementNotifs } = useData()
+  const { classes, meetings, saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting, generateMeetingRecap, markMeetingRecordingReady, saveMeetingRecording, saveAnnouncement, pushAnnouncementNotifs } = useData()
   // The room itself is hosted at the layout level (MeetingHost) so the call
   // survives tab navigation - this tab only opens it by id.
   const { toast, openMeetingRoom, openDialog } = useUI()
@@ -194,6 +195,8 @@ export default function OnlineClassesTab() {
 
   // ── Section 3: Meetings List ──────────────────────────────────────────
   const [listTab, setListTab] = useState('upcoming')
+  // In-app recording player (Drive embed) - shared with the student tab.
+  const [watchMeeting, setWatchMeeting] = useState(null)
 
   // Deep-links (e.g. the "Recording is ready to view" notification carries
   // link "meeting:{id}") land on this tab, but the row only exists once the
@@ -310,6 +313,10 @@ export default function OnlineClassesTab() {
       }
       await saveAnnouncement(announcement)
       await pushAnnouncementNotifs(announcement)
+      // Stamp the share on the meeting doc: the professor's chip flips to
+      // "Shared to class" and students' past rows gain their Watch button
+      // off this flag (the merged link also backfills older docs).
+      await saveMeetingRecording(m, { ...m.recording, sharedAt: Date.now() })
       toast('Recording shared to the class Stream.', 'success')
     } catch (e) {
       toast('Failed to share the recording.', 'error')
@@ -696,13 +703,14 @@ export default function OnlineClassesTab() {
           past.length === 0
             ? <EmptyState Icon={CheckCircle} title="No past meetings" text="Ended classes will appear here." tone="muted" compact />
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-                {past.map(m => <MeetingRow key={m.id} m={m} now={now} onRecap={handleRecap} onTranscript={handleTranscript} recapBusy={recapBusyId === m.id} onShareRecording={handleShareRecording} onCheckRecording={handleCheckRecording} checking={checkingId === m.id} highlight={highlightId === m.id} />)}
+                {past.map(m => <MeetingRow key={m.id} m={m} now={now} onRecap={handleRecap} onTranscript={handleTranscript} recapBusy={recapBusyId === m.id} onShareRecording={handleShareRecording} onCheckRecording={handleCheckRecording} onWatch={setWatchMeeting} checking={checkingId === m.id} highlight={highlightId === m.id} />)}
               </div>
         )}
       </section>}
     </div>
 
     {recapMeeting && <RecapModal meeting={recapMeeting} canManage initialTab={recapView.tab} onClose={() => setRecapView(null)} />}
+    {watchMeeting && <RecordingPlayerModal meeting={watchMeeting} onClose={() => setWatchMeeting(null)} />}
     </>
   )
 }
@@ -713,7 +721,8 @@ function classLabel(cls) {
 
 // One meeting as a date-chip row: calendar chip, title + meta, a countdown pill
 // (amber inside 3 hours) or a green Ended chip, and Start/Cancel actions.
-function MeetingRow({ m, now, onStart, onCancel, onRecap, onTranscript, recapBusy, onShareRecording, onCheckRecording, checking, highlight }) {
+function MeetingRow({ m, now, onStart, onCancel, onRecap, onTranscript, recapBusy, onShareRecording, onCheckRecording, onWatch, checking, highlight }) {
+  const { toast } = useUI()
   const dt = new Date(m.scheduledAt)
   const ended = m.status === 'ended'
   const mo = dt.toLocaleDateString('en-PH', { month: 'short' })
@@ -723,16 +732,27 @@ function MeetingRow({ m, now, onStart, onCancel, onRecap, onTranscript, recapBus
   // against docs that ended long after (or were backfilled without) a start.
   const durMs = ended && m.endedAt ? m.endedAt - m.scheduledAt : 0
   const durMin = durMs > 0 && durMs < 12 * 3600000 ? Math.max(1, Math.round(durMs / 60000)) : null
+  // Older recordings may have saved without webViewLink - the Drive id alone
+  // is enough to build a working view link. A recording stuck "processing"
+  // for over 30 minutes fails OPEN (Drive is long done by then; only the doc
+  // flag could not be updated).
+  const rec = m.recording
+  const recLink = rec?.link
+    || (rec?.driveId ? `https://drive.google.com/file/d/${rec.driveId}/view` : '')
+  const processing = !!rec && rec.status === 'processing'
+    && now - Math.max(rec.at || 0, m.endedAt || 0) < 30 * 60000
+  const hasRec = ended && !!(rec || recLink)
+  const mb = rec?.bytes ? Math.max(1, Math.round(rec.bytes / 1048576)) : null
 
   return (
-    <div id={`meeting-${m.id}`} className={`card olc-row${ended ? ' past' : ''}${highlight ? ' redirect-glow' : ''}`}>
+    <div id={`meeting-${m.id}`} className={`card olc-row${ended ? ' past' : ''}${hasRec ? ' olc-row-rec' : ''}${highlight ? ' redirect-glow' : ''}`}>
       <div className="olc-dchip">
         <span className="olc-dchip-mo">{mo}</span>
         <span className="olc-dchip-dy">{dt.getDate()}</span>
       </div>
       <div className="olc-row-t">
         <b>{m.title}</b>
-        <span>{m.className}{m.subject ? ` · ${m.subject}` : ''} · {timeStr}{durMin ? ` · ${durMin} min` : ''}{m.provider === 'inapp' ? ' · In-app room' : ''}{m.recording?.bytes ? ` · 720p · ${Math.max(1, Math.round(m.recording.bytes / 1048576))} MB` : ''}</span>
+        <span>{m.className}{m.subject ? ` · ${m.subject}` : ''} · {timeStr}{durMin ? ` · ${durMin} min` : ''}{m.provider === 'inapp' ? ' · In-app room' : ''}</span>
         {m.description && <span style={{ display: 'block' }}>{m.description}</span>}
       </div>
       {ended
@@ -750,72 +770,102 @@ function MeetingRow({ m, now, onStart, onCancel, onRecap, onTranscript, recapBus
           )}
         </div>
       )}
-      {(() => {
-        // Older recordings may have saved without webViewLink - the Drive id
-        // alone is enough to build a working view link. Recordings saved
-        // before the status field existed count as ready, and a recording
-        // stuck "processing" for over 30 minutes fails OPEN here (Drive is
-        // long done by then; only the doc flag could not be updated).
-        const recLink = m.recording?.link
-          || (m.recording?.driveId ? `https://drive.google.com/file/d/${m.recording.driveId}/view` : '')
-        const processing = !!m.recording && m.recording.status === 'processing'
-          && now - Math.max(m.recording.at || 0, m.endedAt || 0) < 30 * 60000
-        if (!ended || (m.provider !== 'inapp' && !recLink)) return null
-        return (
-          <div className="olc-row-actions">
-            {m.recording && (
-              processing ? (
+      {/* Live transcription was retired; classes that captured one keep
+          their saved recap + transcript, newer classes have neither. */}
+      {ended && m.recap && (onRecap || onTranscript) && (
+        <div className="olc-row-actions">
+          {onRecap && (
+            <button
+              className="btn btn-ghost btn-sm"
+              disabled={recapBusy}
+              onClick={() => onRecap(m)}
+              title="View the class recap"
+            >
+              <Sparkles size={14} style={{ marginRight: 4 }} /> {recapBusy ? 'Working…' : 'Recap'}
+            </button>
+          )}
+          {onTranscript && (
+            <button className="btn btn-ghost btn-sm" onClick={() => onTranscript(m)} title="Read the full class transcript">
+              <FileText size={14} style={{ marginRight: 4 }} /> Transcript
+            </button>
+          )}
+        </div>
+      )}
+      {/* Recording strip: thumbnail + status + Watch / Share / copy / Drive.
+          The share state chip reads recording.sharedAt (stamped on Share). */}
+      {hasRec && (
+        <div className="olc-recstrip">
+          <span className="olc-recthumb" aria-hidden="true">
+            {!!rec?.driveId && !processing && (
+              <img
+                src={`https://drive.google.com/thumbnail?id=${rec.driveId}&sz=w220`}
+                alt=""
+                loading="lazy"
+                onError={e => { e.currentTarget.style.display = 'none' }}
+              />
+            )}
+            <span className="olc-recplay"><Play size={12} /></span>
+          </span>
+          <div className="olc-rec-t">
+            <span className="olc-rec-name">
+              Class recording
+              {processing ? (
                 <button
-                  className="olc-cd olc-cd-soon"
-                  style={{ border: 'none', cursor: 'pointer' }}
+                  className="olc-cd olc-cd-soon olc-cd-btn"
                   disabled={checking}
                   onClick={() => onCheckRecording && onCheckRecording(m)}
                   title="Drive is processing the video - click to check right now"
                 >
                   <Loader2 size={12} className="animate-spin" /> {checking ? 'Checking…' : 'Processing in Drive'}
                 </button>
+              ) : rec?.sharedAt ? (
+                <span className="olc-cd" title="Students can watch it from their Online Classes tab">
+                  <Users size={12} /> Shared to class
+                </span>
               ) : (
                 <span className="olc-cd olc-cd-done" title="The recording is processed and ready to view">
-                  <CheckCircle size={12} /> Ready to view
+                  <CheckCircle size={12} /> Ready
                 </span>
-              )
+              )}
+            </span>
+            <span className="olc-rec-meta">{durMin ? `${durMin} min · ` : ''}720p{mb ? ` · ${mb} MB` : ''}</span>
+            {!!rec?.sharedAt && !processing && (
+              <span className="olc-rec-note">Posted to the Stream, students can watch from their tab</span>
             )}
-            {/* Live transcription was retired; classes that captured one keep
-                their saved recap + transcript, newer classes have neither. */}
-            {m.recap && onRecap && (
-              <button
-                className="btn btn-ghost btn-sm"
-                disabled={recapBusy}
-                onClick={() => onRecap(m)}
-                title="View the class recap"
-              >
-                <Sparkles size={14} style={{ marginRight: 4 }} /> {recapBusy ? 'Working…' : 'Recap'}
+          </div>
+          <div className="olc-rec-acts">
+            {onWatch && (
+              <button className="btn btn-ghost btn-sm" disabled={processing || !recLink} onClick={() => onWatch(m)} title="Watch inside AcadFlow">
+                <Play size={14} style={{ marginRight: 4 }} /> Watch
               </button>
             )}
-            {m.recap && onTranscript && (
-              <button className="btn btn-ghost btn-sm" onClick={() => onTranscript(m)} title="Read the full class transcript">
-                <FileText size={14} style={{ marginRight: 4 }} /> Transcript
+            {onShareRecording && recLink && (
+              <button
+                className={`btn btn-sm ${rec?.sharedAt ? 'btn-ghost' : 'btn-primary'}`}
+                disabled={processing}
+                onClick={() => onShareRecording({ ...m, recording: { ...rec, link: recLink } })}
+                title={rec?.sharedAt ? 'Share the recording with the class again' : 'Make the video viewable by link, post it to the Stream, and notify the class'}
+              >
+                <Share2 size={14} style={{ marginRight: 4 }} /> {rec?.sharedAt ? 'Share again' : 'Share to class'}
               </button>
             )}
             {recLink && (
-              processing ? (
-                <button className="btn btn-ghost btn-sm" disabled title="Drive is still processing the video - the button unlocks when it is ready to view">
-                  <Play size={14} style={{ marginRight: 4 }} /> Recording
-                </button>
-              ) : (
-                <a className="btn btn-ghost btn-sm" href={recLink} target="_blank" rel="noopener noreferrer" title="Open the recording in your Drive">
-                  <Play size={14} style={{ marginRight: 4 }} /> Recording
-                </a>
-              )
-            )}
-            {recLink && !processing && onShareRecording && (
-              <button className="btn btn-ghost btn-sm" onClick={() => onShareRecording({ ...m, recording: { ...m.recording, link: recLink } })} title="Make the video viewable by link and post it to the class Stream">
-                <Share2 size={14} style={{ marginRight: 4 }} /> Share
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => { navigator.clipboard?.writeText(recLink); toast('Recording link copied.', 'success') }}
+                title="Copy the video link"
+              >
+                <Copy size={14} />
               </button>
             )}
+            {recLink && (
+              <a className="btn btn-ghost btn-sm" href={recLink} target="_blank" rel="noopener noreferrer" title="Open in your Drive">
+                <ExternalLink size={14} />
+              </a>
+            )}
           </div>
-        )
-      })()}
+        </div>
+      )}
     </div>
   )
 }

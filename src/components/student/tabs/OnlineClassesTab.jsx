@@ -3,9 +3,10 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import {
   Video, Radio, ExternalLink, Clock, ChevronDown, ChevronUp,
-  ShieldCheck, ArrowRight, Unlink, CheckCircle2, MonitorPlay, Sparkles, FileText,
+  ShieldCheck, ArrowRight, Unlink, CheckCircle2, MonitorPlay, Sparkles, FileText, Play,
 } from 'lucide-react'
 import RecapModal from '@/components/meeting/RecapModal'
+import RecordingPlayerModal, { recordingDriveId } from '@/components/meeting/RecordingPlayerModal'
 import { activeClassIds, activeSubjects } from '@/utils/active'
 import { courseShort } from '@/constants/courses'
 import EmptyState from '@/components/ds/EmptyState'
@@ -84,6 +85,8 @@ export default function OnlineClassesTab({ student }) {
   )
 
   const [pastOpen, setPastOpen] = useState(false)
+  // In-app recording player (Drive embed), for sessions the professor shared.
+  const [watchMeeting, setWatchMeeting] = useState(null)
   // Recap/transcript panel for past in-app classes ({ id, tab } - by id so the
   // modal stays fresh; the tab picks Summary or Transcript on open).
   const [recapView, setRecapView] = useState(null)
@@ -279,21 +282,47 @@ export default function OnlineClassesTab({ student }) {
           {past.map(m => {
             const dt = new Date(m.endedAt || m.scheduledAt)
             const dateStr = dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+            // A recording appears here only once the professor shared it
+            // (sharedAt is stamped by Share to class; the file is
+            // anyone-with-link from that moment, so the embed plays).
+            const recId = m.recording?.sharedAt ? recordingDriveId(m) : ''
+            const durMs = m.endedAt && m.scheduledAt ? m.endedAt - m.scheduledAt : 0
+            const durMin = durMs > 0 && durMs < 12 * 3600000 ? Math.max(1, Math.round(durMs / 60000)) : null
             return (
               <div key={m.id} id={`meeting-${m.id}`} className={highlightId === m.id ? 'redirect-glow' : undefined} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--surface2)', fontSize: 13, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px 10px' }}>
+                {recId && (
+                  <span className="olc-recthumb olc-recthumb-sm" aria-hidden="true">
+                    <img
+                      src={`https://drive.google.com/thumbnail?id=${recId}&sz=w180`}
+                      alt=""
+                      loading="lazy"
+                      onError={e => { e.currentTarget.style.display = 'none' }}
+                    />
+                    <span className="olc-recplay"><Play size={11} /></span>
+                  </span>
+                )}
                 <span style={{ fontWeight: 600 }}>{m.title}</span>
                 <span style={{ color: 'var(--ink3)' }}>{meetingClassLabel(m, classNameById)}</span>
-                <span style={{ color: 'var(--ink3)' }}>· {dateStr}</span>
+                <span style={{ color: 'var(--ink3)' }}>· {dateStr}{recId && durMin ? ` · ${durMin} min recording` : ''}</span>
                 {/* Recap/Transcript exist only on classes recorded while live
                     transcription still ran - gate on the saved recap. */}
-                {m.recap && (
-                  <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6 }}>
-                    <button className="btn btn-ghost btn-sm" onClick={() => setRecapView({ id: m.id, tab: 'summary' })} title="View the class recap">
-                      <Sparkles size={13} style={{ marginRight: 4 }} /> Recap
-                    </button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => setRecapView({ id: m.id, tab: 'transcript' })} title="Read the full class transcript">
-                      <FileText size={13} style={{ marginRight: 4 }} /> Transcript
-                    </button>
+                {(m.recap || recId) && (
+                  <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
+                    {m.recap && (
+                      <button className="btn btn-ghost btn-sm" onClick={() => setRecapView({ id: m.id, tab: 'summary' })} title="View the class recap">
+                        <Sparkles size={13} style={{ marginRight: 4 }} /> Recap
+                      </button>
+                    )}
+                    {m.recap && (
+                      <button className="btn btn-ghost btn-sm" onClick={() => setRecapView({ id: m.id, tab: 'transcript' })} title="Read the full class transcript">
+                        <FileText size={13} style={{ marginRight: 4 }} /> Transcript
+                      </button>
+                    )}
+                    {recId && (
+                      <button className="btn btn-ghost btn-sm" onClick={() => setWatchMeeting(m)} title="Watch the class recording inside AcadFlow">
+                        <Play size={13} style={{ marginRight: 4 }} /> Watch
+                      </button>
+                    )}
                   </span>
                 )}
               </div>
@@ -308,6 +337,7 @@ export default function OnlineClassesTab({ student }) {
       )}
 
       {recapMeeting && <RecapModal meeting={recapMeeting} canManage={false} initialTab={recapView.tab} onClose={() => setRecapView(null)} />}
+      {watchMeeting && <RecordingPlayerModal meeting={watchMeeting} onClose={() => setWatchMeeting(null)} />}
     </div>
   )
 }

@@ -3125,6 +3125,57 @@ textarea.input { resize: vertical; }
 .olc-linkstat-bad { color: #dd5454; border-color: rgba(221, 84, 84, 0.4); background: rgba(221, 84, 84, 0.09); }
 .olc-form-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .olc-form-note { margin-left: auto; font-size: 0.7188rem; color: var(--ink3); white-space: nowrap; }
+
+/* Past-class recording: strip on the professor row, thumb + Watch on shared
+   student rows, and the in-app player modal. The thumb placeholder stays
+   dark in every theme - it reads as video. */
+.olc-row-rec { flex-wrap: wrap; }
+.olc-recstrip {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.olc-recthumb {
+  position: relative;
+  width: 92px;
+  height: 52px;
+  border-radius: 10px;
+  background: #12101f;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.olc-recthumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.olc-recthumb-sm { width: 72px; height: 42px; }
+.olc-recplay {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.olc-recthumb-sm .olc-recplay { width: 22px; height: 22px; }
+.olc-rec-t { flex: 1; min-width: 150px; }
+.olc-rec-name { display: flex; align-items: center; gap: 8px; font-size: 0.8125rem; font-weight: 700; color: var(--ink); flex-wrap: wrap; }
+.olc-rec-meta { font-size: 0.7188rem; color: var(--ink3); }
+.olc-rec-note { display: block; font-size: 0.6875rem; color: var(--ink3); margin-top: 1px; }
+.olc-cd-btn { border: none; cursor: pointer; }
+.olc-rec-acts { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-left: auto; }
+.recplay-frame { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; background: #000; }
+.recplay-note { margin-right: auto; font-size: 0.7188rem; color: var(--ink3); }
+.recplay-missing { padding: 44px 20px; text-align: center; color: var(--ink3); font-size: 0.8125rem; }
 .olc-sec-chip { font-size: 0.625rem; font-weight: 700; color: var(--accent); background: var(--accent-l); border-radius: 999px; padding: 3px 9px; flex-shrink: 0; }
 .olc-sub-lb { font-size: 0.75rem; font-weight: 600; color: var(--ink2); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
 .olc-nolink { font-size: 0.6875rem; color: var(--gold-var); font-weight: 600; }
