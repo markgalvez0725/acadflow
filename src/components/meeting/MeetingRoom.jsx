@@ -21,7 +21,7 @@ import EmojiIcon from '@/components/primitives/EmojiIcon'
 // Full-screen in-app classroom shared by the professor and student tabs,
 // laid out Google Meet style: a stage the tile grid FILLS edge to edge
 // (cells stretch, video covers; portrait phone feeds show sharp over a
-// blurred echo instead of being crop-zoomed), one bottom bar, a floating
+// gradient backdrop instead of being crop-zoomed), one bottom bar, a floating
 // self-view, an in-call chat panel, reactions, raise hand, and join/leave
 // chimes. The call engine lives in useMeetingRoom.
 //
@@ -92,21 +92,17 @@ function VideoTile({
   isSelf, presenting, presentLabel, noVideo, noHint, className,
 }) {
   const ref = useRef(null)
-  const blurRef = useRef(null)
   useEffect(() => {
     if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream || null
   }, [stream])
   const showVideo = !noVideo && !!stream && camOn !== false
   // EVERY video FITS its landscape tile: the whole frame renders contained
-  // over a blurred echo of itself that fills whatever the frame leaves open.
-  // Portrait phones, 4:3 webcams, and screen shares alike - nothing is ever
-  // crop-zoomed, and every tile keeps the grid's uniform shape.
-  useEffect(() => {
-    const el = blurRef.current
-    if (!el) return
-    const want = showVideo ? stream : null
-    if (el.srcObject !== want) el.srcObject = want
-  }, [stream, showVideo])
+  // over the tile's static gradient backdrop. Portrait phones, 4:3 webcams,
+  // and screen shares alike - nothing is ever crop-zoomed, and every tile
+  // keeps the grid's uniform shape. (This backdrop used to be a live blurred
+  // echo of the stream: a second video composited per tile per frame behind
+  // a 22px GPU blur. The gradient costs nothing after first paint, which
+  // weak student devices feel during a share.)
   return (
     <div
       className={
@@ -122,17 +118,6 @@ function VideoTile({
           carries the audio. noVideo tiles (filmstrip copy of the presenter)
           skip it entirely so a peer's audio never plays twice. data-rv marks
           remote videos as pop-out fallbacks. */}
-      {!noVideo && (
-        <video
-          ref={blurRef}
-          autoPlay
-          playsInline
-          muted
-          aria-hidden="true"
-          className="mr-video-blur"
-          style={{ visibility: showVideo ? 'visible' : 'hidden' }}
-        />
-      )}
       {!noVideo && (
         <video
           ref={ref}
