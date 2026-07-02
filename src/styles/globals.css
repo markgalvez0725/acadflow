@@ -6561,6 +6561,7 @@ html[data-glass="on"][data-theme="dark"] body::before {
   .mr-ctl-on:hover { background: #aecbfa; }
   .mr-ctl-hand { background: #fbbc04; color: #202124; }
   .mr-ctl-hand:hover { background: #fcc934; }
+  .mr-ctl-dim { opacity: 0.55; }
   .mr-ctl-accent { background: #5046e4; color: #fff; }
   .mr-ctl-accent:hover { background: #6058e8; }
   .mr-ctl-badge {
@@ -6612,6 +6613,24 @@ html[data-glass="on"][data-theme="dark"] body::before {
     align-items: center;
     justify-content: flex-end;
     gap: 10px;
+    min-width: 0;
+  }
+  /* Narrow screens: the bar WRAPS instead of clipping buttons off-screen -
+     the control cluster stays first and centered, info + count flow below. */
+  @media (max-width: 700px) {
+    .mr-bar {
+      display: flex;
+      flex-wrap: wrap;
+      height: auto;
+      min-height: 56px;
+      align-items: center;
+      justify-content: center;
+      gap: 4px 10px;
+      padding: 6px 8px;
+    }
+    .mr-bar-ctls { order: 1; flex: 0 0 auto; }
+    .mr-bar-left { order: 2; flex: 0 1 auto; }
+    .mr-bar-right { order: 3; flex: 0 1 auto; }
   }
   .mr-count {
     display: inline-flex;
@@ -6655,7 +6674,7 @@ html[data-glass="on"][data-theme="dark"] body::before {
   @media (max-width: 560px) {
     .mr-pip { width: 110px; }
     .mr-sep, .mr-meta, .mr-clock { display: none; }
-    .mr-bar { height: 56px; gap: 5px; }
+    .mr-bar { gap: 4px 8px; } /* height stays auto - the bar wraps, never clips */
     .mr-bar-ctls { gap: 5px; }
     .mr-ctl { width: 38px; height: 38px; }
     .mr-hang { width: 50px; height: 38px; }
