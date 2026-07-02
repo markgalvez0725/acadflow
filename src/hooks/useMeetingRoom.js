@@ -22,6 +22,19 @@ import {
   rtcSendSignal, rtcListenParticipants, rtcListenSignals,
 } from '@/firebase/rtc'
 
+// Human-readable reason for a getUserMedia failure, so the room can tell the
+// user exactly how to recover instead of a generic "blocked".
+function explainGumError(e) {
+  const name = e?.name || ''
+  if (name === 'NotAllowedError' || name === 'SecurityError')
+    return 'Camera and microphone access was blocked. Click the camera icon in your address bar (or open your browser\'s site settings), allow access, then press Try again.'
+  if (name === 'NotFoundError' || name === 'OverconstrainedError')
+    return 'No camera or microphone was found on this device. Plug one in or switch devices, then press Try again.'
+  if (name === 'NotReadableError' || name === 'AbortError')
+    return 'Your camera or microphone is busy in another app (Zoom, Meet, OBS...). Close it, then press Try again.'
+  return 'Could not access your camera or microphone. Check your browser permissions, then press Try again.'
+}
+
 export default function useMeetingRoom({ db, roomId, self }) {
   const [phase, setPhase] = useState('connecting') // connecting | ready | full | error | left
   const [errorMsg, setErrorMsg] = useState('')
@@ -30,12 +43,23 @@ export default function useMeetingRoom({ db, roomId, self }) {
   const [micOn, setMicOn] = useState(true)
   const [camOn, setCamOn] = useState(true)
   const [sharing, setSharing] = useState(false)
+  // Bumping this remounts the whole engine - used by Try again after a
+  // permission error (the browser re-prompts on the fresh getUserMedia call).
+  const [attempt, setAttempt] = useState(0)
   const apiRef = useRef({})
   const selfRef = useRef(self)
   selfRef.current = self
 
   useEffect(() => {
     if (!db || !roomId) return
+    // Fresh attempt: reset everything a previous failed try may have left.
+    setPhase('connecting')
+    setErrorMsg('')
+    setPeers([])
+    setLocalStream(null)
+    setMicOn(true)
+    setCamOn(true)
+    setSharing(false)
     let dead = false
     const myId = uuidv4()
     const pcs = new Map()        // peerId -> RTCPeerConnection
@@ -190,8 +214,8 @@ export default function useMeetingRoom({ db, roomId, self }) {
           local = await navigator.mediaDevices.getUserMedia({
             audio: { echoCancellation: true, noiseSuppression: true },
           })
-        } catch {
-          if (!dead) { setPhase('error'); setErrorMsg('Camera and microphone are blocked. Allow access in your browser and try again.') }
+        } catch (e2) {
+          if (!dead) { setPhase('error'); setErrorMsg(explainGumError(e2)) }
           return
         }
       }
@@ -282,7 +306,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
 
     start()
     return () => { dead = true; teardown() }
-  }, [db, roomId])
+  }, [db, roomId, attempt])
 
   return {
     phase, errorMsg, peers, localStream, micOn, camOn, sharing,
@@ -291,6 +315,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
     startShare: () => apiRef.current.startShare?.(),
     stopShare: () => apiRef.current.stopShare?.(),
     leave: () => apiRef.current.leave?.(),
+    retry: () => setAttempt(a => a + 1),
     canShare: typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia,
   }
 }

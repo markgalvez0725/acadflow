@@ -70,7 +70,7 @@ export default function MeetingRoom({ meeting, self, onClose, onEndClass }) {
   const db = dbRef?.current || null
   const {
     phase, errorMsg, peers, localStream, micOn, camOn, sharing, canShare,
-    toggleMic, toggleCam, startShare, stopShare, leave,
+    toggleMic, toggleCam, startShare, stopShare, leave, retry,
   } = useMeetingRoom({ db, roomId: meeting?.id, self })
 
   const [ending, setEnding] = useState(false)
@@ -143,7 +143,10 @@ export default function MeetingRoom({ meeting, self, onClose, onEndClass }) {
           <AlertTriangle size={30} style={{ color: 'var(--gold-var, #ca8a04)' }} />
           <b>Could not join</b>
           <span>{errorMsg}</span>
-          <button className="btn btn-sm" onClick={handleLeave}>Close</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-sm mr-retry-btn" onClick={retry}>Try again</button>
+            <button className="btn btn-sm" onClick={handleLeave}>Close</button>
+          </div>
         </div>
       ) : phase === 'full' ? (
         <div className="mr-center">

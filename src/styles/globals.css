@@ -6022,6 +6022,7 @@ html[data-glass="on"][data-theme="dark"] body::before {
   .mr-center b { font-size: 16px; }
   .mr-center span { font-size: 13px; color: #9a9aa3; max-width: 380px; }
   .mr-center .btn { margin-top: 10px; background: #2a2d36; color: #e7e7ea; border-color: #3a3d48; }
+  .mr-center .mr-retry-btn { background: #3f3fb4; border-color: #3f3fb4; color: #fff; }
   @media (max-width: 560px) {
     .mr-grid { grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); align-content: start; }
     .mr-tile-featured { aspect-ratio: 16 / 10; }
