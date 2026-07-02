@@ -17,10 +17,39 @@
 import { useState, useEffect, useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import {
-  RTC_CONFIG, ROOM_CAP, HEARTBEAT_MS, STALE_MS,
+  RTC_CONFIG, ROOM_CAP, BIG_ROOM, HEARTBEAT_MS, STALE_MS,
   rtcFetchParticipants, rtcJoinRoom, rtcLeaveRoom, rtcUpdateParticipant,
   rtcSendSignal, rtcListenParticipants, rtcListenSignals,
 } from '@/firebase/rtc'
+
+// Total outgoing bandwidth budget for video, split across every connection.
+// Keeping video on a hard budget is what keeps VOICE crystal clear: when a
+// link degrades, the browser drops video bits, never audio.
+const VIDEO_BUDGET = 2_400_000   // camera, all peers combined
+const SHARE_BUDGET = 4_800_000   // screen share is worth more bits
+
+// Ask the remote Opus encoder for resilient, speech-tuned audio: in-band FEC
+// (recovers lost packets), DTX (silence costs ~nothing - key in big rooms
+// where most mics are muted), and a bitrate that favors clarity in small
+// rooms without flooding uploads in big ones. fmtp lines in the sdp WE apply
+// as remote describe what the OTHER side's encoder should send us; both
+// peers run this, so both directions get tuned.
+function tuneOpus(sdp, roomSize) {
+  try {
+    const m = sdp.match(/a=rtpmap:(\d+) opus\/48000/)
+    if (!m) return sdp
+    const fmtpRe = new RegExp('a=fmtp:' + m[1] + ' (.*)')
+    const f = sdp.match(fmtpRe)
+    if (!f) return sdp
+    let params = f[1]
+    const extras = `useinbandfec=1;usedtx=1;stereo=0;maxaveragebitrate=${roomSize > BIG_ROOM ? 32000 : 48000}`
+    for (const kv of extras.split(';')) {
+      const key = kv.split('=')[0]
+      if (!new RegExp('(^|;)' + key + '=').test(params)) params += ';' + kv
+    }
+    return sdp.replace(fmtpRe, 'a=fmtp:' + m[1] + ' ' + params)
+  } catch { return sdp }
+}
 
 // Human-readable reason for a getUserMedia failure, so the room can tell the
 // user exactly how to recover instead of a generic "blocked".
@@ -100,6 +129,39 @@ export default function useMeetingRoom({ db, roomId, self }) {
       pendingIce.delete(peerId)
       initiated.delete(peerId)
       videoSenders.delete(peerId)
+      applyMediaBudget()
+    }
+
+    // Split the video budget across every connection and pin audio at high
+    // network priority. Re-applied whenever the room size or share state
+    // changes, and once per connection when it reaches 'connected' (encoder
+    // parameters only stick after negotiation).
+    function applyMediaBudget() {
+      const n = Math.max(1, pcs.size)
+      const camBits = Math.round(Math.min(350_000, Math.max(60_000, VIDEO_BUDGET / n)))
+      const shareBits = Math.round(Math.min(1_200_000, Math.max(120_000, SHARE_BUDGET / n)))
+      const scale = screenTrack ? 1 : (n > 16 ? 4 : n > 6 ? 2 : 1)
+      for (const sender of videoSenders.values()) {
+        try {
+          const p = sender.getParameters()
+          if (!p.encodings || !p.encodings.length) continue // pre-negotiation
+          p.encodings[0].maxBitrate = screenTrack ? shareBits : camBits
+          p.encodings[0].scaleResolutionDownBy = scale
+          sender.setParameters(p).catch(() => {})
+        } catch { /* renegotiating */ }
+      }
+      for (const pc of pcs.values()) {
+        for (const s of pc.getSenders()) {
+          if (!s.track || s.track.kind !== 'audio') continue
+          try {
+            const p = s.getParameters()
+            if (!p.encodings || !p.encodings.length) continue
+            p.encodings[0].priority = 'high'
+            p.encodings[0].networkPriority = 'high'
+            s.setParameters(p).catch(() => {})
+          } catch { /* renegotiating */ }
+        }
+      }
     }
 
     function makePc(peerId) {
@@ -125,6 +187,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
       }
       pc.onconnectionstatechange = () => {
         connState.set(peerId, pc.connectionState)
+        if (pc.connectionState === 'connected') applyMediaBudget()
         publish()
       }
       return pc
@@ -153,14 +216,14 @@ export default function useMeetingRoom({ db, roomId, self }) {
       const from = msg.from
       if (msg.type === 'offer') {
         const pc = pcs.get(from) || makePc(from)
-        await pc.setRemoteDescription(msg.data)
+        await pc.setRemoteDescription({ ...msg.data, sdp: tuneOpus(msg.data.sdp, pcs.size) })
         const answer = await pc.createAnswer()
         await pc.setLocalDescription(answer)
         send(from, 'answer', pc.localDescription.toJSON())
         await flushIce(from)
       } else if (msg.type === 'answer') {
         const pc = pcs.get(from)
-        if (pc) { await pc.setRemoteDescription(msg.data); await flushIce(from) }
+        if (pc) { await pc.setRemoteDescription({ ...msg.data, sdp: tuneOpus(msg.data.sdp, pcs.size) }); await flushIce(from) }
       } else if (msg.type === 'ice') {
         const pc = pcs.get(from)
         if (pc && pc.remoteDescription) { try { await pc.addIceCandidate(msg.data) } catch { /* stale */ } }
@@ -213,23 +276,30 @@ export default function useMeetingRoom({ db, roomId, self }) {
     async function start() {
       // Camera + mic; degrade to audio-only (camera busy/denied) before failing.
       let camOk = true
+      const AUDIO = { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
       try {
         local = await navigator.mediaDevices.getUserMedia({
           video: { width: { ideal: 640 }, height: { ideal: 360 }, facingMode: 'user' },
-          audio: { echoCancellation: true, noiseSuppression: true },
+          audio: AUDIO,
         })
       } catch {
         camOk = false
         try {
-          local = await navigator.mediaDevices.getUserMedia({
-            audio: { echoCancellation: true, noiseSuppression: true },
-          })
+          local = await navigator.mediaDevices.getUserMedia({ audio: AUDIO })
         } catch (e2) {
           if (!dead) { setPhase('error'); setErrorMsg(explainGumError(e2)) }
           return
         }
       }
       if (dead) { local.getTracks().forEach(t => t.stop()); return }
+      // Content hints steer the encoders: speech-optimized audio, motion-
+      // optimized camera (the screen track gets 'detail' when sharing).
+      try {
+        const mic = local.getAudioTracks()[0]
+        if (mic) mic.contentHint = 'speech'
+        const cam = local.getVideoTracks()[0]
+        if (cam) cam.contentHint = 'motion'
+      } catch { /* hints are advisory */ }
       setLocalStream(local)
       setCamOn(camOk)
 
@@ -237,14 +307,27 @@ export default function useMeetingRoom({ db, roomId, self }) {
       try {
         const existing = await rtcFetchParticipants(db, roomId)
         const now = Date.now()
-        if (existing.filter(p => now - (p.lastSeen || 0) < STALE_MS).length >= ROOM_CAP) {
+        const aliveCount = existing.filter(p => now - (p.lastSeen || 0) < STALE_MS).length
+        if (aliveCount >= ROOM_CAP) {
           local.getTracks().forEach(t => t.stop()); local = null
           if (!dead) setPhase('full')
           return
         }
         const s = selfRef.current || {}
+        // Lecture etiquette at scale: past BIG_ROOM people, students come in
+        // muted with the camera off (one tap turns either back on). This is
+        // also what makes a 60-person mesh viable - idle listeners upload
+        // almost nothing (muted Opus + DTX), so the professor's voice and
+        // screen get the bandwidth.
+        const quiet = aliveCount >= BIG_ROOM && s.role !== 'admin'
+        if (quiet) {
+          for (const t of local.getTracks()) t.enabled = false
+          setMicOn(false)
+          setCamOn(false)
+        }
         const me = await rtcJoinRoom(db, roomId, {
-          peerId: myId, uid: s.uid, name: s.name, role: s.role, camOn: camOk,
+          peerId: myId, uid: s.uid, name: s.name, role: s.role,
+          micOn: !quiet, camOn: quiet ? false : camOk,
         })
         myJoinedAt = me.joinedAt
       } catch {
@@ -288,7 +371,9 @@ export default function useMeetingRoom({ db, roomId, self }) {
         catch { return } // picker dismissed
         screenTrack = ds.getVideoTracks()[0]
         if (!screenTrack) return
+        try { screenTrack.contentHint = 'detail' } catch { /* advisory */ }
         for (const sender of videoSenders.values()) sender.replaceTrack(screenTrack).catch(() => {})
+        applyMediaBudget()
         screenTrack.onended = () => apiRef.current.stopShare()
         setSharing(true)
         // sharedAt lets everyone feature the LATEST presenter when two people
@@ -301,6 +386,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
         screenTrack = null
         const cam = local && local.getVideoTracks()[0]
         for (const sender of videoSenders.values()) sender.replaceTrack(cam || null).catch(() => {})
+        applyMediaBudget()
         setSharing(false)
         rtcUpdateParticipant(db, roomId, myId, { sharing: false })
       },

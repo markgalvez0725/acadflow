@@ -362,7 +362,7 @@ export default function OnlineClassesTab() {
                               style={{ flex: 1 }}
                               disabled={goingLive === linkKey(cls.id, sub) + '::app'}
                               onClick={() => handleGoLiveInApp(cls, sub)}
-                              title="Run the class inside AcadFlow - no Meet link needed (up to 8 people)"
+                              title="Run the class inside AcadFlow - no Meet link needed (up to 60 people)"
                             >
                               <MonitorPlay size={13} style={{ marginRight: 5 }} />
                               {goingLive === linkKey(cls.id, sub) + '::app' ? 'Going live…' : 'Go live in app'}
@@ -434,7 +434,7 @@ export default function OnlineClassesTab() {
               value={form.where}
               onChange={e => setForm(f => ({ ...f, where: e.target.value }))}
             >
-              <option value="inapp">In-app room - runs inside AcadFlow (up to 8 people)</option>
+              <option value="inapp">In-app room - runs inside AcadFlow (up to 60 people)</option>
               <option value="link">Google Meet - opens the class link in a new tab</option>
             </select>
           </div>

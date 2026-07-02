@@ -5877,19 +5877,24 @@ html[data-glass="on"][data-theme="dark"] body::before {
     flex-direction: column;
   }
 
-  /* Normal call: capped, centered tiles - a 2-person call is two modest
-     cards in the middle, not two wall-sized cameras. */
+  /* Normal call: tile widths are COMPUTED in MeetingRoom (fitTiles) so
+     everyone always fits on screen - the stage never scrolls, and a
+     near-empty room never becomes a wall-sized camera (420px cap). */
   .mr-stage {
     flex: 1;
     min-height: 0;
-    overflow-y: auto;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 380px));
+    overflow: hidden;
+    display: flex;
+    flex-wrap: wrap;
     justify-content: center;
+    align-items: center;
     align-content: center;
-    gap: 12px;
+    gap: 10px;
     padding: 8px;
   }
+  .mr-more-count { font-size: 19px; font-weight: 700; color: #e8eaed; }
+  .mr-strip .mr-tile-more { width: 132px; flex-shrink: 0; }
+  .mr-strip .mr-more-count { font-size: 14px; }
 
   /* Presenting: the shared screen owns the stage, letterboxed on black. */
   .mr-present {
@@ -6157,10 +6162,6 @@ html[data-glass="on"][data-theme="dark"] body::before {
   .mr-center .mr-retry-btn { background: #8ab4f8; color: #202124; }
 
   @media (max-width: 560px) {
-    .mr-stage {
-      grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
-      align-content: start;
-    }
     .mr-pip { width: 110px; }
     .mr-sep, .mr-meta { display: none; }
     .mr-bar { height: 58px; gap: 6px; }

@@ -36,6 +36,23 @@ function fmtElapsed(ms) {
   return `${Math.floor(m / 60)} h ${m % 60} m`
 }
 
+// Best 16:9 tile width so `n` tiles fit a w x h stage with NO scrolling,
+// capped so a near-empty room never turns into a wall-sized camera.
+const TILE_GAP = 10
+const TILE_MAX_W = 420
+const TILE_MIN_W = 110
+function fitTiles(w, h, n) {
+  let best = null
+  for (let cols = 1; cols <= n; cols++) {
+    const rows = Math.ceil(n / cols)
+    const availW = (w - TILE_GAP * (cols - 1)) / cols
+    const availH = (h - TILE_GAP * (rows - 1)) / rows
+    const tw = Math.min(availW, availH * (16 / 9), TILE_MAX_W)
+    if (!best || tw > best) best = tw
+  }
+  return Math.max(1, Math.floor(best || Math.min(w, TILE_MAX_W)))
+}
+
 function initials(name) {
   return String(name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?'
 }
@@ -117,6 +134,27 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
 
   const rootRef = useRef(null)
   const pipRef = useRef(null)
+
+  // Measure the stage so tiles are COMPUTED to fit - the room never scrolls.
+  const [stageEl, setStageEl] = useState(null)
+  const [stageBox, setStageBox] = useState({ w: 0, h: 0 })
+  useEffect(() => {
+    if (!stageEl || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(entries => {
+      const r = entries[0]?.contentRect
+      if (r) setStageBox({ w: r.width, h: r.height })
+    })
+    ro.observe(stageEl)
+    return () => ro.disconnect()
+  }, [stageEl])
+
+  // The page behind the room must not scroll either.
+  useEffect(() => {
+    if (minimized) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [minimized])
   useEffect(() => {
     if (pipRef.current && pipRef.current.srcObject !== localStream) pipRef.current.srcObject = localStream || null
   }, [localStream, phase, sharing, camOn, minimized])
@@ -179,6 +217,32 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   const isAdmin = self?.role === 'admin'
   const count = peers.length + 1
   const timeStr = new Date(now).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })
+
+  // Stage layout: how many tiles fit without scrolling, and how wide. When a
+  // room is too crowded, the tail collapses into one "+K others" tile (their
+  // audio keeps playing through hidden sinks).
+  const { stagePeers, hiddenPeers, tileW } = useMemo(() => {
+    const n = peers.length
+    if (!n) return { stagePeers: [], hiddenPeers: [], tileW: 320 }
+    if (!stageBox.w || !stageBox.h) return { stagePeers: peers, hiddenPeers: [], tileW: 320 }
+    let shown = n
+    let w = fitTiles(stageBox.w, stageBox.h, n)
+    while (shown > 1 && w < TILE_MIN_W) {
+      shown -= 1
+      w = fitTiles(stageBox.w, stageBox.h, shown + 1) // +1 = the "+K others" tile
+    }
+    return { stagePeers: peers.slice(0, shown), hiddenPeers: peers.slice(shown), tileW: w }
+  }, [peers, stageBox])
+
+  // Filmstrip (presenting): presenter + up to 7 more; the rest roll into a
+  // "+K" chip so the strip never scrolls either.
+  const STRIP_MAX = 8
+  const { stripPeers, stripHidden } = useMemo(() => {
+    if (!featuredPeer) return { stripPeers: [], stripHidden: [] }
+    const others = peers.filter(p => p !== featuredPeer)
+    const shown = [featuredPeer, ...others.slice(0, STRIP_MAX - 1)]
+    return { stripPeers: shown, stripHidden: others.slice(STRIP_MAX - 1) }
+  }, [peers, featuredPeer])
 
   // ── Mini player (minimized) ─────────────────────────────────────────────
   if (minimized) {
@@ -260,7 +324,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
           <div className="mr-center">
             <Users size={30} style={{ color: '#fdd663' }} />
             <b>The room is full</b>
-            <span>In-app rooms hold up to {ROOM_CAP} people. Ask your professor to use a Meet link for bigger sessions.</span>
+            <span>In-app rooms hold up to {ROOM_CAP} people including the professor. Try again once someone leaves.</span>
             <button className="btn btn-sm" onClick={handleLeave}>Close</button>
           </div>
         ) : featuredPeer ? (
@@ -277,7 +341,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
               />
             </div>
             <div className="mr-strip">
-              {peers.map(p => (
+              {stripPeers.map(p => (
                 <VideoTile
                   key={p.peerId}
                   stream={p === featuredPeer ? null : p.stream}
@@ -292,23 +356,49 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
                   failed={p.connState === 'failed'}
                 />
               ))}
+              {stripHidden.length > 0 && (
+                <div className="mr-tile mr-tile-more">
+                  <div className="mr-tile-avatar">
+                    <span className="mr-more-count">+{stripHidden.length}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            {/* Off-strip voices keep playing. */}
+            <div style={{ display: 'none' }}>
+              {stripHidden.map(p => p.stream ? <AudioSink key={p.peerId} stream={p.stream} /> : null)}
             </div>
           </>
         ) : peers.length ? (
-          <div className="mr-stage">
-            {peers.map(p => (
-              <VideoTile
-                key={p.peerId}
-                stream={p.stream}
-                name={p.name}
-                role={p.role}
-                micOn={p.micOn}
-                camOn={p.camOn}
-                muted={false}
-                failed={p.connState === 'failed'}
-              />
-            ))}
-          </div>
+          <>
+            <div className="mr-stage" ref={setStageEl}>
+              {stagePeers.map(p => (
+                <div key={p.peerId} style={{ width: tileW }}>
+                  <VideoTile
+                    stream={p.stream}
+                    name={p.name}
+                    role={p.role}
+                    micOn={p.micOn}
+                    camOn={p.camOn}
+                    muted={false}
+                    failed={p.connState === 'failed'}
+                  />
+                </div>
+              ))}
+              {hiddenPeers.length > 0 && (
+                <div className="mr-tile mr-tile-more" style={{ width: tileW }}>
+                  <div className="mr-tile-avatar">
+                    <span className="mr-more-count">+{hiddenPeers.length}</span>
+                    <span className="mr-tile-hint">others in class</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            {/* Off-stage voices keep playing. */}
+            <div style={{ display: 'none' }}>
+              {hiddenPeers.map(p => p.stream ? <AudioSink key={p.peerId} stream={p.stream} /> : null)}
+            </div>
+          </>
         ) : (
           <div className="mr-center">
             <Users size={30} style={{ color: '#9aa0a6' }} />

@@ -25,9 +25,13 @@ import {
 import { fbWithTimeout } from './firebaseInit'
 
 // Mesh topology: every participant uploads their stream to every other one,
-// so bandwidth grows with the square of the head count. 8 is the practical
-// ceiling for classroom laptops/phones on school connections.
-export const ROOM_CAP = 8
+// so bandwidth grows with the head count. The room holds a full class (60,
+// professor included) by behaving like a lecture hall past BIG_ROOM people:
+// students join muted with camera off (they can turn either on to speak),
+// and useMeetingRoom scales everyone's outgoing video down as the room
+// grows so voice always has bandwidth headroom.
+export const ROOM_CAP = 60
+export const BIG_ROOM = 12
 
 // Free public STUN (connectivity discovery only - no media ever relays
 // through Google). Without a TURN server some strict-NAT pairs cannot
