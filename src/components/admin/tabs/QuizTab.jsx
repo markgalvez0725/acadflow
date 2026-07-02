@@ -23,6 +23,7 @@ import { mineAnswerKey } from '@/utils/answerKeyMine'
 import { computeQuizScore } from '@/utils/quizScore'
 import { quizItemAnalysis } from '@/utils/quizStats'
 import { classTag, courseShort } from '@/utils/groupChat'
+import { questionError, normalizePoints } from '@/utils/validators'
 
 
 function quizId() {
@@ -314,7 +315,15 @@ function ImportResponseModal({ onClose, onImported }) {
     }
     if (!Array.isArray(parsed)) { setJsonErr('Expected a JSON array of questions, e.g. [{ "type": "multiple_choice", ... }]'); return }
     if (!parsed.length) { setJsonErr('The array is empty - paste at least one question.'); return }
-    const qs = parsed.map((q, i) => ({ ...q, id: 'q' + i + '_' + Date.now() }))
+    for (let i = 0; i < parsed.length; i++) {
+      const reason = questionError(parsed[i])
+      if (reason) { setJsonErr(`Question ${i + 1}: ${reason}`); return }
+    }
+    const qs = parsed.map((q, i) => {
+      const item = { ...q, id: 'q' + i + '_' + Date.now(), points: normalizePoints(q.points) }
+      if ('acceptedAnswers' in item && !(Array.isArray(item.acceptedAnswers) && item.acceptedAnswers.every(a => typeof a === 'string'))) delete item.acceptedAnswers
+      return item
+    })
     onImported(qs)
   }
 
@@ -356,7 +365,7 @@ function toLocalInput(ts) {
 const nowLocalInput = () => toLocalInput(Date.now())
 
 function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', onClose }) {
-  const { classes, db, fbReady, students } = useData()
+  const { classes, db, fbReady, students, quizzes } = useData()
   const { toast } = useUI()
   const isEdit = !!quiz
   const wasPublished = isEdit && (quiz.status === undefined || quiz.status === 'published')
@@ -499,22 +508,39 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
   async function handleSave(status = 'published') {
     setErr('')
     if (!title.trim()) { setTab('details'); setErr('Quiz title is required.'); return }
+    if (title.trim().length > 120) { setTab('details'); setErr('Quiz title must be 120 characters or fewer.'); return }
     if (!classIds.length) { setTab('details'); setErr('Select at least one class.'); return }
     if (!subject) { setTab('details'); setErr('Select a subject.'); return }
+    if (!isEdit && quizzes.some(q => (q.title || '').trim().toLowerCase() === title.trim().toLowerCase() && q.classIds?.some(id => classIds.includes(id)))) {
+      setTab('details'); setErr('A quiz with this title already exists for that class - rename it to avoid confusion.'); return
+    }
     if (!questions.length) { setTab('questions'); setErr('Quiz must have at least one question.'); return }
-    if (timeLimit < 1) { setTab('details'); setErr('Time limit must be at least 1 minute.'); return }
+    if (status === 'published') {
+      for (let i = 0; i < questions.length; i++) {
+        const reason = questionError(questions[i])
+        if (reason) { setTab('questions'); setErr(`Q${i + 1}: ${reason}`); return }
+      }
+    }
+    if (timeLimit < 1 || timeLimit > 300) { setTab('details'); setErr('Time limit must be between 1 and 300 minutes.'); return }
     const openTs = new Date(openAt).getTime()
     const closeTs = new Date(closeAt).getTime()
     if (isNaN(openTs) || isNaN(closeTs)) { setTab('details'); setErr('Invalid date range.'); return }
     if (closeTs <= openTs) { setTab('details'); setErr('Close time must be after open time.'); return }
-    if (status === 'published' && closeTs <= Date.now()) { setTab('details'); setErr('Close time is already in the past - adjust the schedule before publishing.'); return }
+    // Re-saving an already-published quiz with its close time untouched is allowed
+    // (typo fixes on closed quizzes); new quizzes and moved deadlines keep the guard.
+    // Compare at minute granularity: closeTs comes from a datetime-local input
+    // (always :00 seconds) while stored closeAt can carry sub-minute precision
+    // (e.g. quizzes created via Duplicate stamp Date.now()).
+    const storedCloseMin = wasPublished ? Math.floor((quiz.closeAt || 0) / 60000) * 60000 : null
+    if (status === 'published' && closeTs <= Date.now() && !(wasPublished && closeTs === storedCloseMin)) { setTab('details'); setErr('Close time is already in the past - adjust the schedule before publishing.'); return }
     if (!fbReady || !db.current) { setErr('Firebase is required.'); return }
 
-    const totalPoints = questions.reduce((sum, q) => sum + ((typeof q.points === 'number' && q.points > 0) ? q.points : 1), 0)
+    const normQuestions = questions.map(q => ({ ...q, points: normalizePoints(q.points) }))
+    const totalPoints = normQuestions.reduce((sum, q) => sum + q.points, 0)
     const payload = {
       title: title.trim(), classIds, subject,
       timeLimit: parseInt(timeLimit), openAt: openTs, closeAt: closeTs,
-      questions, totalPoints, partialCredit, difficulty, status,
+      questions: normQuestions, totalPoints, partialCredit, difficulty, status,
       submissions: quiz?.submissions || {},
       createdAt: quiz?.createdAt || Date.now(), createdBy: 'admin',
     }
@@ -597,7 +623,7 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
       <>
       <div className="field mb-3">
         <label className="text-xs font-semibold text-ink2 mb-1 block">Quiz Title <span className="text-red-500">*</span></label>
-        <input className="input w-full" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Chapter 3 Quiz" />
+        <input className="input w-full" value={title} maxLength={120} onChange={e => setTitle(e.target.value)} placeholder="e.g. Chapter 3 Quiz" />
       </div>
 
       <div className="field mb-3">
@@ -650,7 +676,7 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
         <div className="field flex-1">
           <label className="text-xs font-semibold text-ink2 mb-1 block">Time Limit (minutes) <span className="text-red-500">*</span></label>
           <input className="input w-full" type="number" min={1} max={300} value={timeLimit}
-            onChange={e => setTimeLimit(Math.max(1, parseInt(e.target.value) || 1))} />
+            onChange={e => setTimeLimit(Math.min(300, Math.max(1, parseInt(e.target.value) || 1)))} />
         </div>
         <div className="field flex-1">
           <label className="text-xs font-semibold text-ink2 mb-1 flex items-center justify-between gap-2">

@@ -25,7 +25,10 @@ export default function Dialog() {
 
   if (!dialog) return null
 
-  const { title, msg, type = 'info', confirmLabel = 'OK', cancelLabel = 'Cancel', showCancel = false } = dialog
+  const { title, msg, type: rawType = 'info', confirmLabel = 'OK', cancelLabel = 'Cancel', showCancel = false } = dialog
+  // Callers use both 'warn' and 'warning' (the toast tone vs the dialog
+  // variant); normalize so 'warn' gets the yellow treatment too.
+  const type = rawType === 'warn' ? 'warning' : rawType
 
   return ReactDOM.createPortal(
     <div

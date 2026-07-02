@@ -11,24 +11,12 @@
 //
 // Output: { text, meta:{ method, chars, truncated } } or null.
 
+import { loadScriptOnce, lastGoodUrl } from '@/utils/cdnLoader'
+
 // Stored on the SHARED activity doc (all students' submissions live in one doc,
 // 1 MB Firestore limit), so keep it modest: ~6k chars x 100 students stays well
 // under the cap, and is plenty of text to judge rubric coverage.
 const MAX_CHARS = 6000
-
-// Lazy <script> loader for UMD globals (one injection per src).
-const _loaded = {}
-function loadScript(src) {
-  if (_loaded[src]) return _loaded[src]
-  _loaded[src] = new Promise((resolve, reject) => {
-    const s = document.createElement('script')
-    s.src = src; s.async = true
-    s.onload = () => resolve()
-    s.onerror = () => { _loaded[src] = null; reject(new Error('load failed: ' + src)) }
-    document.head.appendChild(s)
-  })
-  return _loaded[src]
-}
 
 function clamp(text) {
   const t = String(text || '').replace(/[^\S\n]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim()
@@ -47,13 +35,18 @@ function readText(file) {
 }
 
 // ── Image OCR (Tesseract.js) ───────────────────────────────────────────────
-const TESS_SRC = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'
+const TESS_SRCS = [
+  'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js',
+  'https://unpkg.com/tesseract.js@5/dist/tesseract.min.js',
+]
 async function ocrImage(file, onProgress) {
-  await loadScript(TESS_SRC)
-  if (!window.Tesseract) throw new Error('Tesseract unavailable')
-  const worker = await window.Tesseract.createWorker('eng', 1, {
-    workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js',
-    corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5',
+  const Tesseract = await loadScriptOnce(TESS_SRCS, { globalKey: 'Tesseract', cacheKey: 'tesseract' })
+  // Pair the worker/core assets to the SAME host that served the library
+  // (jsdelivr and unpkg publish identical npm package paths).
+  const host = (lastGoodUrl('tesseract') || TESS_SRCS[0]).replace(/\/tesseract\.js@5\/dist\/tesseract\.min\.js$/, '')
+  const worker = await Tesseract.createWorker('eng', 1, {
+    workerPath: host + '/tesseract.js@5/dist/worker.min.js',
+    corePath: host + '/tesseract.js-core@5',
     langPath: 'https://tessdata.projectnaptha.com/4.0.0',
     logger: m => { if (m.status === 'recognizing text' && onProgress) onProgress(Math.round((m.progress || 0) * 100)) },
   })
@@ -66,13 +59,18 @@ async function ocrImage(file, onProgress) {
 }
 
 // ── PDF (pdf.js text layer, OCR fallback for scanned pages) ────────────────
-const PDFJS_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
-const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+const PDFJS_SRCS = [
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+  'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
+]
+// Worker MUST come from the same host as the library that actually loaded.
+const PDFJS_WORKERS = {
+  [PDFJS_SRCS[0]]: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
+  [PDFJS_SRCS[1]]: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
+}
 async function readPdf(file, onProgress) {
-  await loadScript(PDFJS_SRC)
-  const pdfjs = window.pdfjsLib
-  if (!pdfjs) throw new Error('pdf.js unavailable')
-  pdfjs.GlobalWorkerOptions.workerSrc = PDFJS_WORKER
+  const pdfjs = await loadScriptOnce(PDFJS_SRCS, { globalKey: 'pdfjsLib', cacheKey: 'pdfjs' })
+  pdfjs.GlobalWorkerOptions.workerSrc = PDFJS_WORKERS[lastGoodUrl('pdfjs')] || PDFJS_WORKERS[PDFJS_SRCS[0]]
   const buf = await file.arrayBuffer()
   const pdf = await pdfjs.getDocument({ data: buf }).promise
   let text = ''
@@ -102,12 +100,14 @@ async function readPdf(file, onProgress) {
 }
 
 // ── DOCX (mammoth) ─────────────────────────────────────────────────────────
-const MAMMOTH_SRC = 'https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js'
+const MAMMOTH_SRCS = [
+  'https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js',
+  'https://unpkg.com/mammoth@1.8.0/mammoth.browser.min.js',
+]
 async function readDocx(file) {
-  await loadScript(MAMMOTH_SRC)
-  if (!window.mammoth) throw new Error('mammoth unavailable')
+  const mammoth = await loadScriptOnce(MAMMOTH_SRCS, { globalKey: 'mammoth', cacheKey: 'mammoth' })
   const buf = await file.arrayBuffer()
-  const r = await window.mammoth.extractRawText({ arrayBuffer: buf })
+  const r = await mammoth.extractRawText({ arrayBuffer: buf })
   return r?.value || ''
 }
 

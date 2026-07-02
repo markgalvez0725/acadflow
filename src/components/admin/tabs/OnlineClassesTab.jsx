@@ -3,6 +3,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio } from 'lucide-react'
 import { courseShort } from '@/constants/courses'
+import { isValidUrl, parseFutureTs } from '@/utils/validators'
 import EmptyState from '@/components/ds/EmptyState'
 import PageHeader from '@/components/ds/PageHeader'
 
@@ -58,6 +59,7 @@ export default function OnlineClassesTab() {
   async function handleSaveLink(cls, subject, fallback) {
     const url = getLinkDraft(cls.id, subject, fallback)
     if (!url.trim()) return
+    if (!isValidUrl(url)) { toast('Link must start with http:// or https://', 'error'); return }
     try {
       await saveMeetLink(cls.id, url.trim(), subject || undefined)
       toast(subject ? `Meet link saved for ${subject}.` : 'Meet link saved.', 'success')
@@ -105,6 +107,8 @@ export default function OnlineClassesTab() {
   async function handleSchedule(e) {
     e.preventDefault()
     if (!form.classId || !form.title || !form.scheduledAt) return
+    const ts = parseFutureTs(form.scheduledAt)
+    if (!ts) { toast('Pick a future date and time.', 'error'); return }
     const cls = classes.find(c => c.id === form.classId)
     if (!cls) return
     setScheduling(true)
@@ -117,7 +121,7 @@ export default function OnlineClassesTab() {
         title: form.title.trim(),
         description: form.description.trim(),
         meetLink,
-        scheduledAt: new Date(form.scheduledAt).getTime(),
+        scheduledAt: ts,
       })
       toast('Meeting scheduled. Students have been notified.', 'success')
       setForm({ classId: '', subject: '', title: '', scheduledAt: '', description: '' })

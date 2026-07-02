@@ -90,6 +90,7 @@ export async function buildGradesPDFDoc(data, students, classes) {
 
   // Table
   const subColCount = subs.length
+  if (typeof doc.autoTable !== 'function') throw new Error('PDF table plugin failed to load. Reload and try again.')
   doc.autoTable({
     startY: y,
     head: [headers],
@@ -190,6 +191,7 @@ export async function buildAttendancePDFDoc(data, students, classes) {
   // Rate column indices: after 4 base cols + subs.length present-count cols
   const rateStartIdx = 4 + subs.length
 
+  if (typeof doc.autoTable !== 'function') throw new Error('PDF table plugin failed to load. Reload and try again.')
   doc.autoTable({
     startY: y,
     head: [headers],
@@ -355,6 +357,7 @@ export async function buildStudentPDFDoc(s, classes, students, eqScale = DEFAULT
     return [sub, midG ?? '-', finG ?? '-', displayEq, displayLtr, displayRem, uploaded]
   })
 
+  if (typeof doc.autoTable !== 'function') throw new Error('PDF table plugin failed to load. Reload and try again.')
   doc.autoTable({
     startY: y,
     head: gradeHead,
@@ -466,6 +469,7 @@ async function buildScoreMatrixPDFDoc(data, { title, accent, fileBase }) {
   let y = drawReportHeader(doc, { title, subtitle, accent })
 
   const lastIdx = headers.length - 1
+  if (typeof doc.autoTable !== 'function') throw new Error('PDF table plugin failed to load. Reload and try again.')
   doc.autoTable({
     startY: y,
     head: [headers],

@@ -4,30 +4,36 @@
 // in the app - quiz generation, Auto-key synonyms, activity rubric matching, and
 // grading-coverage estimates. Multilingual on purpose (the content here is
 // Filipino/Tagalog). Nothing is uploaded; inference runs entirely in-browser.
-// The library is imported from esm.sh and weights are fetched from the Hugging
-// Face hub, then cached by the browser after first use. The deployed CSP MUST
-// allow these origins or every embedding-backed Smart feature silently fails:
-//   script-src/worker-src/connect-src → https://esm.sh
+// The library is imported from esm.sh (with a jsdelivr `+esm` mirror as
+// fallback) and weights are fetched from the Hugging Face hub, then cached by
+// the browser after first use. The deployed CSP MUST allow these origins or
+// every embedding-backed Smart feature silently fails:
+//   script-src/worker-src/connect-src → https://esm.sh https://cdn.jsdelivr.net
 //   connect-src → https://huggingface.co https://*.huggingface.co https://*.hf.co
 // (see vercel.json). Without them the dynamic import is blocked and smartGrade
 // returns null → "Smart grading unavailable" toast.
 
-const TRANSFORMERS_URL = 'https://esm.sh/@xenova/transformers@2.17.2'
+import { loadEsmOnce } from '@/utils/cdnLoader'
+
+const TRANSFORMERS_URLS = [
+  'https://esm.sh/@xenova/transformers@2.17.2',
+  'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/+esm',
+]
 const MODEL = 'Xenova/paraphrase-multilingual-MiniLM-L12-v2'
 
-let _libPromise, _extractorPromise
+// Generous cap on the pipeline warm-up (the quantized weights are ~120 MB):
+// long enough for a slow first download, but a stalled one rejects so callers'
+// null-fallbacks fire instead of an eternal spinner.
+const WARMUP_TIMEOUT_MS = 120000
+
+let _extractorPromise
 
 /** Dynamically import Transformers.js from the CDN (kept out of the Vite bundle). */
 function loadLib() {
-  if (!_libPromise) {
-    _libPromise = import(/* @vite-ignore */ TRANSFORMERS_URL)
-      .then(mod => {
-        if (mod.env) { mod.env.allowLocalModels = false; mod.env.useBrowserCache = true }
-        return mod
-      })
-      .catch(err => { _libPromise = null; throw err })
-  }
-  return _libPromise
+  return loadEsmOnce(TRANSFORMERS_URLS, { cacheKey: 'transformers' }).then(mod => {
+    if (mod.env) { mod.env.allowLocalModels = false; mod.env.useBrowserCache = true }
+    return mod
+  })
 }
 
 /** Load the feature-extraction (embedding) pipeline once. Throws if it can't. */
@@ -35,7 +41,15 @@ export function ensureExtractor() {
   if (!_extractorPromise) {
     _extractorPromise = (async () => {
       const { pipeline } = await loadLib()
-      return pipeline('feature-extraction', MODEL)
+      let timer
+      const guard = new Promise((_, rej) => {
+        timer = setTimeout(() => rej(new Error('Timed out loading the embedding model')), WARMUP_TIMEOUT_MS)
+      })
+      try {
+        return await Promise.race([pipeline('feature-extraction', MODEL), guard])
+      } finally {
+        clearTimeout(timer)
+      }
     })().catch(err => { _extractorPromise = null; throw err })
   }
   return _extractorPromise

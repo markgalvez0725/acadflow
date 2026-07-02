@@ -20,7 +20,8 @@ import { Download, Upload, KeyRound, GraduationCap, CheckCircle2, Pencil, Plus, 
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { useStudentReportCardExport } from '@/hooks/useStudentReportCardExport'
 import { exportStudentRosterExcel, exportStudentImportTemplate, parseStudentImportExcel } from '@/export/excelExport'
-import { courseOptions, courseFromShort, courseShort } from '@/constants/courses'
+import { COURSES, courseOptions, courseFromShort, courseShort } from '@/constants/courses'
+import { isValidEmail, personNameError, rosterHasId, rosterHasName, normalizeYearLevel } from '@/utils/validators'
 import { classMatchesCourseYear } from '@/utils/enrollment'
 import { activeSubjects } from '@/utils/active'
 import { splitStudentName, buildStudentName } from '@/utils/studentName'
@@ -95,11 +96,13 @@ function AddStudentModal({ onClose }) {
     const id = snum.trim().toUpperCase()
     if (!lastName.trim())  { setErr('Last name is required.');  return }
     if (!firstName.trim()) { setErr('First name is required.'); return }
+    const nameErr = personNameError(lastName, 'Last name') || personNameError(firstName, 'First name')
+    if (nameErr) { setErr(nameErr); return }
     if (!id) { setErr('Student number is required.'); return }
     const snumErr = validateSnum(id)
     if (snumErr) { setErr(snumErr); return }
     if (!course.trim()) { setErr('Course/Program is required.'); return }
-    if (students.find(s => s.id === id)) { setErr(`Student number "${id}" already exists.`); return }
+    if (rosterHasId(students, id)) { setErr(`Student number "${id}" already exists.`); return }
     if (students.find(s => (s.name || '').toLowerCase() === composedName.toLowerCase())) {
       setErr('A student with this name already exists.'); return
     }
@@ -111,9 +114,10 @@ function AddStudentModal({ onClose }) {
       if (!initPass) { setPassErr('Please enter an initial password.'); return }
       if (initPass.length < 8) { setPassErr('Password must be at least 8 characters.'); return }
       if (!/[A-Z]/.test(initPass) || !/[0-9]/.test(initPass)) { setPassErr('Password must include at least one uppercase letter and one number.'); return }
-      if (initEmail && !initEmail.includes('@')) { setPassErr('Please enter a valid email address.'); return }
+      const em = initEmail.trim()
+      if (em && !isValidEmail(em)) { setPassErr('Please enter a valid email address.'); return }
       passHash = await hashPassword(initPass)
-      account = { registered: true, email: initEmail || '', _tempPass: true, needsProfileSetup: true, verified: true, verification: { method: 'teacher', at: Date.now() } }
+      account = { registered: true, email: em, _tempPass: true, needsProfileSetup: true, verified: true, verification: { method: 'teacher', at: Date.now() } }
     } else {
       passHash = await hashPassword(DEFAULT_PASS)
       account = { registered: true, email: '', _tempPass: true, needsProfileSetup: true, verified: true, verification: { method: 'teacher', at: Date.now() } }
@@ -164,12 +168,12 @@ function AddStudentModal({ onClose }) {
       {/* Name - captured in parts, stored as "SURNAME, First M.I." */}
       <div className="field">
         <label>Last Name <span className="text-red-500">*</span></label>
-        <input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Dela Cruz" />
+        <input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Dela Cruz" maxLength={60} />
       </div>
       <div className="input-row">
         <div className="field" style={{ flex: 2 }}>
           <label>First Name <span className="text-red-500">*</span></label>
-          <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Juan" />
+          <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Juan" maxLength={60} />
         </div>
         <div className="field" style={{ flex: 1 }}>
           <label>M.I. <span className="font-normal text-ink3">(optional)</span></label>
@@ -364,7 +368,13 @@ function EditStudentModal({ student, onClose }) {
     const trimSnum = snum.trim().toUpperCase()
     if (!lastName.trim())  { setErr('Last name is required.');  return }
     if (!firstName.trim()) { setErr('First name is required.'); return }
+    const nameErr = personNameError(lastName, 'Last name') || personNameError(firstName, 'First name')
+    if (nameErr) { setErr(nameErr); return }
     if (!course.trim()) { setErr('Course is required.'); return }
+    // Duplicate-name gate only on an actual RENAME: imported homonyms are
+    // legitimate (advisory-only there), so an unchanged name must stay editable.
+    const nameChanged = composedName.trim().toLowerCase() !== String(student.name || '').toLowerCase()
+    if (nameChanged && rosterHasName(students, composedName, student.id)) { setErr('A student with this name already exists.'); return }
 
     // Student number can only be changed before the student has an account,
     // because their login email is derived from it.
@@ -372,7 +382,7 @@ function EditStudentModal({ student, onClose }) {
     if (snumChanged) {
       const sErr = validateSnum(trimSnum)
       if (sErr) { setErr(sErr); return }
-      if (students.some(s => s.id === trimSnum)) { setErr(`Student number "${trimSnum}" already exists.`); return }
+      if (rosterHasId(students, trimSnum, student.id)) { setErr(`Student number "${trimSnum}" already exists.`); return }
     }
 
     const newClassId = classId || null
@@ -438,16 +448,16 @@ function EditStudentModal({ student, onClose }) {
       <div className="text-[11px] font-bold uppercase tracking-wide text-ink3 mb-2">Identity</div>
       <div className="field">
         <label>Last Name <span className="text-red-500">*</span></label>
-        <input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Dela Cruz" />
+        <input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Dela Cruz" maxLength={60} />
       </div>
       <div className="input-row">
         <div className="field" style={{ flex: 2 }}>
           <label>First Name <span className="text-red-500">*</span></label>
-          <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Juan" />
+          <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Juan" maxLength={60} />
         </div>
         <div className="field" style={{ flex: 1 }}>
           <label>Middle <span className="font-normal text-ink3">(optional)</span></label>
-          <input value={middleName} onChange={e => setMiddleName(e.target.value)} placeholder="S" maxLength={30} />
+          <input value={middleName} onChange={e => setMiddleName(e.target.value.replace(/[^A-Za-z ]/g, '').slice(0, 30))} placeholder="S" maxLength={30} />
         </div>
       </div>
       {composedName && (
@@ -802,7 +812,10 @@ function ImportStudentsModal({ onClose }) {
       else if (!r.name)               errs[i] = 'Missing full name'
       else if (!r.course)             errs[i] = 'Missing course'
       else if (validateSnum(id))      errs[i] = validateSnum(id)
-      else if (students.find(s => s.id === id)) errs[i] = `Student no. "${id}" already exists`
+      else if (rosterHasId(students, id)) errs[i] = `Student no. "${id}" already exists`
+      else if (!COURSES.some(c => c.toLowerCase() === r.course.trim().toLowerCase())) errs[i] = `Unknown course "${r.course}"`
+      else if (r.year && !normalizeYearLevel(r.year)) errs[i] = 'Year level must be 1st-4th Year'
+      else if (!splitStudentName(r.name).last) errs[i] = 'Name must be "Surname, First" (or use the Surname/First Name columns)'
       else {
         const dupIdx = parsed.findIndex((x, j) => j < i && (x.id || '').toUpperCase() === id)
         if (dupIdx >= 0) errs[i] = `Duplicate student no. in file (row ${dupIdx + 2})`
@@ -810,7 +823,7 @@ function ImportStudentsModal({ onClose }) {
     })
     setRows(parsed)
     setErrors(errs)
-    setWarnings(verifyImportRows(parsed, { classes }))  // on-device fill-out check
+    setWarnings(verifyImportRows(parsed, { classes, students }))  // on-device fill-out check
     setPage(1)
     setFilter('all')
     setQuery('')
@@ -879,6 +892,14 @@ function ImportStudentsModal({ onClose }) {
 
   async function handleImport() {
     if (!validRows.length) return
+    // The roster may have changed since the file was parsed - never let an
+    // import setDoc() over a student that now exists under the same number.
+    const live = new Set(students.map(s => String(s.id).toUpperCase()))
+    const dropped = validRows.filter(r => live.has(r.id.toUpperCase()))
+    if (dropped.length) {
+      toast(`Roster changed - ${dropped.length} row(s) now collide with existing student numbers. Re-upload the file.`, 'red')
+      return
+    }
     setSaving(true)
     try {
       // Every imported student starts on the same default temp password; its hash
@@ -888,7 +909,7 @@ function ImportStudentsModal({ onClose }) {
         const id = r.id.toUpperCase()
         const allClassIds = []
         const grades = {}, attendance = {}, excuse = {}, gradeComponents = {}
-        return { id, name: (r.name || '').toUpperCase(), course: r.course, year: r.year || '1st Year', section: r.section || '', mobile: r.mobile || '', dob: r.dob || '', classId: null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account: { registered: true, email: '', _tempPass: true, needsProfileSetup: true, verified: true, verification: { method: 'teacher', at: Date.now() } } }
+        return { id, name: (r.name || '').toUpperCase(), course: r.course, year: normalizeYearLevel(r.year) || '1st Year', section: r.section || '', mobile: r.mobile || '', dob: r.dob || '', classId: null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account: { registered: true, email: '', _tempPass: true, needsProfileSetup: true, verified: true, verification: { method: 'teacher', at: Date.now() } } }
       })
       await saveStudents([...students, ...newStudents], newStudents.map(s => s.id))
       // Store each temp-password secret (sequential to stay gentle on quotas).
@@ -1052,6 +1073,7 @@ function MessageSelectedModal({ recipients, onClose }) {
 
   async function handleSend() {
     setErr('')
+    if (!recipients.length) { setErr('No recipients - the selected students no longer exist.'); return }
     if (!subject.trim()) { setErr('Subject is required.'); return }
     if (!body.trim())    { setErr('Message body is required.'); return }
     if (subject.length > 200) { setErr('Subject too long (max 200 characters).'); return }

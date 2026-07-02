@@ -9,11 +9,26 @@
 // Degrades gracefully: if the fetch fails, registerPdfFonts() returns null and
 // the reports fall back to standard Helvetica.
 
+import { fetchAny } from '@/utils/cdnLoader.js'
+
+// Each face lists its mirrors (jsdelivr first, unpkg fallback - same npm paths).
 const SOURCES = {
-  lexendNormal:  'https://cdn.jsdelivr.net/npm/@expo-google-fonts/lexend/Lexend_400Regular.ttf',
-  lexendBold:    'https://cdn.jsdelivr.net/npm/@expo-google-fonts/lexend/Lexend_700Bold.ttf',
-  jakartaNormal: 'https://cdn.jsdelivr.net/npm/@expo-google-fonts/plus-jakarta-sans/PlusJakartaSans_400Regular.ttf',
-  jakartaBold:   'https://cdn.jsdelivr.net/npm/@expo-google-fonts/plus-jakarta-sans/PlusJakartaSans_700Bold.ttf',
+  lexendNormal: [
+    'https://cdn.jsdelivr.net/npm/@expo-google-fonts/lexend/Lexend_400Regular.ttf',
+    'https://unpkg.com/@expo-google-fonts/lexend/Lexend_400Regular.ttf',
+  ],
+  lexendBold: [
+    'https://cdn.jsdelivr.net/npm/@expo-google-fonts/lexend/Lexend_700Bold.ttf',
+    'https://unpkg.com/@expo-google-fonts/lexend/Lexend_700Bold.ttf',
+  ],
+  jakartaNormal: [
+    'https://cdn.jsdelivr.net/npm/@expo-google-fonts/plus-jakarta-sans/PlusJakartaSans_400Regular.ttf',
+    'https://unpkg.com/@expo-google-fonts/plus-jakarta-sans/PlusJakartaSans_400Regular.ttf',
+  ],
+  jakartaBold: [
+    'https://cdn.jsdelivr.net/npm/@expo-google-fonts/plus-jakarta-sans/PlusJakartaSans_700Bold.ttf',
+    'https://unpkg.com/@expo-google-fonts/plus-jakarta-sans/PlusJakartaSans_700Bold.ttf',
+  ],
 }
 
 const _b64 = {}        // key -> base64 string (no data: prefix)
@@ -37,10 +52,11 @@ export function preloadPdfFonts() {
   if (_loadPromise) return _loadPromise
   _loadPromise = (async () => {
     try {
-      await Promise.all(Object.entries(SOURCES).map(async ([key, url]) => {
+      await Promise.all(Object.entries(SOURCES).map(async ([key, urls]) => {
         if (_b64[key]) return
-        const res = await fetch(url)
-        if (!res.ok) throw new Error(`font ${key} ${res.status}`)
+        // fetchAny tries each mirror with a hard timeout and only rejects when
+        // every one fails (which trips the outer catch → Helvetica fallback).
+        const res = await fetchAny(urls, 15000)
         _b64[key] = arrayBufferToBase64(await res.arrayBuffer())
       }))
       return true

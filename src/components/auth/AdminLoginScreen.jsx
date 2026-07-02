@@ -48,6 +48,7 @@ export default function AdminLoginScreen() {
   async function handleLogin(e) {
     e.preventDefault()
     clearMessages()
+    if (!password) return setErr('Password is required.')
     setLoading(true)
     try {
       const result = await loginAdmin(ADMIN_EMAIL, password, keepSignedIn)

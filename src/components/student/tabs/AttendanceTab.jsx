@@ -9,12 +9,13 @@ import EmptyState from '@/components/ds/EmptyState'
 import PageHeader from '@/components/ds/PageHeader'
 import { activeClassIds, activeSubjects } from '@/utils/active'
 import { courseShort } from '@/constants/courses'
+import { isRealDateStr } from '@/utils/validators'
 
 const DAY_LETTERS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 const THRESHOLD = 80 // % present required to stay in good standing
 
 export default function AttendanceTab({ student: s, viewClassId, classes }) {
-  const { students, fbReady, attendanceSessions, studentCheckIn, submitExcuseRequest, semester } = useData()
+  const { students, fbReady, attendanceSessions, studentCheckIn, submitExcuseRequest, excuseRequests, semester } = useData()
   const { currentStudent }    = useAuth()
   const { toast }             = useUI()
 
@@ -23,7 +24,7 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
   const [checkingIn, setCheckingIn] = useState(false)
   const [showExcuse, setShowExcuse] = useState(false)
   const [exSubject, setExSubject]   = useState('')
-  const [exDate, setExDate]         = useState(() => new Date().toISOString().slice(0, 10))
+  const [exDate, setExDate]         = useState(() => new Date().toLocaleDateString('en-CA'))
   const [exReason, setExReason]     = useState('')
   const [exBusy, setExBusy]         = useState(false)
 
@@ -187,6 +188,11 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
     if (!subject) { toast('Pick a subject.', 'warn'); return }
     if (!exDate) { toast('Pick the date you missed.', 'warn'); return }
     if (!exReason.trim()) { toast('Add a short reason.', 'warn'); return }
+    if (!isRealDateStr(exDate) || exDate > new Date().toLocaleDateString('en-CA')) { toast('Pick a valid past or today date.', 'warn'); return }
+    if (exReason.trim().length > 500) { toast('Reason too long (max 500 characters).', 'warn'); return }
+    if ((excuseRequests || []).some(r => r.studentId === s.id && r.subject === subject && r.date === exDate && (r.status === 'pending' || r.status === 'approved'))) {
+      toast('You already have a request for that date.', 'warn'); return
+    }
     setExBusy(true)
     try {
       await submitExcuseRequest({ student: s, classId: classIdForSubject(subject), subject, date: exDate, reason: exReason })
@@ -283,6 +289,7 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
               style={{ minHeight: 60, resize: 'vertical' }}
               placeholder="Reason (e.g. medical, family emergency)…"
               value={exReason}
+              maxLength={500}
               onChange={e => setExReason(e.target.value)}
             />
             <div style={{ display: 'flex', gap: 8 }}>

@@ -8,6 +8,7 @@ import { classTag, courseShort } from '@/utils/groupChat'
 import { triageExcuses } from '@/utils/excuseTriage'
 import { prewarmEmbeddings } from '@/utils/embeddings'
 import { subjectSessionDates, trailingAbsenceStreak } from '@/utils/attendanceRisk'
+import { isRealDateStr } from '@/utils/validators'
 import Modal from '@/components/primitives/Modal'
 import Avatar from '@/components/primitives/Avatar'
 import Pagination from '@/components/primitives/Pagination'
@@ -79,20 +80,26 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
   }
 
   function toDateStr(val) {
+    let ds = null
     if (typeof val === 'number') {
       // Excel serial → JS Date
       const d = new Date(Math.round((val - 25569) * 86400 * 1000))
-      return d.toISOString().slice(0, 10)
+      ds = d.toISOString().slice(0, 10)
+    } else {
+      const s = String(val).trim()
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) ds = s
+      else {
+        // M/D/YYYY or D/M/YYYY - treat as M/D/YYYY (common in PH Excel exports)
+        const parts = s.split('/')
+        if (parts.length === 3) {
+          const [m, d, y] = parts
+          ds = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+        }
+      }
     }
-    const s = String(val).trim()
-    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
-    // M/D/YYYY or D/M/YYYY - treat as M/D/YYYY (common in PH Excel exports)
-    const parts = s.split('/')
-    if (parts.length === 3) {
-      const [m, d, y] = parts
-      return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`
-    }
-    return null
+    // Reject impossible calendar dates (e.g. 2/30/2026) so phantom sessions
+    // never inflate held-days; the header simply falls out of dateCols.
+    return ds && isRealDateStr(ds) ? ds : null
   }
 
   async function handleFile(e) {
@@ -130,9 +137,20 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
 
       if (dateCols.length === 0) throw new Error('No date columns found. Headers must be YYYY-MM-DD or M/D/YYYY.')
 
+      // Future dates are pre-filled in the template by design: skip and count
+      // them rather than blocking the import (string compare is safe, both
+      // sides are YYYY-MM-DD).
+      const todayStr    = new Date().toLocaleDateString('en-CA')
+      const usableCols  = dateCols.filter(d => d.date <= todayStr)
+      const futureSkipped = dateCols.length - usableCols.length
+      if (usableCols.length === 0) throw new Error('All date columns are in the future - nothing to import yet.')
+
       // Build preview rows
       const byId = {}
       studs.forEach(s => { byId[s.id] = s })
+
+      const RECOGNIZED = new Set(['p', 'present', '1', 'e', 'excuse', 'excused', 'a', 'absent', '0'])
+      let unrecognized = 0
 
       const rows     = []
       const matched  = new Set()
@@ -145,7 +163,10 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
 
         const student = byId[sid]
         const statuses = {}
-        dateCols.forEach(({ col, date }) => {
+        usableCols.forEach(({ col, date }) => {
+          // Only matched rows import, so only their cells count as unrecognized.
+          const v = String(row[col] ?? '').trim().toLowerCase()
+          if (student && v && !RECOGNIZED.has(v)) unrecognized++
           statuses[date] = normaliseStatus(row[col])
         })
 
@@ -157,7 +178,7 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
         }
       }
 
-      setPreview({ rows, dates: dateCols.map(d => d.date), matched: [...matched], unmatched })
+      setPreview({ rows, dates: usableCols.map(d => d.date), matched: [...matched], unmatched, futureSkipped, unrecognized })
     } catch (err) {
       setError(err.message)
     } finally {
@@ -303,6 +324,18 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
               <strong className="text-ink">{preview.dates.length}</strong>
               <span className="text-ink2 ml-1">date(s) detected</span>
             </div>
+            {preview.futureSkipped > 0 && (
+              <div className="rounded-lg p-2.5 text-xs flex-1" style={{ background: 'var(--yellow-l)', border: '1px solid var(--yellow)' }}>
+                <strong style={{ color: 'var(--yellow)' }}>{preview.futureSkipped}</strong>
+                <span className="text-ink2 ml-1">future date(s) skipped</span>
+              </div>
+            )}
+            {preview.unrecognized > 0 && (
+              <div className="rounded-lg p-2.5 text-xs flex-1" style={{ background: 'var(--yellow-l)', border: '1px solid var(--yellow)' }}>
+                <strong style={{ color: 'var(--yellow)' }}>{preview.unrecognized}</strong>
+                <span className="text-ink2 ml-1">unrecognized value(s) treated as absent</span>
+              </div>
+            )}
           </div>
 
           {/* Import mode */}
@@ -370,7 +403,7 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
 // Two views: 'calendar' and 'day'
 function AttendanceCalendarModal({ classId, subject, readOnly, onClose }) {
   const { students, classes, saveStudents } = useData()
-  const { toast } = useUI()
+  const { toast, openDialog } = useUI()
 
   const cls   = classes.find(c => c.id === classId)
   const studs = useMemo(() => sortByLastName(students.filter(s => s.classId === classId || s.classIds?.includes(classId))), [students, classId])
@@ -428,6 +461,16 @@ function AttendanceCalendarModal({ classId, subject, readOnly, onClose }) {
   }
 
   async function saveDay() {
+    // Pre-marking a future session (e.g. a known excused absence) is allowed,
+    // but confirm first so an accidental wrong-day click doesn't record it.
+    if (selDate > new Date().toLocaleDateString('en-CA')) {
+      const ok = await openDialog({
+        title: 'Future date',
+        msg: 'This session has not happened yet. Mark attendance anyway?',
+        type: 'warn', confirmLabel: 'Mark Anyway', showCancel: true,
+      })
+      if (!ok) return
+    }
     setSaving(true)
     const updated = students.map(s => {
       if (s.classId !== classId && !s.classIds?.includes(classId)) return s

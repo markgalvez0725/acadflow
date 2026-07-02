@@ -16,6 +16,7 @@ import { useRedirectHighlight } from '@/navigation/useRedirectHighlight'
 import { uploadSubmission } from '@/utils/googleDrive'
 import { extractSubmissionText } from '@/utils/submissionExtract'
 import { activeClassIds } from '@/utils/active'
+import { isValidUrl } from '@/utils/validators'
 
 const PER_PAGE = 10
 const SOON_MS = 48 * 3600000 // "due soon" window
@@ -49,9 +50,19 @@ async function pushAdminNotif(db, s, text, type, link) {
 }
 
 export default function ActivitiesTab({ student: s, activities }) {
-  const { db, fbReady, students, classes, semester } = useData()
+  const { db, fbReady, students, classes, semester, latePolicy } = useData()
   const { toast } = useUI()
   const highlightId = useRedirectHighlight('activity')
+
+  // Write-time submission cutoff: the bare deadline, extended by the late
+  // policy's grace window when that is enabled - the grace period exists
+  // precisely to accept slightly-late submissions (latePenalty.js applies no
+  // penalty inside it), so the re-check must not close it.
+  const submitCutoffPassed = act => {
+    if (!act?.deadline) return false
+    const graceMs = latePolicy?.enabled ? (Number(latePolicy.graceMins) || 0) * 60000 : 0
+    return Date.now() > act.deadline + graceMs
+  }
 
   const [page, setPage] = useState(1)
   const [linkInputs, setLinkInputs] = useState({}) // actId → string
@@ -159,15 +170,18 @@ export default function ActivitiesTab({ student: s, activities }) {
   function pickFilter(next) { setFilter(next); setPage(1) }
 
   async function submitActivity(actId) {
+    // Re-check the deadline at write time: the card may have been rendered
+    // before the deadline passed. Matches the render-time gating and copy.
+    const act = activities.find(a => a.id === actId)
+    if (submitCutoffPassed(act)) { toast('The deadline has passed - you can no longer submit. Message your professor.', 'warn'); return }
     const file = pendingFiles[actId] || null
     const typedLink = (linkInputs[actId] || '').trim()
     // A submission is a file OR a pasted link. A staged file wins.
     if (!file && !typedLink) { toast('Paste a link or attach a file.', 'warn'); return }
-    if (!file && !/^https?:\/\/.+/.test(typedLink)) { toast('Please enter a valid URL starting with http:// or https://', 'warn'); return }
+    if (!file && !isValidUrl(typedLink)) { toast('Please enter a valid URL starting with http:// or https://', 'warn'); return }
     if (!fbReady || !db.current) { toast('Activities require Firebase to be connected.', 'warn'); return }
     setSubmitting(prev => ({ ...prev, [actId]: true }))
     try {
-      const act = activities.find(a => a.id === actId)
       let link = typedLink
       let contentText = null, contentMeta = null
       if (file) {
@@ -218,12 +232,15 @@ export default function ActivitiesTab({ student: s, activities }) {
   }
 
   async function submitGroup(actId, group) {
+    // Same write-time deadline re-check as submitActivity.
+    const act = activities.find(a => a.id === actId)
+    if (submitCutoffPassed(act)) { toast('The deadline has passed - you can no longer submit. Message your professor.', 'warn'); return }
     const text = (groupText[actId] ?? '').trim()
     if (!text) { toast('Add your group\'s analysis first.', 'warn'); return }
+    if (text.length > 6000) { toast('Analysis is too long - keep it under 6000 characters or attach the full document as a link/file.', 'warn'); return }
     if (!fbReady || !db.current) { toast('Activities require Firebase to be connected.', 'warn'); return }
     let link = (groupLink[actId] ?? '').trim()
-    if (link && !/^https?:\/\/.+/.test(link)) { toast('Link must start with http:// or https://', 'warn'); return }
-    const act = activities.find(a => a.id === actId)
+    if (link && !isValidUrl(link)) { toast('Link must start with http:// or https://', 'warn'); return }
     setSubmitting(prev => ({ ...prev, [actId]: true }))
     try {
       // One representative uploads on behalf of the group. A staged file goes to
@@ -489,7 +506,7 @@ export default function ActivitiesTab({ student: s, activities }) {
                         <div style={{ fontSize: 12, color: 'var(--red)' }}>The deadline passed with no group submission.</div>
                       ) : (
                         <div className="sa-act-submit-form">
-                          <textarea className="input w-full" rows={4} placeholder="Paste your group's case analysis here…"
+                          <textarea className="input w-full" rows={4} maxLength={6000} placeholder="Paste your group's case analysis here…"
                             value={groupText[act.id] ?? ''} onChange={e => setGroupText(prev => ({ ...prev, [act.id]: e.target.value }))} />
                           <input className="input w-full mt-2" placeholder="Optional supporting link (https://…)"
                             value={groupLink[act.id] ?? ''} onChange={e => setGroupLink(prev => ({ ...prev, [act.id]: e.target.value }))} />

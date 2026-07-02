@@ -12,6 +12,7 @@ import { Plus, Pencil, School, Archive, ArchiveRestore, CalendarDays, Users, Loc
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { buildClassReportCards } from '@/export/reportCard'
 import { courseOptions, courseShort } from '@/constants/courses'
+import { firstDuplicateCI, isSafeMapKey, normSectionKey } from '@/utils/validators'
 
 const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
 
@@ -56,10 +57,19 @@ function AddClassModal({ onClose, prefill = null }) {
     const subs = subjects.split(',').map(s => s.trim()).filter(Boolean)
     if (!name.trim() || !section.trim()) { setErr('Course name and section are required.'); return }
     if (!subs.length) { setErr('At least one subject is required.'); return }
+    if (!/^[1-9]/.test(section.trim())) { setErr('Section must start with the year level digit, e.g. "2-A".'); return }
+    if (section.trim().length > 20) { setErr('Section is too long (max 20 characters).'); return }
+    if (room.trim().length > 60) { setErr('Room is too long (max 60 characters).'); return }
+    if (schedule.trim().length > 60) { setErr('Schedule is too long (max 60 characters).'); return }
+    if (subs.length > 30) { setErr('Too many subjects (max 30).'); return }
+    if (subs.some(s => s.length > 50)) { setErr('Keep each subject name under 50 characters.'); return }
+    if (subs.some(s => !isSafeMapKey(s))) { setErr('That subject name is not allowed.'); return }
+    const dup = firstDuplicateCI(subs)
+    if (dup) { setErr(`Duplicate subject "${dup}" - each subject must be listed once.`); return }
     const duplicate = classes.find(c =>
       !c.archived &&
       c.name.toLowerCase() === name.trim().toLowerCase() &&
-      c.section.toLowerCase() === section.trim().toLowerCase() &&
+      normSectionKey(c.section) === normSectionKey(section) &&
       subs.some(sub => c.subjects?.map(s => s.toLowerCase()).includes(sub.toLowerCase()))
     )
     if (duplicate) {
@@ -200,11 +210,22 @@ function EditClassModal({ cls, onClose }) {
     const subs = subjects.split(',').map(s => s.trim()).filter(Boolean)
     if (!name.trim() || !section.trim()) { setErr('Course name and section are required.'); return }
     if (!subs.length) { setErr('At least one subject is required.'); return }
+    // Grandfather legacy labels: the digit rule applies only when the section
+    // was actually changed, so pre-rule classes stay editable as-is.
+    if (section.trim() !== (cls.section || '').trim() && !/^[1-9]/.test(section.trim())) { setErr('Section must start with the year level digit, e.g. "2-A".'); return }
+    if (section.trim().length > 20) { setErr('Section is too long (max 20 characters).'); return }
+    if (room.trim().length > 60) { setErr('Room is too long (max 60 characters).'); return }
+    if (schedule.trim().length > 60) { setErr('Schedule is too long (max 60 characters).'); return }
+    if (subs.length > 30) { setErr('Too many subjects (max 30).'); return }
+    if (subs.some(s => s.length > 50)) { setErr('Keep each subject name under 50 characters.'); return }
+    if (subs.some(s => !isSafeMapKey(s))) { setErr('That subject name is not allowed.'); return }
+    const dup = firstDuplicateCI(subs)
+    if (dup) { setErr(`Duplicate subject "${dup}" - each subject must be listed once.`); return }
     const duplicate = classes.find(c =>
       c.id !== cls.id &&
       !c.archived &&
       c.name.toLowerCase() === name.trim().toLowerCase() &&
-      c.section.toLowerCase() === section.trim().toLowerCase() &&
+      normSectionKey(c.section) === normSectionKey(section) &&
       subs.some(sub => c.subjects?.map(s => s.toLowerCase()).includes(sub.toLowerCase()))
     )
     if (duplicate) {
@@ -215,11 +236,23 @@ function EditClassModal({ cls, onClose }) {
     const removedSubs = cls.subjects.filter(s => !subs.includes(s))
     const addedSubs   = subs.filter(s => !cls.subjects.includes(s))
 
+    // Grades/attendance are keyed by BARE subject name, so a subject removed
+    // here must survive for any student whose OTHER enrolled class still
+    // teaches the same subject - otherwise this edit would wipe data earned in
+    // that other class.
+    const subjectsOfOtherClasses = s => {
+      const ids = (s.classIds?.length ? s.classIds : [s.classId]).filter(id => id && id !== cls.id)
+      const keep = new Set()
+      ids.forEach(id => (classes.find(c => c.id === id)?.subjects || []).forEach(sub => keep.add(sub)))
+      return keep
+    }
+
     if (removedSubs.length) {
-      const affected = students.filter(s => s.classId === cls.id)
-      const hasData  = affected.some(s =>
-        removedSubs.some(sub => s.grades?.[sub] != null || (s.attendance?.[sub] && s.attendance[sub].size > 0))
-      )
+      const affected = students.filter(s => s.classId === cls.id || s.classIds?.includes(cls.id))
+      const hasData  = affected.some(s => {
+        const keep = subjectsOfOtherClasses(s)
+        return removedSubs.some(sub => !keep.has(sub) && (s.grades?.[sub] != null || (s.attendance?.[sub] && s.attendance[sub].size > 0)))
+      })
       if (hasData) {
         const ok = await openDialog({
           title: 'Remove subjects with data?',
@@ -244,11 +277,14 @@ function EditClassModal({ cls, onClose }) {
 
       if (removedSubs.length || addedSubs.length) {
         updatedStudents = students.map(s => {
-          if (s.classId !== cls.id) return s
+          if (!(s.classId === cls.id || s.classIds?.includes(cls.id))) return s
+          const keep = subjectsOfOtherClasses(s)
+          const toRemove = removedSubs.filter(sub => !keep.has(sub))
+          if (!toRemove.length && !addedSubs.length) return s
           const ns = { ...s, grades: { ...s.grades }, attendance: { ...s.attendance }, excuse: { ...s.excuse } }
           if (s.gradeComponents) ns.gradeComponents = { ...s.gradeComponents }
           if (s.gradeUploadedAt) ns.gradeUploadedAt = { ...s.gradeUploadedAt }
-          removedSubs.forEach(sub => {
+          toRemove.forEach(sub => {
             delete ns.grades[sub]
             delete ns.attendance[sub]
             delete ns.excuse[sub]
@@ -448,6 +484,19 @@ export default function ClassesTab() {
 
   async function handleArchive(cls) {
     if (cls.archived) {
+      // Unarchiving: refuse if an active class now occupies the same name +
+      // section + subject slot (same predicate as the Add/Edit duplicate check).
+      const conflict = classes.find(c =>
+        c.id !== cls.id &&
+        !c.archived &&
+        c.name.toLowerCase() === (cls.name || '').trim().toLowerCase() &&
+        normSectionKey(c.section) === normSectionKey(cls.section) &&
+        (cls.subjects || []).some(sub => c.subjects?.map(s => s.toLowerCase()).includes(sub.toLowerCase()))
+      )
+      if (conflict) {
+        toast(`Cannot unarchive: "${cls.name} ${cls.section}" would duplicate an active class.`, 'red')
+        return
+      }
       // Unarchiving: restore students and their subject data from archivedSemesters
       const restorable = students.filter(s =>
         s.archivedSemesters?.some(e => e.classId === cls.id)

@@ -6,6 +6,7 @@ import PinBoxes from '@/components/primitives/PinBoxes'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
+import { isLockedOut, recordFailedAttempt, clearAttempts } from '@/utils/validate'
 
 /**
  * Modal for resetting the admin password using the recovery PIN.
@@ -42,6 +43,8 @@ export default function ResetPinModal({ onClose, onReset }) {
   async function handleSubmit(e) {
     e.preventDefault()
 
+    const lock = isLockedOut('resetpin')
+    if (lock) { toast(lock, 'error'); return }
     if (pin.length < 4) {
       toast('Please enter your 4-digit recovery PIN.', 'warn'); return
     }
@@ -58,7 +61,8 @@ export default function ResetPinModal({ onClose, onReset }) {
     setLoading(true)
     try {
       const ok = await verifyPassword(pin, admin.resetPin)
-      if (!ok) { toast('Incorrect recovery PIN.', 'error'); return }
+      if (!ok) { recordFailedAttempt('resetpin'); toast('Incorrect recovery PIN.', 'error'); return }
+      clearAttempts('resetpin')
 
       const hashed = await hashPassword(newPass)
       await saveAdmin({ ...admin, pass: hashed })

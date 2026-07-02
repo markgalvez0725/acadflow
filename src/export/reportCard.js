@@ -72,6 +72,7 @@ function renderReportCard(doc, student, { classes = [], students = [], eqScale =
     ]
   })
 
+  if (typeof doc.autoTable !== 'function') throw new Error('PDF table plugin failed to load. Reload and try again.')
   doc.autoTable({
     startY: y,
     head: [['Subject', 'Midterm', 'Finals', 'Final %', 'Equiv', 'Remark']],

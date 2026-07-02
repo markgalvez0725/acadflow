@@ -24,6 +24,7 @@ import { deviceRubric, smartInstructions, smartRubric, smartGrade, smartGradeGro
 import { sendPushToOwners } from '@/firebase/pushTokens'
 import { pushStudentNotif } from '@/firebase/studentNotif'
 import { lateInfo, applyLatePenalty } from '@/utils/latePenalty'
+import { isValidUrl } from '@/utils/validators'
 
 function fmtLocalInput(d) {
   const pad = n => String(n).padStart(2, '0')
@@ -163,7 +164,7 @@ function newCriterion() {
 
 // ── Create / Edit Modal ───────────────────────────────────────────────
 function ActivityFormModal({ act, onClose }) {
-  const { classes, students, db, fbReady, semester, rubricLibrary, saveRubricToLibrary, deleteLibraryRubric } = useData()
+  const { classes, students, activities, db, fbReady, semester, rubricLibrary, saveRubricToLibrary, deleteLibraryRubric } = useData()
   const { toast } = useUI()
   const isEdit = !!act
   const [showLib, setShowLib] = useState(false)
@@ -209,7 +210,7 @@ function ActivityFormModal({ act, onClose }) {
   function addAttachLink() {
     const link = attachLink.trim()
     if (!link) return
-    if (!/^https?:\/\/.+/.test(link)) { toast('Link must start with http:// or https://', 'warn'); return }
+    if (!isValidUrl(link)) { toast('Link must start with http:// or https://', 'warn'); return }
     setAttachments(prev => [...prev, { link, name: link }])
     setAttachLink('')
   }
@@ -312,12 +313,16 @@ function ActivityFormModal({ act, onClose }) {
 
   async function handleSave() {
     setErr('')
+    if (attachLink.trim()) { setTab('details'); setErr('Finish or clear the attachment link field (press Add), it must start with http:// or https://.'); return }
     if (!title.trim())   { setTab('details'); setErr('Activity title is required.'); return }
     if (!classId)        { setTab('details'); setErr('Please select a class.'); return }
     if (!subject)        { setTab('details'); setErr('Please select a subject.'); return }
+    const dupA = activities.find(a => a.id !== act?.id && a.classId === classId && a.subject === subject && (a.title || '').trim().toLowerCase() === title.trim().toLowerCase())
+    if (dupA)            { setTab('details'); setErr('An activity with this title already exists for this class and subject.'); return }
     if (!deadline)       { setTab('details'); setErr('Please set a deadline.'); return }
     const dlTs = new Date(deadline).getTime()
     if (isNaN(dlTs))     { setTab('details'); setErr('Invalid deadline date.'); return }
+    if (!isEdit && dlTs <= Date.now()) { setTab('details'); setErr('Deadline is in the past - pick a future date/time.'); return }
 
     // Validate rubric if used
     if (rubric.length) {
@@ -327,6 +332,12 @@ function ActivityFormModal({ act, onClose }) {
         if (isNaN(pts) || pts < 1) { setTab('rubric'); setErr('Each criterion must have at least 1 point.'); return }
       }
       if (maxScore < 1 || maxScore > 1000) { setTab('rubric'); setErr('Rubric total must be between 1 and 1000.'); return }
+    }
+
+    // Never let an edit drop the max score below a grade that's already saved.
+    if (isEdit) {
+      const maxExisting = Math.max(0, ...Object.values(act.submissions || {}).map(x => x.score ?? 0))
+      if (maxScore < maxExisting) { setTab('rubric'); setErr(`Rubric total (${maxScore}) is below an already-saved score (${maxExisting}). Raise the total or clear those scores first.`); return }
     }
 
     // Validate groups for a group case-study activity.
@@ -400,7 +411,7 @@ function ActivityFormModal({ act, onClose }) {
       <>
       <div className="field mb-3">
         <label className="text-xs font-semibold text-ink2 mb-1 block">Title <span className="text-red-500">*</span></label>
-        <input className="input w-full" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Lab Report 1" autoFocus />
+        <input className="input w-full" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Lab Report 1" maxLength={120} autoFocus />
       </div>
 
       <div className="input-row mb-3">
@@ -820,7 +831,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
     const newDl = window.prompt('Set new deadline (current: ' + dlLabel + ').\n\nEnter new date/time:', defVal)
     if (!newDl) return
     const ts = new Date(newDl).getTime()
-    if (isNaN(ts) || ts < Date.now()) { toast('Invalid date or date is in the past.', 'red'); return }
+    if (isNaN(ts) || ts <= act.deadline || ts <= Date.now()) { toast('New deadline must be in the future and after the current one (' + dlLabel + ').', 'red'); return }
     try {
       await updateDoc(doc(db.current, 'activities', act.id), { deadline: ts })
       toast('Deadline extended!', 'green')
@@ -835,11 +846,13 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
     // SUBMITTED student the professor left a feedback note on but never scored -
     // an automatic passing 75-80 default. Missed / blank students are skipped.
     const picks = []
+    const skipped = []
     enrolledStudents.forEach(s => {
       const raw = scores[s.id]
       if (raw !== undefined && raw !== '') {
         const score = parseFloat(raw)
         if (!isNaN(score) && score >= 0 && score <= act.maxScore) picks.push({ s, base: score })
+        else skipped.push(s.name)
         return
       }
       const sub = (act.submissions || {})[s.id] || {}
@@ -879,6 +892,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
       })
       await saveStudents(updatedStudents, picks.map(x => x.s.id))
       toast(`Saved grades for ${picks.length} student${picks.length !== 1 ? 's' : ''}.${autoCount ? ` ${autoCount} auto-graded from feedback.` : ''}${penalizedCount ? ` ${penalizedCount} late-penalized.` : ''}`, 'green')
+      if (skipped.length) toast(`Skipped ${skipped.length} invalid score${skipped.length > 1 ? 's' : ''} (must be 0-${act.maxScore}): ${skipped.slice(0, 3).join(', ')}`, 'red')
       if (fbReady && db.current) {
         for (const { s } of picks) {
           pushStudentNotif(db.current, s.id, `Activity graded: ${act.title}`, `${act.subject} - Score: ${effById[s.id]}/${act.maxScore}`, 'act_grade', `act:${act.id}`)
@@ -1042,6 +1056,8 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
         ...act, id,
         title: `${act.title} (Copy)`,
         submissions: {},   // a fresh activity - no carried-over submissions
+        groupSubmissions: {},
+        reminderSentAt: null,
         createdAt: Date.now(),
         deadline: Date.now() + 7 * 24 * 60 * 60 * 1000,
       }
@@ -1317,7 +1333,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                           <span> → <strong>{applyLatePenalty(parseFloat(inputVal), sub, act, latePolicy, false)}</strong></span>
                         )}
                         <label style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 2, color: 'var(--ink2)', cursor: 'pointer', fontWeight: 600 }}>
-                          <input type="checkbox" checked={!!waived[s.id]} onChange={() => { setWaived(p => ({ ...p, [s.id]: !p[s.id] })); scheduleScoreSave(s) }} style={{ width: 'auto', margin: 0 }} />
+                          <input type="checkbox" checked={!!waived[s.id]} onChange={() => { setWaived(p => ({ ...p, [s.id]: !p[s.id] })); setScores(p => (p[s.id] === undefined || p[s.id] === '') ? { ...p, [s.id]: String(sub.latePenalty?.rawScore ?? sub.score ?? '') } : p); scheduleScoreSave(s) }} style={{ width: 'auto', margin: 0 }} />
                           Waive penalty
                         </label>
                       </div>

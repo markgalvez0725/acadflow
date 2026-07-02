@@ -5,6 +5,8 @@
 // server. window.faceapi is loaded from the CDN <script> in index.html; the ML
 // models are fetched lazily the first time a camera flow is opened.
 
+import { waitForGlobal } from '@/utils/cdnLoader'
+
 // Primary + fallback model hosts. If one CDN is down or rate-limited, the next
 // is tried automatically so enrollment never dead-ends on a flaky network.
 const MODEL_URLS = [
@@ -45,16 +47,8 @@ export function faceApiPresent() {
 
 // Wait for the deferred CDN script to define window.faceapi.
 export function ensureFaceApi(timeoutMs = 9000) {
-  if (faceApiPresent()) return Promise.resolve(window.faceapi)
-  const start = Date.now()
-  return new Promise((resolve, reject) => {
-    const t = setInterval(() => {
-      if (faceApiPresent()) { clearInterval(t); resolve(window.faceapi) }
-      else if (Date.now() - start > timeoutMs) {
-        clearInterval(t)
-        reject(new Error('The face library could not load. Check your connection and try again.'))
-      }
-    }, 150)
+  return waitForGlobal('faceapi', timeoutMs).catch(() => {
+    throw new Error('The face library could not load. Check your connection and try again.')
   })
 }
 

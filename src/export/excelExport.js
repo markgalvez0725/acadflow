@@ -17,6 +17,7 @@ import { courseShort } from '@/utils/groupChat.js'
 import { courseFromShort, COURSES } from '@/constants/courses.js'
 import { isClassCurrent, activeSubjects } from '@/utils/active.js'
 import { brandingTitleRows } from '@/export/reportTemplate.js'
+import { waitForGlobal, loadScriptOnce } from '@/utils/cdnLoader.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -230,20 +231,27 @@ export function downloadBlob(blob, fileName) {
   URL.revokeObjectURL(url)
 }
 
-// Load ExcelJS on demand from the CDN (only when exporting a roster). Resolves to
-// the global, or null if it can't load - the caller falls back to SheetJS.
-let _exceljsLoading = null
-export function ensureExcelJS() {
-  if (window.ExcelJS) return Promise.resolve(window.ExcelJS)
-  if (_exceljsLoading) return _exceljsLoading
-  _exceljsLoading = new Promise((resolve) => {
-    const s = document.createElement('script')
-    s.src = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js'
-    s.onload = () => resolve(window.ExcelJS || null)
-    s.onerror = () => resolve(null)
-    document.head.appendChild(s)
-  })
-  return _exceljsLoading
+// Load ExcelJS on demand (only when exporting a roster). Resolves to the
+// global, or null ONLY after every source failed - the caller falls back to
+// SheetJS. A null is never cached, so the next export retries from scratch.
+const EXCELJS_SRCS = [
+  'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js',
+  'https://unpkg.com/exceljs@4.4.0/dist/exceljs.min.js',
+]
+let _exceljsWarned = false
+export async function ensureExcelJS() {
+  if (window.ExcelJS) return window.ExcelJS
+  // index.html already loads ExcelJS with a defer tag - give it a moment first.
+  try { return await waitForGlobal('ExcelJS', 3000) } catch { /* tag failed or blocked - inject below */ }
+  try {
+    return await loadScriptOnce(EXCELJS_SRCS, { globalKey: 'ExcelJS' })
+  } catch {
+    if (!_exceljsWarned) {
+      _exceljsWarned = true
+      console.warn('[export] ExcelJS unavailable from every CDN; exporting via SheetJS (no dropdowns).')
+    }
+    return null
+  }
 }
 
 // ── Student import template / parser (simple, fill-in Excel) ───────────────
@@ -575,6 +583,7 @@ export function buildAttendanceData(classId, students, classes) {
  * @returns {object} XLSX workbook
  */
 export function buildGradesWorkbook(data, students, classes, eqScale = DEFAULT_EQ_SCALE) {
+  if (!window.XLSX) throw new Error('SheetJS not loaded.')
   const XLSX = window.XLSX
   const { cls, headers, rows, summaryRow, subs } = data
 
@@ -646,6 +655,7 @@ export function buildGradesWorkbook(data, students, classes, eqScale = DEFAULT_E
  * @returns {object} XLSX workbook
  */
 export function buildAttendanceWorkbook(data, students, classes) {
+  if (!window.XLSX) throw new Error('SheetJS not loaded.')
   const XLSX = window.XLSX
   const { cls, headers, rows, summaryRow, subs } = data
 
@@ -728,6 +738,7 @@ export function buildAttendanceWorkbook(data, students, classes) {
  * @returns {object} XLSX workbook
  */
 export function buildStudentWorkbook(s, classes, students, eqScale = DEFAULT_EQ_SCALE, opts = {}) {
+  if (!window.XLSX) throw new Error('SheetJS not loaded.')
   const XLSX = window.XLSX
   const enrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
   const allSubs = (opts.subjectFilter && opts.subjectFilter.length)

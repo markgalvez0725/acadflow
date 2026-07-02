@@ -81,8 +81,8 @@ function useCountdown(deadlineMs) {
 
 // ── Quiz Taking Modal ─────────────────────────────────────────────────────────
 function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
-  const { db, fbReady, students, saveStudents, submitQuizResult, setQuizProgress } = useData()
-  const { toast } = useUI()
+  const { db, fbReady, students, saveStudents, submitQuizResult, setQuizProgress, quizzes } = useData()
+  const { toast, openDialog } = useUI()
 
   const totalSecs = quiz.timeLimit * 60
 
@@ -244,6 +244,23 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
   // Auto-submit when time expires
   const handleSubmit = useCallback(async (isAuto = false) => {
     if (submitting || submitted) return
+
+    // Re-check against the LIVE quiz doc at write time: another device may have
+    // already submitted, or this attempt may have been started after close (a
+    // stale card / restored draft). Timer-expiry auto-submits of attempts that
+    // started in time stay allowed.
+    const liveQuiz = quizzes.find(x => x.id === quiz.id) || quiz
+    if (liveQuiz?.submissions?.[student.id]) {
+      try { localStorage.removeItem(draftKey) } catch (e) { /* ignore */ }
+      toast('You already submitted this quiz.', 'error')
+      return
+    }
+    if (liveQuiz?.closeAt && startRef.current > liveQuiz.closeAt) {
+      try { localStorage.removeItem(draftKey) } catch (e) { /* ignore */ }
+      toast('This quiz has closed.', 'error')
+      return
+    }
+
     inFlightRef.current = true // don't let a blur during submit wipe answers
     setSubmitting(true)
 
@@ -289,7 +306,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
     } finally {
       setSubmitting(false)
     }
-  }, [submitting, submitted, answers, quiz, student, db, fbReady])
+  }, [submitting, submitted, answers, quiz, student, db, fbReady, quizzes, draftKey])
 
   // Trigger auto-submit when time expires
   useEffect(() => {
@@ -531,7 +548,22 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
         ) : (
           <button
             className="btn btn-primary btn-sm"
-            onClick={() => handleSubmit(false)}
+            onClick={async () => {
+              // Manual submits confirm when questions are still blank; the
+              // timer-expiry auto-submit stays unconditional.
+              const blanks = answers.filter(a => !String(a).trim()).length
+              if (blanks > 0) {
+                const ok = await openDialog({
+                  title: 'Unanswered questions',
+                  msg: `You have ${blanks} unanswered question${blanks === 1 ? '' : 's'}. Submit anyway?`,
+                  type: 'warning',
+                  confirmLabel: 'Submit anyway',
+                  showCancel: true,
+                })
+                if (!ok) return
+              }
+              handleSubmit(false)
+            }}
             disabled={submitting}
           >
             {submitting ? 'Submitting…' : <><CheckCircle2 size={16} /> Submit Quiz</>}

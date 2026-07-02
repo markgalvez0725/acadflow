@@ -26,31 +26,24 @@
 //     skinFrac, busyness,                               // Stage C
 //   }
 
-const SRC = {
-  tf:   'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js',
-  mesh: 'https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@1.0.6/dist/face-landmarks-detection.min.js',
-  seg:  'https://cdn.jsdelivr.net/npm/@tensorflow-models/body-segmentation@1.0.2/dist/body-segmentation.min.js',
-}
+import { loadScriptOnce } from '@/utils/cdnLoader'
 
-/** Inject a CDN <script> once; resolve when it has loaded. */
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    if (typeof document === 'undefined') return reject(new Error('no document'))
-    const prior = document.querySelector(`script[data-aiphoto="${src}"]`)
-    if (prior) {
-      if (prior.dataset.loaded) return resolve()
-      prior.addEventListener('load', () => resolve())
-      prior.addEventListener('error', () => reject(new Error('load failed: ' + src)))
-      return
-    }
-    const el = document.createElement('script')
-    el.src = src
-    el.async = true
-    el.dataset.aiphoto = src
-    el.addEventListener('load', () => { el.dataset.loaded = '1'; resolve() })
-    el.addEventListener('error', () => reject(new Error('load failed: ' + src)))
-    document.head.appendChild(el)
-  })
+// Mirror lists (jsdelivr first, unpkg fallback - identical npm package paths).
+// loadScriptOnce verifies the expected window global, so a script that "loads"
+// without exposing its library rejects instead of TypeError-ing downstream.
+const SRC = {
+  tf: [
+    'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js',
+    'https://unpkg.com/@tensorflow/tfjs@4.22.0/dist/tf.min.js',
+  ],
+  mesh: [
+    'https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@1.0.6/dist/face-landmarks-detection.min.js',
+    'https://unpkg.com/@tensorflow-models/face-landmarks-detection@1.0.6/dist/face-landmarks-detection.min.js',
+  ],
+  seg: [
+    'https://cdn.jsdelivr.net/npm/@tensorflow-models/body-segmentation@1.0.2/dist/body-segmentation.min.js',
+    'https://unpkg.com/@tensorflow-models/body-segmentation@1.0.2/dist/body-segmentation.min.js',
+  ],
 }
 
 // The two models load INDEPENDENTLY so a failure in one doesn't disable the
@@ -62,8 +55,7 @@ let _corePromise, _facePromise, _segPromise
 /** Load TF.js once and pick the WebGL backend. */
 function ensureCore() {
   if (!_corePromise) {
-    _corePromise = loadScript(SRC.tf).then(async () => {
-      const tf = window.tf
+    _corePromise = loadScriptOnce(SRC.tf, { globalKey: 'tf' }).then(async (tf) => {
       if (tf?.setBackend) {
         try { await tf.setBackend('webgl'); await tf.ready() } catch { /* cpu fallback */ }
       }
@@ -77,9 +69,9 @@ function ensureFace() {
   if (!_facePromise) {
     _facePromise = (async () => {
       await ensureCore()
-      await loadScript(SRC.mesh)
-      return window.faceLandmarksDetection.createDetector(
-        window.faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh,
+      const fld = await loadScriptOnce(SRC.mesh, { globalKey: 'faceLandmarksDetection' })
+      return fld.createDetector(
+        fld.SupportedModels.MediaPipeFaceMesh,
         { runtime: 'tfjs', refineLandmarks: false, maxFaces: 2 },
       )
     })().catch(err => { _facePromise = null; throw err })
@@ -92,9 +84,9 @@ function ensureSeg() {
   if (!_segPromise) {
     _segPromise = (async () => {
       await ensureCore()
-      await loadScript(SRC.seg)
-      return window.bodySegmentation.createSegmenter(
-        window.bodySegmentation.SupportedModels.MediaPipeSelfieSegmentation,
+      const bs = await loadScriptOnce(SRC.seg, { globalKey: 'bodySegmentation' })
+      return bs.createSegmenter(
+        bs.SupportedModels.MediaPipeSelfieSegmentation,
         // 'landscape' (144×256) is markedly faster than 'general' and plenty
         // accurate for backdrop-whiteness + torso sampling.
         { runtime: 'tfjs', modelType: 'landscape' },

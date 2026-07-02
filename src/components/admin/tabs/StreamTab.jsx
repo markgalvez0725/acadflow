@@ -22,6 +22,7 @@ import { resolveMentions } from '@/utils/mentions'
 import { notifyMention } from '@/firebase/messageNotify'
 import { streamGroupLabel as getGroupLabel, fmtDateTime as formatDate, dayLabel } from '@/utils/format'
 import { courseShort } from '@/constants/courses'
+import { isValidUrl } from '@/utils/validators'
 import useInfiniteFeed from '@/hooks/useInfiniteFeed'
 
 const shimmerStyle = {
@@ -263,13 +264,17 @@ function AnnouncementFormModal({ ann, onClose }) {
     const finalTitle = displayTitle.trim()
     if (!classIds.length) { setErr('Please select at least one class.'); return }
     if (!finalTitle) { setErr('Title is required.'); return }
-    if (type === 'online_class' && meetingLink && !meetingLink.startsWith('http')) { setErr('Meeting link must start with http:// or https://'); return }
-    if (moduleLink && !moduleLink.startsWith('http')) { setErr('Module link must start with http:// or https://'); return }
-    if (type === 'resource_hub' && referenceVideo && !referenceVideo.startsWith('http')) { setErr('Reference video link must start with http:// or https://'); return }
+    if (message.length > 20000) { setErr('Message is too long.'); return }
+    if (type === 'online_class' && meetingLink && !isValidUrl(meetingLink)) { setErr('Meeting link must start with http:// or https://'); return }
+    if (moduleLink && !isValidUrl(moduleLink)) { setErr('Module link must start with http:// or https://'); return }
+    if (type === 'resource_hub' && referenceVideo && !isValidUrl(referenceVideo)) { setErr('Reference video link must start with http:// or https://'); return }
     if (type === 'meeting_topics') {
       const filled = topics.filter(t => t.trim())
       if (!filled.length) { setErr('Add at least one topic.'); return }
+      if (topics.some(t => t.length > 300)) { setErr('Keep each topic under 300 characters.'); return }
     }
+    const exp = expiresAt ? new Date(expiresAt).getTime() : null
+    if (!isEdit && exp != null && (isNaN(exp) || exp <= Date.now())) { setErr('Expiry must be in the future.'); return }
     if (pendingFiles.length && !drive.connected) { setErr('Connect Google Drive to upload the attached files.'); return }
     setSaving(true)
     try {

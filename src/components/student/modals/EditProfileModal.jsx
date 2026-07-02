@@ -79,11 +79,12 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
   const canAuto = !forced && !isPendingVerification(s)
   useEffect(() => {
     if (!canAuto) return
-    if (surChk.state === 'error' || firstChk.state === 'error') return
+    if (surChk.state === 'error' || firstChk.state === 'error' || miChk.state === 'error') return
     const newName = composedName.trim()
     // Compare case-insensitively so simply opening the modal (which uppercases the
     // canonical name) never triggers a write - only a real name change does.
     if (!newName || newName === (s.name || '').toUpperCase()) return
+    if (newName.length > 120) return
     setNameStatus('saving')
     const t = setTimeout(async () => {
       try {
@@ -119,7 +120,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
   async function handleConfirmPassword() {
     setEmailError('')
     const trimEmail = email.trim()
-    if (!trimEmail.includes('@')) { setEmailError('Please enter a valid email address.'); return }
+    if (checkEmail(trimEmail, { required: true }).state !== 'ok') { setEmailError('Please enter a valid email address.'); return }
     if (!confirmPass) { setEmailError('Please enter your current password.'); return }
 
     const dup = students.find(x => x.id !== s.id && x.account?.registered && x.account?.email?.toLowerCase() === trimEmail.toLowerCase())
@@ -231,6 +232,11 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
 
     if (!surname.trim())   { setError('Surname is required.');    return }
     if (!firstName.trim()) { setError('First name is required.'); return }
+    if (surChk.state === 'error' || firstChk.state === 'error' || miChk.state === 'error') {
+      setError((surChk.state === 'error' ? surChk : firstChk.state === 'error' ? firstChk : miChk).msg)
+      return
+    }
+    if (composedName.length > 120) { setError('Name is too long.'); return }
 
     if (photoBlocked) {
       setError(photoRetryable
@@ -452,14 +458,14 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
         {/* Name - kept structured as "Surname, First Middle" */}
         <div className="form-group">
           <label className="form-label">Surname *</label>
-          <input className="input" value={surname} onChange={e => setSurname(e.target.value)} placeholder="e.g. Dela Cruz" />
+          <input className="input" value={surname} onChange={e => setSurname(e.target.value)} placeholder="e.g. Dela Cruz" maxLength={60} />
           <FieldCheck result={surChk} />
         </div>
         <div className="form-group">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="form-label">First Name *</label>
-              <input className="input" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="e.g. Juan" />
+              <input className="input" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="e.g. Juan" maxLength={60} />
               <FieldCheck result={firstChk} />
             </div>
             <div>
@@ -534,6 +540,7 @@ export default function EditProfileModal({ student: s, onClose, forced = false, 
             value={email}
             onChange={e => { setEmail(e.target.value); setEmailStep('idle'); setEmailError('') }}
             placeholder="your@email.com (optional)"
+            maxLength={100}
           />
           <FieldCheck result={emailChk} />
 

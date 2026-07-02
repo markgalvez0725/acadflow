@@ -82,9 +82,13 @@ export default function LoginScreen({ onRevealFaculty }) {
   async function handleStudentLogin(e) {
     e.preventDefault()
     clearMessages()
+    const clean = snum.trim()
+    const snErr = !clean ? 'Student number is required.' : validateSnum(clean)
+    if (snErr) return setErr(snErr)
+    if (!pass) return setErr('Password is required.')
     setLoading(true)
     try {
-      const result = await loginStudent(snum.trim(), pass, keepSignedIn)
+      const result = await loginStudent(clean, pass, keepSignedIn)
       if (!result.ok) {
         setErr(result.msg)
         setPass('')

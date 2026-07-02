@@ -1160,6 +1160,7 @@ export default function MessagesTab() {
       toast('Firebase not connected.', 'red')
       return
     }
+    if (text.length > 3000) { toast('Reply too long - maximum 3000 characters.', 'red'); return }
     // Resolve @mentions against this group's members (empty for a 1:1 thread).
     const mentionCandidates = thread.isGroup ? (thread.members || []).map(m => ({ id: m.id, name: m.name })) : []
     const mentionedIds = resolveMentions(text, mentionCandidates)

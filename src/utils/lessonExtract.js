@@ -4,30 +4,29 @@
 // approach the app already uses for SheetJS and jsPDF), so nothing is bundled
 // up-front and nothing is uploaded anywhere.
 
-const CDN = {
-  pdfjs:   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
-  pdfWorker:'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
-  mammoth: 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js',
-  jszip:   'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
-}
+import { loadScriptOnce, lastGoodUrl } from '@/utils/cdnLoader'
 
-function loadScript(src, globalKey) {
-  return new Promise((resolve, reject) => {
-    if (globalKey && window[globalKey]) return resolve(window[globalKey])
-    const existing = document.querySelector(`script[data-src="${src}"]`)
-    if (existing) {
-      existing.addEventListener('load', () => resolve(window[globalKey]))
-      existing.addEventListener('error', reject)
-      return
-    }
-    const s = document.createElement('script')
-    s.src = src
-    s.async = true
-    s.dataset.src = src
-    s.onload = () => resolve(globalKey ? window[globalKey] : undefined)
-    s.onerror = () => reject(new Error('Failed to load ' + src))
-    document.head.appendChild(s)
-  })
+// Mirror lists, preferred host first. mammoth is pinned to 1.8.0 - the SAME
+// version submissionExtract.js loads - so the two modules never race different
+// releases onto window.mammoth (cacheKeys are shared for the same reason).
+const CDN = {
+  pdfjs: [
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+    'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
+  ],
+  mammoth: [
+    'https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js',
+    'https://unpkg.com/mammoth@1.8.0/mammoth.browser.min.js',
+  ],
+  jszip: [
+    'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
+    'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',
+  ],
+}
+// pdf.js worker paired to whichever host served the library.
+const PDF_WORKERS = {
+  [CDN.pdfjs[0]]: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
+  [CDN.pdfjs[1]]: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
 }
 
 function readArrayBuffer(file) {
@@ -40,8 +39,8 @@ function readArrayBuffer(file) {
 }
 
 async function extractPdf(file) {
-  const pdfjsLib = await loadScript(CDN.pdfjs, 'pdfjsLib')
-  pdfjsLib.GlobalWorkerOptions.workerSrc = CDN.pdfWorker
+  const pdfjsLib = await loadScriptOnce(CDN.pdfjs, { globalKey: 'pdfjsLib', cacheKey: 'pdfjs' })
+  pdfjsLib.GlobalWorkerOptions.workerSrc = PDF_WORKERS[lastGoodUrl('pdfjs')] || PDF_WORKERS[CDN.pdfjs[0]]
   const data = await readArrayBuffer(file)
   const pdf = await pdfjsLib.getDocument({ data }).promise
   let out = ''
@@ -55,14 +54,14 @@ async function extractPdf(file) {
 }
 
 async function extractDocx(file) {
-  const mammoth = await loadScript(CDN.mammoth, 'mammoth')
+  const mammoth = await loadScriptOnce(CDN.mammoth, { globalKey: 'mammoth', cacheKey: 'mammoth' })
   const arrayBuffer = await readArrayBuffer(file)
   const res = await mammoth.extractRawText({ arrayBuffer })
   return res.value || ''
 }
 
 async function extractPptx(file) {
-  const JSZip = await loadScript(CDN.jszip, 'JSZip')
+  const JSZip = await loadScriptOnce(CDN.jszip, { globalKey: 'JSZip' })
   const zip = await JSZip.loadAsync(await readArrayBuffer(file))
   const slideNames = Object.keys(zip.files)
     .filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n))

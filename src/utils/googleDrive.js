@@ -15,6 +15,8 @@
 // Requires VITE_GOOGLE_CLIENT_ID. When unset, isConfigured() is false and the
 // UI shows a "not configured" hint instead of a dead button.
 
+import { loadScriptOnce } from '@/utils/cdnLoader'
+
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 const SCOPE = 'https://www.googleapis.com/auth/drive.file'
 const ROOT_NAME = 'AcadFlow'
@@ -24,7 +26,6 @@ const LS_EMAIL = 'gdrive_email'
 const SS_TOKEN = 'gdrive_token' // sessionStorage: { access_token, expires_at }
 const DIR_PREFIX = 'gdrive_dir:' // + `${parentId}/${name}` -> folderId
 
-let _gisPromise = null
 let _tokenClient = null
 
 // The access token is cached in sessionStorage (not just memory) so a page
@@ -59,16 +60,12 @@ export function getConnection() {
 }
 
 function loadGis() {
-  if (_gisPromise) return _gisPromise
-  _gisPromise = new Promise((resolve, reject) => {
-    if (window.google?.accounts?.oauth2) { resolve(); return }
-    const s = document.createElement('script')
-    s.src = GSI_SRC; s.async = true; s.defer = true
-    s.onload = () => resolve()
-    s.onerror = () => reject(new Error('Could not load Google sign-in.'))
-    document.head.appendChild(s)
-  })
-  return _gisPromise
+  // loadScriptOnce never caches a failure, so a blocked/offline first attempt
+  // retries on the next call (the old promise cached its rejection forever)
+  // and a stalled CDN now times out instead of hanging. No mirror exists for
+  // Google Identity Services - it must come from accounts.google.com.
+  return loadScriptOnce(GSI_SRC, { globalKey: 'google' })
+    .catch(() => { throw new Error('Could not load Google sign-in.') })
 }
 
 async function getTokenClient() {

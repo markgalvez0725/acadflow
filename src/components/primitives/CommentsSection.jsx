@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { useData } from '@/context/DataContext'
+import { useUI } from '@/context/UIContext'
 import { MessageSquare, CornerDownRight, Send, X, MoreHorizontal, Check } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 import VerifiedBadge from '@/components/primitives/VerifiedBadge'
@@ -35,6 +36,7 @@ function EditRow({ value, onChange, onSave, onCancel, saving, candidates, small 
 
 export default function CommentsSection({ ann, authorId, authorName, role, compact = false, previewCount = 0, composerRef = null }) {
   const { addAnnouncementComment, addCommentReply, editAnnouncementComment, deleteAnnouncementComment, editCommentReply, deleteCommentReply, students = [], admin, db } = useData()
+  const { toast } = useUI()
   const allComments = ann.comments || []
 
   // On a post shared to several classes, a STUDENT only sees comments from their
@@ -124,8 +126,11 @@ export default function CommentsSection({ ann, authorId, authorName, role, compa
     if (replyTo && replyRef.current) replyRef.current.focus()
   }, [replyTo])
 
+  const MAX = 2000
+
   async function handlePost() {
     if (!text.trim()) return
+    if (text.length > MAX) { toast(`Comment too long - maximum ${MAX} characters.`, 'warn'); return }
     setPosting(true)
     try {
       const comment = { id: 'c_' + uuidv4(), authorId, authorName, role, authorClassIds: myAuthorClassIds(), text: text.trim(), createdAt: Date.now(), replies: [] }
@@ -140,6 +145,7 @@ export default function CommentsSection({ ann, authorId, authorName, role, compa
 
   async function handleReply(commentId) {
     if (!replyText.trim()) return
+    if (replyText.length > MAX) { toast(`Comment too long - maximum ${MAX} characters.`, 'warn'); return }
     setReplyPosting(true)
     try {
       const reply = { id: 'r_' + uuidv4(), authorId, authorName, role, authorClassIds: myAuthorClassIds(), text: replyText.trim(), createdAt: Date.now() }
@@ -166,6 +172,7 @@ export default function CommentsSection({ ann, authorId, authorName, role, compa
   async function saveEdit() {
     const text = editText.trim()
     if (!text || !editing) return
+    if (text.length > MAX) { toast(`Comment too long - maximum ${MAX} characters.`, 'warn'); return }
     setEditSaving(true)
     try {
       if (editing.replyId) await editCommentReply(ann.id, editing.commentId, editing.replyId, text)

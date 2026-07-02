@@ -1387,6 +1387,7 @@ export function DataProvider({ children }) {
     const ids = student.classIds?.length ? student.classIds : (student.classId ? [student.classId] : [])
     const session = attendanceSessions.find(s => s.status === 'open' && s.code === c && ids.includes(s.classId))
     if (!session) throw new Error('That code is not valid or the session has closed.')
+    if (session.date !== new Date().toLocaleDateString('en-CA')) throw new Error('That session was for a previous day and has expired.')
     if (session.checkedIn?.[student.id]) return session
     const updated = students.map(s => {
       if (s.id !== student.id) return s

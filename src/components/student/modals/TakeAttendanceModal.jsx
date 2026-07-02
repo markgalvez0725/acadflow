@@ -21,7 +21,7 @@ export default function TakeAttendanceModal({ classId, subject, onClose }) {
     [students, classId]
   )
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = new Date().toLocaleDateString('en-CA')
   const todayLabel = new Date(today + 'T00:00:00').toLocaleDateString('en-PH', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   })

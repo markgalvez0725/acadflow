@@ -30,7 +30,7 @@ function isKnownCourse(course) {
  * @param {{ classes?: object[], students?: object[] }} ctx
  * @returns {Object<number,string[]>} rowIndex → list of warning messages
  */
-export function verifyImportRows(rows, { classes = [] } = {}) {
+export function verifyImportRows(rows, { classes = [], students = [] } = {}) {
   const out = {}
   const activeClasses = (classes || []).filter(c => !c.archived)
   const hasActive = activeClasses.length > 0
@@ -86,6 +86,20 @@ export function verifyImportRows(rows, { classes = [] } = {}) {
     const key = norm(r.name)
     if (key && nameFirstSeen[key] !== i) {
       msgs.push(`Same name as row ${nameFirstSeen[key] + 2} - possible duplicate.`)
+    }
+
+    // 7) Exact-name match against the live roster (homonyms are legitimate,
+    //    so this stays advisory - the Add modal is the hard gate).
+    if (key && students.some(s => (s.name || '').toLowerCase() === key)) {
+      msgs.push('A student with this exact name is already on the roster - possible duplicate.')
+    }
+
+    // 8) Birth date / mobile shape - typical Excel export mishaps.
+    if (r.dob && (isNaN(new Date(r.dob).getTime()) || /^\d{5}$/.test(String(r.dob).trim()))) {
+      msgs.push('Birth date looks invalid - check for Excel serial numbers.')
+    }
+    if (r.mobile && !/^[\d+()\s\u002d]{7,15}$/.test(r.mobile)) {
+      msgs.push('Mobile number looks invalid.')
     }
 
     if (msgs.length) out[i] = msgs

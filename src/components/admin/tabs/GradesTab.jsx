@@ -11,6 +11,7 @@ import { exportGradingSheet, parseGradingSheetImport, exportCurrentGrades } from
 import { verifyGradeRows } from '@/utils/gradeImportVerifySmart'
 import { makeHistoryEntry, appendGradeHistory, deriveQuizzes } from '@/utils/gradeEngine'
 import { classTag, courseShort } from '@/utils/groupChat'
+import { clampScore } from '@/utils/validators'
 import { pushStudentNotif } from '@/firebase/studentNotif'
 import Modal from '@/components/primitives/Modal'
 import Pagination from '@/components/primitives/Pagination'
@@ -136,6 +137,12 @@ function GradeEntryModal({ classId, subject, onClose }) {
 
   // Build initial row values from existing student data + activities panel
   const initRows = useMemo(() => {
+    // Legacy values are normalized through clampScore at LOAD time: data saved
+    // before range validation existed can sit outside a column's range, and
+    // letting it trip the invalid gate would block saving rows the professor
+    // never touched. Numeric out-of-range clamps; non-numeric garbage stays
+    // visible so the invalid badge can flag it.
+    const loadClamp = (v, max = 100) => (v === '' || v == null) ? '' : String(clampScore(v, max))
     return studs.map(s => {
       const comp = s.gradeComponents?.[subject] || {}
 
@@ -143,10 +150,10 @@ function GradeEntryModal({ classId, subject, onClose }) {
       const actInputs = actCols.map(c => {
         if (c.act) {
           const sc = (c.act.submissions || {})[s.id]?.score
-          if (sc != null) return String(sc)
+          if (sc != null) return loadClamp(sc, c.max || 100)
         }
         const v = comp.activityScores?.[c.key]
-        return v != null ? String(v) : ''
+        return v != null ? loadClamp(v, c.max || 100) : ''
       })
 
       // Compute activity avg from inputs (normalized by each activity's maxScore)
@@ -166,7 +173,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
           }
         }
         const v = qzScoresMap[c.key]
-        return v != null ? String(v) : ''
+        return v != null ? loadClamp(v) : ''
       })
       const qzNums = qzInputs.map(v => toNum(v)).filter(v => v !== null)
       const qzAvg  = qzNums.length > 0
@@ -193,10 +200,10 @@ function GradeEntryModal({ classId, subject, onClose }) {
         actAvg,      // computed avg of actInputs
         qzInputs,    // per-quiz score strings
         qzAvg,       // computed avg of qzInputs (fallback to stored quizzes avg)
-        attitude: comp.attitude != null ? String(comp.attitude) : '',
-        midtermExam: String(mid),
-        finalsExam:  String(fin),
-        finalGrade: s.grades?.[subject] != null ? String(s.grades[subject]) : '',
+        attitude: comp.attitude != null ? loadClamp(comp.attitude) : '',
+        midtermExam: loadClamp(mid),
+        finalsExam:  loadClamp(fin),
+        finalGrade: s.grades?.[subject] != null ? loadClamp(s.grades[subject]) : '',
         attRate,
         held,
         attSize: attSet.size,
@@ -308,11 +315,13 @@ function GradeEntryModal({ classId, subject, onClose }) {
     return { ...r, actAvg: round2(actAvg), qzAvg: round2(qzAvg), finalGrade: fg, equivPreview }
   }
 
-  const clampGrade = val => {
+  // Clamp a score string to [0, max] via the shared clampScore rule. Blank stays
+  // blank (blank = not graded) and non-numeric text passes through untouched so
+  // the validation badge can flag it instead of silently coercing.
+  const clampGrade = (val, max = 100) => {
     if (val === '' || val === null || val === undefined) return val
-    const n = parseFloat(val)
-    if (isNaN(n)) return val
-    return String(Math.min(100, Math.max(0, n)))
+    const c = clampScore(val, max)
+    return typeof c === 'number' ? String(c) : val
   }
 
   // Record which student a row edit touched, so autosave writes ONLY changed
@@ -325,7 +334,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
     markRowDirty(rowIdx)
     setRows(prev => prev.map((r, i) => {
       if (i !== rowIdx) return r
-      const actInputs = r.actInputs.map((v, j) => j === actIdx ? clampGrade(val) : v)
+      const actInputs = r.actInputs.map((v, j) => j === actIdx ? clampGrade(val, actCols[actIdx]?.max || 100) : v)
       return recomputeRow({ ...r, actInputs })
     }))
   }, [eqScale]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -388,10 +397,11 @@ function GradeEntryModal({ classId, subject, onClose }) {
       const comp = { ...(ns.gradeComponents[subject] || {}) }
 
       // Recompute component percentages at full precision from the row inputs
-      // (activities normalized by each activity's maxScore).
-      const actPct    = actAvgFromInputs(r.actInputs)
+      // (activities normalized by each activity's maxScore). Percentages are
+      // clamped to 0-100 before entering the canonical computation.
+      const actPct    = clamp(actAvgFromInputs(r.actInputs))
       const qzNums    = r.qzInputs.map(v => toNum(v)).filter(v => v !== null)
-      const qzPct     = qzNums.length ? qzNums.reduce((a, b) => a + b, 0) / qzNums.length : null
+      const qzPct     = qzNums.length ? clamp(qzNums.reduce((a, b) => a + b, 0) / qzNums.length) : null
       const attitudeV = clamp(toNum(r.attitude))
       const midExamV  = clamp(toNum(r.midtermExam))
       const finExamV  = clamp(toNum(r.finalsExam))
@@ -417,7 +427,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
       const actScoresMap = {}
       actCols.forEach((c, idx) => {
         const sc = toNum(r.actInputs[idx])
-        if (sc != null) actScoresMap[c.key] = sc
+        if (sc != null) actScoresMap[c.key] = Math.min(c.max || 100, Math.max(0, sc))
       })
       if (Object.keys(actScoresMap).length) comp.activityScores = actScoresMap
       else delete comp.activityScores
@@ -464,6 +474,10 @@ function GradeEntryModal({ classId, subject, onClose }) {
 
   // Manual save - persists, audits, notifies students, then closes the modal.
   async function handleSave() {
+    if (validation.invalid > 0) {
+      toast(`Fix ${validation.invalid} out-of-range value${validation.invalid === 1 ? '' : 's'} first.`, 'red')
+      return
+    }
     setSaving(true)
     if (autoTimerRef.current) { clearTimeout(autoTimerRef.current); autoTimerRef.current = null }
     const updatedStudents = buildUpdatedStudents(true)
@@ -512,6 +526,9 @@ function GradeEntryModal({ classId, subject, onClose }) {
   // kept in a ref so the debounce timer always calls the latest closure.
   autoSaveRef.current = async () => {
     if (!dirtyRef.current || saving || savingInFlightRef.current) return
+    // Never quietly persist out-of-range values; dirty ids are kept so the
+    // save retries as soon as the flagged cells are corrected.
+    if (validation.invalid > 0) return
     // Per-cell edits tracked their own student ids, so write ONLY those instead
     // of re-uploading the whole roster on every keystroke. Bulk paths (e.g. a
     // grade import) flag dirtyRef but don't enumerate ids, so fall back to the
@@ -638,23 +655,27 @@ function GradeEntryModal({ classId, subject, onClose }) {
 
   // ── Missing / invalid grade detector - pure validation over current rows ────
   const validation = useMemo(() => {
-    const badNum = v => {
+    const badNum = (v, max = 100) => {
       if (v === '' || v === null || v === undefined) return false
       const n = parseFloat(v)
-      return isNaN(n) || n < 0 || n > 100
+      return isNaN(n) || n < 0 || n > max
     }
     let missing = 0, invalid = 0
     const rowFlags = rows.map(r => {
       if (!r) return { missing: false, invalid: false }
-      const vals = [...r.actInputs, ...r.qzInputs, r.attitude, r.midtermExam, r.finalsExam, r.finalGrade]
-      const isInvalid = vals.some(badNum)
+      // Activity inputs validate against their own column max (rubric activities
+      // can legitimately exceed 100); everything else stays 0-100.
+      const isInvalid =
+        r.actInputs.some((v, i) => badNum(v, actCols[i]?.max || 100)) ||
+        r.qzInputs.some(v => badNum(v)) ||
+        [r.attitude, r.midtermExam, r.finalsExam, r.finalGrade].some(v => badNum(v))
       const isMissing = String(r.finalGrade).trim() === '' && toNum(r.midtermExam) === null && toNum(r.finalsExam) === null
       if (isInvalid) invalid++
       if (isMissing) missing++
       return { missing: isMissing, invalid: isInvalid }
     })
     return { missing, invalid, rowFlags }
-  }, [rows])
+  }, [rows, actCols])
 
   // ── CSV / paste-in ──────────────────────────────────────────────────────────
   // Paste two columns ("id-or-name <tab|comma|2+ spaces> score" per line) and
@@ -671,8 +692,18 @@ function GradeEntryModal({ classId, subject, onClose }) {
       const n = parseFloat(parts[parts.length - 1])
       if (isNaN(n)) return
       const key = parts.slice(0, parts.length - 1).join(' ').toLowerCase()
-      const mi = idx.findIndex(s => s.id === key || (key.length >= 3 && s.name.includes(key)))
-      out.push({ key, score: n, idx: mi })
+      // An exact student-id match wins outright; otherwise collect ALL name
+      // matches - a key that fits more than one student is ambiguous and stays
+      // unapplied instead of silently landing on the first roster hit.
+      let mi = idx.findIndex(s => s.id === key)
+      let ambiguous = false
+      if (mi === -1 && key.length >= 3) {
+        const hits = []
+        idx.forEach((s, i) => { if (s.name.includes(key)) hits.push(i) })
+        if (hits.length === 1) mi = hits[0]
+        else if (hits.length > 1) ambiguous = true
+      }
+      out.push({ key, score: n, idx: mi, ambiguous })
       if (mi >= 0) matched++
     })
     return { rows: out, matched, total: out.length }
@@ -701,7 +732,13 @@ function GradeEntryModal({ classId, subject, onClose }) {
       const wb = XLSX.read(buf, { type: 'array' })
       const records = parseGradingSheetImport(wb)
       const recById = {}
-      records.forEach(rec => { recById[String(rec.studentId).toLowerCase()] = rec })
+      let dupIds = 0
+      records.forEach(rec => {
+        const k = String(rec.studentId).toLowerCase()
+        if (recById[k]) dupIds++
+        recById[k] = rec
+      })
+      if (dupIds) toast(`The file lists ${dupIds} duplicate student id${dupIds === 1 ? '' : 's'} - the last row for each was applied.`, 'warn')
 
       // Widen the grid if the file carries more activity/quiz columns than are
       // currently shown (e.g. "+ Activity" extras) so none are silently dropped.
@@ -724,19 +761,33 @@ function GradeEntryModal({ classId, subject, onClose }) {
         if (!rec) return r
         matched++
         const nr = { ...r }
+        // Every applied value goes through clampGrade (exactly as applyPaste
+        // does) so a bad file cell can never persist an out-of-range score.
         if (Array.isArray(rec.actScores) && rec.actScores.length) {
           const base = r.actInputs.slice()
           while (base.length < needAct) base.push('')
-          nr.actInputs = base.map((v, idx) => (rec.actScores[idx] != null ? String(rec.actScores[idx]) : v))
+          nr.actInputs = base.map((v, idx) => {
+            if (rec.actScores[idx] == null) return v
+            const col = actCols[idx]
+            // App-managed activity columns are EXPORTED as percentages of the
+            // activity's maxScore (gradingSheet.js appActPct), so convert back
+            // to a raw score before clamping. Manual extra columns carry raw
+            // scores already. Non-numeric cells pass through so the invalid
+            // badge flags them instead of silently rewriting.
+            const cell = rec.actScores[idx]
+            const pct = parseFloat(cell)
+            const raw = (col?.act && !isNaN(pct)) ? Math.round((pct / 100) * (col.max || 100) * 100) / 100 : cell
+            return clampGrade(String(raw), col?.max || 100)
+          })
         }
         if (Array.isArray(rec.qzScores) && rec.qzScores.length) {
           const base = r.qzInputs.slice()
           while (base.length < needQz) base.push('')
-          nr.qzInputs = base.map((v, idx) => (rec.qzScores[idx] != null ? String(rec.qzScores[idx]) : v))
+          nr.qzInputs = base.map((v, idx) => (rec.qzScores[idx] != null ? clampGrade(String(rec.qzScores[idx])) : v))
         }
-        if (rec.attitude != null) nr.attitude = String(rec.attitude)
-        if (rec.mtExam != null) nr.midtermExam = String(rec.mtExam)
-        if (rec.ftExam != null) nr.finalsExam = String(rec.ftExam)
+        if (rec.attitude != null) nr.attitude = clampGrade(String(rec.attitude))
+        if (rec.mtExam != null) nr.midtermExam = clampGrade(String(rec.mtExam))
+        if (rec.ftExam != null) nr.finalsExam = clampGrade(String(rec.ftExam))
         return recomputeRow(nr)
       }))
       toast(`Imported scores for ${matched} student${matched === 1 ? '' : 's'}.`, 'green')
@@ -810,7 +861,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
             {autoStatus === 'saving' ? 'Saving…' : autoStatus === 'saved' ? <><Check size={12} className="inline-block align-text-bottom" style={{ color: 'var(--green)' }} /> Saved</> : ''}
           </span>
           {validation.invalid > 0 && (
-            <span className="badge badge-red" title="Values outside 0-100">{validation.invalid} invalid</span>
+            <span className="badge badge-red" title="Values outside the allowed range">{validation.invalid} invalid</span>
           )}
           {validation.missing > 0 && (
             <span className="badge badge-yellow" title="No exam scores and no final grade yet">{validation.missing} no grade</span>
@@ -864,7 +915,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
                   {r.actInputs.map((val, ai) => (
                     <label key={`a${ai}`} className="text-xs" style={{ width: 84 }}>
                       <span className="text-ink3" title={actCols[ai]?.label || `Activity ${ai + 1}`}>{(actCols[ai]?.label || `Act ${ai + 1}`).slice(0, 8)}</span>
-                      <input className="grade-input" type="number" min="0" max="100" value={val} placeholder="-" onChange={e => updateActInput(i, ai, e.target.value)} />
+                      <input className="grade-input" type="number" min="0" max={actCols[ai]?.max || 100} value={val} placeholder="-" onChange={e => updateActInput(i, ai, e.target.value)} />
                     </label>
                   ))}
                   {r.qzInputs.map((val, qi) => (
@@ -950,7 +1001,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
                 <tr key={s.id}>
                   <td style={{ minWidth: 160, position: 'sticky', left: 0, zIndex: 1, background: 'var(--surface)', boxShadow: '2px 0 4px -1px var(--border)', borderLeft: `3px solid ${flagBorder}` }}>
                     <strong>{s.name}</strong>
-                    {vf.invalid && <span className="badge badge-red ml-1" style={{ fontSize: 9, padding: '0 4px' }} title="Has a value outside 0-100">!</span>}
+                    {vf.invalid && <span className="badge badge-red ml-1" style={{ fontSize: 9, padding: '0 4px' }} title="Has a value outside the allowed range">!</span>}
                     {!vf.invalid && vf.missing && <span className="badge badge-yellow ml-1" style={{ fontSize: 9, padding: '0 4px' }} title="No grade entered yet">-</span>}
                     <br />
                     <small className="text-ink2">{s.id}</small>
@@ -958,7 +1009,7 @@ function GradeEntryModal({ classId, subject, onClose }) {
                   {/* Per-activity inputs */}
                   {r.actInputs.map((val, ai) => (
                     <td key={ai}>
-                      <input className="grade-input" type="number" min="0" max="100"
+                      <input className="grade-input" type="number" min="0" max={actCols[ai]?.max || 100}
                         data-cell={`${i}-${ai}`}
                         value={val} placeholder="-"
                         title={actCols[ai]?.label || `Activity ${ai + 1}`}
@@ -1123,6 +1174,20 @@ function GradeEntryModal({ classId, subject, onClose }) {
             <div className="text-xs mt-1" style={{ color: pastePreview.matched > 0 ? 'var(--green)' : 'var(--red)' }}>
               {pastePreview.matched} of {pastePreview.total} line{pastePreview.total === 1 ? '' : 's'} matched a student
               {pastePreview.total > pastePreview.matched && <span className="text-ink3"> · {pastePreview.total - pastePreview.matched} unmatched (ignored)</span>}
+            </div>
+          )}
+          {pasteText.trim() !== '' && pastePreview.rows.length > 0 && (
+            <div className="text-xs mt-1" style={{ maxHeight: 130, overflowY: 'auto' }}>
+              {pastePreview.rows.map((p, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '1px 0' }}>
+                  <span className="text-ink3" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.key}</span>
+                  <span style={{ whiteSpace: 'nowrap', color: p.idx >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                    {p.idx >= 0
+                      ? <>→ {studs[p.idx]?.name} · {p.score}</>
+                      : p.ambiguous ? 'matches several students - skipped' : 'no match'}
+                  </span>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -1881,7 +1946,13 @@ export default function GradesTab() {
   async function applyGradeImport(preview) {
     const { sub, entries } = preview
     const now      = Date.now()
-    const entryMap = Object.fromEntries(entries.map(en => [String(en.studentId).toLowerCase(), en]))
+    // First occurrence wins, matching the row verifyGradeRows canonicalized in
+    // the preview (later duplicates only carry the "appears more than once" flag).
+    const entryMap = {}
+    entries.forEach(en => {
+      const k = String(en.studentId).toLowerCase()
+      if (!(k in entryMap)) entryMap[k] = en
+    })
     const clampV   = v => (v !== null && v !== undefined && !isNaN(v)) ? Math.min(100, Math.max(0, v)) : null
 
     const updatedStudents = students.map(s => {
@@ -1904,14 +1975,14 @@ export default function GradesTab() {
       if (extraAct.some(v => v != null)) {
         const map = {}
         Object.entries(comp.activityScores || {}).forEach(([k, v]) => { if (!/^x\d+$/.test(k)) map[k] = v })
-        extraAct.forEach((v, i) => { if (v != null) map[`x${i + 1}`] = v })
+        extraAct.forEach((v, i) => { const c = clampV(v); if (c != null) map[`x${i + 1}`] = c })
         comp.activityScores = map
       }
       const extraQz = (entry.qzScores || []).slice(entry.nAppQz || 0)
       if (extraQz.some(v => v != null)) {
         const map = {}
         Object.entries(comp.quizScores || {}).forEach(([k, v]) => { if (!/^xq\d+$/.test(k)) map[k] = v })
-        extraQz.forEach((v, i) => { if (v != null) map[`xq${i + 1}`] = v })
+        extraQz.forEach((v, i) => { const c = clampV(v); if (c != null) map[`xq${i + 1}`] = c })
         comp.quizScores = map
       }
 

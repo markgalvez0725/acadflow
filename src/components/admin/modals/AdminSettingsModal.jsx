@@ -7,7 +7,7 @@ import GoogleDriveTab from '@/components/admin/settings/GoogleDriveTab'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 import SemesterCalendarChip from '@/components/primitives/SemesterCalendarChip'
 import FieldCheck, { SaveStatus, SmartCheckTag } from '@/components/primitives/FieldCheck'
-import { checkEmail, checkPassword, checkMatch, checkPin, checkAcademicYear, checkDateOrder } from '@/utils/settingsVerify'
+import { checkEmail, checkNewPassword, checkMatch, checkPin, checkAcademicYear, checkDateOrder, checkRequiredName, errV } from '@/utils/settingsVerify'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { encryptFbConfig } from '@/utils/crypto'
@@ -92,6 +92,10 @@ function SemesterTab() {
   async function handleSave(e) {
     e.preventDefault()
     if (!year.trim()) { toast('Academic year is required (e.g. 2025-2026).', 'warn'); return }
+    // Re-check at submit time (error states only - the year format check stays
+    // deliberately lenient at warn level).
+    const d = checkDateOrder(startDate, endDate)
+    if (d.state === 'error') { toast(d.msg, 'warn'); return }
     setSaving(true)
     try {
       const sem = {
@@ -219,7 +223,8 @@ function CredentialsTab() {
 
   // Smart-check results (on-device, deterministic).
   const emailChk = checkEmail(email, { required: true })
-  const passChk  = checkPassword(newPass)
+  const nameChk  = name.trim() ? checkRequiredName(name, 'Name') : errV('Name is required.')
+  const passChk  = checkNewPassword(newPass, { current: curPass })
   const matchChk = checkMatch(newPass, confPass, 'Passwords')
   const pinChk   = checkPin(pin)
   const pinMatch = checkMatch(pin, pinConf, 'PINs')
@@ -241,10 +246,14 @@ function CredentialsTab() {
     return () => clearTimeout(t)
   }, [email]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-save the professor name once it changes (debounced).
+  // Auto-save the professor name once it changes (debounced). Gated on the
+  // same smart-check the field renders, mirroring the email auto-save above.
   useEffect(() => {
     const v = name.trim()
     if (v === (admin.name || '')) return
+    // Reset the indicator when bailing: a prior keystroke may have already set
+    // it to 'saving', which would otherwise stick while nothing saves.
+    if (nameChk.state === 'error') { setNameStatus('idle'); return }
     setNameStatus('saving')
     const t = setTimeout(async () => {
       try {
@@ -281,6 +290,8 @@ function CredentialsTab() {
     if (!ok) { toast('Current password is incorrect.', 'error'); return }
     if (newPass !== confPass) { toast('New passwords do not match.', 'error'); return }
     if (newPass.length < 8) { toast('Password must be at least 8 characters.', 'warn'); return }
+    if (!/[A-Z]/.test(newPass) || !/[0-9]/.test(newPass)) { toast('Password must include at least one uppercase letter and one number.', 'warn'); return }
+    if (newPass === curPass) { toast('New password must differ from your current password.', 'warn'); return }
     setSaving(true)
     const hashed = await hashPassword(newPass)
     await saveAdmin({ ...admin, pass: hashed })
@@ -326,6 +337,7 @@ function CredentialsTab() {
               placeholder="Prof. Maria Santos"
               maxLength={80}
             />
+            <FieldCheck result={nameChk} />
             <input ref={photoRef} type="file" accept="image/png,image/jpeg" onChange={handlePhoto} style={{ display: 'none' }} />
             <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => photoRef.current?.click()}>
@@ -438,7 +450,7 @@ function EquivScaleTab() {
   // Candidate scale = edited minimums merged onto the live tiers (eq/ltr/rem).
   // Validated through the GRADING engine's own validator so the smart check stays
   // in sync with how grades are actually computed and looked up.
-  const candidateScale = scores.map((s, i) => ({ ...eqScale[i], minScore: parseFloat(s) || 0 }))
+  const candidateScale = scores.map((s, i) => ({ ...eqScale[i], minScore: parseFloat(s) }))
   const descChk = validateEqScale(candidateScale)
 
   function handleChange(i, val) {
@@ -456,7 +468,9 @@ function EquivScaleTab() {
   }
 
   async function handleSetDefault() {
-    const parsed = scores.map((s, i) => ({ ...eqScale[i], minScore: parseFloat(s) || 0 }))
+    const parsed = scores.map((s, i) => ({ ...eqScale[i], minScore: parseFloat(s) }))
+    const v = validateEqScale(parsed)
+    if (v.state === 'error') { toast(v.msg, 'warn'); return }
     setSettingDefault(true)
     try {
       localStorage.setItem('cp_eq_user_default', JSON.stringify(parsed))
