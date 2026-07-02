@@ -1038,13 +1038,15 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
               <button className={`mr-ctl${camOn ? '' : ' mr-ctl-off'}`} onClick={toggleCam} title={camOn ? 'Turn camera off' : 'Turn camera on'}>
                 {camOn ? <Video size={18} /> : <VideoOff size={18} />}
               </button>
-              {/* Present is ALWAYS visible (students share too). Browsers
-                  without screen capture (iPhone/iPad, some tablets) get an
-                  explanation instead of a mysteriously missing button. */}
+              {/* Present is ALWAYS visible (students share too). NO phone or
+                  tablet browser can capture the screen (Chrome intentionally
+                  hides getDisplayMedia on Android, iOS never had it - only
+                  native apps can), so phones get a dimmed button with an
+                  explanation instead of a mysteriously missing one. */}
               <button
                 className={`mr-ctl${sharing ? ' mr-ctl-on' : ''}${canShare ? '' : ' mr-ctl-dim'}`}
-                onClick={sharing ? stopShare : canShare ? startShare : () => toast('Screen sharing is not supported in this browser. Use Chrome, Edge, or Safari on a computer - Chrome on Android also works.', 'error', 6000)}
-                title={sharing ? 'Stop presenting' : canShare ? 'Present your screen' : 'Screen sharing needs a computer browser (or Chrome on Android)'}
+                onClick={sharing ? stopShare : canShare ? startShare : () => toast('Phones and tablets cannot share their screen from the browser - no mobile browser allows it. To present, join the class from a computer using Chrome, Edge, or Safari.', 'error', 6000)}
+                title={sharing ? 'Stop presenting' : canShare ? 'Present your screen' : 'Presenting needs a computer - phone browsers cannot capture the screen'}
               >
                 <MonitorUp size={18} />
               </button>
