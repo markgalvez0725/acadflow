@@ -5874,28 +5874,52 @@ html[data-glass="on"][data-theme="dark"] body::before {
     flex: 1;
     min-height: 0;
     display: flex;
+    flex-direction: row;
+    gap: 10px;
+  }
+  .mr-main {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    display: flex;
     flex-direction: column;
   }
 
-  /* Normal call: tile widths are COMPUTED in MeetingRoom (fitTiles) so
-     everyone always fits on screen - the stage never scrolls, and a
-     near-empty room never becomes a wall-sized camera (420px cap). */
+  /* Meet-style fill: MeetingRoom picks the column count, flex stretches the
+     cells so the grid consumes the WHOLE stage (a last row with fewer people
+     gets wider tiles). Video covers its cell; portrait phone feeds render
+     sharp over a blurred echo of themselves instead of being crop-zoomed. */
   .mr-stage {
     flex: 1;
     min-height: 0;
     overflow: hidden;
     display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-items: center;
-    align-content: center;
-    gap: 10px;
-    padding: 8px;
+    flex-direction: column;
+    gap: 8px;
+    padding: 4px 0;
   }
-  /* Cells fix the ROW HEIGHT; each tile derives its own width from its real
-     frame shape (16:9 laptops, portrait phones), so nobody gets crop-zoomed. */
-  .mr-cell { flex: 0 0 auto; }
-  .mr-cell .mr-tile { height: 100%; width: auto; }
+  .mr-row {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    gap: 8px;
+  }
+  .mr-row .mr-tile {
+    flex: 1 1 0;
+    width: auto;
+    height: 100%;
+    min-width: 0;
+  }
+  .mr-video-blur {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: blur(22px) brightness(0.55);
+    transform: scale(1.3);
+  }
+  .mr-video-fit { position: relative; object-fit: contain; }
   .mr-more-count { font-size: 19px; font-weight: 700; color: #e8eaed; }
   .mr-strip .mr-tile-more { width: 132px; flex-shrink: 0; }
   .mr-strip .mr-more-count { font-size: 14px; }
@@ -5927,14 +5951,20 @@ html[data-glass="on"][data-theme="dark"] body::before {
   }
   .mr-strip .mr-tile {
     height: 74px;
-    width: auto;
+    width: 132px;
     flex-shrink: 0;
     border-radius: 8px;
   }
   .mr-strip .mr-avatar-circle { width: 30px; height: 30px; font-size: 11px; }
-  .mr-strip .mr-tile-name { font-size: 9.5px; left: 6px; bottom: 4px; }
+  .mr-strip .mr-tile-name { font-size: 9.5px; left: 4px; bottom: 4px; padding: 1px 6px; }
   .mr-strip .mr-tile-prof { display: none; }
+  .mr-strip .mr-tile-top { top: 4px; left: 4px; }
+  .mr-strip .mr-hand-badge { width: 18px; height: 18px; }
+  .mr-strip .mr-hand-badge svg { width: 10px; height: 10px; }
+  .mr-strip .mr-tile-acts button { width: 22px; height: 22px; }
   .mr-tile-presenting { outline: 2px solid #8ab4f8; outline-offset: -2px; }
+  .mr-tile-speaking { outline: 2px solid #7f77dd; outline-offset: -2px; }
+  .mr-tile-hand { outline: 2px solid #fbbc04; outline-offset: -2px; }
 
   .mr-tile {
     position: relative;
@@ -5979,21 +6009,36 @@ html[data-glass="on"][data-theme="dark"] body::before {
   .mr-tile-bad { color: #fdd663; }
   .mr-tile-name {
     position: absolute;
-    left: 10px;
-    bottom: 7px;
-    max-width: calc(100% - 20px);
+    left: 8px;
+    bottom: 6px;
+    max-width: calc(100% - 16px);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     font-size: 11.5px;
     font-weight: 600;
     color: #fff;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+    background: rgba(0, 0, 0, 0.42);
+    border-radius: 999px;
+    padding: 2px 9px;
+  }
+  .mr-tile-name svg { flex: none; }
+  .mr-tile-name span {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
   }
-  .mr-tile-prof {
+  /* Top-left badge row: PROF + raised hand. */
+  .mr-tile-top {
     position: absolute;
     top: 8px;
-    right: 8px;
+    left: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    z-index: 2;
+  }
+  .mr-tile-prof {
     font-size: 9px;
     font-weight: 800;
     letter-spacing: 0.06em;
@@ -6002,10 +6047,60 @@ html[data-glass="on"][data-theme="dark"] body::before {
     border-radius: 4px;
     padding: 2px 6px;
   }
+  .mr-hand-badge {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: none;
+    background: #fbbc04;
+    color: #202124;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex: none;
+  }
+  .mr-hand-badge:disabled { cursor: default; }
+  .mr-hand-badge-self {
+    position: absolute;
+    left: 6px;
+    top: 6px;
+    width: 22px;
+    height: 22px;
+    z-index: 2;
+  }
+  /* Hover actions (pin) - always visible while pinned so touch can unpin. */
+  .mr-tile-acts {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 3;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    display: flex;
+    gap: 6px;
+  }
+  .mr-tile:hover .mr-tile-acts,
+  .mr-tile-acts:focus-within { opacity: 1; }
+  .mr-tile-presenting .mr-tile-acts { opacity: 1; }
+  .mr-tile-acts button {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0, 0, 0, 0.55);
+    color: #e8eaed;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .mr-tile-acts button:hover { background: rgba(0, 0, 0, 0.78); }
   .mr-mic-off {
     position: absolute;
     right: 8px;
-    bottom: 7px;
+    top: 8px;
     width: 24px;
     height: 24px;
     border-radius: 50%;
@@ -6014,6 +6109,7 @@ html[data-glass="on"][data-theme="dark"] body::before {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    z-index: 2;
   }
 
   /* Floating self-view - your camera never takes a stage tile. */
@@ -6087,6 +6183,276 @@ html[data-glass="on"][data-theme="dark"] body::before {
   }
   .mr-shield-warn button:hover { background: rgba(251, 188, 4, 0.12); }
 
+  /* Reactions bar (toggled by the smiley control). */
+  .mr-react-bar {
+    position: absolute;
+    bottom: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 8;
+    display: flex;
+    gap: 4px;
+    background: #2a2d31;
+    border-radius: 999px;
+    padding: 6px 10px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  }
+  .mr-react-bar button {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.12s ease, transform 0.12s ease;
+  }
+  .mr-react-bar button:hover { background: #3c4043; transform: scale(1.12); }
+
+  /* A tapped reaction floats up from the sender's tile. */
+  .mr-float {
+    position: absolute;
+    z-index: 9;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    pointer-events: none;
+    animation: mr-float-up 2.6s ease-out forwards;
+  }
+  .mr-float i {
+    font-style: normal;
+    font-size: 10px;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 999px;
+    padding: 1px 7px;
+    white-space: nowrap;
+  }
+  @keyframes mr-float-up {
+    0% { opacity: 0; transform: translateY(6px) scale(0.7); }
+    12% { opacity: 1; transform: translateY(0) scale(1); }
+    80% { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-130px) scale(1.05); }
+  }
+
+  /* Event snackbars: joins, leaves, raised hands. */
+  .mr-snacks {
+    position: absolute;
+    left: 12px;
+    bottom: 14px;
+    z-index: 8;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: min(78%, 340px);
+  }
+  .mr-snack {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #2a2d31;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: #e8eaed;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  }
+  .mr-snack svg { flex: none; }
+  .mr-snack span {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .mr-snack button {
+    border: none;
+    background: transparent;
+    color: #afa9ec;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0 2px;
+    flex: none;
+  }
+  .mr-snack button:hover { text-decoration: underline; }
+
+  /* In-call messages panel (deliberately LIGHT inside the dark room). */
+  .mr-chat {
+    width: 320px;
+    flex-shrink: 0;
+    margin: 4px 0;
+    background: #fff;
+    color: #202124;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .mr-chat-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px 6px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .mr-chat-x {
+    border: none;
+    background: transparent;
+    color: #5f6368;
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .mr-chat-x:hover { background: #f1f3f4; }
+  .mr-chat-lock {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 4px 12px;
+    background: #f1f3f4;
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 12px;
+    color: #3c4043;
+    cursor: pointer;
+  }
+  .mr-chat-lock input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .mr-chat-toggle {
+    width: 32px;
+    height: 18px;
+    border-radius: 999px;
+    background: #b9bdc2;
+    position: relative;
+    flex-shrink: 0;
+    transition: background 0.15s ease;
+  }
+  .mr-chat-toggle::after {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    transition: left 0.15s ease;
+  }
+  .mr-chat-toggle-on { background: #5046e4; }
+  .mr-chat-toggle-on::after { left: 16px; }
+  .mr-chat-note {
+    margin: 2px 12px 6px;
+    background: #f1f3f4;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 11px;
+    line-height: 1.45;
+    color: #5f6368;
+    text-align: center;
+  }
+  .mr-chat-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 4px 14px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .mr-chat-empty {
+    font-size: 12px;
+    color: #80868b;
+    text-align: center;
+    margin-top: 18px;
+  }
+  .mr-chat-msg { font-size: 12.5px; }
+  .mr-chat-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10.5px;
+    color: #5f6368;
+    margin-bottom: 1px;
+  }
+  .mr-chat-meta b { color: #202124; font-weight: 600; }
+  .mr-chat-prof {
+    font-size: 8.5px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    color: #fff;
+    background: #5046e4;
+    border-radius: 4px;
+    padding: 1px 4px;
+  }
+  .mr-chat-text {
+    color: #202124;
+    line-height: 1.45;
+    word-break: break-word;
+    white-space: pre-wrap;
+  }
+  .mr-chat-input {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 6px 10px 10px;
+    background: #f1f3f4;
+    border-radius: 999px;
+    padding: 4px 6px 4px 14px;
+  }
+  .mr-chat-input input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    font-size: 12.5px;
+    color: #202124;
+    outline: none;
+    padding: 6px 0;
+  }
+  .mr-chat-input input::placeholder { color: #80868b; }
+  .mr-chat-input button {
+    border: none;
+    background: transparent;
+    color: #5046e4;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex: none;
+  }
+  .mr-chat-input button:hover { background: #e8eaed; }
+  .mr-chat-input button:disabled { color: #b9bdc2; cursor: default; }
+  @media (max-width: 760px) {
+    .mr-chat {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      top: auto;
+      width: auto;
+      height: min(62%, 420px);
+      margin: 0;
+      z-index: 12;
+      border-radius: 14px 14px 0 0;
+      box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.45);
+    }
+  }
+
   /* Bottom bar: info | controls | count + End class. */
   .mr-bar {
     height: 64px;
@@ -6123,10 +6489,11 @@ html[data-glass="on"][data-theme="dark"] body::before {
     flex-shrink: 0;
   }
   .mr-live-chip svg { animation: oc-pulse 1.4s ease-in-out infinite; }
-  .mr-bar-ctls { display: flex; align-items: center; gap: 10px; }
+  .mr-bar-ctls { display: flex; align-items: center; gap: 8px; }
   .mr-ctl {
-    width: 42px;
-    height: 42px;
+    position: relative;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     border: none;
     background: #3c4043;
@@ -6143,9 +6510,42 @@ html[data-glass="on"][data-theme="dark"] body::before {
   .mr-ctl-off:hover { background: #d33b2c; }
   .mr-ctl-on { background: #8ab4f8; color: #202124; }
   .mr-ctl-on:hover { background: #aecbfa; }
+  .mr-ctl-hand { background: #fbbc04; color: #202124; }
+  .mr-ctl-hand:hover { background: #fcc934; }
+  .mr-ctl-accent { background: #5046e4; color: #fff; }
+  .mr-ctl-accent:hover { background: #6058e8; }
+  .mr-ctl-badge {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    background: #ea4335;
+    color: #fff;
+    font-size: 9.5px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+  }
+  .mr-hand-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #fdd663;
+    border: 1px solid rgba(251, 188, 4, 0.45);
+    border-radius: 999px;
+    padding: 4px 9px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
   .mr-hang {
-    width: 58px;
-    height: 42px;
+    width: 64px;
+    height: 44px;
     border-radius: 999px;
     border: none;
     background: #ea4335;
@@ -6205,12 +6605,16 @@ html[data-glass="on"][data-theme="dark"] body::before {
 
   @media (max-width: 560px) {
     .mr-pip { width: 110px; }
-    .mr-sep, .mr-meta { display: none; }
-    .mr-bar { height: 58px; gap: 6px; }
-    .mr-ctl { width: 40px; height: 40px; }
-    .mr-hang { width: 52px; height: 40px; }
-    .mr-strip .mr-tile { width: 104px; }
+    .mr-sep, .mr-meta, .mr-clock { display: none; }
+    .mr-bar { height: 56px; gap: 5px; }
+    .mr-bar-ctls { gap: 5px; }
+    .mr-ctl { width: 38px; height: 38px; }
+    .mr-hang { width: 50px; height: 38px; }
+    .mr-strip .mr-tile { width: 104px; height: 58px; }
     .mr-endclass { padding: 5px 9px; font-size: 10.5px; }
+    .mr-react-bar { bottom: 8px; padding: 4px 8px; }
+    .mr-react-bar button { width: 30px; height: 30px; }
+    .mr-snacks { bottom: 8px; left: 8px; }
   }
 }
 

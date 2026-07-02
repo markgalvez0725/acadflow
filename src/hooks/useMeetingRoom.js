@@ -514,6 +514,22 @@ export default function useMeetingRoom({ db, roomId, self }) {
         // Everyone's roster shows the REC pill off the professor's doc.
         rtcUpdateParticipant(db, roomId, myId, { recording: !!on, recStartAt: on ? Date.now() : null })
       },
+      setHand(on) {
+        // Raise/lower own hand; the timestamp orders the queue for everyone.
+        rtcUpdateParticipant(db, roomId, myId, { hand: on ? Date.now() : null })
+      },
+      lowerHand(peerId) {
+        // Professor lowering a student's hand (rules allow any signed-in write).
+        rtcUpdateParticipant(db, roomId, peerId, { hand: null })
+      },
+      sendReaction(emoji) {
+        // One cheap self-doc update; every roster listener animates it.
+        rtcUpdateParticipant(db, roomId, myId, { react: { e: String(emoji).slice(0, 8), at: Date.now() } })
+      },
+      setChatLock(on) {
+        // Professor-only toggle; students read it off the professor's doc.
+        rtcUpdateParticipant(db, roomId, myId, { chatLock: !!on })
+      },
       leave() {
         teardown()
         setPhase('left')
@@ -533,6 +549,10 @@ export default function useMeetingRoom({ db, roomId, self }) {
     leave: () => apiRef.current.leave?.(),
     retry: () => setAttempt(a => a + 1),
     setRecordingFlag: on => apiRef.current.setRecordingFlag?.(on),
+    setHand: on => apiRef.current.setHand?.(on),
+    lowerHand: peerId => apiRef.current.lowerHand?.(peerId),
+    sendReaction: e => apiRef.current.sendReaction?.(e),
+    setChatLock: on => apiRef.current.setChatLock?.(on),
     canShare: typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia,
   }
 }

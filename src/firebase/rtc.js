@@ -155,6 +155,29 @@ export function rtcListenSignals(db, roomId, peerId, handler) {
   }, () => {})
 }
 
+// ── In-call chat ────────────────────────────────────────────────────────────
+// Meet-style "In-call messages": visible only to people in the call, and
+// deleted when the call ends (rtcCleanupRoom purges the subcollection). The
+// professor's send-lock rides their PARTICIPANT doc (chatLock), like the
+// recording flag, so it needs no extra document.
+export async function rtcSendChat(db, roomId, msg) {
+  await fbWithTimeout(addDoc(roomCol(db, roomId, 'chat'), {
+    at: Date.now(),
+    uid: msg.uid || '',
+    name: msg.name || 'Participant',
+    role: msg.role || 'student',
+    text: String(msg.text || '').slice(0, 500),
+  }))
+}
+
+export function rtcListenChat(db, roomId, cb) {
+  return onSnapshot(roomCol(db, roomId, 'chat'), snap => {
+    cb(snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (a.at || 0) - (b.at || 0)))
+  }, () => { /* listener error - the room UI shows the connection state */ })
+}
+
 // ── Meeting transcript (LEGACY READ) ────────────────────────────────────────
 // Live in-meeting transcription was removed (2026-07-02); classes recorded
 // before that still have `rtcRooms/{id}/transcript` docs, and this fetch is
@@ -171,11 +194,12 @@ export async function rtcFetchTranscript(db, roomId) {
 export async function rtcCleanupRoom(db, roomId) {
   if (!db || !roomId) return
   try {
-    const [parts, signals] = await Promise.all([
+    const [parts, signals, chat] = await Promise.all([
       getDocs(roomCol(db, roomId, 'participants')),
       getDocs(roomCol(db, roomId, 'signals')),
+      getDocs(roomCol(db, roomId, 'chat')),
     ])
-    const refs = [...parts.docs, ...signals.docs].map(d => d.ref)
+    const refs = [...parts.docs, ...signals.docs, ...chat.docs].map(d => d.ref)
     for (let i = 0; i < refs.length; i += 400) {
       const batch = writeBatch(db)
       refs.slice(i, i + 400).forEach(r => batch.delete(r))

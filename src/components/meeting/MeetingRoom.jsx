@@ -3,30 +3,35 @@ import { createPortal } from 'react-dom'
 import {
   Mic, MicOff, Video, VideoOff, MonitorUp, PhoneOff, Radio,
   Users, AlertTriangle, Loader2, CheckCircle, Minimize2, Maximize2,
-  PictureInPicture2, CircleDot, Square,
+  PictureInPicture2, CircleDot, Square, Hand, Pin, PinOff, Volume2,
+  MessageSquare, Smile, LogIn, LogOut,
 } from 'lucide-react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import useMeetingRoom from '@/hooks/useMeetingRoom'
-import { ROOM_CAP } from '@/firebase/rtc'
+import { ROOM_CAP, rtcListenChat, rtcSendChat } from '@/firebase/rtc'
 import { recordingSupported, createMeetingRecorder } from '@/utils/meetingRecorder'
 import { isConfigured as driveConfigured, getConnection as driveConnection, connect as driveConnect, startResumableUpload } from '@/utils/googleDrive'
 import { detectAudioShield } from '@/utils/audioShield'
 import { createPipSource } from '@/utils/meetingPip'
+import { playMeetingSound, preloadMeetingSounds } from '@/utils/meetingSounds'
+import MeetingChat from '@/components/meeting/MeetingChat'
+import EmojiIcon from '@/components/primitives/EmojiIcon'
 
 // Full-screen in-app classroom shared by the professor and student tabs,
-// laid out Google Meet style: a centered stage of size-capped 16:9 tiles (no
-// screen-filling cameras), a floating self-view PiP bottom-right, and one
-// bottom bar (clock + class info | round controls | count + End class).
-// When someone presents, their screen becomes the stage and everyone drops
-// into a small filmstrip. The call engine lives in useMeetingRoom.
+// laid out Google Meet style: a stage the tile grid FILLS edge to edge
+// (cells stretch, video covers; portrait phone feeds show sharp over a
+// blurred echo instead of being crop-zoomed), one bottom bar, a floating
+// self-view, an in-call chat panel, reactions, raise hand, and join/leave
+// chimes. The call engine lives in useMeetingRoom.
 //
 // Persistence: this component is mounted by MeetingHost at the LAYOUT level,
 // so the call survives tab navigation. `minimized` swaps the full room for a
 // floating mini player (same mount, engine keeps running; hidden audio sinks
-// keep every remote voice playing). A pop-out button (and a best-effort
-// attempt when the browser tab is hidden) puts the class in the OS
-// picture-in-picture window that stays on top across alt-tab.
+// keep every remote voice playing). The pop-out projects a small canvas
+// compositor (utils/meetingPip.js) that always mirrors the scene; Chrome's
+// auto picture-in-picture for capturing sites is wired via the Media Session
+// 'enterpictureinpicture' action.
 //   meeting    - the live onlineMeetings doc (fresh object each render)
 //   self       - { uid, name, role: 'admin' | 'student' }
 //   minimized  - render as the floating mini player
@@ -41,21 +46,30 @@ function fmtElapsed(ms) {
   return `${Math.floor(m / 60)} h ${m % 60} m`
 }
 
-// Best 16:9 tile width so `n` tiles fit a w x h stage with NO scrolling,
-// capped so a near-empty room never turns into a wall-sized camera.
-const TILE_GAP = 10
-const TILE_MAX_W = 420
+const TILE_GAP = 8
 const TILE_MIN_W = 110
-function fitTiles(w, h, n) {
-  let best = null
+const MEET_REACTIONS = ['❤️', '👍', '🎉', '👏', '😂', '😮', '😢']
+
+// Meet-style fill: pick the column count whose stretched cells give the
+// video the most room (score = the 16:9 content width a cell can hold).
+// Cells then FILL the stage - flex does the stretching, so a last row with
+// fewer people simply gets wider tiles, exactly like Meet.
+function planGrid(w, h, n) {
+  let best = { cols: 1, content: 0 }
   for (let cols = 1; cols <= n; cols++) {
     const rows = Math.ceil(n / cols)
-    const availW = (w - TILE_GAP * (cols - 1)) / cols
-    const availH = (h - TILE_GAP * (rows - 1)) / rows
-    const tw = Math.min(availW, availH * (16 / 9), TILE_MAX_W)
-    if (!best || tw > best) best = tw
+    const cw = (w - TILE_GAP * (cols - 1)) / cols
+    const ch = (h - TILE_GAP * (rows - 1)) / rows
+    const content = Math.min(cw, ch * (16 / 9))
+    if (content > best.content) best = { cols, content }
   }
-  return Math.max(1, Math.floor(best || Math.min(w, TILE_MAX_W)))
+  return best
+}
+
+function chunk(arr, size) {
+  const out = []
+  for (let i = 0; i < arr.length; i += Math.max(1, size)) out.push(arr.slice(i, i + Math.max(1, size)))
+  return out
 }
 
 function initials(name) {
@@ -92,28 +106,42 @@ function useVideoRatio(ref, stream) {
 }
 
 function VideoTile({
-  stream, name, role, micOn, camOn, muted, failed, photo,
+  stream, name, role, micOn, camOn, muted, failed, photo, speaking,
+  hand, onHandClick, onPin, pinned, peerId,
   isSelf, presenting, presentLabel, noVideo, noHint, className,
 }) {
   const ref = useRef(null)
+  const blurRef = useRef(null)
   useEffect(() => {
     if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream || null
   }, [stream])
   const showVideo = !noVideo && !!stream && camOn !== false
-  // Tiles take the sender's REAL frame shape: a phone camera gets a portrait
-  // tile (its whole frame visible) instead of being crop-zoomed into 16:9.
-  // Landscape devices keep the classic 16:9 tile.
+  // A portrait feed (phone) shows its WHOLE frame sharp in the middle of the
+  // cell, over a blurred echo of itself - never crop-zoomed into 16:9.
   const ratio = useVideoRatio(ref, stream)
   const portrait = showVideo && ratio > 0 && ratio < 1
+  useEffect(() => {
+    const el = blurRef.current
+    if (!el) return
+    const want = portrait ? stream : null
+    if (el.srcObject !== want) el.srcObject = want
+  }, [stream, portrait])
   return (
     <div
-      className={`mr-tile${presenting ? ' mr-tile-presenting' : ''}${className ? ` ${className}` : ''}`}
-      style={portrait ? { aspectRatio: String(Math.max(ratio, 9 / 16)) } : undefined}
+      className={
+        'mr-tile'
+        + (presenting ? ' mr-tile-presenting' : '')
+        + (speaking && !presenting ? ' mr-tile-speaking' : '')
+        + (hand ? ' mr-tile-hand' : '')
+        + (className ? ` ${className}` : '')
+      }
+      data-peer={peerId || undefined}
     >
+      {portrait && <video ref={blurRef} autoPlay playsInline muted className="mr-video-blur" />}
       {/* Keep the <video> mounted even when the camera is off - it still
           carries the audio. noVideo tiles (filmstrip copy of the presenter)
           skip it entirely so a peer's audio never plays twice. data-rv marks
-          remote videos as pop-out (picture-in-picture) candidates. */}
+          remote videos as pop-out fallbacks. */}
       {!noVideo && (
         <video
           ref={ref}
@@ -121,7 +149,7 @@ function VideoTile({
           playsInline
           muted={muted}
           data-rv={muted ? undefined : '1'}
-          className="mr-video"
+          className={`mr-video${portrait ? ' mr-video-fit' : ''}`}
           style={{ visibility: showVideo ? 'visible' : 'hidden' }}
         />
       )}
@@ -132,10 +160,30 @@ function VideoTile({
           {!noHint && failed && <span className="mr-tile-hint mr-tile-bad"><AlertTriangle size={12} /> could not connect</span>}
         </div>
       )}
+      <div className="mr-tile-top">
+        {role === 'admin' && <span className="mr-tile-prof">PROF</span>}
+        {hand && (
+          <button
+            className="mr-hand-badge"
+            onClick={onHandClick || undefined}
+            disabled={!onHandClick}
+            title={onHandClick ? 'Lower this hand' : 'Hand raised'}
+          >
+            <Hand size={13} />
+          </button>
+        )}
+      </div>
+      {onPin && (
+        <div className="mr-tile-acts">
+          <button onClick={onPin} title={pinned ? 'Unpin' : 'Pin to your screen'}>
+            {pinned ? <PinOff size={14} /> : <Pin size={14} />}
+          </button>
+        </div>
+      )}
       <div className="mr-tile-name">
+        {speaking && <Volume2 size={11} />}
         <span>{presentLabel || (isSelf ? `${name} (you)` : name)}</span>
       </div>
-      {role === 'admin' && <span className="mr-tile-prof">PROF</span>}
       {micOn === false && <span className="mr-mic-off"><MicOff size={13} /></span>}
     </div>
   )
@@ -179,7 +227,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   const db = dbRef?.current || null
   const {
     phase, errorMsg, peers, localStream, micOn, camOn, sharing, canShare,
-    screenStream, setRecordingFlag,
+    screenStream, setRecordingFlag, setHand, lowerHand, sendReaction, setChatLock,
     toggleMic, toggleCam, startShare, stopShare, leave, retry,
   } = useMeetingRoom({ db, roomId: meeting?.id, self })
 
@@ -191,10 +239,9 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   }, [])
 
   // Brave's fingerprint shield ("farbling") measurably corrupts Web Audio
-  // data: the recording mix comes out with voices skewed quiet or missing,
-  // and the transcriber hears degraded samples. Page code cannot bypass it,
-  // so when it is DETECTED (a written buffer reads back altered) the room
-  // shows the one-time per-site fix. Recording re-warns via toast each time.
+  // data: the recording mix comes out with voices skewed quiet or missing.
+  // Page code cannot bypass it, so when it is DETECTED (a written buffer
+  // reads back altered) the room shows the one-time per-site fix.
   const [shieldWarn, setShieldWarn] = useState(false) // false | 'brave' | 'generic'
   useEffect(() => {
     let dead = false
@@ -211,8 +258,10 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   }
 
   const rootRef = useRef(null)
+  const mainRef = useRef(null)
   const pipRef = useRef(null)
   const pipSrcRef = useRef(null)
+  const isAdmin = self?.role === 'admin'
 
   // Resolve every participant's profile photo locally from the roster
   // (professor = portal/admin photo, students by id). Photos are NEVER
@@ -243,7 +292,8 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     }
   }, [localStream])
 
-  // Measure the stage so tiles are COMPUTED to fit - the room never scrolls.
+  // Measure the stage so the grid can decide how many tiles fit (the +K
+  // overflow) - the room never scrolls.
   const [stageEl, setStageEl] = useState(null)
   const [stageBox, setStageBox] = useState({ w: 0, h: 0 })
   useEffect(() => {
@@ -270,7 +320,6 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   // ── Recording (professor only): 720p compositor streaming into Drive ────
   const [recState, setRecState] = useState('idle') // idle | starting | on | saving
   const recRef = useRef(null) // { recorder, uploader, meeting, startAt }
-  const isAdmin = self?.role === 'admin'
 
   async function startRecording() {
     if (recState !== 'idle' || !meeting || recRef.current) return
@@ -355,13 +404,18 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   }
 
   // Feed the compositor the current scene (presenter > tile grid) and the
-  // audio mix (everyone + own mic) whenever the room changes.
-  const featuredPeerForRec = peers.find(p => p.sharing) || null
+  // audio mix (everyone + own mic) whenever the room changes. The recording
+  // follows the TRUE presenter, never a local pin.
+  const sharerPeer = useMemo(() => {
+    const sharers = peers.filter(p => p.sharing)
+    if (!sharers.length) return null
+    return sharers.sort((a, b) => (b.sharedAt || 0) - (a.sharedAt || 0))[0]
+  }, [peers])
   useEffect(() => {
     const rec = recRef.current
     if (!rec || recState !== 'on') return
-    const featured = featuredPeerForRec?.stream
-      ? { stream: featuredPeerForRec.stream, label: `${featuredPeerForRec.name} is presenting` }
+    const featured = sharerPeer?.stream
+      ? { stream: sharerPeer.stream, label: `${sharerPeer.name} is presenting` }
       : (sharing && screenStream)
         ? { stream: screenStream, label: `${self?.name || 'Professor'} is presenting` }
         : null
@@ -373,7 +427,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
       ],
       audioStreams: [localStream, ...peers.map(p => p.stream)].filter(Boolean),
     })
-  }, [recState, peers, localStream, screenStream, sharing, camOn, featuredPeerForRec, self])
+  }, [recState, peers, localStream, screenStream, sharing, camOn, sharerPeer, self])
 
   // Never leak a recorder: finalize on unmount (logout, hard close).
   useEffect(() => () => { stopRecording(true) }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -406,6 +460,10 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
 
   // The pop-out source lives on document.body (it must survive the swap
   // between the full room and the mini player) for as long as the call is up.
+  // Registering the Media Session 'enterpictureinpicture' action is what
+  // makes Chrome/Edge AUTO-pop the class out when the user switches tabs or
+  // apps: pages capturing camera/microphone qualify for automatic
+  // picture-in-picture once the handler exists (no gesture needed there).
   useEffect(() => {
     if (!ready || !canPip) return
     const src = createPipSource()
@@ -413,8 +471,15 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     pipSrcRef.current = src
     document.body.appendChild(src.video)
     src.start()
+    try {
+      navigator.mediaSession.setActionHandler('enterpictureinpicture', () => {
+        const v = pipSrcRef.current?.video
+        if (v && v.requestPictureInPicture) v.requestPictureInPicture().catch(() => { /* not allowed */ })
+      })
+    } catch { /* action unsupported in this browser */ }
     return () => {
       pipSrcRef.current = null
+      try { navigator.mediaSession.setActionHandler('enterpictureinpicture', null) } catch { /* noop */ }
       if (document.pictureInPictureElement === src.video) {
         document.exitPictureInPicture().catch(() => { /* already gone */ })
       }
@@ -423,9 +488,9 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     }
   }, [ready, canPip])
 
-  // Alt-tab away: try to pop the class into the always-on-top PiP window.
-  // Browsers that require a user gesture reject silently - the manual pop-out
-  // button is the guaranteed path there.
+  // Alt-tab fallback for browsers without auto-PiP: try on tab hide; engines
+  // that require a fresh gesture reject silently - the manual pop-out button
+  // is the guaranteed path there.
   useEffect(() => {
     if (!ready || !canPip) return
     function onVis() {
@@ -443,6 +508,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   }, [])
 
   function handleLeave() {
+    playMeetingSound('leave')
     leave()
     onClose()
   }
@@ -453,21 +519,201 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     try { await onEndClass() } finally { setEnding(false) }
   }
 
-  // Feature the LATEST presenter when more than one person shares at once.
-  const featuredPeer = useMemo(() => {
-    const sharers = peers.filter(p => p.sharing)
-    if (!sharers.length) return null
-    return sharers.sort((a, b) => (b.sharedAt || 0) - (a.sharedAt || 0))[0]
-  }, [peers])
+  // ── Pin (local spotlight), featured selection ───────────────────────────
+  const [pinnedId, setPinnedId] = useState('')
+  useEffect(() => {
+    if (pinnedId && !peers.some(p => p.peerId === pinnedId)) setPinnedId('')
+  }, [peers, pinnedId])
+  const pinnedPeer = peers.find(p => p.peerId === pinnedId) || null
+  const featuredPeer = pinnedPeer || sharerPeer
+  const togglePin = p => setPinnedId(cur => (cur === p.peerId ? '' : p.peerId))
 
-  // What the SMALL surfaces (mini player, pop-out) should show, mirroring the
-  // stage: the presenter, else any live camera. When nobody has visible video
-  // the featured FACE is the professor (or the first peer) as an avatar card,
-  // never a black cam-off <video>.
-  const focusPeer = featuredPeer || peers.find(p => p.stream && p.camOn !== false) || null
-  const facePeer = focusPeer || peers.find(p => p.role === 'admin') || peers[0] || null
+  // ── Raise hand ───────────────────────────────────────────────────────────
+  const [myHand, setMyHand] = useState(false)
+  useEffect(() => { if (!ready) setMyHand(false) }, [ready])
+  function toggleHand() {
+    const next = !myHand
+    setMyHand(next)
+    setHand(next)
+    if (next) playMeetingSound('hand')
+  }
+  const hands = useMemo(() => peers.filter(p => p.hand).sort((a, b) => (a.hand || 0) - (b.hand || 0)), [peers])
+  const handCount = hands.length + (myHand ? 1 : 0)
+  const handTitle = [...hands.map(p => p.name), ...(myHand ? ['You'] : [])].join(', ')
+
+  // ── Reactions ────────────────────────────────────────────────────────────
+  const [reactOpen, setReactOpen] = useState(false)
+  const [floats, setFloats] = useState([]) // { key, e, name, left, top }
+  const floatSeq = useRef(0)
+  function spawnFloat(anchorId, emoji, name) {
+    const host = mainRef.current
+    if (!host) return
+    const hostRect = host.getBoundingClientRect()
+    const el = host.querySelector(`[data-peer="${anchorId}"]`)
+    let left = 24 + Math.random() * 60
+    let top = hostRect.height - 140
+    if (el) {
+      const r = el.getBoundingClientRect()
+      left = r.left - hostRect.left + r.width * (0.55 + Math.random() * 0.25)
+      top = r.top - hostRect.top + r.height * 0.4
+    }
+    const key = ++floatSeq.current
+    setFloats(f => [...f.slice(-11), { key, e: emoji, name, left, top }])
+    setTimeout(() => setFloats(f => f.filter(x => x.key !== key)), 2600)
+  }
+  function react(emoji) {
+    sendReaction(emoji)
+    spawnFloat('self', emoji, 'You')
+  }
+
+  // ── In-room event snackbars (join / leave / hand) ────────────────────────
+  const [snacks, setSnacks] = useState([]) // { id, kind, text, peerId }
+  const snackSeq = useRef(0)
+  function pushSnack(kind, text, peerId) {
+    const id = ++snackSeq.current
+    setSnacks(s => [...s.slice(-2), { id, kind, text, peerId }])
+    setTimeout(() => setSnacks(s => s.filter(x => x.id !== id)), 4200)
+  }
+  function lowerFromSnack(snack) {
+    lowerHand(snack.peerId)
+    setSnacks(s => s.filter(x => x.id !== snack.id))
+  }
+
+  // ── Roster diff: chimes, snackbars, reaction floats ─────────────────────
+  // The first publish after joining is the baseline (no chime storm for the
+  // roster that was already there); my own arrival plays one join chime.
+  const prevPeersRef = useRef(null)
+  useEffect(() => {
+    if (!ready) { prevPeersRef.current = null; return }
+    const cur = new Map(peers.map(p => [p.peerId, p]))
+    const prev = prevPeersRef.current
+    prevPeersRef.current = cur
+    if (!prev) {
+      preloadMeetingSounds()
+      playMeetingSound('join')
+      return
+    }
+    for (const [id, p] of cur) {
+      if (!prev.has(id)) {
+        playMeetingSound('join')
+        pushSnack('join', `${p.name} joined`)
+        continue
+      }
+      const old = prev.get(id)
+      if (p.hand && old.hand !== p.hand) {
+        playMeetingSound('hand')
+        pushSnack('hand', `${p.name} raised a hand`, p.peerId)
+      }
+      if (p.react?.at && old.react?.at !== p.react.at) {
+        spawnFloat(p.peerId, p.react.e, p.name)
+      }
+    }
+    for (const [id, p] of prev) {
+      if (!cur.has(id)) {
+        playMeetingSound('leave')
+        pushSnack('leave', `${p.name} left`)
+      }
+    }
+  }, [peers, ready]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Speaking detection (purple ring) ─────────────────────────────────────
+  // One shared AudioContext taps up to 24 audio streams; a 260ms sweep marks
+  // whoever's waveform peaks above the floor. State updates only on change.
+  const peersRef = useRef(peers); peersRef.current = peers
+  const localRef = useRef(localStream); localRef.current = localStream
+  const micOnRef = useRef(micOn); micOnRef.current = micOn
+  const [speakSig, setSpeakSig] = useState('')
+  useEffect(() => {
+    if (!ready) { setSpeakSig(''); return }
+    const AC = window.AudioContext || window.webkitAudioContext
+    if (!AC) return
+    let ac
+    try { ac = new AC() } catch { return }
+    const taps = new Map() // key -> { src, an, buf, stream }
+    function tapOf(key, stream) {
+      let t = taps.get(key)
+      if (t && t.stream === stream) return t
+      if (t) { try { t.src.disconnect() } catch { /* gone */ } taps.delete(key) }
+      if (!stream || !stream.getAudioTracks().length) return null
+      try {
+        const src = ac.createMediaStreamSource(stream)
+        const an = ac.createAnalyser()
+        an.fftSize = 512
+        src.connect(an)
+        t = { src, an, buf: new Uint8Array(an.fftSize), stream }
+        taps.set(key, t)
+        return t
+      } catch { return null }
+    }
+    const iv = setInterval(() => {
+      if (ac.state === 'suspended') ac.resume().catch(() => { /* stays quiet */ })
+      const speaking = []
+      const seen = new Set()
+      const consider = [
+        { key: 'self', stream: localRef.current, on: micOnRef.current },
+        ...peersRef.current.slice(0, 24).map(p => ({ key: p.peerId, stream: p.stream, on: p.micOn !== false })),
+      ]
+      for (const c of consider) {
+        seen.add(c.key)
+        if (!c.on) continue
+        const t = tapOf(c.key, c.stream)
+        if (!t) continue
+        t.an.getByteTimeDomainData(t.buf)
+        let peak = 0
+        for (let i = 0; i < t.buf.length; i += 4) {
+          const d = Math.abs(t.buf[i] - 128)
+          if (d > peak) peak = d
+        }
+        if (peak > 11) speaking.push(c.key)
+      }
+      for (const key of [...taps.keys()]) {
+        if (!seen.has(key)) { try { taps.get(key).src.disconnect() } catch { /* gone */ } taps.delete(key) }
+      }
+      const sig = speaking.sort().join(',')
+      setSpeakSig(prev => (prev === sig ? prev : sig))
+    }, 260)
+    return () => {
+      clearInterval(iv)
+      for (const [, t] of taps) { try { t.src.disconnect() } catch { /* gone */ } }
+      ac.close().catch(() => { /* noop */ })
+    }
+  }, [ready])
+  const speaking = useMemo(() => new Set(speakSig ? speakSig.split(',') : []), [speakSig])
+
+  // ── In-call chat ─────────────────────────────────────────────────────────
+  const [chatOpen, setChatOpen] = useState(false)
+  const [chatMsgs, setChatMsgs] = useState([])
+  const [myLock, setMyLock] = useState(false) // professor's own toggle state
+  const lastReadRef = useRef(0)
+  useEffect(() => {
+    if (!db || !meeting?.id) return
+    const unsub = rtcListenChat(db, meeting.id, setChatMsgs)
+    return () => { unsub(); setChatMsgs([]) }
+  }, [db, meeting?.id])
+  useEffect(() => {
+    if (chatOpen) lastReadRef.current = Date.now()
+  }, [chatOpen, chatMsgs.length])
+  const chatLocked = isAdmin ? myLock : !!peers.find(p => p.role === 'admin')?.chatLock
+  const unread = chatOpen ? 0 : chatMsgs.filter(m => (m.at || 0) > lastReadRef.current && m.uid !== self?.uid).length
+  function sendChat(text) {
+    rtcSendChat(db, meeting.id, { uid: self?.uid, name: self?.name, role: self?.role, text })
+      .catch(() => toast('Message failed to send.', 'error'))
+  }
+  function toggleChatLock(next) {
+    setMyLock(next)
+    setChatLock(next)
+  }
 
   const count = peers.length + 1
+
+  // What the SMALL surfaces (mini player, pop-out) should show, mirroring the
+  // stage: the featured person (pin or presenter) when they have visible
+  // video, else any live camera. When nobody has visible video the featured
+  // FACE is the professor (or the first peer) as an avatar card.
+  const focusPeer = (featuredPeer && featuredPeer.stream && (featuredPeer.sharing || featuredPeer.camOn !== false))
+    ? featuredPeer
+    : peers.find(p => p.stream && p.camOn !== false) || null
+  const facePeer = focusPeer || peers.find(p => p.role === 'admin') || peers[0] || null
 
   // Keep the pop-out compositor fed with the current scene every render.
   useEffect(() => {
@@ -475,7 +721,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     if (!src) return
     src.setScene({
       stream: focusPeer?.stream || null,
-      label: featuredPeer ? `${featuredPeer.name} is presenting`
+      label: featuredPeer && featuredPeer.sharing ? `${featuredPeer.name} is presenting`
         : facePeer ? facePeer.name
         : 'Waiting for others…',
       sub: `${count} in class`,
@@ -486,24 +732,25 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   })
   const timeStr = new Date(now).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })
 
-  // Stage layout: how many tiles fit without scrolling, and how wide. When a
-  // room is too crowded, the tail collapses into one "+K others" tile (their
-  // audio keeps playing through hidden sinks).
-  const { stagePeers, hiddenPeers, tileW } = useMemo(() => {
+  // Stage plan: how many tiles fit before the tail collapses into "+K others"
+  // (their audio keeps playing through hidden sinks), and the column count.
+  const { stagePeers, hiddenPeers, stageCols } = useMemo(() => {
     const n = peers.length
-    if (!n) return { stagePeers: [], hiddenPeers: [], tileW: 320 }
-    if (!stageBox.w || !stageBox.h) return { stagePeers: peers, hiddenPeers: [], tileW: 320 }
-    let shown = n
-    let w = fitTiles(stageBox.w, stageBox.h, n)
-    while (shown > 1 && w < TILE_MIN_W) {
-      shown -= 1
-      w = fitTiles(stageBox.w, stageBox.h, shown + 1) // +1 = the "+K others" tile
+    if (!n) return { stagePeers: [], hiddenPeers: [], stageCols: 1 }
+    if (!stageBox.w || !stageBox.h) {
+      return { stagePeers: peers, hiddenPeers: [], stageCols: Math.ceil(Math.sqrt(n)) }
     }
-    return { stagePeers: peers.slice(0, shown), hiddenPeers: peers.slice(shown), tileW: w }
+    let shown = n
+    let plan = planGrid(stageBox.w, stageBox.h, n)
+    while (shown > 1 && plan.content < TILE_MIN_W) {
+      shown -= 1
+      plan = planGrid(stageBox.w, stageBox.h, shown + 1) // +1 = the "+K others" tile
+    }
+    return { stagePeers: peers.slice(0, shown), hiddenPeers: peers.slice(shown), stageCols: plan.cols }
   }, [peers, stageBox])
 
-  // Filmstrip (presenting): presenter + up to 7 more; the rest roll into a
-  // "+K" chip so the strip never scrolls either.
+  // Filmstrip (presenting/pinned): featured + up to 7 more; the rest roll
+  // into a "+K" chip so the strip never scrolls either.
   const STRIP_MAX = 8
   const { stripPeers, stripHidden } = useMemo(() => {
     if (!featuredPeer) return { stripPeers: [], stripHidden: [] }
@@ -536,7 +783,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
             </div>
           )}
           {!ended && <span className="mr-mini-live"><Radio size={10} /> LIVE</span>}
-          {featuredPeer && ready && <span className="mr-mini-tag"><MonitorUp size={10} /> {featuredPeer.name}</span>}
+          {featuredPeer && featuredPeer.sharing && ready && <span className="mr-mini-tag"><MonitorUp size={10} /> {featuredPeer.name}</span>}
         </div>
         <div className="mr-mini-foot">
           <div className="mr-mini-info">
@@ -565,170 +812,232 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   }
 
   // ── Full room ───────────────────────────────────────────────────────────
+  const tileProps = p => ({
+    stream: p.stream,
+    name: p.name,
+    role: p.role,
+    photo: photoFor(p),
+    micOn: p.micOn,
+    camOn: p.camOn,
+    muted: false,
+    failed: p.connState === 'failed',
+    speaking: speaking.has(p.peerId),
+    hand: !!p.hand,
+    onHandClick: isAdmin ? () => lowerHand(p.peerId) : undefined,
+    onPin: () => togglePin(p),
+    pinned: pinnedId === p.peerId,
+    peerId: p.peerId,
+  })
+
+  const stageCells = [
+    ...stagePeers.map(p => <VideoTile key={p.peerId} {...tileProps(p)} />),
+    ...(hiddenPeers.length > 0 ? [(
+      <div key="more" className="mr-tile mr-tile-more">
+        <div className="mr-tile-avatar">
+          <span className="mr-more-count">+{hiddenPeers.length}</span>
+          <span className="mr-tile-hint">others in class</span>
+        </div>
+      </div>
+    )] : []),
+  ]
+  const stageRows = chunk(stageCells, stageCols)
+
   const body = (
     <div className="mr-overlay" ref={rootRef} role="dialog" aria-label="Live class room">
       <div className="mr-stage-wrap">
-        {shieldWarn && !ended && (
-          <div className="mr-shield-warn" role="alert">
-            <AlertTriangle size={15} />
-            <span>
-              {shieldWarn === 'brave'
-                ? 'Brave Shields is altering meeting audio, so recordings can lose voices. Click the lion icon in the address bar, open Advanced controls, turn "Block fingerprinting" off for this site, then reload.'
-                : 'This browser\'s fingerprint protection is altering meeting audio, so recordings can lose voices. Allow this site in your privacy settings, then reload.'}
-            </span>
-            <button onClick={dismissShieldWarn}>Got it</button>
-          </div>
-        )}
-        {ended ? (
-          <div className="mr-center">
-            <CheckCircle size={34} style={{ color: '#81c995' }} />
-            <b>Class ended</b>
-            <span>Thanks for attending.</span>
-          </div>
-        ) : phase === 'connecting' ? (
-          <div className="mr-center">
-            <Loader2 size={30} className="animate-spin" />
-            <b>Joining the room…</b>
-            <span>Your browser will ask for camera and microphone access.</span>
-          </div>
-        ) : phase === 'error' ? (
-          <div className="mr-center">
-            <AlertTriangle size={30} style={{ color: '#fdd663' }} />
-            <b>Could not join</b>
-            <span>{errorMsg}</span>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-sm mr-retry-btn" onClick={retry}>Try again</button>
+        <div className="mr-main" ref={mainRef}>
+          {shieldWarn && !ended && (
+            <div className="mr-shield-warn" role="alert">
+              <AlertTriangle size={15} />
+              <span>
+                {shieldWarn === 'brave'
+                  ? 'Brave Shields is altering meeting audio, so recordings can lose voices. Click the lion icon in the address bar, open Advanced controls, turn "Block fingerprinting" off for this site, then reload.'
+                  : 'This browser\'s fingerprint protection is altering meeting audio, so recordings can lose voices. Allow this site in your privacy settings, then reload.'}
+              </span>
+              <button onClick={dismissShieldWarn}>Got it</button>
+            </div>
+          )}
+          {ended ? (
+            <div className="mr-center">
+              <CheckCircle size={34} style={{ color: '#81c995' }} />
+              <b>Class ended</b>
+              <span>Thanks for attending.</span>
+            </div>
+          ) : phase === 'connecting' ? (
+            <div className="mr-center">
+              <Loader2 size={30} className="animate-spin" />
+              <b>Joining the room…</b>
+              <span>Your browser will ask for camera and microphone access.</span>
+            </div>
+          ) : phase === 'error' ? (
+            <div className="mr-center">
+              <AlertTriangle size={30} style={{ color: '#fdd663' }} />
+              <b>Could not join</b>
+              <span>{errorMsg}</span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-sm mr-retry-btn" onClick={retry}>Try again</button>
+                <button className="btn btn-sm" onClick={handleLeave}>Close</button>
+              </div>
+            </div>
+          ) : phase === 'full' ? (
+            <div className="mr-center">
+              <Users size={30} style={{ color: '#fdd663' }} />
+              <b>The room is full</b>
+              <span>In-app rooms hold up to {ROOM_CAP} people including the professor. Try again once someone leaves.</span>
               <button className="btn btn-sm" onClick={handleLeave}>Close</button>
             </div>
-          </div>
-        ) : phase === 'full' ? (
-          <div className="mr-center">
-            <Users size={30} style={{ color: '#fdd663' }} />
-            <b>The room is full</b>
-            <span>In-app rooms hold up to {ROOM_CAP} people including the professor. Try again once someone leaves.</span>
-            <button className="btn btn-sm" onClick={handleLeave}>Close</button>
-          </div>
-        ) : featuredPeer ? (
-          <>
-            <div className="mr-present">
-              <VideoTile
-                key={`present-${featuredPeer.peerId}`}
-                stream={featuredPeer.stream}
-                name={featuredPeer.name}
-                photo={photoFor(featuredPeer)}
-                presentLabel={`${featuredPeer.name} is presenting`}
-                camOn
-                muted={false}
-                failed={featuredPeer.connState === 'failed'}
-              />
-            </div>
-            <div className="mr-strip">
-              {stripPeers.map(p => (
+          ) : featuredPeer ? (
+            <>
+              <div className="mr-present">
                 <VideoTile
-                  key={p.peerId}
-                  stream={p === featuredPeer ? null : p.stream}
-                  noVideo={p === featuredPeer}
-                  noHint={p === featuredPeer}
-                  presenting={p === featuredPeer}
-                  name={p.name}
-                  role={p.role}
-                  photo={photoFor(p)}
-                  micOn={p.micOn}
-                  camOn={p.camOn}
+                  key={`present-${featuredPeer.peerId}`}
+                  stream={featuredPeer.stream}
+                  name={featuredPeer.name}
+                  role={featuredPeer.role}
+                  photo={photoFor(featuredPeer)}
+                  presentLabel={featuredPeer.sharing ? `${featuredPeer.name} is presenting` : undefined}
+                  camOn={featuredPeer.sharing ? true : featuredPeer.camOn}
+                  micOn={featuredPeer.micOn}
                   muted={false}
-                  failed={p.connState === 'failed'}
+                  failed={featuredPeer.connState === 'failed'}
+                  speaking={speaking.has(featuredPeer.peerId)}
+                  hand={!!featuredPeer.hand}
+                  onHandClick={isAdmin ? () => lowerHand(featuredPeer.peerId) : undefined}
+                  onPin={() => togglePin(featuredPeer)}
+                  pinned={pinnedId === featuredPeer.peerId}
+                  peerId={featuredPeer.peerId}
                 />
-              ))}
-              {stripHidden.length > 0 && (
-                <div className="mr-tile mr-tile-more">
-                  <div className="mr-tile-avatar">
-                    <span className="mr-more-count">+{stripHidden.length}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-            {/* Off-strip voices keep playing. */}
-            <div style={{ display: 'none' }}>
-              {stripHidden.map(p => p.stream ? <AudioSink key={p.peerId} stream={p.stream} /> : null)}
-            </div>
-          </>
-        ) : peers.length ? (
-          <>
-            <div className="mr-stage" ref={setStageEl}>
-              {/* Cells share the ROW HEIGHT; each tile's width follows its own
-                  aspect (16:9 laptops, portrait phones), so mixed devices sit
-                  side by side without cropping anyone. */}
-              {stagePeers.map(p => (
-                <div key={p.peerId} className="mr-cell" style={{ height: Math.round(tileW * 9 / 16) }}>
-                  <VideoTile
-                    stream={p.stream}
-                    name={p.name}
-                    role={p.role}
-                    photo={photoFor(p)}
-                    micOn={p.micOn}
-                    camOn={p.camOn}
-                    muted={false}
-                    failed={p.connState === 'failed'}
-                  />
-                </div>
-              ))}
-              {hiddenPeers.length > 0 && (
-                <div className="mr-tile mr-tile-more" style={{ height: Math.round(tileW * 9 / 16), width: 'auto' }}>
-                  <div className="mr-tile-avatar">
-                    <span className="mr-more-count">+{hiddenPeers.length}</span>
-                    <span className="mr-tile-hint">others in class</span>
-                  </div>
-                </div>
-              )}
-            </div>
-            {/* Off-stage voices keep playing. */}
-            <div style={{ display: 'none' }}>
-              {hiddenPeers.map(p => p.stream ? <AudioSink key={p.peerId} stream={p.stream} /> : null)}
-            </div>
-          </>
-        ) : (
-          <div className="mr-center">
-            <Users size={30} style={{ color: '#9aa0a6' }} />
-            <b>You're the only one here</b>
-            <span>Waiting for others to join. Enrolled students see a Join button on their Online Classes tab.</span>
-          </div>
-        )}
-
-        {/* Floating self-view: your camera never occupies a stage tile. On a
-            phone the card itself goes portrait to match the camera frame. */}
-        {ready && (
-          <div
-            className="mr-pip"
-            style={!sharing && camOn && localStream && selfRatio > 0 && selfRatio < 1
-              ? { width: 'auto', height: 150, aspectRatio: String(Math.max(selfRatio, 9 / 16)) }
-              : undefined}
-          >
-            {sharing ? (
-              <div className="mr-pip-present">
-                <MonitorUp size={16} />
-                <span>You're presenting</span>
               </div>
-            ) : (
-              <>
-                <video
-                  ref={pipRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="mr-video"
-                  style={{ transform: 'scaleX(-1)', visibility: camOn && localStream ? 'visible' : 'hidden' }}
-                />
-                {(!camOn || !localStream) && (
-                  <div className="mr-tile-avatar">
-                    <AvatarCircle photo={photoFor(self)} name={self?.name} small />
+              <div className="mr-strip">
+                {stripPeers.map(p => (
+                  <VideoTile
+                    key={p.peerId}
+                    {...tileProps(p)}
+                    stream={p === featuredPeer ? null : p.stream}
+                    noVideo={p === featuredPeer}
+                    noHint={p === featuredPeer}
+                    presenting={p === featuredPeer}
+                    peerId={p === featuredPeer ? undefined : p.peerId}
+                  />
+                ))}
+                {stripHidden.length > 0 && (
+                  <div className="mr-tile mr-tile-more">
+                    <div className="mr-tile-avatar">
+                      <span className="mr-more-count">+{stripHidden.length}</span>
+                    </div>
                   </div>
                 )}
-              </>
-            )}
-            <span className="mr-pip-label">You</span>
-            {!micOn && <span className="mr-mic-off"><MicOff size={12} /></span>}
-          </div>
-        )}
+              </div>
+              {/* Off-strip voices keep playing. */}
+              <div style={{ display: 'none' }}>
+                {stripHidden.map(p => p.stream ? <AudioSink key={p.peerId} stream={p.stream} /> : null)}
+              </div>
+            </>
+          ) : peers.length ? (
+            <>
+              <div className="mr-stage" ref={setStageEl}>
+                {stageRows.map((row, i) => (
+                  <div key={i} className="mr-row">{row}</div>
+                ))}
+              </div>
+              {/* Off-stage voices keep playing. */}
+              <div style={{ display: 'none' }}>
+                {hiddenPeers.map(p => p.stream ? <AudioSink key={p.peerId} stream={p.stream} /> : null)}
+              </div>
+            </>
+          ) : (
+            <div className="mr-center">
+              <Users size={30} style={{ color: '#9aa0a6' }} />
+              <b>You're the only one here</b>
+              <span>Waiting for others to join. Enrolled students see a Join button on their Online Classes tab.</span>
+            </div>
+          )}
+
+          {/* Floating reactions rising off tiles. */}
+          {floats.map(f => (
+            <span key={f.key} className="mr-float" style={{ left: f.left, top: f.top }}>
+              <EmojiIcon emoji={f.e} size={26} />
+              <i>{f.name}</i>
+            </span>
+          ))}
+
+          {/* Event snackbars: joins, leaves, raised hands. */}
+          {!ended && snacks.length > 0 && (
+            <div className="mr-snacks">
+              {snacks.map(s => (
+                <div key={s.id} className="mr-snack">
+                  {s.kind === 'hand' ? <Hand size={14} style={{ color: '#fbbc04' }} />
+                    : s.kind === 'leave' ? <LogOut size={14} style={{ color: '#9aa0a6' }} />
+                    : <LogIn size={14} style={{ color: '#81c995' }} />}
+                  <span>{s.text}</span>
+                  {s.kind === 'hand' && isAdmin && s.peerId && (
+                    <button onClick={() => lowerFromSnack(s)}>Lower</button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Reactions bar (toggled by the smiley control). */}
+          {ready && reactOpen && (
+            <div className="mr-react-bar">
+              {MEET_REACTIONS.map(e => (
+                <button key={e} onClick={() => react(e)} title="Send to everyone">
+                  <EmojiIcon emoji={e} size={22} />
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Floating self-view: your camera never occupies a stage tile. On a
+              phone the card itself goes portrait to match the camera frame. */}
+          {ready && (
+            <div
+              className={`mr-pip${speaking.has('self') ? ' mr-tile-speaking' : ''}`}
+              data-peer="self"
+              style={!sharing && camOn && localStream && selfRatio > 0 && selfRatio < 1
+                ? { width: 'auto', height: 150, aspectRatio: String(Math.max(selfRatio, 9 / 16)) }
+                : undefined}
+            >
+              {sharing ? (
+                <div className="mr-pip-present">
+                  <MonitorUp size={16} />
+                  <span>You're presenting</span>
+                </div>
+              ) : (
+                <>
+                  <video
+                    ref={pipRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="mr-video"
+                    style={{ transform: 'scaleX(-1)', visibility: camOn && localStream ? 'visible' : 'hidden' }}
+                  />
+                  {(!camOn || !localStream) && (
+                    <div className="mr-tile-avatar">
+                      <AvatarCircle photo={photoFor(self)} name={self?.name} small />
+                    </div>
+                  )}
+                </>
+              )}
+              {myHand && <span className="mr-hand-badge mr-hand-badge-self"><Hand size={12} /></span>}
+              <span className="mr-pip-label">You</span>
+              {!micOn && <span className="mr-mic-off"><MicOff size={12} /></span>}
+            </div>
+          )}
+        </div>
+
+        <MeetingChat
+          open={chatOpen && !ended}
+          messages={chatMsgs}
+          selfUid={self?.uid}
+          isAdmin={isAdmin}
+          locked={chatLocked}
+          onToggleLock={toggleChatLock}
+          onSend={sendChat}
+          onClose={() => setChatOpen(false)}
+        />
       </div>
 
       <div className="mr-bar">
@@ -769,6 +1078,16 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
                     : recState === 'on' ? <Square size={16} /> : <CircleDot size={18} />}
                 </button>
               )}
+              <button className={`mr-ctl${myHand ? ' mr-ctl-hand' : ''}`} onClick={toggleHand} title={myHand ? 'Lower your hand' : 'Raise your hand'}>
+                <Hand size={18} />
+              </button>
+              <button className={`mr-ctl${reactOpen ? ' mr-ctl-accent' : ''}`} onClick={() => setReactOpen(o => !o)} title="Send a reaction">
+                <Smile size={18} />
+              </button>
+              <button className={`mr-ctl${chatOpen ? ' mr-ctl-accent' : ''}`} onClick={() => setChatOpen(o => !o)} title="In-call messages">
+                <MessageSquare size={18} />
+                {unread > 0 && <span className="mr-ctl-badge">{unread > 9 ? '9+' : unread}</span>}
+              </button>
             </>
           )}
           <button className="mr-hang" onClick={handleLeave} title="Leave the class">
@@ -785,6 +1104,9 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
             <button className="mr-ctl mr-ctl-sm" onClick={() => onMinimize?.(true)} title="Minimize - the class keeps running while you use AcadFlow">
               <Minimize2 size={16} />
             </button>
+          )}
+          {handCount > 0 && (
+            <span className="mr-hand-chip" title={handTitle}><Hand size={13} /> {handCount}</span>
           )}
           <span className="mr-count"><Users size={14} /> {count}/{ROOM_CAP}</span>
           {isAdmin && !ended && (
