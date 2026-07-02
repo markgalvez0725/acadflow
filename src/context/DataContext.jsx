@@ -8,7 +8,7 @@ import {
   fbAddAnnouncementComment, fbAddCommentReply, fbEditAnnouncementComment, fbDeleteAnnouncementComment, fbEditCommentReply, fbDeleteCommentReply, fbToggleAnnouncementLike, fbToggleSavedPost, fbToggleAnnouncementFollow, fbSetGradeGoal,
   fbSaveRubricLibrary,
   fbSaveMeetLink, fbScheduleMeeting, fbStartMeeting, fbEndMeeting, fbCancelMeeting, fbPushMeetingNotifs,
-  fbSaveMeetingRecap, fbSaveMeetingRecording, fbNotifyAdmin,
+  fbSaveMeetingRecap, fbSaveMeetingRecording,
   fbSetSubjectRep, fbDeleteClassRelatedData, fbAddAuditLog, fbRestoreFromBackup,
   fbSubmitStudentFeedback, fbUpdateFeedbackStatus,
   fbBackfillMessageActivity, fbFetchAllMessages,
@@ -1184,13 +1184,13 @@ export function DataProvider({ children }) {
     await fbSaveMeetingRecording(db, meeting.id, recording)
     setMeetings(prev => prev.map(m => m.id === meeting.id ? { ...m, recording } : m))
     try {
+      // fbNotifyAdmin here is the attendanceExtras one (title/body/link/type);
+      // the meeting: deep-link lands on the past row with the Recording button.
       await fbNotifyAdmin(db, {
         type: 'meeting_recording',
         title: 'Recording ready in your Drive',
         body: `${meeting.className || 'Class'}: ${meeting.title || 'Online class'}`,
         link: `meeting:${meeting.id}`,
-        url: recording.link || null,
-        meetingId: meeting.id,
       })
     } catch { /* the meeting doc already has the link */ }
   }, [])
