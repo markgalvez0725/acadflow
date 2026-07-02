@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, lazy, Suspense } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio, MonitorPlay } from 'lucide-react'
@@ -6,10 +6,6 @@ import { courseShort } from '@/constants/courses'
 import { isValidUrl, parseFutureTs } from '@/utils/validators'
 import EmptyState from '@/components/ds/EmptyState'
 import PageHeader from '@/components/ds/PageHeader'
-
-// The in-app WebRTC classroom - heavy (WebRTC engine + signaling), so it only
-// loads when a room is actually opened.
-const MeetingRoom = lazy(() => import('@/components/meeting/MeetingRoom'))
 
 // Relative-time pill for a scheduled meeting ("in 45 m", "in 2 h 15 m",
 // "Fri · in 2 days", then a plain date once it is over a week out).
@@ -39,14 +35,12 @@ function fmtElapsed(ms) {
 }
 
 export default function OnlineClassesTab() {
-  const { classes, meetings, admin, saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting } = useData()
-  const { toast } = useUI()
+  const { classes, meetings, saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting } = useData()
+  // The room itself is hosted at the layout level (MeetingHost) so the call
+  // survives tab navigation - this tab only opens it by id.
+  const { toast, openMeetingRoom } = useUI()
   const [panel, setPanel] = useState('links')
   const [goingLive, setGoingLive] = useState('') // key of the link currently going live
-  // Id of the in-app room currently open (full-screen overlay). Kept as an id,
-  // not an object, so the overlay always renders the fresh meeting doc.
-  const [roomMeetingId, setRoomMeetingId] = useState('')
-  const roomMeeting = roomMeetingId ? meetings.find(m => m.id === roomMeetingId) : null
 
   // Half-minute tick so the countdown/elapsed pills stay fresh while open.
   const [now, setNow] = useState(() => Date.now())
@@ -131,7 +125,7 @@ export default function OnlineClassesTab() {
         setPanel('meetings')
         return
       }
-      setRoomMeetingId(live.id)
+      openMeetingRoom(live.id)
       toast('You are live - students can join from their Online Classes tab.', 'success')
     } catch (e) {
       toast('Failed to go live.', 'error')
@@ -204,7 +198,7 @@ export default function OnlineClassesTab() {
     if (m.provider === 'inapp') {
       try {
         await startMeeting(m)
-        setRoomMeetingId(m.id)
+        openMeetingRoom(m.id)
         toast('Meeting is now live. Students have been notified.', 'success')
       } catch (e) {
         toast('Failed to start meeting.', 'error')
@@ -286,7 +280,7 @@ export default function OnlineClassesTab() {
           </div>
           <div className="olc-hero-actions">
             {m.provider === 'inapp' ? (
-              <button className="btn btn-primary btn-sm" onClick={() => setRoomMeetingId(m.id)} title="Open the in-app classroom">
+              <button className="btn btn-primary btn-sm" onClick={() => openMeetingRoom(m.id)} title="Open the in-app classroom">
                 <MonitorPlay size={14} style={{ marginRight: 4 }} /> Open room
               </button>
             ) : !!m.meetLink?.trim() && (
@@ -519,18 +513,6 @@ export default function OnlineClassesTab() {
         )}
       </section>}
     </div>
-
-    {/* In-app classroom overlay (full screen, above the tab UI). */}
-    {roomMeetingId && (
-      <Suspense fallback={null}>
-        <MeetingRoom
-          meeting={roomMeeting}
-          self={{ uid: 'admin', name: admin?.name || 'Professor', role: 'admin' }}
-          onClose={() => setRoomMeetingId('')}
-          onEndClass={() => roomMeeting && handleEnd(roomMeeting)}
-        />
-      </Suspense>
-    )}
     </>
   )
 }

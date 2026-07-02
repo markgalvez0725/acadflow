@@ -1,5 +1,6 @@
-import React, { useState, useMemo, useEffect, useRef, lazy, Suspense } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { useData } from '@/context/DataContext'
+import { useUI } from '@/context/UIContext'
 import {
   Video, Radio, ExternalLink, Clock, ChevronDown, ChevronUp,
   ShieldCheck, ArrowRight, Unlink, CheckCircle2, MonitorPlay,
@@ -9,9 +10,6 @@ import { courseShort } from '@/constants/courses'
 import EmptyState from '@/components/ds/EmptyState'
 import PageHeader from '@/components/ds/PageHeader'
 import { useRedirectHighlight } from '@/navigation/useRedirectHighlight'
-
-// In-app WebRTC classroom - only loaded when the student actually joins one.
-const MeetingRoom = lazy(() => import('@/components/meeting/MeetingRoom'))
 
 const IMMINENT_MS = 15 * 60 * 1000 // a class "starting soon" - show one-tap join
 
@@ -42,11 +40,11 @@ function meetingClassLabel(meeting, classNameById) {
 
 export default function OnlineClassesTab({ student }) {
   const { meetings, classes, semester } = useData()
+  // The room itself is hosted at the layout level (MeetingHost) so the call
+  // survives tab navigation - this tab only opens it by id.
+  const { openMeetingRoom } = useUI()
   const highlightId = useRedirectHighlight('meeting')
   const now = useNow(30000)
-  // Id of the in-app room the student is currently in (full-screen overlay).
-  const [roomMeetingId, setRoomMeetingId] = useState('')
-  const roomMeeting = roomMeetingId ? meetings.find(m => m.id === roomMeetingId) : null
 
   const studentClassIds = useMemo(
     () => activeClassIds(student, classes, semester),
@@ -135,7 +133,7 @@ export default function OnlineClassesTab({ student }) {
             <div style={{ fontSize: 15, fontWeight: 700 }}>{heroLive.title}</div>
             <div style={{ fontSize: 12, color: 'var(--ink3)', margin: '3px 0 12px' }}>{meetingClassLabel(heroLive, classNameById)}</div>
             {heroLive.provider === 'inapp' ? (
-              <button className="btn btn-primary btn-sm" style={{ background: '#ef4444', borderColor: '#ef4444' }} onClick={() => setRoomMeetingId(heroLive.id)}>
+              <button className="btn btn-primary btn-sm" style={{ background: '#ef4444', borderColor: '#ef4444' }} onClick={() => openMeetingRoom(heroLive.id)}>
                 <MonitorPlay size={14} style={{ marginRight: 6 }} /> Join in app
               </button>
             ) : heroLive.meetLink ? (
@@ -203,7 +201,7 @@ export default function OnlineClassesTab({ student }) {
                   <div style={{ fontSize: 12, color: 'var(--ink3)' }}>{meetingClassLabel(m, classNameById)}</div>
                 </div>
                 {m.provider === 'inapp' ? (
-                  <button className="btn btn-primary btn-sm" style={{ background: '#ef4444', borderColor: '#ef4444', flexShrink: 0 }} onClick={() => setRoomMeetingId(m.id)}>
+                  <button className="btn btn-primary btn-sm" style={{ background: '#ef4444', borderColor: '#ef4444', flexShrink: 0 }} onClick={() => openMeetingRoom(m.id)}>
                     <MonitorPlay size={13} style={{ marginRight: 5 }} /> Join
                   </button>
                 ) : m.meetLink ? (
@@ -279,17 +277,6 @@ export default function OnlineClassesTab({ student }) {
         <div style={{ marginTop: 10 }}>
           <EmptyState Icon={Clock} title="No past sessions yet." compact />
         </div>
-      )}
-
-      {/* In-app classroom overlay - closes itself when the professor ends the class. */}
-      {roomMeetingId && (
-        <Suspense fallback={null}>
-          <MeetingRoom
-            meeting={roomMeeting}
-            self={{ uid: student.id, name: student.name || 'Student', role: 'student' }}
-            onClose={() => setRoomMeetingId('')}
-          />
-        </Suspense>
       )}
     </div>
   )

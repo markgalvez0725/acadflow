@@ -43,6 +43,21 @@ export function UIProvider({ children }) {
   useEffect(() => { try { localStorage.setItem('acadflow_admin_tab', adminTab) } catch (e) {} }, [adminTab])
   useEffect(() => { try { localStorage.setItem('acadflow_student_tab', studentTab) } catch (e) {} }, [studentTab])
 
+  // ── In-app meeting room (persistent across tab navigation) ───────────────
+  // The live classroom is hosted at the LAYOUT level (MeetingHost), not inside
+  // the Online Classes tab, so switching tabs never unmounts the call. This is
+  // just the id + minimized flag; the meeting doc itself lives in DataContext.
+  const [meetingRoomId, setMeetingRoomId] = useState('')
+  const [meetingMinimized, setMeetingMinimized] = useState(false)
+  const openMeetingRoom = useCallback((id) => {
+    setMeetingRoomId(id || '')
+    setMeetingMinimized(false)
+  }, [])
+  const closeMeetingRoom = useCallback(() => {
+    setMeetingRoomId('')
+    setMeetingMinimized(false)
+  }, [])
+
   // ── Generic redirect-and-highlight deep link ──────────────────────────────
   // Centralizes "switch to the right tab AND glow the exact record" for every
   // module (the Stream announcement glow is the older, class-scoped special
@@ -272,6 +287,7 @@ export function UIProvider({ children }) {
       pendingStreamClassId, clearPendingStreamClass, openStreamPost,
       pendingMessageDraft, pendingMessagePostRef, messageProfessorAboutPost, clearPendingMessageDraft,
       pendingHighlight, navigateToTarget, clearHighlight,
+      meetingRoomId, meetingMinimized, openMeetingRoom, closeMeetingRoom, setMeetingMinimized,
     }}>
       {children}
     </UIContext.Provider>

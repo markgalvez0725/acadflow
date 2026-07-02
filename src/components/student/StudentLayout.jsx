@@ -12,6 +12,7 @@ import CommandPaletteButton from '@/components/primitives/CommandPaletteButton'
 import InstallPrompt from '@/components/primitives/InstallPrompt'
 import ConnectionStatus from '@/components/primitives/ConnectionStatus'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
+import MeetingHost from '@/components/meeting/MeetingHost'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { useReminders } from '@/hooks/useReminders'
 import { activeClasses, activeClassIds, activeSubjects } from '@/utils/active'
@@ -524,6 +525,10 @@ export default function StudentLayout() {
           </TabErrorBoundary>
         </main>
       </div>
+
+      {/* Live class room - hosted here (not inside a tab) so the call
+          survives tab navigation and can minimize to the mini player. */}
+      <MeetingHost role="student" student={student} />
 
       {/* Mobile bottom nav - 4 primary + More */}
       <nav className="admin-bottom-nav" aria-label="Sections">

@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Mic, MicOff, Video, VideoOff, MonitorUp, PhoneOff, Radio,
-  Users, AlertTriangle, Loader2, CheckCircle,
+  Users, AlertTriangle, Loader2, CheckCircle, Minimize2, Maximize2,
+  PictureInPicture2,
 } from 'lucide-react'
 import { useData } from '@/context/DataContext'
 import useMeetingRoom from '@/hooks/useMeetingRoom'
@@ -13,11 +14,18 @@ import { ROOM_CAP } from '@/firebase/rtc'
 // screen-filling cameras), a floating self-view PiP bottom-right, and one
 // bottom bar (clock + class info | round controls | count + End class).
 // When someone presents, their screen becomes the stage and everyone drops
-// into a small filmstrip. The call engine lives in useMeetingRoom; this file
-// is layout only.
-//   meeting    - the live onlineMeetings doc (parent passes the fresh object
-//                from useData().meetings each render)
+// into a small filmstrip. The call engine lives in useMeetingRoom.
+//
+// Persistence: this component is mounted by MeetingHost at the LAYOUT level,
+// so the call survives tab navigation. `minimized` swaps the full room for a
+// floating mini player (same mount, engine keeps running; hidden audio sinks
+// keep every remote voice playing). A pop-out button (and a best-effort
+// attempt when the browser tab is hidden) puts the class in the OS
+// picture-in-picture window that stays on top across alt-tab.
+//   meeting    - the live onlineMeetings doc (fresh object each render)
 //   self       - { uid, name, role: 'admin' | 'student' }
+//   minimized  - render as the floating mini player
+//   onMinimize - (bool) toggle mini player mode
 //   onClose    - always called when the user is out of the room
 //   onEndClass - professor only: ends the meeting for everyone
 
@@ -45,13 +53,15 @@ function VideoTile({
     <div className={`mr-tile${presenting ? ' mr-tile-presenting' : ''}${className ? ` ${className}` : ''}`}>
       {/* Keep the <video> mounted even when the camera is off - it still
           carries the audio. noVideo tiles (filmstrip copy of the presenter)
-          skip it entirely so a peer's audio never plays twice. */}
+          skip it entirely so a peer's audio never plays twice. data-rv marks
+          remote videos as pop-out (picture-in-picture) candidates. */}
       {!noVideo && (
         <video
           ref={ref}
           autoPlay
           playsInline
           muted={muted}
+          data-rv={muted ? undefined : '1'}
           className="mr-video"
           style={{ visibility: showVideo ? 'visible' : 'hidden' }}
         />
@@ -72,7 +82,25 @@ function VideoTile({
   )
 }
 
-export default function MeetingRoom({ meeting, self, onClose, onEndClass }) {
+// Invisible element that keeps a remote peer's AUDIO playing while the room
+// is minimized (the mini player shows at most one muted video).
+function AudioSink({ stream }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream || null
+  }, [stream])
+  return <audio ref={ref} autoPlay />
+}
+
+function MiniVideo({ stream, onClick }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream || null
+  }, [stream])
+  return <video ref={ref} autoPlay playsInline muted data-rv="1" className="mr-video" onClick={onClick} />
+}
+
+export default function MeetingRoom({ meeting, self, minimized, onMinimize, onClose, onEndClass }) {
   const { db: dbRef } = useData()
   const db = dbRef?.current || null
   const {
@@ -87,10 +115,11 @@ export default function MeetingRoom({ meeting, self, onClose, onEndClass }) {
     return () => clearInterval(t)
   }, [])
 
+  const rootRef = useRef(null)
   const pipRef = useRef(null)
   useEffect(() => {
     if (pipRef.current && pipRef.current.srcObject !== localStream) pipRef.current.srcObject = localStream || null
-  }, [localStream, phase, sharing, camOn])
+  }, [localStream, phase, sharing, camOn, minimized])
 
   const ended = meeting?.status === 'ended' || !meeting
   // When the professor ends the class, everyone's engine tears down and the
@@ -101,6 +130,33 @@ export default function MeetingRoom({ meeting, self, onClose, onEndClass }) {
     const t = setTimeout(onClose, 2500)
     return () => clearTimeout(t)
   }, [ended]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const ready = phase === 'ready' && !ended
+  const canPip = typeof document !== 'undefined' && !!document.pictureInPictureEnabled
+
+  function popOut() {
+    const v = rootRef.current?.querySelector('video[data-rv]')
+    if (v) v.requestPictureInPicture().catch(() => { /* needs a fresh gesture or unsupported */ })
+  }
+
+  // Alt-tab away: try to pop the class into the always-on-top PiP window.
+  // Browsers that require a user gesture reject silently - the manual pop-out
+  // button is the guaranteed path there.
+  useEffect(() => {
+    if (!ready) return
+    function onVis() {
+      if (document.visibilityState !== 'hidden') return
+      if (document.pictureInPictureElement) return
+      popOut()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [ready])
+
+  // Leaving the room closes any pop-out window we created.
+  useEffect(() => () => {
+    if (document.pictureInPictureElement) document.exitPictureInPicture().catch(() => { /* noop */ })
+  }, [])
 
   function handleLeave() {
     leave()
@@ -121,12 +177,62 @@ export default function MeetingRoom({ meeting, self, onClose, onEndClass }) {
   }, [peers])
 
   const isAdmin = self?.role === 'admin'
-  const ready = phase === 'ready' && !ended
   const count = peers.length + 1
   const timeStr = new Date(now).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })
 
+  // ── Mini player (minimized) ─────────────────────────────────────────────
+  if (minimized) {
+    const focus = featuredPeer || peers.find(p => p.stream && p.camOn !== false) || peers.find(p => p.stream) || null
+    const statusText = ended ? 'Class ended'
+      : phase === 'connecting' ? 'Joining…'
+      : phase === 'error' ? 'Could not join'
+      : phase === 'full' ? 'Room is full'
+      : null
+    const expand = () => onMinimize?.(false)
+    const mini = (
+      <div className="mr-mini" ref={rootRef} role="dialog" aria-label="Live class mini player">
+        <div className="mr-mini-video" onClick={expand} title="Expand the class">
+          {ready && focus?.stream ? (
+            <MiniVideo stream={focus.stream} />
+          ) : (
+            <div className="mr-mini-empty">
+              {statusText
+                ? <span>{statusText}</span>
+                : <><span className="mr-avatar-circle mr-avatar-sm">{initials(focus?.name || self?.name)}</span><span>{focus ? focus.name : 'Waiting for others…'}</span></>}
+            </div>
+          )}
+          {!ended && <span className="mr-mini-live"><Radio size={10} /> LIVE</span>}
+          {featuredPeer && ready && <span className="mr-mini-tag"><MonitorUp size={10} /> {featuredPeer.name}</span>}
+        </div>
+        <div className="mr-mini-foot">
+          <div className="mr-mini-info">
+            <b title={meeting?.title || 'Live class'}>{meeting?.title || 'Live class'}</b>
+            <span>{ready ? `${count} in class` : (statusText || '')}</span>
+          </div>
+          {ready && (
+            <button className={`mr-mini-btn${micOn ? '' : ' mr-mini-btn-off'}`} onClick={toggleMic} title={micOn ? 'Mute microphone' : 'Unmute microphone'}>
+              {micOn ? <Mic size={14} /> : <MicOff size={14} />}
+            </button>
+          )}
+          <button className="mr-mini-btn" onClick={expand} title="Expand the class">
+            <Maximize2 size={14} />
+          </button>
+          <button className="mr-mini-btn mr-mini-btn-hang" onClick={handleLeave} title="Leave the class">
+            <PhoneOff size={14} />
+          </button>
+        </div>
+        {/* Hidden audio sinks: every remote voice keeps playing while minimized. */}
+        <div style={{ display: 'none' }}>
+          {peers.map(p => p.stream ? <AudioSink key={p.peerId} stream={p.stream} /> : null)}
+        </div>
+      </div>
+    )
+    return createPortal(mini, document.body)
+  }
+
+  // ── Full room ───────────────────────────────────────────────────────────
   const body = (
-    <div className="mr-overlay" role="dialog" aria-label="Live class room">
+    <div className="mr-overlay" ref={rootRef} role="dialog" aria-label="Live class room">
       <div className="mr-stage-wrap">
         {ended ? (
           <div className="mr-center">
@@ -272,6 +378,16 @@ export default function MeetingRoom({ meeting, self, onClose, onEndClass }) {
           </button>
         </div>
         <div className="mr-bar-right">
+          {ready && canPip && (
+            <button className="mr-ctl mr-ctl-sm" onClick={popOut} title="Pop out a floating player (stays on top when you switch apps)">
+              <PictureInPicture2 size={16} />
+            </button>
+          )}
+          {ready && (
+            <button className="mr-ctl mr-ctl-sm" onClick={() => onMinimize?.(true)} title="Minimize - the class keeps running while you use AcadFlow">
+              <Minimize2 size={16} />
+            </button>
+          )}
           <span className="mr-count"><Users size={14} /> {count}/{ROOM_CAP}</span>
           {isAdmin && !ended && (
             <button className="mr-endclass" onClick={handleEnd} disabled={ending} title="End the class for everyone">

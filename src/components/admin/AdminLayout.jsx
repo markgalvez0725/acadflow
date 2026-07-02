@@ -9,6 +9,7 @@ import ToastManager from '@/components/primitives/ToastManager'
 import Dialog from '@/components/primitives/Dialog'
 import CommandPaletteButton from '@/components/primitives/CommandPaletteButton'
 import ConnectionStatus from '@/components/primitives/ConnectionStatus'
+import MeetingHost from '@/components/meeting/MeetingHost'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { Rss, LayoutDashboard, School, Users, BookOpen, CalendarCheck, FileQuestion, CalendarDays, Bell, ClipboardList, Video, Settings, LogOut, Menu, MessageSquare, MessageSquarePlus, ShieldCheck } from 'lucide-react'
 
@@ -189,6 +190,10 @@ export default function AdminLayout() {
           </TabErrorBoundary>
         </main>
       </div>
+
+      {/* Live class room - hosted here (not inside a tab) so the call
+          survives tab navigation and can minimize to the mini player. */}
+      <MeetingHost role="admin" />
 
       {/* Modals */}
       {settingsOpen && (
