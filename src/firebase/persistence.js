@@ -321,6 +321,23 @@ export async function fbToggleSavedPost(db, studentId, announcementId, saved) {
   }))
 }
 
+// Set or clear a per-subject grade goal on the student's OWN doc (atomic).
+// Touches only `goals`, so gradeFieldsUntouched() in the Firestore rules still
+// passes - students may write their own non-grade fields.
+export async function fbSetGradeGoal(db, studentId, subject, eq) {
+  if (!db || !studentId || !subject) return
+  const { doc: fbDoc } = await import('firebase/firestore')
+  const ref = fbDoc(db, 'students', studentId)
+  return fbWithTimeout(runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref)
+    if (!snap.exists()) throw new Error('Student not found')
+    const goals = { ...(snap.data().goals || {}) }
+    if (eq) goals[subject] = eq
+    else delete goals[subject]
+    transaction.update(ref, { goals })
+  }))
+}
+
 export async function fbAddCommentReply(db, announcementId, commentId, reply) {
   if (!db || !announcementId || !commentId || !reply) return
   const { doc: fbDoc } = await import('firebase/firestore')

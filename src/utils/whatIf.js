@@ -21,3 +21,19 @@ export function neededFinalsForRemarks(midTerm, eqScale) {
   }
   return out
 }
+
+// Smallest finals TERM grade whose combined equivalent reaches a target eq
+// (numerically lower or equal - 1.00 is best, 5.00 worst). Same scan-and-ask
+// approach as above so goals always agree with the live grade display.
+// Returns the threshold finals % or null when even a perfect 100 can't reach it.
+export function neededFinalsForEq(midTerm, targetEq, eqScale) {
+  if (midTerm == null) return null
+  const target = parseFloat(targetEq)
+  if (isNaN(target)) return null
+  const midEq = gradeInfo(midTerm, eqScale).eq
+  for (let f = 0; f <= 100; f += 0.5) {
+    const n = parseFloat(combineEquiv(midEq, gradeInfo(f, eqScale).eq).eq)
+    if (!isNaN(n) && n <= target) return f
+  }
+  return null
+}

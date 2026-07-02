@@ -6,7 +6,7 @@ import { BookOpen, Clock, ChevronDown, ChevronUp, Check, CheckCircle2, RefreshCw
 import { activeSubjects } from '@/utils/active'
 import EmptyState from '@/components/ds/EmptyState'
 import PageHeader from '@/components/ds/PageHeader'
-import { neededFinalsForRemarks } from '@/utils/whatIf'
+import { neededFinalsForRemarks, neededFinalsForEq } from '@/utils/whatIf'
 import RegradeRequestModal from '@/components/student/modals/RegradeRequestModal'
 import StudentMeta from '@/components/primitives/StudentMeta'
 import StandingRing from '@/components/primitives/StandingRing'
@@ -15,6 +15,9 @@ import StandingRing from '@/components/primitives/StandingRing'
 // green here (unlike utils/grades.pctColor, whose ≥85/≥75 bands would recolor
 // passing scores as warnings).
 const gcolor = v => (v == null ? 'var(--ink3)' : v >= 75 ? 'var(--green)' : v >= 60 ? 'var(--yellow)' : 'var(--red)')
+
+// Personal target equivalencies a student can pin per subject (1.00 best).
+const GOAL_OPTIONS = ['1.00', '1.25', '1.50', '1.75', '2.00', '2.25', '2.50', '2.75', '3.00']
 
 export default function GradesTab({ student: s, viewClassId, classes }) {
   const { activities, quizzes, students, eqScale, semester, gradeFloor } = useData()
@@ -85,6 +88,30 @@ export default function GradesTab({ student: s, viewClassId, classes }) {
       }
     })
 
+    // Personal goals: progress toward the pinned target equivalency.
+    rows.forEach(({ sub, gr }) => {
+      const goal = s.goals?.[sub]
+      if (!goal) return
+      if (gr.published && gr.midterm != null && gr.finals != null) {
+        const eqN = parseFloat(gr.equiv.eq)
+        if (isNaN(eqN)) return
+        if (eqN <= parseFloat(goal)) {
+          f.push({ tone: 'good', Icon: Target, lead: sub, text: ` - goal reached: your final grade ${gr.equiv.eq} meets your ${goal} target.` })
+        } else {
+          f.push({ tone: 'info', Icon: Target, lead: sub, text: ` - your final grade ${gr.equiv.eq} landed short of your ${goal} goal.` })
+        }
+      } else if (gr.midterm != null && gr.finals == null) {
+        const need = neededFinalsForEq(gr.midterm, goal, eqScale)
+        if (need == null) {
+          f.push({ tone: 'warn', Icon: Target, lead: sub, text: ` - your ${goal} goal is out of reach from the midterm alone; focus on the passing threshold below.` })
+        } else if (need <= 0) {
+          f.push({ tone: 'good', Icon: Target, lead: sub, text: ` - your ${goal} goal is already secured before Finals.` })
+        } else {
+          f.push({ tone: 'warn', Icon: Target, lead: sub, text: ` - score at least ${Math.round(need * 10) / 10}% on the Finals term to reach your ${goal} goal.` })
+        }
+      }
+    })
+
     // Posted grades whose source items changed since upload.
     rows.forEach(({ sub, audit }) => {
       if (audit?.drift) {
@@ -115,7 +142,7 @@ export default function GradesTab({ student: s, viewClassId, classes }) {
     const rank = { bad: 0, warn: 1, info: 2, good: 3 }
     f.sort((a, b) => rank[a.tone] - rank[b.tone])
     return { findings: f.slice(0, 6) }
-  }, [rows, eqScale])
+  }, [rows, eqScale, s])
 
   if (!subs.length) {
     return (
@@ -204,9 +231,10 @@ export default function GradesTab({ student: s, viewClassId, classes }) {
 }
 
 // ── What-if calculator: shown when the midterm is in but finals isn't yet ─────
-function WhatIfPanel({ midTerm, eqScale }) {
+function WhatIfPanel({ midTerm, eqScale, goal }) {
   const [val, setVal] = useState('')
   const needs = useMemo(() => neededFinalsForRemarks(midTerm, eqScale), [midTerm, eqScale])
+  const goalNeed = useMemo(() => (goal ? neededFinalsForEq(midTerm, goal, eqScale) : null), [midTerm, goal, eqScale])
 
   const f = val === '' ? null : Math.max(0, Math.min(100, parseFloat(val)))
   let proj = null
@@ -234,6 +262,13 @@ function WhatIfPanel({ midTerm, eqScale }) {
         {condNeed != null && condNeed > 0 && passNeed > 0 && (
           <div>At least <strong style={{ color: 'var(--yellow)' }}>{fmtNeed(condNeed)}%</strong> to avoid failing.</div>
         )}
+        {goal && (
+          goalNeed == null
+            ? <div>Your <strong>{goal}</strong> goal isn't reachable this term - it stays as motivation for the next one.</div>
+            : goalNeed <= 0
+              ? <div style={{ color: 'var(--green)' }}>Your <strong>{goal}</strong> goal is already secured.</div>
+              : <div>At least <strong style={{ color: 'var(--accent)' }}>{fmtNeed(goalNeed)}%</strong> to reach your <strong>{goal}</strong> goal.</div>
+        )}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 12, color: 'var(--ink2)' }}>Try a finals score:</span>
@@ -257,10 +292,12 @@ function WhatIfPanel({ midTerm, eqScale }) {
 }
 
 function SubjectCard({ sub, student: s, gr, audit, eqScale }) {
+  const { setGradeGoal } = useData()
   const [showTrail, setShowTrail] = useState(false)
   const [showScores, setShowScores] = useState(false)
 
   const comp = s.gradeComponents?.[sub] || {}
+  const goal = s.goals?.[sub] || ''
 
   // Every number shown comes from the one GradeEngine pass done in the parent,
   // so the card agrees with the professor's gradebook and the exports.
@@ -343,6 +380,22 @@ function SubjectCard({ sub, student: s, gr, audit, eqScale }) {
         </span>
         {audit && !audit.drift && <span className="sgc-chip sgc-chip-ok"><ShieldCheck size={11} /> Verified</span>}
         {audit?.drift && <span className="sgc-chip sgc-chip-warn"><RefreshCw size={11} /> Re-sync pending</span>}
+        <select
+          className="sgc-chip sgc-goal"
+          value={goal}
+          onChange={e => setGradeGoal(s.id, sub, e.target.value || null)}
+          title="Pin a personal target grade - Grade Watch tracks your progress toward it"
+          aria-label={`Grade goal for ${sub}`}
+          style={{
+            cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none', fontFamily: 'inherit',
+            border: `1px solid ${goal ? 'var(--accent)' : 'var(--border)'}`,
+            color: goal ? 'var(--accent)' : 'var(--ink3)',
+            background: 'transparent', fontWeight: goal ? 700 : 500,
+          }}
+        >
+          <option value="">Set goal</option>
+          {GOAL_OPTIONS.map(g => <option key={g} value={g}>Goal: {g}</option>)}
+        </select>
       </div>
 
       {/* ── Note from professor (plain text, React-escaped) ── */}
@@ -371,7 +424,7 @@ function SubjectCard({ sub, student: s, gr, audit, eqScale }) {
 
       {/* ── What-if calculator (midterm in, finals still pending) ── */}
       {midG != null && finG == null && (
-        <WhatIfPanel midTerm={midG} eqScale={eqScale} />
+        <WhatIfPanel midTerm={midG} eqScale={eqScale} goal={goal} />
       )}
 
       {!hasAny && (

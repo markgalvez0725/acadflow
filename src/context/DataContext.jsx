@@ -5,7 +5,7 @@ import { fbStartListening, stopListening, subscribeAdminMessages } from '@/fireb
 import {
   persistStudentsSync, persistClassesSync, persistAdmin, loadAdminFromStorage,
   fbDeleteStudent, fbPurgeStudentData, fbSaveAnnouncement, fbDeleteAnnouncement, fbPushAnnouncementNotifs,
-  fbAddAnnouncementComment, fbAddCommentReply, fbEditAnnouncementComment, fbDeleteAnnouncementComment, fbEditCommentReply, fbDeleteCommentReply, fbToggleAnnouncementLike, fbToggleSavedPost, fbToggleAnnouncementFollow,
+  fbAddAnnouncementComment, fbAddCommentReply, fbEditAnnouncementComment, fbDeleteAnnouncementComment, fbEditCommentReply, fbDeleteCommentReply, fbToggleAnnouncementLike, fbToggleSavedPost, fbToggleAnnouncementFollow, fbSetGradeGoal,
   fbSaveRubricLibrary,
   fbSaveMeetLink, fbScheduleMeeting, fbStartMeeting, fbEndMeeting, fbCancelMeeting, fbPushMeetingNotifs,
   fbSetSubjectRep, fbDeleteClassRelatedData, fbAddAuditLog, fbRestoreFromBackup,
@@ -1191,6 +1191,21 @@ export function DataProvider({ children }) {
     catch { apply(!saved) }
   }, [])
 
+  // Per-subject grade goal on the student's own doc. Optimistic with revert.
+  const setGradeGoal = useCallback(async (studentId, subject, eq) => {
+    const prev = students.find(s => s.id === studentId)?.goals?.[subject] ?? null
+    const apply = (val) => setStudents(list => list.map(s => {
+      if (s.id !== studentId) return s
+      const goals = { ...(s.goals || {}) }
+      if (val) goals[subject] = val
+      else delete goals[subject]
+      return { ...s, goals }
+    }))
+    apply(eq)
+    try { await fbSetGradeGoal(dbRef.current, studentId, subject, eq) }
+    catch { apply(prev) }
+  }, [students])
+
   const addCommentReply = useCallback(async (announcementId, commentId, reply) => {
     setAnnouncements(prev => prev.map(a =>
       a.id === announcementId
@@ -1542,7 +1557,7 @@ export function DataProvider({ children }) {
       activities, setActivities,
       adminNotifs, setAdminNotifs,
       quizzes, setQuizzes,
-      announcements, setAnnouncements, saveAnnouncement, deleteAnnouncement, pushAnnouncementNotifs, addAnnouncementComment, addCommentReply, editAnnouncementComment, deleteAnnouncementComment, editCommentReply, deleteCommentReply, toggleAnnouncementLike, toggleSavedPost, toggleAnnouncementFollow,
+      announcements, setAnnouncements, saveAnnouncement, deleteAnnouncement, pushAnnouncementNotifs, addAnnouncementComment, addCommentReply, editAnnouncementComment, deleteAnnouncementComment, editCommentReply, deleteCommentReply, toggleAnnouncementLike, toggleSavedPost, toggleAnnouncementFollow, setGradeGoal,
       rubricLibrary, saveRubricToLibrary, deleteLibraryRubric,
       purgeQuizFromStudents,
       syncDriftedGrades,
