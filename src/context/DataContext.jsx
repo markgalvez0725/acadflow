@@ -1140,7 +1140,7 @@ export function DataProvider({ children }) {
   // into a rich-text recap and saves it on the meeting doc (professor client
   // only - onlineMeetings is admin-write-only; students read it through the
   // normal meetings listener). Tries the server summarizer first (Groq via
-  // api/summarize-meeting, 501 when unconfigured), falls back to the
+  // the shared api/generate-quiz route, 501 when unconfigured), falls back to the
   // deterministic on-device engine. Returns the recap or null (no speech).
   const generateMeetingRecap = useCallback(async (meeting) => {
     const db = dbRef.current
@@ -1152,7 +1152,9 @@ export function DataProvider({ children }) {
     try {
       const idToken = await getIdToken()
       if (idToken) {
-        const r = await fetch('/api/summarize-meeting', {
+        // Shared Groq route (transcript mode) - Vercel Hobby caps deployments
+        // at 12 functions, so the recap summarizer rides on generate-quiz.
+        const r = await fetch('/api/generate-quiz', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ idToken, transcript: transcriptToText(segments), meta: { title: meeting.title || meeting.className || '' } }),

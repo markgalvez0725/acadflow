@@ -4,8 +4,8 @@
 // Extractive (keeps real sentences verbatim), so every bullet stays in the
 // language it was spoken in - English, Filipino, or mixed. Same on-device
 // "Smart" pattern as Grade Watch / the dashboard analyzers: pure, instant,
-// $0, no network. api/summarize-meeting.js (Groq) upgrades this when
-// configured; this is the always-available fallback.
+// $0, no network. The shared Groq route (api/generate-quiz.js, transcript
+// mode) upgrades this when configured; this is the always-available fallback.
 //
 // Output HTML uses only the app's sanitize whitelist (h4, p, ul, li, strong,
 // em, mark, br) and is sanitized again at render time.
