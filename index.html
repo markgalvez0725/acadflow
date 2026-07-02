@@ -27,22 +27,12 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="theme-color" content="#16264a" />
 
-  <!-- Apply the saved theme BEFORE first paint so the boot splash (and the app
-       behind it) match from the very first frame: no light flash for dark/frost
-       users. Mirrors the UIContext init logic (which re-runs harmlessly after
-       hydration and stays the single owner of theme changes). -->
-  <script>
-    try {
-      var t = localStorage.getItem('acadflow_theme');
-      if (['light', 'dark', 'frost'].indexOf(t) < 0) {
-        t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      }
-      document.documentElement.setAttribute('data-theme', t);
-      var tc = { light: '#16264a', dark: '#0e1422', frost: '#130e22' };
-      var m = document.querySelector('meta[name="theme-color"]');
-      if (m) m.setAttribute('content', tc[t] || tc.light);
-    } catch (e) {}
-  </script>
+  <!-- Apply the saved theme BEFORE first paint (no light flash for dark/frost
+       users). Deliberately synchronous and NOT deferred: it must run before the
+       body renders. Lives in a same-origin file (not inline) so the strict CSP
+       (script-src 'self', no unsafe-inline/hash) allows it - same pattern as
+       boot-fallback.js. -->
+  <script src="/theme-boot.js"></script>
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
