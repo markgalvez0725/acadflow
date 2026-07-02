@@ -22,7 +22,7 @@ import {
   rtcSendSignal, rtcListenParticipants, rtcListenSignals, rtcAddTranscript,
 } from '@/firebase/rtc'
 import { speechSupported, startTranscriber, getSpeechLang, setSpeechLang } from '@/utils/transcribe'
-import { whisperSupported, startWhisperTranscriber, prewarmWhisper } from '@/utils/whisperTranscribe'
+import { whisperSupported, startWhisperTranscriber } from '@/utils/whisperTranscribe'
 
 // Total outgoing bandwidth budget for video, split across every connection.
 // Keeping video on a hard budget is what keeps VOICE crystal clear: when a
@@ -81,6 +81,8 @@ export default function useMeetingRoom({ db, roomId, self }) {
   const [screenStream, setScreenStream] = useState(null)
   // Silent transcription language (per device); segments feed the Smart Recap.
   const [transcribeLang, setTranscribeLangState] = useState(() => getSpeechLang())
+  // 'off' | 'loading' (model downloading) | 'on' (capturing) | 'unavailable'
+  const [transcribeState, setTranscribeState] = useState('off')
   const langRef = useRef(transcribeLang)
   // Bumping this remounts the whole engine - used by Try again after a
   // permission error (the browser re-prompts on the fresh getUserMedia call).
@@ -121,42 +123,14 @@ export default function useMeetingRoom({ db, roomId, self }) {
     // while the mic is live - the recognizer would otherwise keep hearing a
     // muted speaker.
     //
-    // Two engines, picked automatically:
-    //  1. The browser's SpeechRecognition (free, live). It opens its OWN mic
-    //     capture, and on plenty of systems it goes silently deaf while
-    //     WebRTC already holds the microphone (Firefox has no engine at all).
-    //  2. On-device Whisper (utils/whisperTranscribe, CDN) reading the SAME
-    //     stream the meeting captured - it cannot go deaf.
-    // A watchdog meters actual speech energy on the local stream; once ~15s
-    // of real speech produced zero recognition events, this session switches
-    // to Whisper for good (prewarming the model at the first sign of trouble).
-    let whisperMode = !speechSupported() // engine choice for THIS session
-    let watchdog = null
-    let meter = null
-    let deafVoicedMs = 0
-
-    function makeMeter(stream) {
-      try {
-        const AC = window.AudioContext || window.webkitAudioContext
-        if (!AC || !stream.getAudioTracks().length) return null
-        const ac = new AC()
-        const an = ac.createAnalyser()
-        an.fftSize = 512
-        ac.createMediaStreamSource(stream).connect(an)
-        ac.resume().catch(() => { /* resumes on gesture */ })
-        const buf = new Uint8Array(an.fftSize)
-        return {
-          rms() {
-            an.getByteTimeDomainData(buf)
-            let s = 0
-            for (let i = 0; i < buf.length; i++) { const d = (buf[i] - 128) / 128; s += d * d }
-            return Math.sqrt(s / buf.length)
-          },
-          close() { try { ac.close() } catch { /* noop */ } },
-        }
-      } catch { return null }
-    }
-
+    // On-device Whisper (utils/whisperTranscribe, CDN) is the PRIMARY engine:
+    // it reads the SAME MediaStream the meeting captured, so if the class can
+    // hear you it transcribes you - deterministic, no external speech service.
+    // The browser's SpeechRecognition proved unreliable in exactly this
+    // situation (it opens its OWN mic capture and goes silently deaf while
+    // WebRTC holds the microphone), so it remains only as the last resort for
+    // browsers without WebAssembly. The room bar shows a status dot so the
+    // professor can SEE capture is live instead of finding out after class.
     function transcriptSink() {
       const s = selfRef.current || {}
       return text => {
@@ -167,55 +141,27 @@ export default function useMeetingRoom({ db, roomId, self }) {
       }
     }
 
-    function stopWatchdog() {
-      if (watchdog) { clearInterval(watchdog); watchdog = null }
-      deafVoicedMs = 0
-    }
-
-    function switchToWhisper() {
-      if (whisperMode) return
-      whisperMode = true
-      stopTranscription()
-      startTranscription()
-    }
-
-    function startWatchdog() {
-      if (watchdog || dead) return
-      if (!meter && local) meter = makeMeter(local)
-      if (!meter) return // cannot meter - keep Web Speech and hope
-      deafVoicedMs = 0
-      watchdog = setInterval(() => {
-        if (dead || !transcriber) return
-        const track = local && local.getAudioTracks()[0]
-        if (!track || !track.enabled) return
-        if (meter.rms() >= 0.02) deafVoicedMs += 1000
-        if (deafVoicedMs >= 5000 && whisperSupported()) prewarmWhisper()
-        if (deafVoicedMs >= 15000 && whisperSupported()) switchToWhisper()
-      }, 1000)
-    }
-
     function startTranscription() {
       if (transcriber || dead) return
-      if (whisperMode) {
+      if (whisperSupported()) {
         transcriber = startWhisperTranscriber({
-          stream: local, lang: langRef.current, onFlush: transcriptSink(),
+          stream: local,
+          lang: langRef.current,
+          onFlush: transcriptSink(),
+          onState: st => { if (!dead) setTranscribeState(st) },
         })
-        stopWatchdog() // whisper reads our own stream; nothing to watch
+        if (!transcriber) setTranscribeState('unavailable')
         return
       }
-      if (!speechSupported()) return
-      transcriber = startTranscriber({
-        lang: langRef.current,
-        onFlush: transcriptSink(),
-        onResult: () => { deafVoicedMs = 0 }, // any event = the engine hears
-      })
-      startWatchdog()
+      if (!speechSupported()) { setTranscribeState('unavailable'); return }
+      transcriber = startTranscriber({ lang: langRef.current, onFlush: transcriptSink() })
+      setTranscribeState(transcriber ? 'on' : 'unavailable')
     }
     function stopTranscription() {
-      stopWatchdog()
       if (!transcriber) return
       transcriber.stop() // flushes any buffered speech first
       transcriber = null
+      setTranscribeState('off')
     }
 
     const send = (to, type, data) =>
@@ -377,7 +323,6 @@ export default function useMeetingRoom({ db, roomId, self }) {
 
     function teardown() {
       stopTranscription()
-      if (meter) { meter.close(); meter = null }
       if (heartbeat) { clearInterval(heartbeat); heartbeat = null }
       unsubs.splice(0).forEach(u => { try { u() } catch { /* noop */ } })
       for (const peerId of [...pcs.keys()]) closePeer(peerId)
@@ -535,7 +480,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
   }, [db, roomId, attempt])
 
   return {
-    phase, errorMsg, peers, localStream, micOn, camOn, sharing, screenStream, transcribeLang,
+    phase, errorMsg, peers, localStream, micOn, camOn, sharing, screenStream, transcribeLang, transcribeState,
     toggleMic: () => apiRef.current.toggleMic?.(),
     toggleCam: () => apiRef.current.toggleCam?.(),
     startShare: () => apiRef.current.startShare?.(),

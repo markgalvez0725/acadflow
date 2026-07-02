@@ -94,8 +94,10 @@ function downsample(f32, fromRate) {
 
 // Start transcribing `stream` (the meeting's own local MediaStream). Returns
 // { stop() } or null when it cannot run here. onFlush(text) receives one
-// finished utterance at a time.
-export function startWhisperTranscriber({ stream, lang, onFlush } = {}) {
+// finished utterance at a time. onState reports 'loading' (model download,
+// first use only), 'on' (capturing) or 'unavailable' (model failed to load)
+// so the room bar can show a live status dot.
+export function startWhisperTranscriber({ stream, lang, onFlush, onState } = {}) {
   if (!whisperSupported() || !stream || !stream.getAudioTracks().length) return null
   const AC = window.AudioContext || window.webkitAudioContext
   let ac, src, proc, sink
@@ -115,8 +117,19 @@ export function startWhisperTranscriber({ stream, lang, onFlush } = {}) {
     try { if (ac) ac.close() } catch { /* noop */ }
     return null
   }
-  ac.resume().catch(() => { /* resumes with playback */ })
-  prewarmWhisper()
+  const state = s => { if (onState) { try { onState(s) } catch { /* display-only */ } } }
+  ac.resume().catch(() => { /* retried by the keepalive below */ })
+  state('loading')
+  ensureAsr().then(
+    () => { if (!stopped) state('on') },
+    () => { if (!stopped) state('unavailable') }
+  )
+  // Autoplay policy can leave the context suspended (a suspended context
+  // captures NOTHING); sticky activation from the Join click normally lets
+  // resume() succeed, and this keepalive keeps retrying if it did not.
+  const keepalive = setInterval(() => {
+    if (ac.state === 'suspended') ac.resume().catch(() => { /* keep trying */ })
+  }, 4000)
 
   const srcRate = ac.sampleRate
   let stopped = false
@@ -178,8 +191,10 @@ export function startWhisperTranscriber({ stream, lang, onFlush } = {}) {
       if (name) opts.language = name
       const out = await asr(audio, opts)
       const text = String(out?.text || '').trim()
-      // Skip empties and immediate repeats (Whisper's echo on borderline audio).
-      if (text && text !== lastText && !stopped && onFlush) {
+      // Skip empties, punctuation-only outputs, and immediate repeats
+      // (Whisper's echo/filler on borderline audio).
+      const letters = text.replace(/[^\p{L}\p{N}]/gu, '')
+      if (text && letters.length >= 2 && text !== lastText && !stopped && onFlush) {
         lastText = text
         try { onFlush(text) } catch { /* caller's problem */ }
       }
@@ -193,6 +208,7 @@ export function startWhisperTranscriber({ stream, lang, onFlush } = {}) {
   return {
     stop() {
       stopped = true
+      clearInterval(keepalive)
       finalizeUtter()
       queue.length = 0
       try { proc.disconnect() } catch { /* noop */ }

@@ -127,7 +127,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   const db = dbRef?.current || null
   const {
     phase, errorMsg, peers, localStream, micOn, camOn, sharing, canShare,
-    screenStream, transcribeLang, setTranscribeLang, setRecordingFlag, speechOk,
+    screenStream, transcribeLang, transcribeState, setTranscribeLang, setRecordingFlag, speechOk,
     toggleMic, toggleCam, startShare, stopShare, leave, retry,
   } = useMeetingRoom({ db, roomId: meeting?.id, self })
 
@@ -590,15 +590,30 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
         </div>
         <div className="mr-bar-right">
           {ready && speechOk && (
-            <select
-              className="mr-lang"
-              value={transcribeLang}
-              onChange={e => setTranscribeLang(e.target.value)}
-              title="Your speech language for the class transcript"
-            >
-              {!SPEECH_LANGS.some(l => l.code === transcribeLang) && <option value={transcribeLang}>{transcribeLang}</option>}
-              {SPEECH_LANGS.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
-            </select>
+            <>
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 8, height: 8, borderRadius: 999, flexShrink: 0,
+                  background: transcribeState === 'on' ? '#34a853'
+                    : transcribeState === 'loading' ? '#fbbc04'
+                    : transcribeState === 'unavailable' ? '#ea4335' : '#5f6368',
+                }}
+                title={transcribeState === 'on' ? 'Transcribing your speech on this device for the class transcript'
+                  : transcribeState === 'loading' ? 'Preparing the transcription model (first use only)…'
+                  : transcribeState === 'unavailable' ? 'Transcription could not start in this browser'
+                  : 'Transcription paused - unmute to capture your speech'}
+              />
+              <select
+                className="mr-lang"
+                value={transcribeLang}
+                onChange={e => setTranscribeLang(e.target.value)}
+                title="Your speech language for the class transcript"
+              >
+                {!SPEECH_LANGS.some(l => l.code === transcribeLang) && <option value={transcribeLang}>{transcribeLang}</option>}
+                {SPEECH_LANGS.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+              </select>
+            </>
           )}
           {ready && canPip && (
             <button className="mr-ctl mr-ctl-sm" onClick={popOut} title="Pop out a floating player (stays on top when you switch apps)">
