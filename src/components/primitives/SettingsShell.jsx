@@ -159,7 +159,10 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
       .sset-back { display:inline-flex; align-items:center; gap:4px; background:none; border:none; cursor:pointer; color:var(--ink2); font-size:13px; font-weight:600; padding:0; margin-bottom:8px }
       .sset-back:hover { color:var(--ink) }
       .sset-h { font-size:18px; font-weight:700; color:var(--ink); font-family:var(--font-display) }
-      .sset-search { display:flex; align-items:center; gap:8px; background:var(--surface); border:1.5px solid var(--border2); border-radius:999px; padding:9px 14px; margin-bottom:18px; transition:border-color .15s, box-shadow .15s }
+      /* Match the standard .field input box exactly (radius, border, padding,
+         focus ring) so the search reads as the same control as every other
+         input field in the app. */
+      .sset-search { display:flex; align-items:center; gap:8px; background:var(--surface); border:1.5px solid var(--border2); border-radius:var(--radius); padding:9px 12px; margin-bottom:18px; transition:border-color .15s, box-shadow .15s }
       .sset-search:hover { border-color:color-mix(in srgb, var(--border2), var(--ink3) 45%) }
       .sset-search:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-l) }
       .sset-search input { border:none; background:none; outline:none; flex:1; font-size:0.9063rem; color:var(--ink); font-family:var(--font-body) }
@@ -211,7 +214,11 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
     )
   }
 
-  function HomeList() {
+  // Rendered via {homeList()} (a plain call), NOT <HomeList />: as a nested
+  // component its function identity changes every render, so each keystroke in
+  // the search box remounted the subtree and blurred the input - typing was
+  // impossible. Inlining the returned tree keeps the <input> mounted.
+  function homeList() {
     const ql = q.trim().toLowerCase()
     const filtered = searchable && ql
       ? [{ title: '', rows: allRows.filter(r => rowKind(r) !== 'control' && `${r.label} ${r.sub || ''}`.toLowerCase().includes(ql)) }]
@@ -287,7 +294,7 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
             ) : (
               <>
                 <div className="sset-h" style={{ margin: '2px 0 16px' }}>{title}</div>
-                <HomeList />
+                {homeList()}
               </>
             )}
           </div>
@@ -319,7 +326,7 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
         {/* Left: list */}
         <div className="sset-master" style={{ width: 288, flexShrink: 0, borderRight: '1px solid var(--border)', overflowY: 'auto', padding: '20px 14px', background: 'var(--bg)' }}>
           <div className="sset-h" style={{ margin: '0 4px 16px' }}>{title}</div>
-          <HomeList />
+          {homeList()}
         </div>
 
         {/* Right: detail */}
