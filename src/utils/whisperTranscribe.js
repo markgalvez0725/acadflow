@@ -10,7 +10,8 @@
 //
 // Accuracy comes from a DEVICE ladder, best-first:
 //   webgpu + whisper-large-v3-turbo (~600 MB q4) - near large-v3 quality,
-//     runs on WebGPU-capable browsers (most recent desktop Chrome/Edge)
+//     runs on WebGPU-capable browsers (most recent desktop Chrome/Edge;
+//     Brave refuses the WebGPU adapter, so Brave tops out at whisper-small)
 //   wasm whisper-small (~250 MB) / base (~80 MB) / tiny (~40 MB)
 // The starting tier is picked from hardware, remembered per device, and both
 // guards walk DOWN the ladder: load failures (no WebGPU, OOM, timeout) and a
@@ -19,6 +20,7 @@
 // per-speaker, onFlush(text) with finished phrases only.
 
 import { loadEsmOnce } from '@/utils/cdnLoader'
+import { isBraveBrowser } from '@/utils/audioShield'
 
 const TRANSFORMERS_URLS = [
   'https://esm.sh/@huggingface/transformers@3.1.2',
@@ -44,14 +46,20 @@ const WHISPER_LANG = {
 }
 
 // Utterance shaping: an utterance closes after 1s of trailing silence (or at
-// 15s hard cap) and must contain at least 0.7s of voiced audio to be worth an
-// inference. The gate also keeps Whisper away from pure silence, where it is
+// 15s hard cap) and must contain at least 0.4s of voiced audio to be worth an
+// inference (short enough to keep one-word answers like "Opo" / "Yes sir";
+// the letters/repeat filters below absorb the hallucination risk). The gate
+// ADAPTS to the room: a fixed threshold silently dropped quiet laptop mics,
+// so it now floats a factor above the measured noise floor, clamped to a
+// sane range. It still keeps Whisper away from pure silence, where it is
 // known to hallucinate filler phrases.
-const RMS_GATE = 0.008
+const GATE_MIN = 0.0045
+const GATE_MAX = 0.02
+const GATE_OVER_FLOOR = 3
 const MAX_UTTER_S = 15
 const END_SILENCE_S = 1.0
-const MIN_VOICED_S = 0.7
-const MAX_QUEUE = 4
+const MIN_VOICED_S = 0.4
+const MAX_QUEUE = 6 // deep enough that a slow tier drops nothing in practice
 const MERGE_CAP_S = 25 // queued utterances merge into one inference up to this long
 const WARMUP_TIMEOUT_MS = 480000 // the turbo tier is a ~600 MB one-time download
 
@@ -73,7 +81,11 @@ function currentTier() {
   const gpu = typeof navigator !== 'undefined' && !!navigator.gpu
   const cores = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4
   const mem = (typeof navigator !== 'undefined' && navigator.deviceMemory) || 4
-  _tier = gpu ? 0 : (cores >= 8 && mem >= 8 ? 1 : 2)
+  // Brave farbles hardwareConcurrency (it can report 2 on a strong machine),
+  // which used to shove Brave users onto the weakest models. Ignore the lie
+  // and start at whisper-small there - the speed guard still protects a
+  // genuinely weak device by walking down after two slow inferences.
+  _tier = gpu ? 0 : (isBraveBrowser() || (cores >= 8 && mem >= 8) ? 1 : 2)
   return _tier
 }
 function downshiftTier() {
@@ -90,6 +102,16 @@ function ensureAsr() {
   if (!_pipes.has(tier)) {
     const { model, device, dtype } = TIERS[tier]
     const p = (async () => {
+      if (device === 'webgpu') {
+        // Some browsers (Brave) expose navigator.gpu but refuse to hand out
+        // an adapter for privacy reasons. Preflight it so the ladder walks
+        // down in milliseconds instead of stalling on a backend that can
+        // never initialize.
+        const adapter = await Promise.resolve(
+          navigator.gpu && navigator.gpu.requestAdapter ? navigator.gpu.requestAdapter() : null
+        ).catch(() => null)
+        if (!adapter) throw new Error('WebGPU adapter unavailable')
+      }
       const mod = await loadEsmOnce(TRANSFORMERS_URLS, { cacheKey: 'transformers3' })
       if (mod.env) { mod.env.allowLocalModels = false; mod.env.useBrowserCache = true }
       let timer
@@ -195,9 +217,13 @@ export function startWhisperTranscriber({ stream, lang, onFlush, onState } = {})
   let voicedSamples = 0
   let silenceSamples = 0
   let inUtter = false
+  let preRoll = null     // the frame just BEFORE the gate opened - word onsets live there
+  let noiseFloor = 0.002 // rolling RMS of idle frames; the gate rides above it
   const queue = []
   let inferring = false
   let lastText = ''
+
+  const gateNow = () => Math.min(GATE_MAX, Math.max(GATE_MIN, noiseFloor * GATE_OVER_FLOOR))
 
   function resetUtter() {
     pieces = []
@@ -224,10 +250,22 @@ export function startWhisperTranscriber({ stream, lang, onFlush, onState } = {})
     if (stopped) return
     const input = e.inputBuffer.getChannelData(0)
     const frame = new Float32Array(input) // the engine reuses its buffer
-    const voiced = rmsOf(frame) >= RMS_GATE
+    const rms = rmsOf(frame)
+    const gate = gateNow()
+    const voiced = rms >= gate
+    // Frames under the gate teach the noise floor (a quiet mic LOWERS the
+    // gate, so soft speakers stop being dropped); when everything sits above
+    // the gate - constant fan/aircon noise - a slow upward drift raises the
+    // floor until real gating comes back.
+    if (rms < gate) noiseFloor = noiseFloor * 0.95 + rms * 0.05
+    else noiseFloor = Math.min(noiseFloor * 1.008, GATE_MAX)
     if (!inUtter) {
-      if (!voiced) return
+      if (!voiced) { preRoll = frame; return }
       inUtter = true
+      // Prepend the frame captured just before the gate opened: soft word
+      // onsets (h-, p-, mga...) live there, and clipping them garbled the
+      // first word of many utterances.
+      if (preRoll) { pieces.push(preRoll); utterSamples += preRoll.length; preRoll = null }
     }
     pieces.push(frame)
     utterSamples += frame.length

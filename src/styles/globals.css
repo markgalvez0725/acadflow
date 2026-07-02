@@ -6045,6 +6045,41 @@ html[data-glass="on"][data-theme="dark"] body::before {
     color: #9aa0a6;
   }
 
+  /* Fingerprint-shield (audio farbling) warning, e.g. Brave Shields. */
+  .mr-shield-warn {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: max-content;
+    max-width: min(92%, 660px);
+    padding: 9px 14px;
+    border-radius: 12px;
+    background: rgba(46, 36, 6, 0.94);
+    border: 1px solid rgba(251, 188, 4, 0.5);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    color: #fde293;
+    font-size: 12.5px;
+    line-height: 1.45;
+  }
+  .mr-shield-warn svg { flex: none; color: #fbbc04; }
+  .mr-shield-warn button {
+    flex: none;
+    border: 1px solid rgba(251, 188, 4, 0.55);
+    background: transparent;
+    color: #fbbc04;
+    border-radius: 8px;
+    padding: 4px 11px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .mr-shield-warn button:hover { background: rgba(251, 188, 4, 0.12); }
+
   /* Bottom bar: info | controls | count + End class. */
   .mr-bar {
     height: 64px;

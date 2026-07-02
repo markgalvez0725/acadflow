@@ -12,6 +12,7 @@ import { ROOM_CAP } from '@/firebase/rtc'
 import { SPEECH_LANGS } from '@/utils/transcribe'
 import { recordingSupported, createMeetingRecorder } from '@/utils/meetingRecorder'
 import { isConfigured as driveConfigured, getConnection as driveConnection, connect as driveConnect, startResumableUpload } from '@/utils/googleDrive'
+import { detectAudioShield } from '@/utils/audioShield'
 
 // Full-screen in-app classroom shared by the professor and student tabs,
 // laid out Google Meet style: a centered stage of size-capped 16:9 tiles (no
@@ -138,6 +139,26 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     return () => clearInterval(t)
   }, [])
 
+  // Brave's fingerprint shield ("farbling") measurably corrupts Web Audio
+  // data: the recording mix comes out with voices skewed quiet or missing,
+  // and the transcriber hears degraded samples. Page code cannot bypass it,
+  // so when it is DETECTED (a written buffer reads back altered) the room
+  // shows the one-time per-site fix. Recording re-warns via toast each time.
+  const [shieldWarn, setShieldWarn] = useState(false) // false | 'brave' | 'generic'
+  useEffect(() => {
+    let dead = false
+    detectAudioShield().then(({ brave, farbled }) => {
+      if (dead || !farbled) return
+      try { if (localStorage.getItem('acadflow_shield_warn') === '1') return } catch { /* still show it */ }
+      setShieldWarn(brave ? 'brave' : 'generic')
+    })
+    return () => { dead = true }
+  }, [])
+  function dismissShieldWarn() {
+    setShieldWarn(false)
+    try { localStorage.setItem('acadflow_shield_warn', '1') } catch { /* session only */ }
+  }
+
   const rootRef = useRef(null)
   const pipRef = useRef(null)
 
@@ -205,6 +226,15 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
       setRecState('on')
       setRecordingFlag(true)
       toast('Recording - it streams into your Google Drive as the class runs.', 'success')
+      detectAudioShield().then(({ brave, farbled }) => {
+        if (!farbled) return
+        toast(
+          brave
+            ? 'Brave Shields is distorting the recorded audio. Turn "Block fingerprinting" off for this site (lion icon), reload, then record.'
+            : 'This browser\'s fingerprint protection is distorting the recorded audio. Allow this site in your privacy settings, then reload.',
+          'error', 9000,
+        )
+      })
     } catch (e) {
       setRecState('idle')
       toast(e?.message || 'Could not start the recording.', 'error')
@@ -404,6 +434,17 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   const body = (
     <div className="mr-overlay" ref={rootRef} role="dialog" aria-label="Live class room">
       <div className="mr-stage-wrap">
+        {shieldWarn && !ended && (
+          <div className="mr-shield-warn" role="alert">
+            <AlertTriangle size={15} />
+            <span>
+              {shieldWarn === 'brave'
+                ? 'Brave Shields is altering meeting audio, so recordings and transcripts can lose voices. Click the lion icon in the address bar, open Advanced controls, turn "Block fingerprinting" off for this site, then reload.'
+                : 'This browser\'s fingerprint protection is altering meeting audio, so recordings and transcripts can lose voices. Allow this site in your privacy settings, then reload.'}
+            </span>
+            <button onClick={dismissShieldWarn}>Got it</button>
+          </div>
+        )}
         {ended ? (
           <div className="mr-center">
             <CheckCircle size={34} style={{ color: '#81c995' }} />
