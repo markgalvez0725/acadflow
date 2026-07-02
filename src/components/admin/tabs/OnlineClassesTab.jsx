@@ -700,17 +700,19 @@ function MeetingRow({ m, now, onStart, onCancel, onRecap, onTranscript, recapBus
                 </span>
               )
             )}
-            {m.provider === 'inapp' && onRecap && (
+            {/* Live transcription was retired; classes that captured one keep
+                their saved recap + transcript, newer classes have neither. */}
+            {m.recap && onRecap && (
               <button
                 className="btn btn-ghost btn-sm"
                 disabled={recapBusy}
                 onClick={() => onRecap(m)}
-                title={m.recap ? 'View the class recap' : 'Generate a recap from the class transcript'}
+                title="View the class recap"
               >
                 <Sparkles size={14} style={{ marginRight: 4 }} /> {recapBusy ? 'Working…' : 'Recap'}
               </button>
             )}
-            {m.provider === 'inapp' && onTranscript && (
+            {m.recap && onTranscript && (
               <button className="btn btn-ghost btn-sm" onClick={() => onTranscript(m)} title="Read the full class transcript">
                 <FileText size={14} style={{ marginRight: 4 }} /> Transcript
               </button>

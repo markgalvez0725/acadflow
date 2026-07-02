@@ -284,18 +284,16 @@ export default function OnlineClassesTab({ student }) {
                 <span style={{ fontWeight: 600 }}>{m.title}</span>
                 <span style={{ color: 'var(--ink3)' }}>{meetingClassLabel(m, classNameById)}</span>
                 <span style={{ color: 'var(--ink3)' }}>· {dateStr}</span>
-                {(m.recap || m.provider === 'inapp') && (
+                {/* Recap/Transcript exist only on classes recorded while live
+                    transcription still ran - gate on the saved recap. */}
+                {m.recap && (
                   <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6 }}>
-                    {m.recap && (
-                      <button className="btn btn-ghost btn-sm" onClick={() => setRecapView({ id: m.id, tab: 'summary' })} title="View the class recap">
-                        <Sparkles size={13} style={{ marginRight: 4 }} /> Recap
-                      </button>
-                    )}
-                    {m.provider === 'inapp' && (
-                      <button className="btn btn-ghost btn-sm" onClick={() => setRecapView({ id: m.id, tab: 'transcript' })} title="Read the full class transcript">
-                        <FileText size={13} style={{ marginRight: 4 }} /> Transcript
-                      </button>
-                    )}
+                    <button className="btn btn-ghost btn-sm" onClick={() => setRecapView({ id: m.id, tab: 'summary' })} title="View the class recap">
+                      <Sparkles size={13} style={{ marginRight: 4 }} /> Recap
+                    </button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setRecapView({ id: m.id, tab: 'transcript' })} title="Read the full class transcript">
+                      <FileText size={13} style={{ marginRight: 4 }} /> Transcript
+                    </button>
                   </span>
                 )}
               </div>

@@ -20,11 +20,9 @@ import {
   RTC_CONFIG, ROOM_CAP, BIG_ROOM, HEARTBEAT_MS, STALE_MS, STALE_FAST_MS,
   rtcFetchParticipants, rtcJoinRoom, rtcLeaveRoom, rtcLeaveBeacon,
   rtcUpdateParticipant, rtcSendSignal, rtcListenParticipants,
-  rtcListenSignals, rtcAddTranscript,
+  rtcListenSignals,
 } from '@/firebase/rtc'
 import { getIdToken } from '@/firebase/firebaseInit'
-import { speechSupported, startTranscriber, getSpeechLang, setSpeechLang } from '@/utils/transcribe'
-import { whisperSupported, startWhisperTranscriber } from '@/utils/whisperTranscribe'
 
 // Total outgoing bandwidth budget for video, split across every connection.
 // Keeping video on a hard budget is what keeps VOICE crystal clear: when a
@@ -81,11 +79,6 @@ export default function useMeetingRoom({ db, roomId, self }) {
   const [sharing, setSharing] = useState(false)
   // Screen share as a stream, for the meeting recorder's compositor.
   const [screenStream, setScreenStream] = useState(null)
-  // Silent transcription language (per device); segments feed the Smart Recap.
-  const [transcribeLang, setTranscribeLangState] = useState(() => getSpeechLang())
-  // 'off' | 'loading' (model downloading) | 'on' (capturing) | 'unavailable'
-  const [transcribeState, setTranscribeState] = useState('off')
-  const langRef = useRef(transcribeLang)
   // Bumping this remounts the whole engine - used by Try again after a
   // permission error (the browser re-prompts on the fresh getUserMedia call).
   const [attempt, setAttempt] = useState(0)
@@ -125,54 +118,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
     const joinStamp = new Map() // peerId -> joinedAt we built the pc against
     const swept = new Set()     // ghost docs this device already deleted
     let aliveSig = ''
-    let transcriber = null
     const unsubs = []
-
-    // ── Silent transcription of MY OWN speech (never displayed in-meeting;
-    // it builds the class transcript the Smart Recap summarizes). Runs only
-    // while the mic is live - the recognizer would otherwise keep hearing a
-    // muted speaker.
-    //
-    // On-device Whisper (utils/whisperTranscribe, CDN) is the PRIMARY engine:
-    // it reads the SAME MediaStream the meeting captured, so if the class can
-    // hear you it transcribes you - deterministic, no external speech service.
-    // The browser's SpeechRecognition proved unreliable in exactly this
-    // situation (it opens its OWN mic capture and goes silently deaf while
-    // WebRTC holds the microphone), so it remains only as the last resort for
-    // browsers without WebAssembly. The room bar shows a status dot so the
-    // professor can SEE capture is live instead of finding out after class.
-    function transcriptSink() {
-      const s = selfRef.current || {}
-      return text => {
-        rtcAddTranscript(db, roomId, {
-          at: Date.now(), uid: s.uid || '', name: s.name || 'Participant',
-          role: s.role || 'student', lang: langRef.current, text,
-        }).catch(() => { /* transcript is best-effort */ })
-      }
-    }
-
-    function startTranscription() {
-      if (transcriber || dead) return
-      if (whisperSupported()) {
-        transcriber = startWhisperTranscriber({
-          stream: local,
-          lang: langRef.current,
-          onFlush: transcriptSink(),
-          onState: st => { if (!dead) setTranscribeState(st) },
-        })
-        if (!transcriber) setTranscribeState('unavailable')
-        return
-      }
-      if (!speechSupported()) { setTranscribeState('unavailable'); return }
-      transcriber = startTranscriber({ lang: langRef.current, onFlush: transcriptSink() })
-      setTranscribeState(transcriber ? 'on' : 'unavailable')
-    }
-    function stopTranscription() {
-      if (!transcriber) return
-      transcriber.stop() // flushes any buffered speech first
-      transcriber = null
-      setTranscribeState('off')
-    }
 
     const send = (to, type, data) =>
       rtcSendSignal(db, roomId, { to, from: myId, type, data }).catch(() => {})
@@ -423,7 +369,6 @@ export default function useMeetingRoom({ db, roomId, self }) {
 
     function teardown() {
       leaving = true
-      stopTranscription()
       if (heartbeat) { clearInterval(heartbeat); heartbeat = null }
       if (presence) { clearInterval(presence); presence = null }
       unsubs.splice(0).forEach(u => { try { u() } catch { /* noop */ } })
@@ -517,8 +462,6 @@ export default function useMeetingRoom({ db, roomId, self }) {
       presence = setInterval(presenceTick, 5000)
       getIdToken().then(t => { if (t) cachedToken = t }).catch(() => {})
       window.addEventListener('pagehide', onPageHide)
-      const micLive = local.getAudioTracks()[0]?.enabled
-      if (micLive) startTranscription()
       setPhase('ready')
     }
 
@@ -529,8 +472,6 @@ export default function useMeetingRoom({ db, roomId, self }) {
         if (!t) return
         t.enabled = !t.enabled
         setMicOn(t.enabled)
-        if (t.enabled) startTranscription()
-        else stopTranscription()
         rtcUpdateParticipant(db, roomId, myId, { micOn: t.enabled })
       },
       toggleCam() {
@@ -569,14 +510,6 @@ export default function useMeetingRoom({ db, roomId, self }) {
         setSharing(false)
         rtcUpdateParticipant(db, roomId, myId, { sharing: false })
       },
-      setTranscribeLang(code) {
-        if (!code) return
-        setSpeechLang(code)
-        langRef.current = code
-        setTranscribeLangState(code)
-        // Restart the recognizer in the new language if it is running.
-        if (transcriber) { stopTranscription(); startTranscription() }
-      },
       setRecordingFlag(on) {
         // Everyone's roster shows the REC pill off the professor's doc.
         rtcUpdateParticipant(db, roomId, myId, { recording: !!on, recStartAt: on ? Date.now() : null })
@@ -592,16 +525,14 @@ export default function useMeetingRoom({ db, roomId, self }) {
   }, [db, roomId, attempt])
 
   return {
-    phase, errorMsg, peers, localStream, micOn, camOn, sharing, screenStream, transcribeLang, transcribeState,
+    phase, errorMsg, peers, localStream, micOn, camOn, sharing, screenStream,
     toggleMic: () => apiRef.current.toggleMic?.(),
     toggleCam: () => apiRef.current.toggleCam?.(),
     startShare: () => apiRef.current.startShare?.(),
     stopShare: () => apiRef.current.stopShare?.(),
     leave: () => apiRef.current.leave?.(),
     retry: () => setAttempt(a => a + 1),
-    setTranscribeLang: code => apiRef.current.setTranscribeLang?.(code),
     setRecordingFlag: on => apiRef.current.setRecordingFlag?.(on),
     canShare: typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia,
-    speechOk: speechSupported() || whisperSupported(), // either engine can transcribe
   }
 }

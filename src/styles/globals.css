@@ -5892,6 +5892,10 @@ html[data-glass="on"][data-theme="dark"] body::before {
     gap: 10px;
     padding: 8px;
   }
+  /* Cells fix the ROW HEIGHT; each tile derives its own width from its real
+     frame shape (16:9 laptops, portrait phones), so nobody gets crop-zoomed. */
+  .mr-cell { flex: 0 0 auto; }
+  .mr-cell .mr-tile { height: 100%; width: auto; }
   .mr-more-count { font-size: 19px; font-weight: 700; color: #e8eaed; }
   .mr-strip .mr-tile-more { width: 132px; flex-shrink: 0; }
   .mr-strip .mr-more-count { font-size: 14px; }
@@ -5922,7 +5926,8 @@ html[data-glass="on"][data-theme="dark"] body::before {
     flex-shrink: 0;
   }
   .mr-strip .mr-tile {
-    width: 132px;
+    height: 74px;
+    width: auto;
     flex-shrink: 0;
     border-radius: 8px;
   }
@@ -6368,20 +6373,4 @@ html[data-glass="on"][data-theme="dark"] body::before {
   .mr-ctl-rec { background: #ea4335; color: #fff; }
   .mr-ctl-rec:hover { background: #d33b2c; }
   .mr-ctl:disabled { opacity: 0.65; cursor: default; }
-  .mr-lang {
-    height: 34px;
-    max-width: 118px;
-    background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    border-radius: 999px;
-    color: #9aa0a6;
-    font-size: 11.5px;
-    padding: 0 8px;
-    cursor: pointer;
-  }
-  .mr-lang:hover { background: #3c4043; color: #e8eaed; }
-  .mr-lang option { background: #202124; color: #e8eaed; }
-  @media (max-width: 560px) {
-    .mr-lang { display: none; } /* phone speech language falls back to the saved/default */
-  }
 }

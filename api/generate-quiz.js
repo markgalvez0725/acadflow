@@ -5,10 +5,11 @@ import { requireUser } from './_fbadmin.js'
 // serverless functions, so related AI tasks SHARE this route instead of each
 // getting their own file:
 //   { prompt }           -> quiz generation (raw chat-completions passthrough)
-//   { transcript, meta } -> meeting Smart Recap summary -> { html }
+//   { transcript, meta } -> meeting Smart Recap summary -> { html } (LEGACY:
+//                           live transcription was retired 2026-07-02; this
+//                           path only serves Regenerate on old classes that
+//                           still have a stored transcript)
 // Both return 501 when GROQ_API_KEY is unset so clients fall back on-device.
-// (Meeting speech transcription is deliberately NOT here anymore - it runs
-// fully on-device via utils/whisperTranscribe.js at the user's request.)
 export default async function handler(req, res) {
   if (guard(req, res, { max: 20 })) return
   if (req.method !== 'POST') return res.status(405).end()

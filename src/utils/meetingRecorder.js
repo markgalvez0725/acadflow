@@ -3,9 +3,16 @@
 // screen fills the frame when someone is sharing, otherwise a tile grid with
 // initials for cameras that are off - and mixes EVERYONE's audio (remote
 // streams + the professor's own mic) into one track with the Web Audio API.
-// The combined stream records as .webm through MediaRecorder; each timeslice
-// chunk is handed to the caller, which streams it into Google Drive
-// (googleDrive.startResumableUpload). Resolution is hard-capped at 720p.
+// Each MediaRecorder timeslice chunk is handed to the caller, which streams
+// it into Google Drive (googleDrive.startResumableUpload). 720p hard cap.
+//
+// Container: MP4 (H.264 + AAC) whenever the browser can mux it - the encode
+// is hardware-accelerated (lighter on the teaching device than software VP8),
+// Google Drive turns it previewable much faster than WebM, and the downloaded
+// file plays natively everywhere including iPhones. Chrome/Safari write the
+// moov header first on fragmented MP4, so streamed chunks concatenate into a
+// valid file exactly like WebM clusters do. Browsers without an MP4 muxer
+// (or without a platform H.264 encoder) fall down the ladder to WebM.
 
 const W = 1280
 const H = 720
@@ -20,10 +27,21 @@ export function recordingSupported() {
     && !!(window.AudioContext || window.webkitAudioContext)
 }
 
-function pickMime() {
-  const prefs = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
-  for (const m of prefs) { try { if (MediaRecorder.isTypeSupported(m)) return m } catch { /* keep trying */ } }
-  return ''
+const FORMAT_LADDER = [
+  { mime: 'video/mp4;codecs="avc1.640028,mp4a.40.2"', ext: 'mp4', container: 'video/mp4' },  // H.264 High + AAC
+  { mime: 'video/mp4;codecs="avc1.42E01E,mp4a.40.2"', ext: 'mp4', container: 'video/mp4' },  // H.264 Baseline + AAC
+  { mime: 'video/mp4', ext: 'mp4', container: 'video/mp4' },                                 // UA default mp4 codecs
+  { mime: 'video/webm;codecs=h264,opus', ext: 'webm', container: 'video/webm' },             // HW video, webm shell
+  { mime: 'video/webm;codecs=vp9,opus', ext: 'webm', container: 'video/webm' },
+  { mime: 'video/webm;codecs=vp8,opus', ext: 'webm', container: 'video/webm' },
+  { mime: 'video/webm', ext: 'webm', container: 'video/webm' },
+]
+
+function pickFormat() {
+  for (const f of FORMAT_LADDER) {
+    try { if (MediaRecorder.isTypeSupported(f.mime)) return f } catch { /* keep trying */ }
+  }
+  return { mime: '', ext: 'webm', container: 'video/webm' } // let the UA choose
 }
 
 function initials(name) {
@@ -213,23 +231,34 @@ export function createMeetingRecorder({ onChunk, onError }) {
       ctx.fillStyle = '#3c4043'
       ctx.fillRect(x, y, tw, th)
       let drew = false
-      if (t.stream && t.camOn !== false) drew = drawCover(ctx, videoFor(t.key, t.stream), x, y, tw, th)
+      if (t.stream && t.camOn !== false) {
+        const el = videoFor(t.key, t.stream)
+        // Portrait feeds (phones) letterbox so the whole frame is recorded;
+        // landscape feeds fill the 16:9 cell as before.
+        drew = el.videoHeight > el.videoWidth
+          ? drawContain(ctx, el, x, y, tw, th)
+          : drawCover(ctx, el, x, y, tw, th)
+      }
       if (!drew) drawAvatar(ctx, t.name, x + tw / 2, y + th / 2, Math.min(tw, th) * 0.22)
       drawLabel(ctx, t.name || '', x + 8, y + th - 10)
     })
   }
 
+  const fmt = pickFormat()
+
   return {
     setScene,
+    // The caller names the Drive file and sets its MIME off these.
+    fileExt: fmt.ext,
+    fileMime: fmt.container,
     start() {
       ac.resume().catch(() => { /* resumes with the stream */ })
       draw()
       const stream = canvas.captureStream(FPS)
       const audioTrack = dest.stream.getAudioTracks()[0]
       if (audioTrack) stream.addTrack(audioTrack)
-      const mimeType = pickMime()
       mr = new MediaRecorder(stream, {
-        ...(mimeType ? { mimeType } : {}),
+        ...(fmt.mime ? { mimeType: fmt.mime } : {}),
         videoBitsPerSecond: 1_500_000, // 720p budget - clear for slides + faces
         audioBitsPerSecond: 128_000,   // voice priority: never starve the audio
       })

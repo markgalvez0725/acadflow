@@ -9,7 +9,6 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import useMeetingRoom from '@/hooks/useMeetingRoom'
 import { ROOM_CAP } from '@/firebase/rtc'
-import { SPEECH_LANGS } from '@/utils/transcribe'
 import { recordingSupported, createMeetingRecorder } from '@/utils/meetingRecorder'
 import { isConfigured as driveConfigured, getConnection as driveConnection, connect as driveConnect, startResumableUpload } from '@/utils/googleDrive'
 import { detectAudioShield } from '@/utils/audioShield'
@@ -73,6 +72,25 @@ function AvatarCircle({ photo, name, small }) {
   )
 }
 
+// Watch a <video> element's real frame shape (0 until metadata arrives; the
+// 'resize' event fires again when a phone rotates mid-call).
+function useVideoRatio(ref, stream) {
+  const [ratio, setRatio] = useState(0)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const meas = () => { if (el.videoWidth && el.videoHeight) setRatio(el.videoWidth / el.videoHeight) }
+    meas()
+    el.addEventListener('loadedmetadata', meas)
+    el.addEventListener('resize', meas)
+    return () => {
+      el.removeEventListener('loadedmetadata', meas)
+      el.removeEventListener('resize', meas)
+    }
+  }, [ref, stream])
+  return ratio
+}
+
 function VideoTile({
   stream, name, role, micOn, camOn, muted, failed, photo,
   isSelf, presenting, presentLabel, noVideo, noHint, className,
@@ -82,8 +100,16 @@ function VideoTile({
     if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream || null
   }, [stream])
   const showVideo = !noVideo && !!stream && camOn !== false
+  // Tiles take the sender's REAL frame shape: a phone camera gets a portrait
+  // tile (its whole frame visible) instead of being crop-zoomed into 16:9.
+  // Landscape devices keep the classic 16:9 tile.
+  const ratio = useVideoRatio(ref, stream)
+  const portrait = showVideo && ratio > 0 && ratio < 1
   return (
-    <div className={`mr-tile${presenting ? ' mr-tile-presenting' : ''}${className ? ` ${className}` : ''}`}>
+    <div
+      className={`mr-tile${presenting ? ' mr-tile-presenting' : ''}${className ? ` ${className}` : ''}`}
+      style={portrait ? { aspectRatio: String(Math.max(ratio, 9 / 16)) } : undefined}
+    >
       {/* Keep the <video> mounted even when the camera is off - it still
           carries the audio. noVideo tiles (filmstrip copy of the presenter)
           skip it entirely so a peer's audio never plays twice. data-rv marks
@@ -130,7 +156,21 @@ function MiniVideo({ stream, onClick }) {
   useEffect(() => {
     if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream || null
   }, [stream])
-  return <video ref={ref} autoPlay playsInline muted data-rv="1" className="mr-video" onClick={onClick} />
+  // The mini player keeps its 16:9 card; a portrait feed letterboxes inside
+  // it instead of being crop-zoomed.
+  const ratio = useVideoRatio(ref, stream)
+  return (
+    <video
+      ref={ref}
+      autoPlay
+      playsInline
+      muted
+      data-rv="1"
+      className="mr-video"
+      style={ratio > 0 && ratio < 1 ? { objectFit: 'contain' } : undefined}
+      onClick={onClick}
+    />
+  )
 }
 
 export default function MeetingRoom({ meeting, self, minimized, onMinimize, onClose, onEndClass }) {
@@ -139,7 +179,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   const db = dbRef?.current || null
   const {
     phase, errorMsg, peers, localStream, micOn, camOn, sharing, canShare,
-    screenStream, transcribeLang, transcribeState, setTranscribeLang, setRecordingFlag, speechOk,
+    screenStream, setRecordingFlag,
     toggleMic, toggleCam, startShare, stopShare, leave, retry,
   } = useMeetingRoom({ db, roomId: meeting?.id, self })
 
@@ -183,6 +223,26 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     return p => (p ? (p.role === 'admin' ? admin?.photo || null : byId.get(p.uid) || null) : null)
   }, [students, admin?.photo])
 
+  // Own camera frame shape, read off the capture track (the self-view element
+  // unmounts across minimize/share, so the element itself can't be watched).
+  // Phones report portrait dimensions; rotation re-sizes the track.
+  const [selfRatio, setSelfRatio] = useState(0)
+  useEffect(() => {
+    function meas() {
+      const t = localStream && localStream.getVideoTracks ? localStream.getVideoTracks()[0] : null
+      const s = t && t.getSettings ? t.getSettings() : null
+      setSelfRatio(s && s.width && s.height ? s.width / s.height : 0)
+    }
+    meas()
+    const late = setTimeout(meas, 1200) // some browsers fill settings a beat late
+    const onTurn = () => setTimeout(meas, 600) // dimensions swap after rotation
+    window.addEventListener('orientationchange', onTurn)
+    return () => {
+      clearTimeout(late)
+      window.removeEventListener('orientationchange', onTurn)
+    }
+  }, [localStream])
+
   // Measure the stage so tiles are COMPUTED to fit - the room never scrolls.
   const [stageEl, setStageEl] = useState(null)
   const [stageBox, setStageBox] = useState({ w: 0, h: 0 })
@@ -221,18 +281,21 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
       if (!driveConnection().connected) await driveConnect() // one-time consent popup
       const dt = new Date()
       const stamp = `${dt.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })} ${dt.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })}`
+      // The recorder picks the container at creation (MP4/H.264 where the
+      // browser can, WebM otherwise) - the Drive file name and MIME follow it.
+      let uploader = null
+      const recorder = createMeetingRecorder({
+        onChunk: blob => { if (uploader) uploader.append(blob) },
+        onError: () => { toast('Recording hit an error and was stopped.', 'error'); stopRecording(true) },
+      })
       // Keep letters/numbers/space/dot/dash/parens; everything else (slashes,
       // colons, quotes...) becomes '-' so the Drive filename is always safe.
-      const fname = `${meeting.className || 'Class'} - ${meeting.title || 'Online class'} - ${stamp}.webm`
+      const fname = `${meeting.className || 'Class'} - ${meeting.title || 'Online class'} - ${stamp}.${recorder.fileExt}`
         .replace(/[^\p{L}\p{N} ().-]/gu, '-')
-      const uploader = startResumableUpload({
+      uploader = startResumableUpload({
         name: fname,
-        mimeType: 'video/webm',
+        mimeType: recorder.fileMime,
         folderPath: [meeting.className || 'General', 'Recordings'],
-      })
-      const recorder = createMeetingRecorder({
-        onChunk: blob => uploader.append(blob),
-        onError: () => { toast('Recording hit an error and was stopped.', 'error'); stopRecording(true) },
       })
       recorder.start()
       recRef.current = { recorder, uploader, meeting, startAt: Date.now() }
@@ -510,8 +573,8 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
             <AlertTriangle size={15} />
             <span>
               {shieldWarn === 'brave'
-                ? 'Brave Shields is altering meeting audio, so recordings and transcripts can lose voices. Click the lion icon in the address bar, open Advanced controls, turn "Block fingerprinting" off for this site, then reload.'
-                : 'This browser\'s fingerprint protection is altering meeting audio, so recordings and transcripts can lose voices. Allow this site in your privacy settings, then reload.'}
+                ? 'Brave Shields is altering meeting audio, so recordings can lose voices. Click the lion icon in the address bar, open Advanced controls, turn "Block fingerprinting" off for this site, then reload.'
+                : 'This browser\'s fingerprint protection is altering meeting audio, so recordings can lose voices. Allow this site in your privacy settings, then reload.'}
             </span>
             <button onClick={dismissShieldWarn}>Got it</button>
           </div>
@@ -592,8 +655,11 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
         ) : peers.length ? (
           <>
             <div className="mr-stage" ref={setStageEl}>
+              {/* Cells share the ROW HEIGHT; each tile's width follows its own
+                  aspect (16:9 laptops, portrait phones), so mixed devices sit
+                  side by side without cropping anyone. */}
               {stagePeers.map(p => (
-                <div key={p.peerId} style={{ width: tileW }}>
+                <div key={p.peerId} className="mr-cell" style={{ height: Math.round(tileW * 9 / 16) }}>
                   <VideoTile
                     stream={p.stream}
                     name={p.name}
@@ -607,7 +673,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
                 </div>
               ))}
               {hiddenPeers.length > 0 && (
-                <div className="mr-tile mr-tile-more" style={{ width: tileW }}>
+                <div className="mr-tile mr-tile-more" style={{ height: Math.round(tileW * 9 / 16), width: 'auto' }}>
                   <div className="mr-tile-avatar">
                     <span className="mr-more-count">+{hiddenPeers.length}</span>
                     <span className="mr-tile-hint">others in class</span>
@@ -628,9 +694,15 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
           </div>
         )}
 
-        {/* Floating self-view: your camera never occupies a stage tile. */}
+        {/* Floating self-view: your camera never occupies a stage tile. On a
+            phone the card itself goes portrait to match the camera frame. */}
         {ready && (
-          <div className="mr-pip">
+          <div
+            className="mr-pip"
+            style={!sharing && camOn && localStream && selfRatio > 0 && selfRatio < 1
+              ? { width: 'auto', height: 150, aspectRatio: String(Math.max(selfRatio, 9 / 16)) }
+              : undefined}
+          >
             {sharing ? (
               <div className="mr-pip-present">
                 <MonitorUp size={16} />
@@ -704,32 +776,6 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
           </button>
         </div>
         <div className="mr-bar-right">
-          {ready && speechOk && (
-            <>
-              <span
-                aria-hidden="true"
-                style={{
-                  width: 8, height: 8, borderRadius: 999, flexShrink: 0,
-                  background: transcribeState === 'on' ? '#34a853'
-                    : transcribeState === 'loading' ? '#fbbc04'
-                    : transcribeState === 'unavailable' ? '#ea4335' : '#5f6368',
-                }}
-                title={transcribeState === 'on' ? 'Transcribing your speech on this device for the class transcript'
-                  : transcribeState === 'loading' ? 'Preparing the transcription model (first use only)…'
-                  : transcribeState === 'unavailable' ? 'Transcription could not start in this browser'
-                  : 'Transcription paused - unmute to capture your speech'}
-              />
-              <select
-                className="mr-lang"
-                value={transcribeLang}
-                onChange={e => setTranscribeLang(e.target.value)}
-                title="Your speech language for the class transcript"
-              >
-                {!SPEECH_LANGS.some(l => l.code === transcribeLang) && <option value={transcribeLang}>{transcribeLang}</option>}
-                {SPEECH_LANGS.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
-              </select>
-            </>
-          )}
           {ready && canPip && (
             <button className="mr-ctl mr-ctl-sm" onClick={popOut} title="Pop out a floating player (stays on top when you switch apps)">
               <PictureInPicture2 size={16} />
