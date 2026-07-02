@@ -17,10 +17,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import {
-  RTC_CONFIG, ROOM_CAP, BIG_ROOM, HEARTBEAT_MS, STALE_MS,
-  rtcFetchParticipants, rtcJoinRoom, rtcLeaveRoom, rtcUpdateParticipant,
-  rtcSendSignal, rtcListenParticipants, rtcListenSignals, rtcAddTranscript,
+  RTC_CONFIG, ROOM_CAP, BIG_ROOM, HEARTBEAT_MS, STALE_MS, STALE_FAST_MS,
+  rtcFetchParticipants, rtcJoinRoom, rtcLeaveRoom, rtcLeaveBeacon,
+  rtcUpdateParticipant, rtcSendSignal, rtcListenParticipants,
+  rtcListenSignals, rtcAddTranscript,
 } from '@/firebase/rtc'
+import { getIdToken } from '@/firebase/firebaseInit'
 import { speechSupported, startTranscriber, getSpeechLang, setSpeechLang } from '@/utils/transcribe'
 import { whisperSupported, startWhisperTranscriber } from '@/utils/whisperTranscribe'
 
@@ -115,6 +117,14 @@ export default function useMeetingRoom({ db, roomId, self }) {
     let local = null
     let screenTrack = null
     let heartbeat = null
+    let presence = null
+    let leaving = false
+    let rejoining = false
+    let cachedToken = ''       // for the pagehide leave beacon (fetch keepalive)
+    const seenLocal = new Map() // peerId -> { sig, at }: OUR clock when their heartbeat last changed
+    const joinStamp = new Map() // peerId -> joinedAt we built the pc against
+    const swept = new Set()     // ghost docs this device already deleted
+    let aliveSig = ''
     let transcriber = null
     const unsubs = []
 
@@ -167,17 +177,85 @@ export default function useMeetingRoom({ db, roomId, self }) {
     const send = (to, type, data) =>
       rtcSendSignal(db, roomId, { to, from: myId, type, data }).catch(() => {})
 
+    // ── Presence, judged on OUR clock ─────────────────────────────────────
+    // How long ago did *I* last see this peer's heartbeat value change?
+    // Comparing Date.now() with the peer's own lastSeen (their clock) broke
+    // on skewed device clocks: a crashed device whose clock ran fast looked
+    // alive forever - the "left the meeting but still shown there" ghost.
+    function seenAge(peerId) {
+      const rec = seenLocal.get(peerId)
+      return rec ? Date.now() - rec.at : 0
+    }
+    function isGone(p) {
+      const age = seenAge(p.peerId)
+      if (age >= STALE_MS) return true
+      // Dead link + quiet heartbeat = gone early. NAT-blocked peers who are
+      // really present keep heartbeating, so this never evicts them.
+      const cs = connState.get(p.peerId)
+      return age >= STALE_FAST_MS && (cs === 'disconnected' || cs === 'failed' || cs === 'closed')
+    }
+
     function publish() {
       if (dead) return
-      const now = Date.now()
-      setPeers(roster
-        .filter(p => p.peerId !== myId && now - (p.lastSeen || 0) < STALE_MS)
+      const shown = roster.filter(p => p.peerId !== myId && !isGone(p))
+      aliveSig = shown.map(p => p.peerId).sort().join(',')
+      setPeers(shown
         .sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0))
         .map(p => ({
           ...p,
           stream: streams.get(p.peerId) || null,
           connState: connState.get(p.peerId) || 'new',
         })))
+    }
+
+    // Runs every few seconds: hides peers the moment they cross the stale
+    // line (snapshots alone cannot do that - a vanished peer stops producing
+    // them), and the OLDEST alive participant (usually the professor) also
+    // DELETES ghost docs so Firestore matches reality for everyone,
+    // including future joiners. Firestore has no onDisconnect; this sweep is
+    // what actually removes a killed tab from the room.
+    function presenceTick() {
+      if (dead) return
+      if (myJoinedAt && !leaving && !roster.some(p => p.peerId === myId)) { rejoin(); return }
+      const sig = roster.filter(p => p.peerId !== myId && !isGone(p)).map(p => p.peerId).sort().join(',')
+      if (sig !== aliveSig) publish()
+      const alive = roster.filter(p => !isGone(p))
+      const sweeper = alive.slice()
+        .sort((a, b) => (a.joinedAt - b.joinedAt) || (a.peerId < b.peerId ? -1 : 1))[0]
+      if (!sweeper || sweeper.peerId !== myId) return
+      for (const p of roster) {
+        if (p.peerId === myId || swept.has(p.peerId)) continue
+        if (seenAge(p.peerId) >= STALE_MS + 10000) {
+          swept.add(p.peerId)
+          rtcLeaveRoom(db, roomId, p.peerId) // idempotent; also drops their queued signals
+        }
+      }
+    }
+
+    // My own doc vanished while I am still live: I was swept as a ghost
+    // (laptop lid closed, long network drop). Re-insert myself and rebuild
+    // every connection - without this, the swept side stayed in a room
+    // nobody else could see or hear.
+    async function rejoin() {
+      if (dead || leaving || rejoining) return
+      rejoining = true
+      try {
+        for (const peerId of [...pcs.keys()]) closePeer(peerId)
+        swept.clear()
+        const s = selfRef.current || {}
+        const me = await rtcJoinRoom(db, roomId, {
+          peerId: myId, uid: s.uid, name: s.name, role: s.role,
+          micOn: !!(local && local.getAudioTracks()[0] && local.getAudioTracks()[0].enabled),
+          camOn: !!(local && local.getVideoTracks()[0] && local.getVideoTracks()[0].enabled),
+        })
+        myJoinedAt = me.joinedAt
+        // Left while the rejoin write was in flight: take the doc back out
+        // so the re-insert does not become the very ghost this fixes.
+        if (dead || leaving) { rtcLeaveRoom(db, roomId, myId); return }
+        // A rejoining presenter keeps presenting (the fresh doc reset it).
+        if (screenTrack) rtcUpdateParticipant(db, roomId, myId, { sharing: true, sharedAt: Date.now() })
+      } catch { /* the next presence tick retries */ }
+      rejoining = false
     }
 
     function closePeer(peerId) {
@@ -295,7 +373,29 @@ export default function useMeetingRoom({ db, roomId, self }) {
       if (dead) return
       roster = list
       const now = Date.now()
-      const alive = list.filter(p => now - (p.lastSeen || 0) < STALE_MS)
+      // Stamp receipt times BEFORE any filtering: presence is judged on when
+      // WE saw each heartbeat value change (see seenAge above).
+      for (const p of list) {
+        const rec = seenLocal.get(p.peerId)
+        if (!rec || rec.sig !== p.lastSeen) seenLocal.set(p.peerId, { sig: p.lastSeen, at: now })
+      }
+      for (const id of [...seenLocal.keys()]) {
+        if (!list.some(p => p.peerId === id)) seenLocal.delete(id)
+      }
+      if (myJoinedAt && !leaving && !list.some(p => p.peerId === myId)) { rejoin(); return }
+      // A peer that REJOINED (fresh joinedAt, e.g. after being swept) needs
+      // fresh connections: drop the dead pc so the initiator rule re-runs
+      // for the new incarnation instead of feeding offers to a closed pc.
+      for (const p of list) {
+        if (p.peerId === myId) continue
+        const known = joinStamp.get(p.peerId)
+        if (known !== undefined && known !== p.joinedAt) closePeer(p.peerId)
+        joinStamp.set(p.peerId, p.joinedAt)
+      }
+      for (const id of [...joinStamp.keys()]) {
+        if (!list.some(p => p.peerId === id)) joinStamp.delete(id)
+      }
+      const alive = list.filter(p => !isGone(p))
       // Deterministic overflow: order everyone by join time; whoever lands
       // past the cap leaves on their own (covers two people joining seat 8
       // at once - both order the same list, only the later one bails).
@@ -322,8 +422,10 @@ export default function useMeetingRoom({ db, roomId, self }) {
     }
 
     function teardown() {
+      leaving = true
       stopTranscription()
       if (heartbeat) { clearInterval(heartbeat); heartbeat = null }
+      if (presence) { clearInterval(presence); presence = null }
       unsubs.splice(0).forEach(u => { try { u() } catch { /* noop */ } })
       for (const peerId of [...pcs.keys()]) closePeer(peerId)
       if (screenTrack) { try { screenTrack.stop() } catch { /* noop */ } screenTrack = null }
@@ -332,7 +434,13 @@ export default function useMeetingRoom({ db, roomId, self }) {
       window.removeEventListener('pagehide', onPageHide)
     }
 
-    function onPageHide() { rtcLeaveRoom(db, roomId, myId) }
+    function onPageHide() {
+      // The tab is dying: the SDK delete rarely gets to flush, so fire the
+      // keepalive REST delete first - it is what actually reaches the server
+      // when a tab closes mid-class. The sweeper covers whatever slips by.
+      rtcLeaveBeacon(db, roomId, myId, cachedToken)
+      rtcLeaveRoom(db, roomId, myId)
+    }
 
     async function start() {
       // Camera + mic; degrade to audio-only (camera busy/denied) before failing.
@@ -402,8 +510,12 @@ export default function useMeetingRoom({ db, roomId, self }) {
       unsubs.push(rtcListenSignals(db, roomId, myId, onSignal))
       heartbeat = setInterval(() => {
         rtcUpdateParticipant(db, roomId, myId, {})
-        publish() // re-evaluate staleness on a clock, not only on snapshots
+        // Keep a fresh ID token at hand for the pagehide leave beacon
+        // (resolves from the SDK cache - no network round-trip).
+        getIdToken().then(t => { if (t) cachedToken = t }).catch(() => {})
       }, HEARTBEAT_MS)
+      presence = setInterval(presenceTick, 5000)
+      getIdToken().then(t => { if (t) cachedToken = t }).catch(() => {})
       window.addEventListener('pagehide', onPageHide)
       const micLive = local.getAudioTracks()[0]?.enabled
       if (micLive) startTranscription()

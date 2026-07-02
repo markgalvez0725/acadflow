@@ -42,10 +42,17 @@ export const RTC_CONFIG = {
   ],
 }
 
-// A participant is considered gone when their heartbeat is older than this
-// (covers closed laptops / killed tabs that never ran the leave cleanup).
+// A participant is considered gone when their heartbeat has been quiet this
+// long (covers closed laptops / killed tabs that never ran the leave
+// cleanup). STALE_FAST_MS applies when their WebRTC connection ALSO died -
+// a dead link plus a quiet heartbeat means gone, no need to wait out the
+// full window. IMPORTANT: age must be measured on the OBSERVER's clock
+// (when did *I* last see their heartbeat value change), never by comparing
+// Date.now() against their lastSeen - device clock skew made crashed peers
+// look alive forever ("left but still in the meeting" ghosts).
 export const HEARTBEAT_MS = 20000
-export const STALE_MS = 65000
+export const STALE_MS = 50000
+export const STALE_FAST_MS = 35000
 
 const roomCol = (db, roomId, sub) => collection(db, 'rtcRooms', roomId, sub)
 
@@ -89,6 +96,27 @@ export async function rtcLeaveRoom(db, roomId, peerId) {
   try {
     const snap = await getDocs(query(roomCol(db, roomId, 'signals'), where('to', '==', peerId)))
     await Promise.all(snap.docs.map(d => deleteDoc(d.ref)))
+  } catch { /* best-effort */ }
+}
+
+// Tab-is-dying variant: the SDK's delete rides a WebChannel the browser kills
+// before it flushes, so a closed tab used to leave its participant doc behind
+// (Firestore has no onDisconnect). A keepalive fetch against the Firestore
+// REST endpoint survives page teardown, so the doc usually IS deleted and
+// everyone sees the person leave immediately instead of waiting out the
+// stale window. Best-effort on top of rtcLeaveRoom, never instead of it.
+export function rtcLeaveBeacon(db, roomId, peerId, idToken) {
+  try {
+    const pid = db?.app?.options?.projectId
+    if (!pid || typeof fetch === 'undefined') return
+    const url = 'https://firestore.googleapis.com/v1/projects/' + pid
+      + '/databases/(default)/documents/rtcRooms/' + encodeURIComponent(roomId)
+      + '/participants/' + encodeURIComponent(peerId)
+    fetch(url, {
+      method: 'DELETE',
+      keepalive: true,
+      headers: idToken ? { Authorization: 'Bearer ' + idToken } : {},
+    }).catch(() => { /* best-effort */ })
   } catch { /* best-effort */ }
 }
 
