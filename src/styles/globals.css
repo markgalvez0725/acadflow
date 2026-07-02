@@ -5962,6 +5962,8 @@ html[data-glass="on"][data-theme="dark"] body::before {
     font-weight: 700;
   }
   .mr-avatar-sm { width: 30px; height: 30px; font-size: 11px; }
+  .mr-avatar-photo { overflow: hidden; }
+  .mr-avatar-photo img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 50%; }
   .mr-tile-hint {
     display: inline-flex;
     align-items: center;

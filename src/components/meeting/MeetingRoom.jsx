@@ -13,6 +13,7 @@ import { SPEECH_LANGS } from '@/utils/transcribe'
 import { recordingSupported, createMeetingRecorder } from '@/utils/meetingRecorder'
 import { isConfigured as driveConfigured, getConnection as driveConnection, connect as driveConnect, startResumableUpload } from '@/utils/googleDrive'
 import { detectAudioShield } from '@/utils/audioShield'
+import { createPipSource } from '@/utils/meetingPip'
 
 // Full-screen in-app classroom shared by the professor and student tabs,
 // laid out Google Meet style: a centered stage of size-capped 16:9 tiles (no
@@ -62,8 +63,18 @@ function initials(name) {
   return String(name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?'
 }
 
+// One avatar for every cam-off surface: the real profile photo when the
+// person has one, initials otherwise.
+function AvatarCircle({ photo, name, small }) {
+  return (
+    <span className={`mr-avatar-circle${small ? ' mr-avatar-sm' : ''}${photo ? ' mr-avatar-photo' : ''}`}>
+      {photo ? <img src={photo} alt="" /> : initials(name)}
+    </span>
+  )
+}
+
 function VideoTile({
-  stream, name, role, micOn, camOn, muted, failed,
+  stream, name, role, micOn, camOn, muted, failed, photo,
   isSelf, presenting, presentLabel, noVideo, noHint, className,
 }) {
   const ref = useRef(null)
@@ -90,7 +101,7 @@ function VideoTile({
       )}
       {!showVideo && (
         <div className="mr-tile-avatar">
-          <span className="mr-avatar-circle">{initials(name)}</span>
+          <AvatarCircle photo={photo} name={name} />
           {!noHint && !stream && !isSelf && !failed && <span className="mr-tile-hint">connecting…</span>}
           {!noHint && failed && <span className="mr-tile-hint mr-tile-bad"><AlertTriangle size={12} /> could not connect</span>}
         </div>
@@ -123,7 +134,7 @@ function MiniVideo({ stream, onClick }) {
 }
 
 export default function MeetingRoom({ meeting, self, minimized, onMinimize, onClose, onEndClass }) {
-  const { db: dbRef, saveMeetingRecording } = useData()
+  const { db: dbRef, saveMeetingRecording, students, admin } = useData()
   const { toast } = useUI()
   const db = dbRef?.current || null
   const {
@@ -161,6 +172,16 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
 
   const rootRef = useRef(null)
   const pipRef = useRef(null)
+  const pipSrcRef = useRef(null)
+
+  // Resolve every participant's profile photo locally from the roster
+  // (professor = portal/admin photo, students by id). Photos are NEVER
+  // written into the rtcRooms participant docs - a data-URL photo would ride
+  // along with every heartbeat snapshot.
+  const photoFor = useMemo(() => {
+    const byId = new Map((students || []).map(s => [s.id, s.photo || null]))
+    return p => (p ? (p.role === 'admin' ? admin?.photo || null : byId.get(p.uid) || null) : null)
+  }, [students, admin?.photo])
 
   // Measure the stage so tiles are COMPUTED to fit - the room never scrolls.
   const [stageEl, setStageEl] = useState(null)
@@ -310,15 +331,40 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   const canPip = typeof document !== 'undefined' && !!document.pictureInPictureEnabled
 
   function popOut() {
-    const v = rootRef.current?.querySelector('video[data-rv]')
-    if (v) v.requestPictureInPicture().catch(() => { /* needs a fresh gesture or unsupported */ })
+    // Project the compositor - it always shows the room's current scene
+    // (video OR avatar card), never the black frame a cam-off remote video
+    // produces. Raw remote video only as a last-ditch fallback.
+    const src = pipSrcRef.current
+    const v = src && src.video.readyState >= 1 ? src.video : rootRef.current?.querySelector('video[data-rv]')
+    if (v && v.requestPictureInPicture) {
+      v.requestPictureInPicture().catch(() => { /* needs a fresh gesture or unsupported */ })
+    }
   }
+
+  // The pop-out source lives on document.body (it must survive the swap
+  // between the full room and the mini player) for as long as the call is up.
+  useEffect(() => {
+    if (!ready || !canPip) return
+    const src = createPipSource()
+    if (!src) return
+    pipSrcRef.current = src
+    document.body.appendChild(src.video)
+    src.start()
+    return () => {
+      pipSrcRef.current = null
+      if (document.pictureInPictureElement === src.video) {
+        document.exitPictureInPicture().catch(() => { /* already gone */ })
+      }
+      src.destroy()
+      src.video.remove()
+    }
+  }, [ready, canPip])
 
   // Alt-tab away: try to pop the class into the always-on-top PiP window.
   // Browsers that require a user gesture reject silently - the manual pop-out
   // button is the guaranteed path there.
   useEffect(() => {
-    if (!ready) return
+    if (!ready || !canPip) return
     function onVis() {
       if (document.visibilityState !== 'hidden') return
       if (document.pictureInPictureElement) return
@@ -326,7 +372,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     }
     document.addEventListener('visibilitychange', onVis)
     return () => document.removeEventListener('visibilitychange', onVis)
-  }, [ready])
+  }, [ready, canPip]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Leaving the room closes any pop-out window we created.
   useEffect(() => () => {
@@ -351,7 +397,30 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     return sharers.sort((a, b) => (b.sharedAt || 0) - (a.sharedAt || 0))[0]
   }, [peers])
 
+  // What the SMALL surfaces (mini player, pop-out) should show, mirroring the
+  // stage: the presenter, else any live camera. When nobody has visible video
+  // the featured FACE is the professor (or the first peer) as an avatar card,
+  // never a black cam-off <video>.
+  const focusPeer = featuredPeer || peers.find(p => p.stream && p.camOn !== false) || null
+  const facePeer = focusPeer || peers.find(p => p.role === 'admin') || peers[0] || null
+
   const count = peers.length + 1
+
+  // Keep the pop-out compositor fed with the current scene every render.
+  useEffect(() => {
+    const src = pipSrcRef.current
+    if (!src) return
+    src.setScene({
+      stream: focusPeer?.stream || null,
+      label: featuredPeer ? `${featuredPeer.name} is presenting`
+        : facePeer ? facePeer.name
+        : 'Waiting for others…',
+      sub: `${count} in class`,
+      photo: photoFor(facePeer || self),
+      initials: initials((facePeer || self)?.name),
+      live: !ended,
+    })
+  })
   const timeStr = new Date(now).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })
 
   // Stage layout: how many tiles fit without scrolling, and how wide. When a
@@ -382,7 +451,6 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
 
   // ── Mini player (minimized) ─────────────────────────────────────────────
   if (minimized) {
-    const focus = featuredPeer || peers.find(p => p.stream && p.camOn !== false) || peers.find(p => p.stream) || null
     const statusText = ended ? 'Class ended'
       : phase === 'connecting' ? 'Joining…'
       : phase === 'error' ? 'Could not join'
@@ -392,13 +460,16 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     const mini = (
       <div className="mr-mini" ref={rootRef} role="dialog" aria-label="Live class mini player">
         <div className="mr-mini-video" onClick={expand} title="Expand the class">
-          {ready && focus?.stream ? (
-            <MiniVideo stream={focus.stream} />
+          {ready && focusPeer?.stream ? (
+            <MiniVideo stream={focusPeer.stream} />
           ) : (
             <div className="mr-mini-empty">
               {statusText
                 ? <span>{statusText}</span>
-                : <><span className="mr-avatar-circle mr-avatar-sm">{initials(focus?.name || self?.name)}</span><span>{focus ? focus.name : 'Waiting for others…'}</span></>}
+                : <>
+                    <AvatarCircle photo={photoFor(facePeer || self)} name={(facePeer || self)?.name} small />
+                    <span>{facePeer ? facePeer.name : 'Waiting for others…'}</span>
+                  </>}
             </div>
           )}
           {!ended && <span className="mr-mini-live"><Radio size={10} /> LIVE</span>}
@@ -481,6 +552,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
                 key={`present-${featuredPeer.peerId}`}
                 stream={featuredPeer.stream}
                 name={featuredPeer.name}
+                photo={photoFor(featuredPeer)}
                 presentLabel={`${featuredPeer.name} is presenting`}
                 camOn
                 muted={false}
@@ -497,6 +569,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
                   presenting={p === featuredPeer}
                   name={p.name}
                   role={p.role}
+                  photo={photoFor(p)}
                   micOn={p.micOn}
                   camOn={p.camOn}
                   muted={false}
@@ -525,6 +598,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
                     stream={p.stream}
                     name={p.name}
                     role={p.role}
+                    photo={photoFor(p)}
                     micOn={p.micOn}
                     camOn={p.camOn}
                     muted={false}
@@ -574,7 +648,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
                 />
                 {(!camOn || !localStream) && (
                   <div className="mr-tile-avatar">
-                    <span className="mr-avatar-circle mr-avatar-sm">{initials(self?.name)}</span>
+                    <AvatarCircle photo={photoFor(self)} name={self?.name} small />
                   </div>
                 )}
               </>
