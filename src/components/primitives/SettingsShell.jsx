@@ -166,6 +166,10 @@ export default function SettingsShell({ open, onClose, title = 'Settings', ident
       .sset-search:hover { border-color:color-mix(in srgb, var(--border2), var(--ink3) 45%) }
       .sset-search:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-l) }
       .sset-search input { border:none; background:none; outline:none; flex:1; font-size:0.9063rem; color:var(--ink); font-family:var(--font-body) }
+      /* The wrapper's :focus-within ring is the focus indicator; kill the global
+         input:focus-visible ring so it doesn't draw a second box inside the field
+         (same exception as .msg-search-pill). */
+      .sset-search input:focus-visible { box-shadow:none }
       .sset-search input::placeholder { color:var(--ink3) }
       .sset-x { position:absolute; top:14px; right:14px; z-index:2; background:none; border:none; cursor:pointer; color:var(--ink3); display:flex; padding:4px; border-radius:8px }
       .sset-x:hover { background:var(--bg2); color:var(--ink) }
