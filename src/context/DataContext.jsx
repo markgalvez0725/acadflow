@@ -170,7 +170,9 @@ export function DataProvider({ children }) {
         onExcuseRequestsUpdate: setExcuseRequests,
         onStudentFeedbackUpdate: setStudentFeedback,
         onAuditLogUpdate: _isAdmin ? setAuditLog : undefined,
-        onRubricLibraryUpdate: setRubricLibrary,
+        // The rubric library is a professor-only authoring tool (students see
+        // rubrics embedded on each activity doc) - don't subscribe students.
+        onRubricLibraryUpdate: _isAdmin ? setRubricLibrary : undefined,
         onConfigUpdate: ({ ejsConfig }) => {
           if (ejsConfig) {
             setEjs({ ...ejsConfig, configured: true })
@@ -259,7 +261,8 @@ export function DataProvider({ children }) {
       onExcuseRequestsUpdate: setExcuseRequests,
       onStudentFeedbackUpdate: setStudentFeedback,
       onAuditLogUpdate: _isAdmin ? setAuditLog : undefined,
-      onRubricLibraryUpdate: setRubricLibrary,
+      // Professor-only authoring tool - see the matching gate in _bootstrap.
+      onRubricLibraryUpdate: _isAdmin ? setRubricLibrary : undefined,
       onConfigUpdate: ({ ejsConfig }) => {
         if (ejsConfig) {
           setEjs({ ...ejsConfig, configured: true })
