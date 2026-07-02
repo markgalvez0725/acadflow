@@ -6,19 +6,45 @@ import { requireUser } from './_fbadmin.js'
 // getting their own file:
 //   { prompt }           -> quiz generation (raw chat-completions passthrough)
 //   { transcript, meta } -> meeting Smart Recap summary -> { html }
-// Both return 501 when GROQ_API_KEY is unset so clients fall back on-device.
+//   { audio, lang? }     -> speech transcription (whisper-large-v3) -> { text }
+// All return 501 when GROQ_API_KEY is unset so clients fall back on-device.
 export default async function handler(req, res) {
-  if (guard(req, res, { max: 20 })) return
+  if (guard(req, res, { max: 30 })) return
   if (req.method !== 'POST') return res.status(405).end()
   if (!(await requireUser(req, res))) return
 
-  const { prompt, transcript, meta } = req.body || {}
-  if (!prompt && !transcript) return res.status(400).json({ error: 'Missing prompt' })
+  const { prompt, transcript, meta, audio, lang } = req.body || {}
+  if (!prompt && !transcript && !audio) return res.status(400).json({ error: 'Missing prompt' })
 
   // Prefer the server-only name; fall back to the legacy VITE_-prefixed var so
   // existing deployments keep working until the env var is renamed.
   const groqKey = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY
   if (!groqKey) return res.status(501).json({ error: 'Groq not configured (GROQ_API_KEY missing)' })
+
+  // ── Speech transcription mode (meeting transcripts, maximum accuracy) ──
+  // `audio` is a base64 WAV (16 kHz mono PCM built on the speaker's device,
+  // one utterance at a time). whisper-large-v3 auto-detects the language when
+  // `lang` is not a 2-letter code, which is what handles Taglish correctly.
+  if (audio && typeof audio === 'string') {
+    if (audio.length > 3_500_000) return res.status(413).json({ error: 'Audio chunk too large' })
+    let buf
+    try { buf = Buffer.from(audio, 'base64') } catch { return res.status(400).json({ error: 'Bad audio encoding' }) }
+    if (!buf || buf.length < 1000) return res.status(400).json({ error: 'Audio too short' })
+    const fd = new FormData()
+    fd.append('file', new Blob([buf], { type: 'audio/wav' }), 'speech.wav')
+    fd.append('model', 'whisper-large-v3')
+    fd.append('response_format', 'json')
+    fd.append('temperature', '0')
+    if (typeof lang === 'string' && /^[a-z]{2}$/.test(lang)) fd.append('language', lang)
+    const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${groqKey}` },
+      body: fd,
+    })
+    const data = await r.json().catch(() => null)
+    if (!r.ok) return res.status(r.status).json(data || { error: 'Transcription failed' })
+    return res.status(200).json({ text: String(data?.text || '').trim() })
+  }
 
   // ── Meeting Smart Recap mode ──
   if (transcript && typeof transcript === 'string') {
