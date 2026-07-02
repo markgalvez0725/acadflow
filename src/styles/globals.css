@@ -3080,12 +3080,15 @@ textarea.input { resize: vertical; }
 .ar-status-sub { background: var(--green-l); color: var(--green); }
 .ar-status-missed { background: var(--red-l); color: var(--red); }
 .ar-status-pending { background: var(--bg2); color: var(--ink3); }
+.ar-status-returned { background: var(--yellow-l, #fef9c3); color: var(--gold-var, #ca8a04); }
 .ar-flag { margin-top: 10px; display: flex; align-items: center; gap: 8px; background: var(--red-l); border-radius: 6px; padding: 5px 9px; font-size: 0.75rem; color: var(--red); flex-wrap: wrap; }
 .ar-flag-text { flex: 1; min-width: 120px; }
+.ar-flag--returned { background: var(--yellow-l, #fef9c3); color: var(--gold-var, #ca8a04); }
 .ar-divider { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 .ar-avatar-sub { background: var(--green-l); color: var(--green); }
 .ar-avatar-missed { background: var(--red-l); color: var(--red); }
 .ar-avatar-pending { background: var(--bg2); color: var(--ink3); }
+.ar-avatar-returned { background: var(--yellow-l, #fef9c3); color: var(--gold-var, #ca8a04); }
 .sa-act-submitted {
   margin-top: 10px;
   padding: 10px 12px;

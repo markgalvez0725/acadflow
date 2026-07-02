@@ -5,7 +5,7 @@ import { useUI } from '@/context/UIContext'
 import Pagination from '@/components/primitives/Pagination'
 import EmptyState from '@/components/ds/EmptyState'
 import PageHeader from '@/components/ds/PageHeader'
-import { ClipboardList, Check, Circle, Users, ShieldCheck, AlertTriangle, Clock, Hourglass, Trophy, CheckCircle2 } from 'lucide-react'
+import { ClipboardList, Check, Circle, Users, ShieldCheck, AlertTriangle, Clock, Hourglass, Trophy, CheckCircle2, RotateCcw } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import StandingRing from '@/components/primitives/StandingRing'
 import SubmissionFileField from '@/components/student/SubmissionFileField'
@@ -100,13 +100,17 @@ export default function ActivitiesTab({ student: s, activities }) {
     const score    = sub.score ?? null
     const maxScore = act.maxScore || 100
     const hasSub   = act.isGroup ? !!groupSub?.text : !!sub.link
+    // Professor sent the submission back: the item reopens (even past the
+    // deadline) until a new file/link is submitted. Individual activities only.
+    const returned = !act.isGroup && !!sub.returned && !sub.link
     const isPast   = act.deadline ? Date.now() > act.deadline : false
     const dueSoon  = !isPast && !!act.deadline && (act.deadline - Date.now() <= SOON_MS)
     let status = 'open'
     if (score != null) status = 'graded'
     else if (hasSub)   status = 'submitted'
+    else if (returned) status = 'open'
     else if (isPast)   status = 'missed'
-    return { act, sub, myGroup, groupSub, score, maxScore, hasSub, isPast, dueSoon, status }
+    return { act, sub, myGroup, groupSub, score, maxScore, hasSub, isPast, dueSoon, status, returned }
   }), [items, s.id])
 
   const counts = useMemo(() => {
@@ -131,6 +135,9 @@ export default function ActivitiesTab({ student: s, activities }) {
     const f = []
     if (missed.length)
       f.push({ tone: 'bad', Icon: AlertTriangle, lead: `${missed.length} missed`, text: ` - ${missed[0].act.title}${missed.length > 1 ? ` and ${missed.length - 1} more` : ''}, deadline passed with no submission.` })
+    const returnedItems = derived.filter(d => d.returned)
+    if (returnedItems.length)
+      f.push({ tone: 'warn', Icon: RotateCcw, lead: `${returnedItems.length} returned`, text: ` - ${returnedItems[0].act.title}: your professor asked for a revised submission.` })
     if (dueSoon.length)
       f.push({ tone: 'warn', Icon: Clock, lead: 'Due soon', text: ` - ${dueSoon[0].act.title}${dueSoon.length > 1 ? ` and ${dueSoon.length - 1} more` : ''}, not yet submitted.` })
     if (awaiting.length)
@@ -172,8 +179,12 @@ export default function ActivitiesTab({ student: s, activities }) {
   async function submitActivity(actId) {
     // Re-check the deadline at write time: the card may have been rendered
     // before the deadline passed. Matches the render-time gating and copy.
+    // A submission the professor returned for revision bypasses the cutoff -
+    // returning it was an explicit invitation to submit again.
     const act = activities.find(a => a.id === actId)
-    if (submitCutoffPassed(act)) { toast('The deadline has passed - you can no longer submit. Message your professor.', 'warn'); return }
+    const prevSub = (act?.submissions || {})[s.id]
+    const wasReturned = !!prevSub?.returned && !prevSub?.link
+    if (!wasReturned && submitCutoffPassed(act)) { toast('The deadline has passed - you can no longer submit. Message your professor.', 'warn'); return }
     const file = pendingFiles[actId] || null
     const typedLink = (linkInputs[actId] || '').trim()
     // A submission is a file OR a pasted link. A staged file wins.
@@ -211,6 +222,9 @@ export default function ActivitiesTab({ student: s, activities }) {
         // a plain link never leaves stale OCR text behind.
         [`${sidPath}.contentText`]: contentText,
         [`${sidPath}.contentMeta`]: contentMeta,
+        // A fresh submission settles a returned-for-revision request; the old
+        // file stays in this entry's history (written by the professor's return).
+        [`${sidPath}.returned`]: null,
       })
       setLinkInputs(prev => ({ ...prev, [actId]: '' }))
       setPendingFiles(prev => ({ ...prev, [actId]: null }))
@@ -384,6 +398,9 @@ export default function ActivitiesTab({ student: s, activities }) {
           } else if (hasLink) {
             badgeCls = 'badge-blue'
             badgeLabel = 'Submitted'
+          } else if (d.returned) {
+            badgeCls = 'badge-yellow'
+            badgeLabel = 'Returned for revision'
           } else if (isPast) {
             badgeCls = 'badge-red'
             badgeLabel = 'Missed'
@@ -606,10 +623,21 @@ export default function ActivitiesTab({ student: s, activities }) {
                     </>
                   )}
                 </div>
-              ) : isPast ? (
+              ) : isPast && !d.returned ? (
                 <div style={{ fontSize: 12, color: 'var(--red)', marginTop: 8 }}>This activity has passed without a submission.</div>
               ) : (
                 <div className="sa-act-submit-form">
+                  {d.returned && (
+                    <div style={{ margin: '8px 0', padding: '9px 12px', borderLeft: '3px solid var(--yellow)', background: 'var(--yellow-l, #fef9c3)', borderRadius: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, color: 'var(--gold-var, #ca8a04)' }}>
+                        <RotateCcw size={13} /> Returned for revision
+                      </div>
+                      {sub.returned?.note && (
+                        <div style={{ fontSize: 12.5, color: 'var(--ink)', marginTop: 3, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{sub.returned.note}</div>
+                      )}
+                      <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 3 }}>Your previous file is kept in history - submit an updated one below{isPast ? ' (the usual deadline does not apply to this revision)' : ''}.</div>
+                    </div>
+                  )}
                   <input
                     className="input"
                     placeholder="Paste your submission link (https://…)"

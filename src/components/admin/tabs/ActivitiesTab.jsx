@@ -18,7 +18,7 @@ import RichText from '@/components/primitives/RichText'
 import GroupsModal from '@/components/admin/modals/GroupsModal'
 import { extractSubmissionText } from '@/utils/submissionExtract'
 import { uploadFile, isConfigured as driveConfigured } from '@/utils/googleDrive'
-import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil, ClipboardList, AlarmClock, CircleDot, BarChart3, CheckCircle2, Check, Save, Plus, Copy, Users, ClipboardPaste } from 'lucide-react'
+import { Clock, AlertCircle, X, Archive, ArchiveRestore, Sparkles, Wand2, Pencil, ClipboardList, AlarmClock, CircleDot, BarChart3, CheckCircle2, Check, Save, Plus, Copy, Users, ClipboardPaste, RotateCcw } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import { deviceRubric, smartInstructions, smartRubric, smartGrade, smartGradeGroups, prewarmActivitySmart } from '@/utils/activitySmart'
 import { sendPushToOwners } from '@/firebase/pushTokens'
@@ -779,6 +779,50 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
     }, 1100)
   }
 
+  // Return a submission for revision: archive the current one into the entry's
+  // history, clear the active fields so the student's submit UI reopens (the
+  // returned marker also bypasses the deadline gate on their side), recompute
+  // the grade component, and notify the student with the feedback note.
+  async function handleReturn(s) {
+    const sub = (act.submissions || {})[s.id]
+    if (!sub?.link) return
+    const note = (feedbacks[s.id] !== undefined ? feedbacks[s.id] : (sub.feedback || '')).trim()
+      || 'Please review the instructions and submit an updated file.'
+    const ok = await openDialog({
+      title: `Return ${s.name}'s submission?`,
+      msg: 'They will be asked to submit again (even past the deadline) and will see your feedback note as the reason. The current submission stays in this entry\'s history.',
+      type: 'warning', confirmLabel: 'Return for revision', showCancel: true,
+    })
+    if (!ok) return
+    try {
+      const { history: prevHistory, ...snapshot } = sub
+      const entry = { returned: { note, at: Date.now() }, history: [...(prevHistory || []), { ...snapshot, returnedAt: Date.now() }] }
+      await updateDoc(doc(db.current, 'activities', act.id), { [`submissions.${s.id}`]: entry })
+      // If it was already graded, the activity component must drop the score.
+      if (sub.score != null) {
+        const patchedActs = activities.map(a => a.id === act.id
+          ? { ...a, submissions: { ...(a.submissions || {}), [s.id]: entry } }
+          : a)
+        const updated = buildUpdatedStudent(s, act.subject, act.classId, patchedActs, students)
+        if (updated) await saveStudents(students.map(x => x.id === s.id ? updated : x), [s.id])
+      }
+      logAudit?.({
+        action: 'activity.return',
+        target: s.name,
+        summary: `Returned "${act.title}" submission for revision`,
+        meta: { activityId: act.id, studentId: s.id, subject: act.subject || null },
+      })
+      if (fbReady && db.current) {
+        pushStudentNotif(db.current, s.id, `Returned for revision: ${act.title}`, `${act.subject} - ${note}`, 'act_new', `act:${act.id}`)
+      }
+      setScores(prev => ({ ...prev, [s.id]: '' }))
+      setFeedbacks(prev => ({ ...prev, [s.id]: '' }))
+      toast('Submission returned - the student can now submit again.', 'green')
+    } catch (e) {
+      toast('Could not return the submission: ' + e.message, 'red')
+    }
+  }
+
   async function handleApplyDefault() {
     const missed = enrolledStudents.filter(s => !(act.submissions || {})[s.id]?.link)
     if (!missed.length) { toast('Everyone enrolled has already submitted.', 'green'); return }
@@ -1250,7 +1294,7 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
             const subDate = sub.submittedAt
               ? new Date(sub.submittedAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
               : null
-            const status = hasLink ? 'sub' : (isPast ? 'missed' : 'pending')
+            const status = hasLink ? 'sub' : (sub.returned ? 'returned' : isPast ? 'missed' : 'pending')
             const hasScore = (scores[s.id] !== undefined && scores[s.id] !== '') || sub.score != null
             const effFeedback = (feedbacks[s.id] !== undefined ? feedbacks[s.id] : (sub.feedback || '')).trim()
             const scorePlaceholder = (!hasScore && hasLink && effFeedback) ? String(feedbackDefaultScore(s.id, act.maxScore))
@@ -1272,16 +1316,20 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                   </div>
                   {status === 'sub'
                     ? <span className="ar-status ar-status-sub"><CheckCircle2 size={12} /> Submitted</span>
-                    : status === 'missed'
-                      ? <span className="ar-status ar-status-missed"><AlertCircle size={11} /> Missed</span>
-                      : <span className="ar-status ar-status-pending"><Clock size={11} /> Pending</span>}
+                    : status === 'returned'
+                      ? <span className="ar-status ar-status-returned"><RotateCcw size={11} /> Returned</span>
+                      : status === 'missed'
+                        ? <span className="ar-status ar-status-missed"><AlertCircle size={11} /> Missed</span>
+                        : <span className="ar-status ar-status-pending"><Clock size={11} /> Pending</span>}
                 </div>
 
                 {!hasLink && (
-                  <div className="ar-flag">
-                    <AlarmClock size={13} style={{ flexShrink: 0 }} />
+                  <div className={`ar-flag${status === 'returned' ? ' ar-flag--returned' : ''}`}>
+                    {status === 'returned' ? <RotateCcw size={13} style={{ flexShrink: 0 }} /> : <AlarmClock size={13} style={{ flexShrink: 0 }} />}
                     <span className="ar-flag-text">
-                      {isPast ? `Did not submit · gets the default ${missedDefaultScore(act.maxScore)} if left ungraded` : 'Not yet submitted'}
+                      {status === 'returned'
+                        ? 'Returned for revision · waiting for a new submission'
+                        : isPast ? `Did not submit · gets the default ${missedDefaultScore(act.maxScore)} if left ungraded` : 'Not yet submitted'}
                     </span>
                     {nudged[s.id]
                       ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 700 }}><Check size={12} /> Nudged</span>
@@ -1293,6 +1341,11 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
                 {hasLink && (
                   <div>
                     <SubmissionPreview link={sub.link} name={`${s.name} - ${act.title}`} compact fallbackLabel="Open submission" />
+                  </div>
+                )}
+                {status === 'returned' && sub.history?.length > 0 && sub.history[sub.history.length - 1]?.link && (
+                  <div>
+                    <SubmissionPreview link={sub.history[sub.history.length - 1].link} name={`${s.name} - previous submission`} compact fallbackLabel="Previous submission (returned)" />
                   </div>
                 )}
 
@@ -1358,6 +1411,11 @@ function ViewActivityModal({ act, onClose, onEdit, onDelete }) {
 
                 {hasLink && (
                   <div className="flex gap-1.5 items-center justify-end" style={{ marginTop: 10 }}>
+                    <button className="btn btn-ghost btn-sm" style={{ color: 'var(--gold-var, #ca8a04)' }}
+                      title="Ask this student to submit again - write the reason in the feedback note first"
+                      onClick={() => handleReturn(s)}>
+                      <RotateCcw size={13} /> Return for revision
+                    </button>
                     <button className="btn btn-ghost btn-sm" title="Smart grading assistant" onClick={() => {
                       const t = sub.contentText || ''
                       setAiFor(s.id); setAiText(t); setAiResult(null)
