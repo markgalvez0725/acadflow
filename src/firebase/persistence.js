@@ -233,6 +233,24 @@ export async function loadAdminFromStorage() {
   return null;
 }
 
+// ── Case studies (professor-only grouped practicals) ──────────────────────
+// Merge-writes on purpose: the tab's debounced score autosave sends partial
+// docs ({id, scores, memberScores}) that must never clobber other fields.
+export async function fbSaveCaseStudy(db, cs) {
+  if (!cs?.id) return
+  setFbWriting(true)
+  try {
+    return await fbWithTimeout(setDoc(doc(db, 'caseStudies', cs.id), JSON.parse(JSON.stringify(cs)), { merge: true }))
+  } finally {
+    setFbWriting(false)
+  }
+}
+
+export async function fbDeleteCaseStudy(db, id) {
+  if (!id) return
+  return fbWithTimeout(deleteDoc(doc(db, 'caseStudies', id)))
+}
+
 // ── Announcement writes ────────────────────────────────────────────────────
 export async function fbSaveAnnouncement(db, announcement) {
   const { doc: fbDoc, setDoc } = await import('firebase/firestore')

@@ -5,7 +5,7 @@ import { useUI } from '@/context/UIContext'
 import BrandMark from '@/components/primitives/BrandMark'
 import ChangelogModal from '@/components/primitives/ChangelogModal'
 import { APP_VERSION } from '@/constants/changelog'
-import { LayoutDashboard, School, Users, BookOpen, CalendarCheck, Bell, ClipboardList, Settings, LogOut, FileQuestion, Rss, CalendarDays, Video, History, MessageSquare, MessageSquarePlus, ShieldCheck } from 'lucide-react'
+import { LayoutDashboard, School, Users, BookOpen, CalendarCheck, Bell, ClipboardList, Settings, LogOut, FileQuestion, Rss, CalendarDays, Video, History, MessageSquare, MessageSquarePlus, ShieldCheck, ListChecks } from 'lucide-react'
 
 // Flat, Instagram-style nav list (no section headers).
 const NAV_ITEMS = [
@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { id: 'attendance',     label: 'Attendance',     Icon: CalendarCheck },
   { id: 'quizzes',        label: 'Quizzes',        Icon: FileQuestion },
   { id: 'activities',     label: 'Activities',     badgeId: 'act',   Icon: ClipboardList },
+  { id: 'caseStudies',    label: 'Case Studies',   Icon: ListChecks },
   { id: 'messages',       label: 'Messages',       badgeId: 'msg',   Icon: MessageSquare },
   { id: 'notifications',  label: 'Notifications',  badgeId: 'notif', Icon: Bell },
   { id: 'onlineClasses',  label: 'Online Classes', Icon: Video },

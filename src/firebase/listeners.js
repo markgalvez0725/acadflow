@@ -59,6 +59,7 @@ export function fbStartListening(db, callbacks, opts = {}) {
     onStudentFeedbackUpdate,
     onAuditLogUpdate,
     onRubricLibraryUpdate,
+    onCaseStudiesUpdate,
   } = callbacks;
 
   // Stop any previous listeners
@@ -252,6 +253,21 @@ export function fbStartListening(db, callbacks, opts = {}) {
       );
       _unsub.push(uE);
     }
+  }
+
+  // ── caseStudies collection (professor-only grading tool) ───────────────
+  // Students never subscribe: results reach them as normal exam grades.
+  if (onCaseStudiesUpdate && isAdmin) {
+    const uCS = onSnapshot(
+      collection(db, 'caseStudies'),
+      snap => {
+        const list = [];
+        snap.forEach(d => list.push(d.data()));
+        onCaseStudiesUpdate(list);
+      },
+      e => console.error('[Firebase] caseStudies listener error:', e.message)
+    );
+    _unsub.push(uCS);
   }
 
   // ── studentFeedback collection ────────────────────────────────────────

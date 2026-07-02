@@ -146,6 +146,10 @@ service cloud.firestore {
     // tab. The cron uses the service account, which bypasses these rules.
     match /auditLog/{docId}           { allow read, write: if isAdmin(); }
 
+    // Case studies: professor-only grading tool (students receive the result
+    // as normal exam grades on their own student doc).
+    match /caseStudies/{docId}        { allow read, write: if isAdmin(); }
+
     // ── Teacher-owned content with student collaboration ─────────────────
     // PRINCIPLE: the teacher OWNS the content (creates/deletes it and edits its
     // body); students may only touch the collaborative side-fields. Previously

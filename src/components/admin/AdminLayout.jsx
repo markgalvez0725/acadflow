@@ -11,7 +11,7 @@ import CommandPaletteButton from '@/components/primitives/CommandPaletteButton'
 import ConnectionStatus from '@/components/primitives/ConnectionStatus'
 import MeetingHost from '@/components/meeting/MeetingHost'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
-import { Rss, LayoutDashboard, School, Users, BookOpen, CalendarCheck, FileQuestion, CalendarDays, Bell, ClipboardList, Video, Settings, LogOut, Menu, MessageSquare, MessageSquarePlus, ShieldCheck } from 'lucide-react'
+import { Rss, LayoutDashboard, School, Users, BookOpen, CalendarCheck, FileQuestion, CalendarDays, Bell, ClipboardList, Video, Settings, LogOut, Menu, MessageSquare, MessageSquarePlus, ShieldCheck, ListChecks } from 'lucide-react'
 
 // Mobile bottom-nav: 5 primary destinations + "More" (opens a tidy sheet).
 const MOBILE_NAV = [
@@ -28,6 +28,7 @@ const MORE_NAV = [
   { id: 'classes',       Icon: School,       label: 'Classes' },
   { id: 'attendance',    Icon: CalendarCheck, label: 'Attendance' },
   { id: 'quizzes',       Icon: FileQuestion, label: 'Quizzes' },
+  { id: 'caseStudies',   Icon: ListChecks,   label: 'Case Studies' },
   { id: 'notifications', Icon: Bell,         label: 'Alerts' },
   { id: 'calendar',      Icon: CalendarDays, label: 'Calendar' },
   { id: 'onlineClasses', Icon: Video,        label: 'Meet' },
@@ -41,6 +42,7 @@ const StudentsTab     = lazy(() => import('./tabs/StudentsTab'))
 const GradesTab       = lazy(() => import('./tabs/GradesTab'))
 const AttendanceTab   = lazy(() => import('./tabs/AttendanceTab'))
 const ActivitiesTab   = lazy(() => import('./tabs/ActivitiesTab'))
+const CaseStudiesTab  = lazy(() => import('./tabs/CaseStudiesTab'))
 const NotificationsTab  = lazy(() => import('./tabs/NotificationsTab'))
 const QuizTab           = lazy(() => import('./tabs/QuizTab'))
 const StreamTab         = lazy(() => import('./tabs/StreamTab'))
@@ -65,6 +67,7 @@ const TAB_TITLES = {
   integrity:     ['Grade Integrity', 'Verify every published grade matches the live data'],
   attendance:    ['Attendance',    'Track student attendance'],
   activities:    ['Activities',    'Post activities, collect submissions, and auto-grade'],
+  caseStudies:   ['Case Studies',  'Grouped practicals graded into the midterm and finals exams'],
   quizzes:       ['Quizzes',       'Smart-generated quizzes with auto-grading'],
   notifications:  ['Notifications',  'Real-time alerts for messages and activity submissions'],
   calendar:       ['Calendar',       'Monthly view of activities, quizzes, and announcements'],
@@ -179,6 +182,7 @@ export default function AdminLayout() {
               {adminTab === 'integrity'     && <GradeIntegrityTab />}
               {adminTab === 'attendance'    && <AttendanceTab />}
               {adminTab === 'activities'    && <ActivitiesTab />}
+              {adminTab === 'caseStudies'   && <CaseStudiesTab />}
               {adminTab === 'quizzes'        && <QuizTab />}
               {adminTab === 'notifications'  && <NotificationsTab />}
               {adminTab === 'calendar'       && <CalendarTab />}

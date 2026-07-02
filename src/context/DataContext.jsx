@@ -15,6 +15,7 @@ import {
   fbWriteStudentSecret, fbMigrateStudentSecrets,
   fbSubmitQuizResult,
   fbSetQuizProgress,
+  fbSaveCaseStudy, fbDeleteCaseStudy,
 } from '@/firebase/persistence'
 import { fbPushReminderNotif } from '@/firebase/reminders'
 import { rtcCleanupRoom, rtcFetchTranscript } from '@/firebase/rtc'
@@ -87,6 +88,7 @@ export function DataProvider({ children }) {
   const [studentFeedback, setStudentFeedback]       = useState([])
   const [auditLog, setAuditLog]                     = useState([])
   const [rubricLibrary, setRubricLibrary]           = useState([])
+  const [caseStudies, setCaseStudies]               = useState([])
   const [fbReady, setFbReady]           = useState(false)
   const [fbConfig, setFbConfig]         = useState(null) // decrypted config object
   const [semester, setSemester]         = useState(null)
@@ -176,6 +178,8 @@ export function DataProvider({ children }) {
         // The rubric library is a professor-only authoring tool (students see
         // rubrics embedded on each activity doc) - don't subscribe students.
         onRubricLibraryUpdate: _isAdmin ? setRubricLibrary : undefined,
+        // Case studies: professor-only grading tool - never subscribed for students.
+        onCaseStudiesUpdate: _isAdmin ? setCaseStudies : undefined,
         onConfigUpdate: ({ ejsConfig }) => {
           if (ejsConfig) {
             setEjs({ ...ejsConfig, configured: true })
@@ -266,6 +270,7 @@ export function DataProvider({ children }) {
       onAuditLogUpdate: _isAdmin ? setAuditLog : undefined,
       // Professor-only authoring tool - see the matching gate in _bootstrap.
       onRubricLibraryUpdate: _isAdmin ? setRubricLibrary : undefined,
+      onCaseStudiesUpdate: _isAdmin ? setCaseStudies : undefined,
       onConfigUpdate: ({ ejsConfig }) => {
         if (ejsConfig) {
           setEjs({ ...ejsConfig, configured: true })
@@ -310,6 +315,29 @@ export function DataProvider({ children }) {
   // default Welcome@2026 password.
   const pendingPurges = useRef(new Map()) // id -> { timer, onResult }
   const purgeFnRef = useRef(null)         // latest purgeStudentEverywhere (set below)
+
+  // ── Case studies (professor-only grouped practicals) ────────────────────
+  // Optimistic merge into local state; fbSaveCaseStudy merge-writes so the
+  // debounced score autosave's partial docs never clobber other fields.
+  const saveCaseStudy = useCallback(async (cs) => {
+    const db = dbRef.current
+    if (!db || !cs?.id) return
+    setCaseStudies(prev => {
+      const i = prev.findIndex(x => x.id === cs.id)
+      if (i === -1) return [...prev, { ...cs }]
+      const next = prev.slice()
+      next[i] = { ...next[i], ...cs }
+      return next
+    })
+    await fbSaveCaseStudy(db, cs)
+  }, [])
+
+  const deleteCaseStudy = useCallback(async (id) => {
+    const db = dbRef.current
+    if (!db || !id) return
+    setCaseStudies(prev => prev.filter(x => x.id !== id))
+    await fbDeleteCaseStudy(db, id)
+  }, [])
 
   const saveStudents = useCallback(async (updatedStudents, changedIds) => {
     if (changedIds?.length) {
@@ -1653,6 +1681,7 @@ export function DataProvider({ children }) {
       liveMeetings: meetings.filter(m => m.status === 'live'),
       saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting,
       generateMeetingRecap, fetchMeetingTranscript, saveMeetingRecording, markMeetingRecordingReady,
+      caseStudies, saveCaseStudy, deleteCaseStudy,
       attendanceSessions, openCheckIn, closeCheckIn, studentCheckIn,
       excuseRequests, submitExcuseRequest, decideExcuseRequest,
       studentFeedback, submitStudentFeedback, updateFeedbackStatus,

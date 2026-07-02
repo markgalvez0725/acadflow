@@ -20,6 +20,7 @@ const ADMIN_TABS = [
   { id: 'integrity',     label: 'Grade Integrity', Icon: ShieldCheck },
   { id: 'attendance',    label: 'Attendance',     Icon: CalendarCheck },
   { id: 'activities',    label: 'Activities',     Icon: ClipboardList },
+  { id: 'caseStudies',   label: 'Case Studies',   Icon: ListChecks },
   { id: 'quizzes',       label: 'Quizzes',        Icon: FileQuestion },
   { id: 'messages',      label: 'Messages',       Icon: MessageSquare },
   { id: 'notifications', label: 'Notifications',  Icon: Bell },
