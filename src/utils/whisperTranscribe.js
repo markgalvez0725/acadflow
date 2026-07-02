@@ -20,7 +20,17 @@ const TRANSFORMERS_URLS = [
   'https://esm.sh/@xenova/transformers@2.17.2',
   'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/+esm',
 ]
-const MODEL = 'Xenova/whisper-tiny'
+
+// Model ladder, best-first. All multilingual, all quantized, all cached by
+// the browser after the first download:
+//   whisper-small ~250 MB - the biggest that is practical in-browser
+//   whisper-base   ~80 MB - solid middle ground
+//   whisper-tiny   ~40 MB - the floor for weak hardware
+// The starting tier is picked from device capability, remembered per device,
+// and the pump() speed guard DOWNSHIFTS mid-class if inference cannot keep up
+// with real time - accuracy on strong machines, no backlog on weak ones.
+const MODELS = ['Xenova/whisper-small', 'Xenova/whisper-base', 'Xenova/whisper-tiny']
+const TIER_KEY = 'acadflow_whisper_tier'
 const TARGET_SR = 16000
 
 // Room language codes -> Whisper language names (unknown codes let the model
@@ -39,7 +49,7 @@ const MAX_UTTER_S = 15
 const END_SILENCE_S = 1.0
 const MIN_VOICED_S = 0.7
 const MAX_QUEUE = 2
-const WARMUP_TIMEOUT_MS = 120000
+const WARMUP_TIMEOUT_MS = 300000 // generous: whisper-small is a ~250 MB first download
 
 export function whisperSupported() {
   return typeof window !== 'undefined'
@@ -47,11 +57,33 @@ export function whisperSupported() {
     && !!(window.AudioContext || window.webkitAudioContext)
 }
 
-let _asrPromise = null
+// Starting tier: remembered per device (a past downshift sticks), otherwise
+// picked from hardware - whisper-small needs a genuinely capable machine.
+let _tier = null
+function currentTier() {
+  if (_tier !== null) return _tier
+  try {
+    const saved = parseInt(localStorage.getItem(TIER_KEY), 10)
+    if (Number.isInteger(saved) && saved >= 0 && saved < MODELS.length) { _tier = saved; return _tier }
+  } catch { /* private mode */ }
+  const cores = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4
+  const mem = (typeof navigator !== 'undefined' && navigator.deviceMemory) || 4
+  _tier = cores >= 8 && mem >= 8 ? 0 : 1
+  return _tier
+}
+function downshiftTier() {
+  if (currentTier() >= MODELS.length - 1) return false
+  _tier = currentTier() + 1
+  try { localStorage.setItem(TIER_KEY, String(_tier)) } catch { /* private mode */ }
+  return true
+}
+
+const _pipes = new Map() // model name -> pipeline promise
 
 function ensureAsr() {
-  if (!_asrPromise) {
-    _asrPromise = (async () => {
+  const model = MODELS[currentTier()]
+  if (!_pipes.has(model)) {
+    const p = (async () => {
       const mod = await loadEsmOnce(TRANSFORMERS_URLS, { cacheKey: 'transformers' })
       if (mod.env) { mod.env.allowLocalModels = false; mod.env.useBrowserCache = true }
       let timer
@@ -59,17 +91,18 @@ function ensureAsr() {
         timer = setTimeout(() => rej(new Error('Timed out loading the speech model')), WARMUP_TIMEOUT_MS)
       })
       try {
-        return await Promise.race([mod.pipeline('automatic-speech-recognition', MODEL, { quantized: true }), guard])
+        return await Promise.race([mod.pipeline('automatic-speech-recognition', model, { quantized: true }), guard])
       } finally {
         clearTimeout(timer)
       }
-    })().catch(err => { _asrPromise = null; throw err })
+    })().catch(err => { _pipes.delete(model); throw err })
+    _pipes.set(model, p)
   }
-  return _asrPromise
+  return _pipes.get(model)
 }
 
-// Start the (~40 MB, cached after first use) download ahead of the switch so
-// engaging the fallback loses as little speech as possible. Errors swallowed.
+// Start the download ahead of first speech so as little as possible is lost.
+// Cached by the browser after the first use. Errors swallowed.
 export function prewarmWhisper() {
   if (!whisperSupported()) return
   ensureAsr().catch(() => {})
@@ -120,10 +153,14 @@ export function startWhisperTranscriber({ stream, lang, onFlush, onState } = {})
   const state = s => { if (onState) { try { onState(s) } catch { /* display-only */ } } }
   ac.resume().catch(() => { /* retried by the keepalive below */ })
   state('loading')
-  ensureAsr().then(
-    () => { if (!stopped) state('on') },
-    () => { if (!stopped) state('unavailable') }
-  )
+  // If the preferred tier cannot even load (timeout, memory), fall down the
+  // ladder instead of giving up - some transcript always beats none.
+  ;(async () => {
+    for (;;) {
+      try { await ensureAsr(); if (!stopped) state('on'); return }
+      catch { if (!downshiftTier()) { if (!stopped) state('unavailable'); return } }
+    }
+  })()
   // Autoplay policy can leave the context suspended (a suspended context
   // captures NOTHING); sticky activation from the Join click normally lets
   // resume() succeed, and this keepalive keeps retrying if it did not.
@@ -179,6 +216,8 @@ export function startWhisperTranscriber({ stream, lang, onFlush, onState } = {})
     if (silenceSamples >= END_SILENCE_S * srcRate || utterSamples >= MAX_UTTER_S * srcRate) finalizeUtter()
   }
 
+  let slowStrikes = 0
+
   async function pump() {
     if (inferring || stopped || !queue.length) return
     inferring = true
@@ -189,7 +228,17 @@ export function startWhisperTranscriber({ stream, lang, onFlush, onState } = {})
       const opts = { task: 'transcribe' }
       const name = WHISPER_LANG[lang || '']
       if (name) opts.language = name
+      const t0 = Date.now()
       const out = await asr(audio, opts)
+      // Speed guard: falling behind real time twice in a row means this tier
+      // is too heavy for this machine - downshift for the rest of the class
+      // (and, via localStorage, for future classes on this device).
+      const audioMs = (audio.length / TARGET_SR) * 1000
+      if (Date.now() - t0 > audioMs * 1.5) {
+        if (++slowStrikes >= 2 && downshiftTier()) slowStrikes = 0
+      } else {
+        slowStrikes = 0
+      }
       const text = String(out?.text || '').trim()
       // Skip empties, punctuation-only outputs, and immediate repeats
       // (Whisper's echo/filler on borderline audio).
