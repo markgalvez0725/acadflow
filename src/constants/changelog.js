@@ -4,9 +4,22 @@
 // features ships, so the "What's new" modal always reflects the current build.
 // User-facing copy: keep it plain, no em-dashes.
 
-export const APP_VERSION = '2.3.0'
+export const APP_VERSION = '2.4.0'
 
 export const CHANGELOG = [
+  {
+    version: '2.4.0',
+    date: 'July 2026',
+    title: 'Online classes now run inside AcadFlow',
+    changes: [
+      'Start a class and everyone joins a live video room right inside the app, with no Google Meet link needed. Link-based meetings still work if you prefer them.',
+      'The room works like Google Meet: a grid that fills the screen, raise hand with a chime, emoji reactions, join and leave sounds, and an in-call chat with sender photos. Chat messages are visible only to people in the call, are deleted when the class ends, and the professor can turn them off.',
+      'Every camera fits its tile: portrait phones and laptops alike are shown whole on a soft gradient backdrop, never cropped or zoomed, and profile photos appear whenever a camera is off.',
+      'Present your screen with one tap from a computer or Android phone. Presenting was tuned end to end for low delay: it uses hardware video encoding when your device has it, turns sharp within a second, and stays in sync through long presentations, repeated shares, and big rooms.',
+      'Professors can record the class: it saves as an MP4 straight into Google Drive while the class runs, ready to share to the class in one tap, and plays on any device including iPhones.',
+      'Switch tabs or apps during a class and the video pops into a small always-on-top window automatically (on supported browsers). Minimizing the room keeps a floating mini player inside the app, so the class is never out of sight.',
+    ],
+  },
   {
     version: '2.3.0',
     date: 'July 2026',
