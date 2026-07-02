@@ -3,8 +3,9 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import {
   Video, Radio, ExternalLink, Clock, ChevronDown, ChevronUp,
-  ShieldCheck, ArrowRight, Unlink, CheckCircle2, MonitorPlay,
+  ShieldCheck, ArrowRight, Unlink, CheckCircle2, MonitorPlay, Sparkles,
 } from 'lucide-react'
+import RecapModal from '@/components/meeting/RecapModal'
 import { activeClassIds } from '@/utils/active'
 import { courseShort } from '@/constants/courses'
 import EmptyState from '@/components/ds/EmptyState'
@@ -72,6 +73,9 @@ export default function OnlineClassesTab({ student }) {
   )
 
   const [pastOpen, setPastOpen] = useState(false)
+  // Smart Recap viewer for past in-app classes (id, so the modal stays fresh).
+  const [recapId, setRecapId] = useState('')
+  const recapMeeting = recapId ? meetings.find(m => m.id === recapId) : null
 
   const classNameById = useMemo(() => {
     const map = {}
@@ -264,10 +268,15 @@ export default function OnlineClassesTab({ student }) {
             const dt = new Date(m.endedAt || m.scheduledAt)
             const dateStr = dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
             return (
-              <div key={m.id} id={`meeting-${m.id}`} className={highlightId === m.id ? 'redirect-glow' : undefined} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--surface2)', fontSize: 13 }}>
+              <div key={m.id} id={`meeting-${m.id}`} className={highlightId === m.id ? 'redirect-glow' : undefined} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--surface2)', fontSize: 13, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px 10px' }}>
                 <span style={{ fontWeight: 600 }}>{m.title}</span>
-                <span style={{ color: 'var(--ink3)', marginLeft: 10 }}>{meetingClassLabel(m, classNameById)}</span>
-                <span style={{ color: 'var(--ink3)', marginLeft: 10 }}>· {dateStr}</span>
+                <span style={{ color: 'var(--ink3)' }}>{meetingClassLabel(m, classNameById)}</span>
+                <span style={{ color: 'var(--ink3)' }}>· {dateStr}</span>
+                {m.recap && (
+                  <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setRecapId(m.id)} title="View the class recap">
+                    <Sparkles size={13} style={{ marginRight: 4 }} /> Recap
+                  </button>
+                )}
               </div>
             )
           })}
@@ -278,6 +287,8 @@ export default function OnlineClassesTab({ student }) {
           <EmptyState Icon={Clock} title="No past sessions yet." compact />
         </div>
       )}
+
+      {recapMeeting && <RecapModal meeting={recapMeeting} canManage={false} onClose={() => setRecapId('')} />}
     </div>
   )
 }

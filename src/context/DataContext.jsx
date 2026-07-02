@@ -8,6 +8,7 @@ import {
   fbAddAnnouncementComment, fbAddCommentReply, fbEditAnnouncementComment, fbDeleteAnnouncementComment, fbEditCommentReply, fbDeleteCommentReply, fbToggleAnnouncementLike, fbToggleSavedPost, fbToggleAnnouncementFollow, fbSetGradeGoal,
   fbSaveRubricLibrary,
   fbSaveMeetLink, fbScheduleMeeting, fbStartMeeting, fbEndMeeting, fbCancelMeeting, fbPushMeetingNotifs,
+  fbSaveMeetingRecap, fbSaveMeetingRecording, fbNotifyAdmin,
   fbSetSubjectRep, fbDeleteClassRelatedData, fbAddAuditLog, fbRestoreFromBackup,
   fbSubmitStudentFeedback, fbUpdateFeedbackStatus,
   fbBackfillMessageActivity, fbFetchAllMessages,
@@ -16,7 +17,8 @@ import {
   fbSetQuizProgress,
 } from '@/firebase/persistence'
 import { fbPushReminderNotif } from '@/firebase/reminders'
-import { rtcCleanupRoom } from '@/firebase/rtc'
+import { rtcCleanupRoom, rtcFetchTranscript } from '@/firebase/rtc'
+import { buildRecap, transcriptToText } from '@/utils/meetingRecap'
 import { serializeStudents } from '@/utils/attendance'
 import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase, saveSemesterToFirebase, saveLatePolicyToFirebase, saveGradeFloorToFirebase, saveBrandingToFirebase } from '@/firebase/settings'
 import { setReportBranding, setReportProfessor } from '@/export/reportTemplate'
@@ -1133,6 +1135,66 @@ export function DataProvider({ children }) {
     await fbPushMeetingNotifs(dbRef.current, meeting, students, 'meeting_cancelled')
   }, [students])
 
+  // ── Smart Recap of an in-app class ─────────────────────────────────────
+  // Assembles the silent per-speaker transcript (rtcRooms/{id}/transcript)
+  // into a rich-text recap and saves it on the meeting doc (professor client
+  // only - onlineMeetings is admin-write-only; students read it through the
+  // normal meetings listener). Tries the server summarizer first (Groq via
+  // api/summarize-meeting, 501 when unconfigured), falls back to the
+  // deterministic on-device engine. Returns the recap or null (no speech).
+  const generateMeetingRecap = useCallback(async (meeting) => {
+    const db = dbRef.current
+    if (!db || !meeting?.id) return null
+    const segments = await rtcFetchTranscript(db, meeting.id)
+    if (!segments.length) return null
+    const device = buildRecap(segments, meeting)
+    let recap = device
+    try {
+      const idToken = await getIdToken()
+      if (idToken) {
+        const r = await fetch('/api/summarize-meeting', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken, transcript: transcriptToText(segments), meta: { title: meeting.title || meeting.className || '' } }),
+        })
+        if (r.ok) {
+          const data = await r.json().catch(() => null)
+          if (data?.html && device) recap = { ...device, html: data.html, engine: 'smart' }
+        }
+      }
+    } catch { /* on-device recap already in hand */ }
+    if (!recap) return null
+    recap = { ...recap, generatedAt: Date.now() }
+    await fbSaveMeetingRecap(db, meeting.id, recap)
+    setMeetings(prev => prev.map(m => m.id === meeting.id ? { ...m, recap } : m))
+    return recap
+  }, [])
+
+  // Full transcript for the recap modal's "View transcript" section.
+  const fetchMeetingTranscript = useCallback(async (meetingId) => {
+    if (!dbRef.current || !meetingId) return []
+    try { return await rtcFetchTranscript(dbRef.current, meetingId) } catch { return [] }
+  }, [])
+
+  // Persist the Drive recording pointer on the meeting and notify the
+  // professor's own feed that the file is ready.
+  const saveMeetingRecording = useCallback(async (meeting, recording) => {
+    const db = dbRef.current
+    if (!db || !meeting?.id || !recording) return
+    await fbSaveMeetingRecording(db, meeting.id, recording)
+    setMeetings(prev => prev.map(m => m.id === meeting.id ? { ...m, recording } : m))
+    try {
+      await fbNotifyAdmin(db, {
+        type: 'meeting_recording',
+        title: 'Recording ready in your Drive',
+        body: `${meeting.className || 'Class'}: ${meeting.title || 'Online class'}`,
+        link: `meeting:${meeting.id}`,
+        url: recording.link || null,
+        meetingId: meeting.id,
+      })
+    } catch { /* the meeting doc already has the link */ }
+  }, [])
+
   const pushAnnouncementNotifs = useCallback(async (announcement) => {
     await fbPushAnnouncementNotifs(dbRef.current, announcement, students)
     // Best-effort web push (in addition to the existing in-app notification).
@@ -1576,6 +1638,7 @@ export function DataProvider({ children }) {
       meetings, setMeetings,
       liveMeetings: meetings.filter(m => m.status === 'live'),
       saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting,
+      generateMeetingRecap, fetchMeetingTranscript, saveMeetingRecording,
       attendanceSessions, openCheckIn, closeCheckIn, studentCheckIn,
       excuseRequests, submitExcuseRequest, decideExcuseRequest,
       studentFeedback, submitStudentFeedback, updateFeedbackStatus,

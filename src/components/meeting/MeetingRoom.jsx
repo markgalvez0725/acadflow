@@ -3,11 +3,15 @@ import { createPortal } from 'react-dom'
 import {
   Mic, MicOff, Video, VideoOff, MonitorUp, PhoneOff, Radio,
   Users, AlertTriangle, Loader2, CheckCircle, Minimize2, Maximize2,
-  PictureInPicture2,
+  PictureInPicture2, CircleDot, Square,
 } from 'lucide-react'
 import { useData } from '@/context/DataContext'
+import { useUI } from '@/context/UIContext'
 import useMeetingRoom from '@/hooks/useMeetingRoom'
 import { ROOM_CAP } from '@/firebase/rtc'
+import { SPEECH_LANGS } from '@/utils/transcribe'
+import { recordingSupported, createMeetingRecorder } from '@/utils/meetingRecorder'
+import { isConfigured as driveConfigured, getConnection as driveConnection, connect as driveConnect, startResumableUpload } from '@/utils/googleDrive'
 
 // Full-screen in-app classroom shared by the professor and student tabs,
 // laid out Google Meet style: a centered stage of size-capped 16:9 tiles (no
@@ -118,10 +122,12 @@ function MiniVideo({ stream, onClick }) {
 }
 
 export default function MeetingRoom({ meeting, self, minimized, onMinimize, onClose, onEndClass }) {
-  const { db: dbRef } = useData()
+  const { db: dbRef, saveMeetingRecording } = useData()
+  const { toast } = useUI()
   const db = dbRef?.current || null
   const {
     phase, errorMsg, peers, localStream, micOn, camOn, sharing, canShare,
+    screenStream, transcribeLang, setTranscribeLang, setRecordingFlag, speechOk,
     toggleMic, toggleCam, startShare, stopShare, leave, retry,
   } = useMeetingRoom({ db, roomId: meeting?.id, self })
 
@@ -159,11 +165,99 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     if (pipRef.current && pipRef.current.srcObject !== localStream) pipRef.current.srcObject = localStream || null
   }, [localStream, phase, sharing, camOn, minimized])
 
+  // ── Recording (professor only): 720p compositor streaming into Drive ────
+  const [recState, setRecState] = useState('idle') // idle | starting | on | saving
+  const recRef = useRef(null) // { recorder, uploader, meeting, startAt }
+  const isAdmin = self?.role === 'admin'
+
+  async function startRecording() {
+    if (recState !== 'idle' || !meeting || recRef.current) return
+    if (!recordingSupported()) { toast('Recording is not supported in this browser.', 'error'); return }
+    if (!driveConfigured()) { toast('Google Drive is not configured for this deployment.', 'error'); return }
+    setRecState('starting')
+    try {
+      if (!driveConnection().connected) await driveConnect() // one-time consent popup
+      const dt = new Date()
+      const stamp = `${dt.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })} ${dt.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })}`
+      // Keep letters/numbers/space/dot/dash/parens; everything else (slashes,
+      // colons, quotes...) becomes '-' so the Drive filename is always safe.
+      const fname = `${meeting.className || 'Class'} - ${meeting.title || 'Online class'} - ${stamp}.webm`
+        .replace(/[^\p{L}\p{N} ().-]/gu, '-')
+      const uploader = startResumableUpload({
+        name: fname,
+        mimeType: 'video/webm',
+        folderPath: [meeting.className || 'General', 'Recordings'],
+      })
+      const recorder = createMeetingRecorder({
+        onChunk: blob => uploader.append(blob),
+        onError: () => { toast('Recording hit an error and was stopped.', 'error'); stopRecording(true) },
+      })
+      recorder.start()
+      recRef.current = { recorder, uploader, meeting, startAt: Date.now() }
+      setRecState('on')
+      setRecordingFlag(true)
+      toast('Recording - it streams into your Google Drive as the class runs.', 'success')
+    } catch (e) {
+      setRecState('idle')
+      toast(e?.message || 'Could not start the recording.', 'error')
+    }
+  }
+
+  async function stopRecording(silent) {
+    const rec = recRef.current
+    if (!rec) return
+    recRef.current = null
+    setRecState('saving')
+    setRecordingFlag(false)
+    try {
+      await rec.recorder.stop() // resolves after the final chunk is handed over
+      const out = await rec.uploader.finish()
+      await saveMeetingRecording(rec.meeting, {
+        link: out.link,
+        driveId: out.driveId,
+        bytes: out.bytes,
+        durationMin: Math.max(1, Math.round((Date.now() - rec.startAt) / 60000)),
+        at: Date.now(),
+      })
+      if (!silent) toast('Recording ready in your Drive.', 'success')
+    } catch (e) {
+      if (!silent) toast('The recording upload failed. Check your Drive connection.', 'error')
+    } finally {
+      setRecState('idle')
+    }
+  }
+
+  // Feed the compositor the current scene (presenter > tile grid) and the
+  // audio mix (everyone + own mic) whenever the room changes.
+  const featuredPeerForRec = peers.find(p => p.sharing) || null
+  useEffect(() => {
+    const rec = recRef.current
+    if (!rec || recState !== 'on') return
+    const featured = featuredPeerForRec?.stream
+      ? { stream: featuredPeerForRec.stream, label: `${featuredPeerForRec.name} is presenting` }
+      : (sharing && screenStream)
+        ? { stream: screenStream, label: `${self?.name || 'Professor'} is presenting` }
+        : null
+    rec.recorder.setScene({
+      featured,
+      tiles: [
+        { key: 'self', stream: localStream, name: self?.name || 'You', camOn: camOn && !sharing },
+        ...peers.map(p => ({ key: p.peerId, stream: p.stream, name: p.name, camOn: p.camOn !== false && !p.sharing })),
+      ],
+      audioStreams: [localStream, ...peers.map(p => p.stream)].filter(Boolean),
+    })
+  }, [recState, peers, localStream, screenStream, sharing, camOn, featuredPeerForRec, self])
+
+  // Never leak a recorder: finalize on unmount (logout, hard close).
+  useEffect(() => () => { stopRecording(true) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const ended = meeting?.status === 'ended' || !meeting
   // When the professor ends the class, everyone's engine tears down and the
-  // overlay announces it briefly before closing itself.
+  // overlay announces it briefly before closing itself. The recording (if
+  // any) finalizes FIRST so its tail isn't lost with the streams.
   useEffect(() => {
     if (!ended) return
+    stopRecording(false)
     leave()
     const t = setTimeout(onClose, 2500)
     return () => clearTimeout(t)
@@ -214,7 +308,6 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     return sharers.sort((a, b) => (b.sharedAt || 0) - (a.sharedAt || 0))[0]
   }, [peers])
 
-  const isAdmin = self?.role === 'admin'
   const count = peers.length + 1
   const timeStr = new Date(now).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })
 
@@ -446,6 +539,9 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
           {!ended && (
             <span className="mr-live-chip"><Radio size={11} /> {fmtElapsed(now - (meeting?.scheduledAt || now))}</span>
           )}
+          {!ended && (recState === 'on' || peers.some(p => p.recording)) && (
+            <span className="mr-rec-pill" title="This class is being recorded"><span className="mr-rec-dot" /> REC</span>
+          )}
         </div>
         <div className="mr-bar-ctls">
           {ready && (
@@ -461,6 +557,18 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
                   <MonitorUp size={18} />
                 </button>
               )}
+              {isAdmin && recordingSupported() && (
+                <button
+                  className={`mr-ctl${recState === 'on' ? ' mr-ctl-rec' : ''}`}
+                  disabled={recState === 'starting' || recState === 'saving'}
+                  onClick={recState === 'on' ? () => stopRecording(false) : startRecording}
+                  title={recState === 'on' ? 'Stop recording' : recState === 'saving' ? 'Saving the recording to Drive…' : 'Record the class to your Google Drive (720p)'}
+                >
+                  {recState === 'saving' || recState === 'starting'
+                    ? <Loader2 size={17} className="animate-spin" />
+                    : recState === 'on' ? <Square size={16} /> : <CircleDot size={18} />}
+                </button>
+              )}
             </>
           )}
           <button className="mr-hang" onClick={handleLeave} title="Leave the class">
@@ -468,6 +576,17 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
           </button>
         </div>
         <div className="mr-bar-right">
+          {ready && speechOk && (
+            <select
+              className="mr-lang"
+              value={transcribeLang}
+              onChange={e => setTranscribeLang(e.target.value)}
+              title="Your speech language for the class transcript"
+            >
+              {!SPEECH_LANGS.some(l => l.code === transcribeLang) && <option value={transcribeLang}>{transcribeLang}</option>}
+              {SPEECH_LANGS.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+            </select>
+          )}
           {ready && canPip && (
             <button className="mr-ctl mr-ctl-sm" onClick={popOut} title="Pop out a floating player (stays on top when you switch apps)">
               <PictureInPicture2 size={16} />

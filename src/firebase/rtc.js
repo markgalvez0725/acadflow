@@ -127,6 +127,28 @@ export function rtcListenSignals(db, roomId, peerId, handler) {
   }, () => {})
 }
 
+// ── Silent meeting transcript ───────────────────────────────────────────────
+// Each participant's device transcribes its OWN speech (utils/transcribe.js)
+// and appends segments here. Never displayed during class; assembled into the
+// Smart Recap when the professor ends the meeting. NOTE: rtcCleanupRoom
+// deliberately does NOT purge this subcollection - the transcript must
+// survive the room teardown so the recap can be (re)generated later.
+export async function rtcAddTranscript(db, roomId, segment) {
+  await fbWithTimeout(addDoc(roomCol(db, roomId, 'transcript'), {
+    at: segment.at || Date.now(),
+    uid: segment.uid || '',
+    name: segment.name || 'Participant',
+    role: segment.role || 'student',
+    lang: segment.lang || '',
+    text: String(segment.text || '').slice(0, 2000),
+  }))
+}
+
+export async function rtcFetchTranscript(db, roomId) {
+  const snap = await fbWithTimeout(getDocs(roomCol(db, roomId, 'transcript')), 30000)
+  return snap.docs.map(d => d.data()).sort((a, b) => (a.at || 0) - (b.at || 0))
+}
+
 // Best-effort purge of everything under rtcRooms/{roomId}. Called when the
 // professor ends the class; anyone still connected also deletes their own
 // docs on leave, so this only needs to catch stragglers.

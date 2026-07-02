@@ -6304,3 +6304,47 @@ html[data-glass="on"][data-theme="dark"] body::before {
     }
   }
 }
+
+/* ── Meeting recording + transcript controls ───────────────────────────────*/
+@layer components {
+  .mr-rec-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: #f28b82;
+    background: rgba(234, 67, 53, 0.16);
+    border: 1px solid rgba(234, 67, 53, 0.45);
+    border-radius: 999px;
+    padding: 3px 9px;
+    flex-shrink: 0;
+  }
+  .mr-rec-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #ea4335;
+    animation: oc-pulse 1.4s ease-in-out infinite;
+  }
+  .mr-ctl-rec { background: #ea4335; color: #fff; }
+  .mr-ctl-rec:hover { background: #d33b2c; }
+  .mr-ctl:disabled { opacity: 0.65; cursor: default; }
+  .mr-lang {
+    height: 34px;
+    max-width: 118px;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
+    color: #9aa0a6;
+    font-size: 11.5px;
+    padding: 0 8px;
+    cursor: pointer;
+  }
+  .mr-lang:hover { background: #3c4043; color: #e8eaed; }
+  .mr-lang option { background: #202124; color: #e8eaed; }
+  @media (max-width: 560px) {
+    .mr-lang { display: none; } /* phone speech language falls back to the saved/default */
+  }
+}

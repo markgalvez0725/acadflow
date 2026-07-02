@@ -242,6 +242,107 @@ export function uploadSubmission(file, { onProgress, folderPath } = {}) {
   })
 }
 
+// ── Resumable upload: stream a class RECORDING into Drive while it records ──
+// Drive's resumable protocol lets us upload an open-ended file in ordered
+// chunks: every non-final chunk must be a multiple of 256 KiB (we send 8 MiB),
+// the final chunk declares the total size. The professor's recorder appends
+// MediaRecorder blobs as the class runs, so ending the class only has the
+// small tail left to upload - and a crash mid-class loses nothing already
+// sent. The session URI itself carries the grant, so an expiring OAuth token
+// cannot break an hour-long upload. The file stays PRIVATE in the
+// professor's Drive (no anyone-with-link permission is added).
+export function startResumableUpload({ name, mimeType = 'video/webm', folderPath = [] }) {
+  const CHUNK = 8 * 1024 * 1024
+  let sessionUri = null
+  let buffer = []      // pending blobs, in order
+  let buffered = 0
+  let offset = 0       // bytes confirmed sent to Drive
+  let aborted = false
+
+  async function init() {
+    const token = await getToken()
+    const folderId = await ensureFolderPath([ROOT_NAME, ...folderPath.filter(Boolean)])
+    const resp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,webViewLink', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json; charset=UTF-8' },
+      body: JSON.stringify({ name, mimeType, ...(folderId ? { parents: [folderId] } : {}) }),
+    })
+    if (!resp.ok) throw new Error(`Could not start the Drive upload (${resp.status}).`)
+    sessionUri = resp.headers.get('Location')
+    if (!sessionUri) throw new Error('Drive did not return an upload session.')
+  }
+
+  async function putChunk(blob, isLast, total) {
+    const end = offset + blob.size - 1
+    const range = blob.size
+      ? `bytes ${offset}-${end}/${isLast ? total : '*'}`
+      : `bytes */${total}` // zero-byte finalize
+    let resp = null
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        resp = await fetch(sessionUri, {
+          method: 'PUT',
+          headers: { 'Content-Range': range },
+          ...(blob.size ? { body: blob } : {}),
+        })
+        if (resp.status === 308 || resp.ok) break
+      } catch { resp = null }
+      await new Promise(r => setTimeout(r, 2000 * (attempt + 1)))
+    }
+    if (!resp || (resp.status !== 308 && !resp.ok)) throw new Error('Drive upload failed mid-recording.')
+    offset += blob.size
+    return resp
+  }
+
+  // All puts are serialized on this chain - resumable chunks must arrive in
+  // order, and the chain starts only after the session exists.
+  let chain = init()
+
+  function drain() {
+    if (buffered < CHUNK) return
+    const all = new Blob(buffer, { type: mimeType })
+    const sendSize = Math.floor(all.size / CHUNK) * CHUNK
+    const head = all.slice(0, sendSize)
+    const rest = all.slice(sendSize)
+    buffer = rest.size ? [rest] : []
+    buffered = rest.size
+    chain = chain.then(() => { if (!aborted) return putChunk(head, false) })
+  }
+
+  return {
+    append(blob) {
+      if (aborted || !blob || !blob.size) return
+      buffer.push(blob)
+      buffered += blob.size
+      drain()
+    },
+    // Uploads the tail, finalizes, and resolves { driveId, link, bytes }.
+    async finish() {
+      const tail = new Blob(buffer.splice(0), { type: mimeType })
+      buffered = 0
+      let resp
+      chain = chain.then(async () => {
+        const total = offset + tail.size
+        resp = await putChunk(tail, true, total)
+      })
+      await chain
+      const data = await resp.json().catch(() => ({}))
+      const id = data.id || ''
+      return {
+        driveId: id,
+        link: data.webViewLink || (id ? `https://drive.google.com/file/d/${id}/view` : ''),
+        bytes: offset,
+      }
+    },
+    abort() {
+      aborted = true
+      buffer = []
+      buffered = 0
+      chain.then(() => { if (sessionUri) fetch(sessionUri, { method: 'DELETE' }).catch(() => {}) }).catch(() => {})
+    },
+  }
+}
+
 // Upload one File into AcadFlow / {classLabel} / {Photos|Modules}, make it
 // "anyone with link can view", and return an attachment descriptor.
 export function uploadFile(file, { onProgress, classLabel } = {}) {

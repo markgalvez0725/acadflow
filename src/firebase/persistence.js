@@ -776,6 +776,39 @@ export async function fbCancelMeeting(db, meetingId) {
   await fbWithTimeout(deleteDoc(fbDoc(db, 'onlineMeetings', meetingId)));
 }
 
+// Smart Recap of an in-app class, written by the PROFESSOR's client after End
+// class (onlineMeetings is admin-write-only; students read it via the normal
+// meetings listener). recap: { html, engine, lines, words, speakers,
+// durationMin, generatedAt }.
+export async function fbSaveMeetingRecap(db, meetingId, recap) {
+  if (!db || !meetingId || !recap) return;
+  await fbWithTimeout(updateDoc(doc(db, 'onlineMeetings', meetingId), { recap }));
+}
+
+// Drive recording pointer for an in-app class (professor-only field; the file
+// itself stays private in the professor's Drive).
+export async function fbSaveMeetingRecording(db, meetingId, recording) {
+  if (!db || !meetingId || !recording) return;
+  await fbWithTimeout(updateDoc(doc(db, 'onlineMeetings', meetingId), { recording }));
+}
+
+// Append one notification to the PROFESSOR's feed (notifications/admin), same
+// newest-first capped-items shape every other notif writer uses.
+export async function fbNotifyAdmin(db, partial) {
+  if (!db) return;
+  const { getDoc } = await import('firebase/firestore');
+  const notif = {
+    id: `n_${uuidv4()}`,
+    read: false,
+    ts: Date.now(),
+    ...partial,
+  };
+  const ref = doc(db, 'notifications', 'admin');
+  const snap = await fbWithTimeout(getDoc(ref));
+  const existing = snap.exists() ? (snap.data().items || []) : [];
+  await fbWithTimeout(setDoc(ref, { items: [notif, ...existing].slice(0, 200) }, { merge: false }));
+}
+
 // ── Student feedback ───────────────────────────────────────────────────────
 // One doc per submission in the `studentFeedback` collection. Students create;
 // the professor reads them in the Feedback Hub and updates the status.

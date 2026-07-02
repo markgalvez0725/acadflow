@@ -10,7 +10,7 @@ import { useUI } from '@/context/UIContext'
 const MeetingRoom = lazy(() => import('@/components/meeting/MeetingRoom'))
 
 export default function MeetingHost({ role, student }) {
-  const { meetings, admin, endMeeting } = useData()
+  const { meetings, admin, endMeeting, generateMeetingRecap } = useData()
   const { meetingRoomId, meetingMinimized, closeMeetingRoom, setMeetingMinimized, toast } = useUI()
 
   // Logging out (or the layout otherwise unmounting) must not leave a stale
@@ -27,8 +27,20 @@ export default function MeetingHost({ role, student }) {
   async function handleEndClass() {
     if (!meeting) return
     try {
-      await endMeeting(meeting)
+      const m = meeting
+      await endMeeting(m)
       toast('Class ended for everyone.', 'success')
+      // Give everyone a few seconds to flush their final transcript buffers
+      // (participants write them during teardown), then build the Smart
+      // Recap. If this device closes first, Regenerate covers it later.
+      if (m.provider === 'inapp') {
+        setTimeout(async () => {
+          try {
+            const recap = await generateMeetingRecap({ ...m, endedAt: Date.now() })
+            if (recap) toast('Class recap is ready - open it from Past sessions.', 'success')
+          } catch { /* Regenerate remains available on the past meeting */ }
+        }, 4500)
+      }
     } catch (e) {
       toast('Failed to end the class.', 'error')
     }

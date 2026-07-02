@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio, MonitorPlay } from 'lucide-react'
+import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio, MonitorPlay, Sparkles, Play } from 'lucide-react'
+import RecapModal from '@/components/meeting/RecapModal'
 import { courseShort } from '@/constants/courses'
 import { isValidUrl, parseFutureTs } from '@/utils/validators'
 import EmptyState from '@/components/ds/EmptyState'
@@ -35,12 +36,16 @@ function fmtElapsed(ms) {
 }
 
 export default function OnlineClassesTab() {
-  const { classes, meetings, saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting } = useData()
+  const { classes, meetings, saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting, generateMeetingRecap } = useData()
   // The room itself is hosted at the layout level (MeetingHost) so the call
   // survives tab navigation - this tab only opens it by id.
   const { toast, openMeetingRoom } = useUI()
   const [panel, setPanel] = useState('links')
   const [goingLive, setGoingLive] = useState('') // key of the link currently going live
+  // Recap viewer: stores the meeting ID so the modal always shows the fresh doc.
+  const [recapId, setRecapId] = useState('')
+  const [recapBusyId, setRecapBusyId] = useState('')
+  const recapMeeting = recapId ? meetings.find(m => m.id === recapId) : null
 
   // Half-minute tick so the countdown/elapsed pills stay fresh while open.
   const [now, setNow] = useState(() => Date.now())
@@ -233,6 +238,22 @@ export default function OnlineClassesTab() {
       toast('Meeting cancelled. Students have been notified.', 'success')
     } catch (e) {
       toast('Failed to cancel meeting.', 'error')
+    }
+  }
+
+  // View a past in-app class's Smart Recap - generating it first if this
+  // device wasn't the one that ended the class.
+  async function handleRecap(m) {
+    if (m.recap) { setRecapId(m.id); return }
+    setRecapBusyId(m.id)
+    try {
+      const r = await generateMeetingRecap(m)
+      if (r) setRecapId(m.id)
+      else toast('No transcript was captured for this class.', 'error')
+    } catch (e) {
+      toast('Failed to generate the recap.', 'error')
+    } finally {
+      setRecapBusyId('')
     }
   }
 
@@ -508,11 +529,13 @@ export default function OnlineClassesTab() {
           past.length === 0
             ? <EmptyState Icon={CheckCircle} title="No past meetings" text="Ended classes will appear here." tone="muted" compact />
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-                {past.map(m => <MeetingRow key={m.id} m={m} now={now} />)}
+                {past.map(m => <MeetingRow key={m.id} m={m} now={now} onRecap={handleRecap} recapBusy={recapBusyId === m.id} />)}
               </div>
         )}
       </section>}
     </div>
+
+    {recapMeeting && <RecapModal meeting={recapMeeting} canManage onClose={() => setRecapId('')} />}
     </>
   )
 }
@@ -523,7 +546,7 @@ function classLabel(cls) {
 
 // One meeting as a date-chip row: calendar chip, title + meta, a countdown pill
 // (amber inside 3 hours) or a green Ended chip, and Start/Cancel actions.
-function MeetingRow({ m, now, onStart, onCancel }) {
+function MeetingRow({ m, now, onStart, onCancel, onRecap, recapBusy }) {
   const dt = new Date(m.scheduledAt)
   const ended = m.status === 'ended'
   const mo = dt.toLocaleDateString('en-PH', { month: 'short' })
@@ -557,6 +580,25 @@ function MeetingRow({ m, now, onStart, onCancel }) {
             <button className="btn btn-ghost btn-sm" onClick={() => onCancel(m)} title="Cancel meeting">
               <Trash2 size={14} />
             </button>
+          )}
+        </div>
+      )}
+      {ended && (m.provider === 'inapp' || m.recording?.link) && (
+        <div className="olc-row-actions">
+          {m.provider === 'inapp' && onRecap && (
+            <button
+              className="btn btn-ghost btn-sm"
+              disabled={recapBusy}
+              onClick={() => onRecap(m)}
+              title={m.recap ? 'View the class recap' : 'Generate a recap from the class transcript'}
+            >
+              <Sparkles size={14} style={{ marginRight: 4 }} /> {recapBusy ? 'Working…' : 'Recap'}
+            </button>
+          )}
+          {m.recording?.link && (
+            <a className="btn btn-ghost btn-sm" href={m.recording.link} target="_blank" rel="noopener noreferrer" title="Open the recording in your Drive">
+              <Play size={14} style={{ marginRight: 4 }} /> Recording
+            </a>
           )}
         </div>
       )}

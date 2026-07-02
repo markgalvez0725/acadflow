@@ -34,6 +34,8 @@ const TYPE_TO_CATEGORY = {
   meeting_live:      'meetings',
   meeting_cancelled: 'meetings',
   meeting_ended:     'meetings',
+  meeting_recording: 'meetings',
+  meeting_recap:     'meetings',
 }
 
 /** The preference category for a notification type, or null if uncategorized. */
