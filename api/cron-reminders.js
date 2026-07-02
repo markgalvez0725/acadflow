@@ -1,8 +1,10 @@
 // ── Deadline reminder cron (Vercel Cron) ─────────────────────────────────
-// Runs on a schedule (see vercel.json `crons`). Finds activities due within the
-// next 24 hours, and for each enrolled student who hasn't submitted, sends a
-// web-push reminder via FCM. Activities are marked with `reminderSentAt` so a
-// reminder fires at most once per ~day even if the cron runs again.
+// Runs on a schedule (see vercel.json `crons`). Finds activities due and
+// quizzes closing within the next 24 hours, and for each enrolled student who
+// hasn't submitted, sends a web-push reminder via FCM. A student with several
+// deadlines gets ONE grouped digest push instead of a ping per item. Each
+// activity/quiz is marked with `reminderSentAt` so a reminder fires at most
+// once per ~day even if the cron runs again.
 //
 // Setup (one-time):
 //   1. Vercel → Settings → Environment Variables → add CRON_SECRET = <random string>.
@@ -10,8 +12,9 @@
 //   2. FB_ADMIN_SERVICE_ACCOUNT (or FCM_SERVICE_ACCOUNT) must already be set -
 //      the same service account used by /api/send-push works here.
 //
-// This endpoint only sends WEB PUSH (best-effort). The in-app notification +
-// push "Remind Missing" button in the Activities tab covers the manual path.
+// This endpoint only sends WEB PUSH (best-effort). The in-app notification
+// path (useReminders + utils/reminders.js) covers the app-open case for both
+// activities and quizzes; the "Remind Missing" button covers the manual path.
 import { loadServiceAccount, getAccessToken } from './_fbadmin.js'
 
 function fsBase(projectId) {
@@ -59,6 +62,12 @@ function enrolledIdsOf(s) {
   return (s.classIds && s.classIds.length) ? s.classIds : (s.classId ? [s.classId] : [])
 }
 
+function whenLabel(ts) {
+  return new Date(ts).toLocaleString('en-US', {
+    timeZone: 'Asia/Manila', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+  })
+}
+
 export default async function handler(req, res) {
   // Auth: when CRON_SECRET is set, Vercel sends it as a Bearer token.
   const secret = process.env.CRON_SECRET
@@ -79,10 +88,11 @@ export default async function handler(req, res) {
   const WINDOW = 24 * 60 * 60 * 1000          // remind for deadlines within 24h
   const COOLDOWN = 20 * 60 * 60 * 1000        // don't re-remind within 20h
 
-  let activities, students, tokenDocs
+  let activities, quizzes, students, tokenDocs
   try {
-    [activities, students, tokenDocs] = await Promise.all([
+    [activities, quizzes, students, tokenDocs] = await Promise.all([
       listCollection(projectId, accessToken, 'activities'),
+      listCollection(projectId, accessToken, 'quizzes'),
       listCollection(projectId, accessToken, 'students'),
       listCollection(projectId, accessToken, 'pushTokens'),
     ])
@@ -97,38 +107,75 @@ export default async function handler(req, res) {
     ;(tokensByOwner[t.ownerId] || (tokensByOwner[t.ownerId] = [])).push(t.token)
   }
 
-  const messages = []          // { token, title, body }
+  const inWindow = ts => ts && ts > now && ts <= now + WINDOW
+  const cooledDown = doc => !(doc.reminderSentAt && now - Number(doc.reminderSentAt) < COOLDOWN)
+  const registered = s => !!(s.account && s.account.registered)
+
+  // Collect each student's due items so one push covers all of them.
+  const itemsByStudent = {}   // sid -> [{ kind, title, subject, when, tab }]
   const activitiesToMark = []
+  const quizzesToMark = []
 
   for (const act of activities) {
     const deadline = Number(act.deadline) || 0
-    if (!deadline || deadline <= now || deadline > now + WINDOW) continue
-    if (act.reminderSentAt && now - Number(act.reminderSentAt) < COOLDOWN) continue
-
+    if (!inWindow(deadline) || !cooledDown(act)) continue
     const subs = act.submissions || {}
-    const missing = students.filter(s => {
+    let any = false
+    for (const s of students) {
       const sid = s.id || s._id
-      if (!enrolledIdsOf(s).includes(act.classId)) return false
-      if (!(s.account && s.account.registered)) return false
-      const sub = subs[sid]
-      return !(sub && sub.link)
-    })
-    if (!missing.length) continue
-
-    const dlLabel = new Date(deadline).toLocaleString('en-US', {
-      timeZone: 'Asia/Manila', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-    })
-    for (const s of missing) {
-      const toks = tokensByOwner[s.id || s._id] || []
-      for (const tk of toks) {
-        messages.push({
-          token: tk,
-          title: `Reminder: ${act.title}`,
-          body: `${act.subject || ''} - due ${dlLabel}. Don't forget to submit.`,
-        })
-      }
+      if (!enrolledIdsOf(s).includes(act.classId) || !registered(s)) continue
+      if (subs[sid] && subs[sid].link) continue
+      any = true
+      ;(itemsByStudent[sid] || (itemsByStudent[sid] = [])).push({
+        kind: 'activity', title: act.title || 'Activity', subject: act.subject || '',
+        when: deadline, tab: 'activities',
+      })
     }
-    activitiesToMark.push(act._id)
+    if (any) activitiesToMark.push(act._id)
+  }
+
+  for (const quiz of quizzes) {
+    const closeAt = Number(quiz.closeAt) || 0
+    // Mirrors the student-side visibility predicate: drafts are invisible.
+    if (quiz.status === 'draft' || !inWindow(closeAt) || !cooledDown(quiz)) continue
+    const classIds = quiz.classIds || []
+    const subs = quiz.submissions || {}
+    let any = false
+    for (const s of students) {
+      const sid = s.id || s._id
+      if (!enrolledIdsOf(s).some(id => classIds.includes(id)) || !registered(s)) continue
+      if (subs[sid]) continue
+      any = true
+      ;(itemsByStudent[sid] || (itemsByStudent[sid] = [])).push({
+        kind: 'quiz', title: quiz.title || 'Quiz', subject: quiz.subject || '',
+        when: closeAt, tab: 'quizzes',
+      })
+    }
+    if (any) quizzesToMark.push(quiz._id)
+  }
+
+  // One push per device: a single item keeps the familiar wording; several
+  // items collapse into a digest so a busy day is one notification, not five.
+  const messages = []          // { token, title, body, url }
+  for (const sid in itemsByStudent) {
+    const toks = tokensByOwner[sid] || []
+    if (!toks.length) continue
+    const items = itemsByStudent[sid].sort((a, b) => a.when - b.when)
+    let title, body, url
+    if (items.length === 1) {
+      const it = items[0]
+      title = `Reminder: ${it.title}`
+      body = `${it.subject ? it.subject + ' - ' : ''}${it.kind === 'quiz' ? 'closes' : 'due'} ${whenLabel(it.when)}. Don't forget to submit.`
+      url = it.tab
+    } else {
+      const shown = items.slice(0, 3)
+        .map(it => `${it.title} (${it.kind === 'quiz' ? 'closes' : 'due'} ${whenLabel(it.when)})`)
+      const more = items.length - shown.length
+      title = `${items.length} deadlines in the next 24 hours`
+      body = shown.join(' · ') + (more > 0 ? ` · and ${more} more` : '')
+      url = items.some(it => it.kind === 'quiz') && items.every(it => it.kind === 'quiz') ? 'quizzes' : 'activities'
+    }
+    for (const tk of toks) messages.push({ token: tk, title, body, url })
   }
 
   // Send web push (best-effort).
@@ -141,10 +188,10 @@ export default async function handler(req, res) {
         message: {
           token: m.token,
           notification: { title: m.title, body: m.body },
-          data: { url: 'activities', tag: 'deadline-reminder' },
+          data: { url: m.url, tag: 'deadline-reminder' },
           webpush: {
             notification: { icon: '/icon-192.png', badge: '/icon-192.png' },
-            fcmOptions: { link: 'activities' },
+            fcmOptions: { link: m.url },
           },
         },
       }),
@@ -152,19 +199,23 @@ export default async function handler(req, res) {
   ))
   const sent = results.filter(r => r.status === 'fulfilled' && r.value).length
 
-  // Mark the activities we reminded for - updateMask touches only this field.
-  await Promise.allSettled(activitiesToMark.map(id =>
-    fetch(`${fsBase(projectId)}/activities/${encodeURIComponent(id)}?updateMask.fieldPaths=reminderSentAt`, {
+  // Mark what we reminded for - updateMask touches only this field.
+  const mark = (coll, id) =>
+    fetch(`${fsBase(projectId)}/${coll}/${encodeURIComponent(id)}?updateMask.fieldPaths=reminderSentAt`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ fields: { reminderSentAt: { integerValue: String(now) } } }),
     })
-  ))
+  await Promise.allSettled([
+    ...activitiesToMark.map(id => mark('activities', id)),
+    ...quizzesToMark.map(id => mark('quizzes', id)),
+  ])
 
   return res.status(200).json({
     ok: true,
     activitiesReminded: activitiesToMark.length,
-    candidates: messages.length,
+    quizzesReminded: quizzesToMark.length,
+    studentsNotified: Object.keys(itemsByStudent).length,
     pushSent: sent,
   })
 }

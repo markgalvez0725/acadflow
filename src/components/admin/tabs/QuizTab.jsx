@@ -1116,6 +1116,8 @@ function ViewQuizModal({ quiz, onClose, onEdit, onDelete }) {
         ...quiz, id,
         title: `${quiz.title} (Copy)`,
         submissions: {},          // a fresh quiz - no carried-over attempts
+        progress: {},             // ...nor stale live-progress entries
+        reminderSentAt: null,     // the copy earns its own cron reminder
         createdAt: Date.now(),
         openAt: Date.now(),
         closeAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
