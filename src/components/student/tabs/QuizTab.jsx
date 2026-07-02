@@ -576,7 +576,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
 }
 
 // ── Review Modal (post-submission) ────────────────────────────────────────────
-function ReviewRow({ q, index, isCorrect, partial, studentAns }) {
+function ReviewRow({ q, index, isCorrect, partial, studentAns, missPct }) {
   // Explanations are authored once when the quiz is generated (see the quiz
   // generator / Gemini endpoint) and stored on the question - so reviewing
   // never triggers a per-student network request.
@@ -604,6 +604,11 @@ function ReviewRow({ q, index, isCorrect, partial, studentAns }) {
           Correct answer: <strong>{q.answer}</strong>
         </div>
       )}
+      {!isCorrect && missPct != null && missPct >= 40 && (
+        <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 2 }}>
+          {missPct}% of the class missed this one - worth revisiting in your notes.
+        </div>
+      )}
       {exp && (
         <div style={{ marginTop: 8, padding: '8px 10px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -620,6 +625,19 @@ function QuizReviewModal({ quiz, submission, onClose }) {
   const graded = computeQuizScore(quiz.questions, submission.answers || [], { partialCredit: !!quiz.partialCredit })
   const total = submission.total ?? graded.total
   const score = submission.score ?? graded.score
+
+  // How much of the class missed each question - context, not judgment. Only
+  // shown once enough classmates have taken the quiz to be meaningful.
+  const missRates = useMemo(() => {
+    const subs = Object.values(quiz.submissions || {}).filter(s => Array.isArray(s?.answers))
+    if (subs.length < 3) return null
+    const wrong = (quiz.questions || []).map(() => 0)
+    subs.forEach(s => {
+      const g = computeQuizScore(quiz.questions, s.answers, { partialCredit: !!quiz.partialCredit })
+      g.perQuestion.forEach((r, i) => { if (!r.correct) wrong[i]++ })
+    })
+    return wrong.map(w => Math.round((w / subs.length) * 100))
+  }, [quiz])
   return (
     <Modal onClose={onClose} size="lg" sheetOnMobile icon={<ClipboardList size={18} />} title={`${quiz.title} - Review`}
       subtitle={<>Score: <strong>{score}/{total}</strong> · {total > 0 ? ((score / total) * 100).toFixed(1) : '0'}%</>}
@@ -630,7 +648,7 @@ function QuizReviewModal({ quiz, submission, onClose }) {
           const studentAns = (submission.answers?.[i] || '').toString()
           const res = graded.perQuestion[i] || { correct: false, awarded: 0, points: 1 }
           return (
-            <ReviewRow key={i} q={q} index={i} isCorrect={res.correct} partial={res.awarded > 0 && !res.correct} studentAns={studentAns} />
+            <ReviewRow key={i} q={q} index={i} isCorrect={res.correct} partial={res.awarded > 0 && !res.correct} studentAns={studentAns} missPct={missRates?.[i]} />
           )
         })}
       </div>
@@ -850,9 +868,23 @@ export default function StudentQuizTab({ student, viewClassId }) {
                 {group === 'open' && (
                   <button className="btn btn-primary btn-sm" onClick={() => startQuiz(q)}>Take quiz →</button>
                 )}
-                {group === 'completed' && (
-                  <button className="btn btn-ghost btn-sm" onClick={() => setReviewQuiz(q)}>Review answers</button>
-                )}
+                {group === 'completed' && (() => {
+                  // Professor-set review policy; quizzes predating the field
+                  // keep their historical review-anytime behavior.
+                  const mode = q.reviewMode || 'anytime'
+                  const closed = now > q.closeAt
+                  if (mode === 'anytime' || (mode === 'after_close' && closed)) {
+                    return <button className="btn btn-ghost btn-sm" onClick={() => setReviewQuiz(q)}>Review answers</button>
+                  }
+                  if (mode === 'after_close') {
+                    return (
+                      <span style={{ fontSize: 11.5, color: 'var(--ink3)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <Clock size={12} /> Answer review opens after the quiz closes
+                      </span>
+                    )
+                  }
+                  return null
+                })()}
               </div>
             </div>
           )

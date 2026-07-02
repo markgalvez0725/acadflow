@@ -397,6 +397,9 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
   })
   const [questions, setQuestions] = useState(quiz?.questions || initialQuestions || [])
   const [partialCredit, setPartialCredit] = useState(quiz?.partialCredit || false)
+  // Answer review: existing quizzes without the field keep their historical
+  // review-anytime behavior; new quizzes default to the safer after-close gate.
+  const [reviewMode, setReviewMode] = useState(quiz ? (quiz.reviewMode || 'anytime') : 'after_close')
   const [difficulty, setDifficulty] = useState(quiz?.difficulty || initialDifficulty || 'medium')
   const [editingQ, setEditingQ] = useState(null)
   const [err, setErr] = useState('')
@@ -540,7 +543,7 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
     const payload = {
       title: title.trim(), classIds, subject,
       timeLimit: parseInt(timeLimit), openAt: openTs, closeAt: closeTs,
-      questions: normQuestions, totalPoints, partialCredit, difficulty, status,
+      questions: normQuestions, totalPoints, partialCredit, reviewMode, difficulty, status,
       submissions: quiz?.submissions || {},
       createdAt: quiz?.createdAt || Date.now(), createdBy: 'admin',
     }
@@ -698,6 +701,17 @@ function QuizFormModal({ quiz, initialQuestions, initialDifficulty = 'medium', o
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>Allow partial credit on text answers</span>
         </label>
         <p className="text-xs text-ink3 mt-1" style={{ marginLeft: 24 }}>Near-miss short/identification/fill-in answers earn half the question's points. Multiple-choice and true/false are always all-or-nothing.</p>
+      </div>
+
+      {/* Answer review policy */}
+      <div className="field mb-3 px-3 py-2.5 rounded-lg" style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+        <label className="text-xs font-semibold text-ink2 mb-1 block">Answer review</label>
+        <select className="input w-full" value={reviewMode} onChange={e => setReviewMode(e.target.value)}>
+          <option value="after_close">After the quiz closes (recommended)</option>
+          <option value="anytime">Right after a student submits</option>
+          <option value="off">Never - scores only</option>
+        </select>
+        <p className="text-xs text-ink3 mt-1">Review shows each question with the student's answer and the correct answer. Gating it until close keeps the key away from classmates who haven't taken the quiz yet.</p>
       </div>
       </>
       )}
