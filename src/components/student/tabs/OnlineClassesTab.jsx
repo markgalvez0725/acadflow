@@ -3,7 +3,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import {
   Video, Radio, ExternalLink, Clock, ChevronDown, ChevronUp,
-  ShieldCheck, ArrowRight, Unlink, CheckCircle2, MonitorPlay, Sparkles,
+  ShieldCheck, ArrowRight, Unlink, CheckCircle2, MonitorPlay, Sparkles, FileText,
 } from 'lucide-react'
 import RecapModal from '@/components/meeting/RecapModal'
 import { activeClassIds } from '@/utils/active'
@@ -73,9 +73,10 @@ export default function OnlineClassesTab({ student }) {
   )
 
   const [pastOpen, setPastOpen] = useState(false)
-  // Smart Recap viewer for past in-app classes (id, so the modal stays fresh).
-  const [recapId, setRecapId] = useState('')
-  const recapMeeting = recapId ? meetings.find(m => m.id === recapId) : null
+  // Recap/transcript panel for past in-app classes ({ id, tab } - by id so the
+  // modal stays fresh; the tab picks Summary or Transcript on open).
+  const [recapView, setRecapView] = useState(null)
+  const recapMeeting = recapView ? meetings.find(m => m.id === recapView.id) : null
 
   const classNameById = useMemo(() => {
     const map = {}
@@ -272,10 +273,19 @@ export default function OnlineClassesTab({ student }) {
                 <span style={{ fontWeight: 600 }}>{m.title}</span>
                 <span style={{ color: 'var(--ink3)' }}>{meetingClassLabel(m, classNameById)}</span>
                 <span style={{ color: 'var(--ink3)' }}>· {dateStr}</span>
-                {m.recap && (
-                  <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setRecapId(m.id)} title="View the class recap">
-                    <Sparkles size={13} style={{ marginRight: 4 }} /> Recap
-                  </button>
+                {(m.recap || m.provider === 'inapp') && (
+                  <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6 }}>
+                    {m.recap && (
+                      <button className="btn btn-ghost btn-sm" onClick={() => setRecapView({ id: m.id, tab: 'summary' })} title="View the class recap">
+                        <Sparkles size={13} style={{ marginRight: 4 }} /> Recap
+                      </button>
+                    )}
+                    {m.provider === 'inapp' && (
+                      <button className="btn btn-ghost btn-sm" onClick={() => setRecapView({ id: m.id, tab: 'transcript' })} title="Read the full class transcript">
+                        <FileText size={13} style={{ marginRight: 4 }} /> Transcript
+                      </button>
+                    )}
+                  </span>
                 )}
               </div>
             )
@@ -288,7 +298,7 @@ export default function OnlineClassesTab({ student }) {
         </div>
       )}
 
-      {recapMeeting && <RecapModal meeting={recapMeeting} canManage={false} onClose={() => setRecapId('')} />}
+      {recapMeeting && <RecapModal meeting={recapMeeting} canManage={false} initialTab={recapView.tab} onClose={() => setRecapView(null)} />}
     </div>
   )
 }

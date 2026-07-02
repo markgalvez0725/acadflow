@@ -212,14 +212,19 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     try {
       await rec.recorder.stop() // resolves after the final chunk is handed over
       const out = await rec.uploader.finish()
+      // Saved as 'processing': Drive still has to process the video before it
+      // can be previewed. The MeetingHost poller flips it to 'ready' and only
+      // THEN notifies the professor - never a "ready" ping for a file that
+      // does not play yet.
       await saveMeetingRecording(rec.meeting, {
         link: out.link,
         driveId: out.driveId,
         bytes: out.bytes,
         durationMin: Math.max(1, Math.round((Date.now() - rec.startAt) / 60000)),
         at: Date.now(),
+        status: 'processing',
       })
-      if (!silent) toast('Recording ready in your Drive.', 'success')
+      if (!silent) toast('Recording saved. Drive is processing the video - you will get a notification when it is ready to view.', 'success')
     } catch (e) {
       if (!silent) toast('The recording upload failed. Check your Drive connection.', 'error')
     } finally {

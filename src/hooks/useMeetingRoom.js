@@ -30,11 +30,13 @@ const VIDEO_BUDGET = 2_400_000   // camera, all peers combined
 const SHARE_BUDGET = 4_800_000   // screen share is worth more bits
 
 // Ask the remote Opus encoder for resilient, speech-tuned audio: in-band FEC
-// (recovers lost packets), DTX (silence costs ~nothing - key in big rooms
-// where most mics are muted), and a bitrate that favors clarity in small
-// rooms without flooding uploads in big ones. fmtp lines in the sdp WE apply
-// as remote describe what the OTHER side's encoder should send us; both
-// peers run this, so both directions get tuned.
+// (recovers lost packets) and a bitrate that favors clarity in small rooms
+// without flooding uploads in big ones. DTX (stop sending during silence) is
+// applied ONLY past BIG_ROOM, where most mics are muted anyway - its silence
+// gate can clip the first syllable after a pause, which the professor hears
+// (and records) as words being cut, so small rooms keep the encoder always-on.
+// fmtp lines in the sdp WE apply as remote describe what the OTHER side's
+// encoder should send us; both peers run this, so both directions get tuned.
 function tuneOpus(sdp, roomSize) {
   try {
     const m = sdp.match(/a=rtpmap:(\d+) opus\/48000/)
@@ -43,7 +45,8 @@ function tuneOpus(sdp, roomSize) {
     const f = sdp.match(fmtpRe)
     if (!f) return sdp
     let params = f[1]
-    const extras = `useinbandfec=1;usedtx=1;stereo=0;maxaveragebitrate=${roomSize > BIG_ROOM ? 32000 : 48000}`
+    const big = roomSize > BIG_ROOM
+    const extras = `useinbandfec=1;stereo=0;maxaveragebitrate=${big ? 32000 : 48000}${big ? ';usedtx=1' : ''}`
     for (const kv of extras.split(';')) {
       const key = kv.split('=')[0]
       if (!new RegExp('(^|;)' + key + '=').test(params)) params += ';' + kv

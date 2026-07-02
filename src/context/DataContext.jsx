@@ -1178,23 +1178,35 @@ export function DataProvider({ children }) {
     try { return await rtcFetchTranscript(dbRef.current, meetingId) } catch { return [] }
   }, [])
 
-  // Persist the Drive recording pointer on the meeting and notify the
-  // professor's own feed that the file is ready.
+  // Persist the Drive recording pointer on the meeting. The recording arrives
+  // with status 'processing' - Drive still has to process the video before it
+  // can be previewed - so NO notification fires here. markMeetingRecordingReady
+  // (driven by the MeetingHost status poller) flips it to 'ready' and notifies.
   const saveMeetingRecording = useCallback(async (meeting, recording) => {
     const db = dbRef.current
     if (!db || !meeting?.id || !recording) return
     await fbSaveMeetingRecording(db, meeting.id, recording)
     setMeetings(prev => prev.map(m => m.id === meeting.id ? { ...m, recording } : m))
+  }, [])
+
+  // Drive finished processing the video: mark it ready and tell the professor.
+  const markMeetingRecordingReady = useCallback(async (meeting) => {
+    const db = dbRef.current
+    const rec = meeting?.recording
+    if (!db || !meeting?.id || !rec) return
+    const updated = { ...rec, status: 'ready', readyAt: Date.now() }
+    await fbSaveMeetingRecording(db, meeting.id, updated)
+    setMeetings(prev => prev.map(m => m.id === meeting.id ? { ...m, recording: updated } : m))
     try {
       // fbNotifyAdmin here is the attendanceExtras one (title/body/link/type);
       // the meeting: deep-link lands on the past row with the Recording button.
       await fbNotifyAdmin(db, {
         type: 'meeting_recording',
-        title: 'Recording ready in your Drive',
+        title: 'Recording is ready to view',
         body: `${meeting.className || 'Class'}: ${meeting.title || 'Online class'}`,
         link: `meeting:${meeting.id}`,
       })
-    } catch { /* the meeting doc already has the link */ }
+    } catch { /* the row pill already flipped */ }
   }, [])
 
   const pushAnnouncementNotifs = useCallback(async (announcement) => {
@@ -1640,7 +1652,7 @@ export function DataProvider({ children }) {
       meetings, setMeetings,
       liveMeetings: meetings.filter(m => m.status === 'live'),
       saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting,
-      generateMeetingRecap, fetchMeetingTranscript, saveMeetingRecording,
+      generateMeetingRecap, fetchMeetingTranscript, saveMeetingRecording, markMeetingRecordingReady,
       attendanceSessions, openCheckIn, closeCheckIn, studentCheckIn,
       excuseRequests, submitExcuseRequest, decideExcuseRequest,
       studentFeedback, submitStudentFeedback, updateFeedbackStatus,

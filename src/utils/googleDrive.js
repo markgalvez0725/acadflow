@@ -351,6 +351,39 @@ export function startResumableUpload({ name, mimeType = 'video/webm', folderPath
   }
 }
 
+// ── Recording processing status ──────────────────────────────────────────────
+// After the upload finishes, Drive still has to PROCESS the video before it
+// can be previewed. videoMediaMetadata only appears once that processing is
+// done, so it is the "ready to view" signal the status poller watches.
+//
+// The poller runs in the background, so this check must NEVER open a consent
+// popup: it uses the cached token, attempts at most one silent refresh every
+// 5 minutes, and reports "no token" instead of prompting.
+// Returns: true = processed, false = still processing, null = cannot check now.
+let _lastSilentTry = 0
+async function getTokenSilent() {
+  if (tokenValid()) return _token.access_token
+  if (Date.now() - _lastSilentTry < 300000) return null
+  _lastSilentTry = Date.now()
+  try { return await requestToken(false) } catch { return null }
+}
+
+export async function checkDriveVideoProcessed(driveId) {
+  if (!driveId) return null
+  const token = await getTokenSilent()
+  if (!token) return null
+  try {
+    const resp = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${driveId}?fields=videoMediaMetadata,thumbnailLink`,
+      { headers: { Authorization: 'Bearer ' + token } }
+    )
+    if (resp.status === 404) return false // deleted in Drive - let the poller's give-up end it
+    if (!resp.ok) return null
+    const f = await resp.json()
+    return !!(f.videoMediaMetadata || f.thumbnailLink)
+  } catch { return null }
+}
+
 // Make an existing Drive file (e.g. a class recording) viewable by anyone
 // with the link, so the professor can share it to students. Deliberately a
 // separate, explicit action - recordings stay private until shared.

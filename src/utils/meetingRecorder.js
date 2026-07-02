@@ -73,6 +73,26 @@ function drawAvatar(ctx, name, cx, cy, r) {
   ctx.textBaseline = 'alphabetic'
 }
 
+// Background-safe clock: browsers throttle rAF and page timers hard when the
+// tab is hidden, which starves the compositor and makes the recording stutter.
+// A Worker's timer is NOT throttled, so the draw loop ticks from a tiny inline
+// worker; plain setInterval is the fallback if workers are unavailable.
+function makeTicker(fn, ms) {
+  try {
+    const url = URL.createObjectURL(new Blob(
+      ['setInterval(function(){postMessage(0)},' + Math.max(15, ms) + ')'],
+      { type: 'text/javascript' }
+    ))
+    const w = new Worker(url)
+    URL.revokeObjectURL(url)
+    w.onmessage = fn
+    return { stop() { try { w.terminate() } catch { /* gone */ } } }
+  } catch {
+    const id = setInterval(fn, ms)
+    return { stop() { clearInterval(id) } }
+  }
+}
+
 // Best cols so n 16:9 tiles fit the canvas (same idea as the stage layout).
 function gridFor(n) {
   let best = { cols: 1, tw: 0, th: 0 }
@@ -95,7 +115,19 @@ export function createMeetingRecorder({ onChunk, onError }) {
   const AC = window.AudioContext || window.webkitAudioContext
   const ac = new AC()
   const dest = ac.createMediaStreamDestination()
-  const audioNodes = new Map() // stream.id -> MediaStreamAudioSourceNode
+  // Summing many voices with no gain staging clips the mix the moment two
+  // people talk at once - that clipping is what "choppy / cut" audio sounds
+  // like. Every source runs through its own headroom gain into one shared
+  // limiter-style compressor, so overlapping speech compresses cleanly
+  // instead of distorting.
+  const limiter = ac.createDynamicsCompressor()
+  limiter.threshold.value = -10
+  limiter.knee.value = 8
+  limiter.ratio.value = 14
+  limiter.attack.value = 0.003
+  limiter.release.value = 0.25
+  limiter.connect(dest)
+  const audioNodes = new Map() // stream.id -> { src, gain }
   const videoEls = new Map()   // key -> detached <video> (playing = drawable)
   let scene = { featured: null, tiles: [], audioStreams: [] }
   let timer = null
@@ -120,15 +152,22 @@ export function createMeetingRecorder({ onChunk, onError }) {
   function syncAudio(streams) {
     const want = new Map()
     for (const s of streams) if (s && s.getAudioTracks().length) want.set(s.id, s)
-    for (const [id, node] of [...audioNodes]) {
-      if (!want.has(id)) { try { node.disconnect() } catch { /* gone */ } audioNodes.delete(id) }
+    for (const [id, n] of [...audioNodes]) {
+      if (!want.has(id)) {
+        try { n.src.disconnect() } catch { /* gone */ }
+        try { n.gain.disconnect() } catch { /* gone */ }
+        audioNodes.delete(id)
+      }
     }
     for (const [id, s] of want) {
       if (audioNodes.has(id)) continue
       try {
-        const node = ac.createMediaStreamSource(s)
-        node.connect(dest)
-        audioNodes.set(id, node)
+        const src = ac.createMediaStreamSource(s)
+        const gain = ac.createGain()
+        gain.gain.value = 0.85 // headroom so the limiter works, not the clipper
+        src.connect(gain)
+        gain.connect(limiter)
+        audioNodes.set(id, { src, gain })
       } catch { /* stream without live audio yet */ }
     }
   }
@@ -192,21 +231,24 @@ export function createMeetingRecorder({ onChunk, onError }) {
       mr = new MediaRecorder(stream, {
         ...(mimeType ? { mimeType } : {}),
         videoBitsPerSecond: 1_500_000, // 720p budget - clear for slides + faces
-        audioBitsPerSecond: 96_000,
+        audioBitsPerSecond: 128_000,   // voice priority: never starve the audio
       })
       mr.ondataavailable = e => { if (e.data && e.data.size && onChunk) onChunk(e.data) }
       mr.onerror = e => { if (onError) onError(e?.error || new Error('Recorder failed.')) }
       mr.start(4000) // hand a chunk to the Drive uploader every 4s
-      timer = setInterval(draw, Math.round(1000 / FPS))
+      timer = makeTicker(draw, Math.round(1000 / FPS))
     },
     // Resolves after the FINAL chunk has been delivered to onChunk.
     stop() {
       return new Promise(resolve => {
         const cleanup = () => {
-          if (timer) { clearInterval(timer); timer = null }
+          if (timer) { timer.stop(); timer = null }
           for (const [, el] of videoEls) el.srcObject = null
           videoEls.clear()
-          for (const [, node] of audioNodes) { try { node.disconnect() } catch { /* noop */ } }
+          for (const [, n] of audioNodes) {
+            try { n.src.disconnect() } catch { /* noop */ }
+            try { n.gain.disconnect() } catch { /* noop */ }
+          }
           audioNodes.clear()
           ac.close().catch(() => { /* noop */ })
           resolve()
