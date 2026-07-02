@@ -2,7 +2,7 @@ import React, { useMemo } from 'react'
 import { doc, setDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { MessageSquare, Upload, CheckCircle, ClipboardList, Mail, Bell, Trash2, Megaphone, FileQuestion } from 'lucide-react'
+import { MessageSquare, Upload, CheckCircle, ClipboardList, Mail, Bell, Trash2, Megaphone, FileQuestion, Video } from 'lucide-react'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 import EmptyState from '@/components/ds/EmptyState'
 import PageHeader from '@/components/ds/PageHeader'
@@ -22,6 +22,7 @@ const CATEGORIES = [
   { key: 'activities',    label: 'Activities',    Icon: ClipboardList, match: t => String(t).startsWith('act') },
   { key: 'announcements', label: 'Announcements', Icon: Megaphone,     match: t => String(t).startsWith('ann') },
   { key: 'quizzes',       label: 'Quizzes',       Icon: FileQuestion,  match: t => String(t).startsWith('quiz') },
+  { key: 'meetings',      label: 'Online classes', Icon: Video,        match: t => String(t).startsWith('meeting') },
   { key: 'other',         label: 'Other',         Icon: Bell,          match: () => true },
 ]
 

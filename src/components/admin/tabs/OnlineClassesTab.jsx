@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio, MonitorPlay, Sparkles, Play } from 'lucide-react'
+import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio, MonitorPlay, Sparkles, Play, Share2 } from 'lucide-react'
 import RecapModal from '@/components/meeting/RecapModal'
+import { shareDriveFile } from '@/utils/googleDrive'
 import { courseShort } from '@/constants/courses'
 import { isValidUrl, parseFutureTs } from '@/utils/validators'
 import EmptyState from '@/components/ds/EmptyState'
@@ -36,10 +37,10 @@ function fmtElapsed(ms) {
 }
 
 export default function OnlineClassesTab() {
-  const { classes, meetings, saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting, generateMeetingRecap } = useData()
+  const { classes, meetings, saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting, generateMeetingRecap, saveAnnouncement, pushAnnouncementNotifs } = useData()
   // The room itself is hosted at the layout level (MeetingHost) so the call
   // survives tab navigation - this tab only opens it by id.
-  const { toast, openMeetingRoom } = useUI()
+  const { toast, openMeetingRoom, openDialog } = useUI()
   const [panel, setPanel] = useState('links')
   const [goingLive, setGoingLive] = useState('') // key of the link currently going live
   // Recap viewer: stores the meeting ID so the modal always shows the fresh doc.
@@ -238,6 +239,51 @@ export default function OnlineClassesTab() {
       toast('Meeting cancelled. Students have been notified.', 'success')
     } catch (e) {
       toast('Failed to cancel meeting.', 'error')
+    }
+  }
+
+  // Share a class recording with the students: flips the Drive file to
+  // anyone-with-link and posts it to the class Stream (Drive links
+  // auto-preview there), notifying the class.
+  async function handleShareRecording(m) {
+    const rec = m.recording
+    if (!rec?.link) return
+    const ok = await openDialog({
+      title: 'Share recording with the class?',
+      msg: 'This makes the video viewable to anyone with the link and posts it to the class Stream.',
+      type: 'info',
+      confirmLabel: 'Share',
+      showCancel: true,
+    })
+    if (!ok) return
+    try {
+      if (rec.driveId) await shareDriveFile(rec.driveId)
+      const dt = new Date(m.scheduledAt)
+      const announcement = {
+        id: 'ann_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+        type: 'general',
+        classId: m.classId,
+        classIds: [m.classId],
+        subject: m.subject || null,
+        title: `Class recording: ${m.title || 'Online class'}`,
+        message: `The recording of our online class on ${dt.toLocaleDateString('en-PH', { month: 'long', day: 'numeric' })} is now available. Watch it here:`,
+        meetingLink: null,
+        moduleLink: rec.link,
+        referenceVideo: null,
+        topics: null,
+        createdAt: Date.now(),
+        active: true,
+        expiresAt: null,
+        comments: [],
+        attachments: [],
+        pinned: false,
+        publishAt: null,
+      }
+      await saveAnnouncement(announcement)
+      await pushAnnouncementNotifs(announcement)
+      toast('Recording shared to the class Stream.', 'success')
+    } catch (e) {
+      toast('Failed to share the recording.', 'error')
     }
   }
 
@@ -529,7 +575,7 @@ export default function OnlineClassesTab() {
           past.length === 0
             ? <EmptyState Icon={CheckCircle} title="No past meetings" text="Ended classes will appear here." tone="muted" compact />
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-                {past.map(m => <MeetingRow key={m.id} m={m} now={now} onRecap={handleRecap} recapBusy={recapBusyId === m.id} />)}
+                {past.map(m => <MeetingRow key={m.id} m={m} now={now} onRecap={handleRecap} recapBusy={recapBusyId === m.id} onShareRecording={handleShareRecording} />)}
               </div>
         )}
       </section>}
@@ -546,7 +592,7 @@ function classLabel(cls) {
 
 // One meeting as a date-chip row: calendar chip, title + meta, a countdown pill
 // (amber inside 3 hours) or a green Ended chip, and Start/Cancel actions.
-function MeetingRow({ m, now, onStart, onCancel, onRecap, recapBusy }) {
+function MeetingRow({ m, now, onStart, onCancel, onRecap, recapBusy, onShareRecording }) {
   const dt = new Date(m.scheduledAt)
   const ended = m.status === 'ended'
   const mo = dt.toLocaleDateString('en-PH', { month: 'short' })
@@ -583,25 +629,37 @@ function MeetingRow({ m, now, onStart, onCancel, onRecap, recapBusy }) {
           )}
         </div>
       )}
-      {ended && (m.provider === 'inapp' || m.recording?.link) && (
-        <div className="olc-row-actions">
-          {m.provider === 'inapp' && onRecap && (
-            <button
-              className="btn btn-ghost btn-sm"
-              disabled={recapBusy}
-              onClick={() => onRecap(m)}
-              title={m.recap ? 'View the class recap' : 'Generate a recap from the class transcript'}
-            >
-              <Sparkles size={14} style={{ marginRight: 4 }} /> {recapBusy ? 'Working…' : 'Recap'}
-            </button>
-          )}
-          {m.recording?.link && (
-            <a className="btn btn-ghost btn-sm" href={m.recording.link} target="_blank" rel="noopener noreferrer" title="Open the recording in your Drive">
-              <Play size={14} style={{ marginRight: 4 }} /> Recording
-            </a>
-          )}
-        </div>
-      )}
+      {(() => {
+        // Older recordings may have saved without webViewLink - the Drive id
+        // alone is enough to build a working view link.
+        const recLink = m.recording?.link
+          || (m.recording?.driveId ? `https://drive.google.com/file/d/${m.recording.driveId}/view` : '')
+        if (!ended || (m.provider !== 'inapp' && !recLink)) return null
+        return (
+          <div className="olc-row-actions">
+            {m.provider === 'inapp' && onRecap && (
+              <button
+                className="btn btn-ghost btn-sm"
+                disabled={recapBusy}
+                onClick={() => onRecap(m)}
+                title={m.recap ? 'View the class recap' : 'Generate a recap from the class transcript'}
+              >
+                <Sparkles size={14} style={{ marginRight: 4 }} /> {recapBusy ? 'Working…' : 'Recap'}
+              </button>
+            )}
+            {recLink && (
+              <a className="btn btn-ghost btn-sm" href={recLink} target="_blank" rel="noopener noreferrer" title="Open the recording in your Drive">
+                <Play size={14} style={{ marginRight: 4 }} /> Recording
+              </a>
+            )}
+            {recLink && onShareRecording && (
+              <button className="btn btn-ghost btn-sm" onClick={() => onShareRecording({ ...m, recording: { ...m.recording, link: recLink } })} title="Make the video viewable by link and post it to the class Stream">
+                <Share2 size={14} style={{ marginRight: 4 }} /> Share
+              </button>
+            )}
+          </div>
+        )
+      })()}
     </div>
   )
 }

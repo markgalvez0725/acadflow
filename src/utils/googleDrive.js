@@ -259,13 +259,27 @@ export function startResumableUpload({ name, mimeType = 'video/webm', folderPath
   let offset = 0       // bytes confirmed sent to Drive
   let aborted = false
 
+  let fileId = ''
+  let fileLink = ''
+
   async function init() {
     const token = await getToken()
     const folderId = await ensureFolderPath([ROOT_NAME, ...folderPath.filter(Boolean)])
-    const resp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,webViewLink', {
+    // Create the (empty) file FIRST so its id + view link are known up front -
+    // the recording link must never depend on parsing the final chunk's
+    // response. The resumable session then streams content INTO that file.
+    const created = await driveFetch('https://www.googleapis.com/drive/v3/files?fields=id,webViewLink', {
       method: 'POST',
-      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json; charset=UTF-8' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, mimeType, ...(folderId ? { parents: [folderId] } : {}) }),
+    })
+    fileId = created.id
+    fileLink = created.webViewLink || (fileId ? `https://drive.google.com/file/d/${fileId}/view` : '')
+    if (!fileId) throw new Error('Drive did not create the recording file.')
+    const resp = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=resumable`, {
+      method: 'PATCH',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json; charset=UTF-8' },
+      body: JSON.stringify({}),
     })
     if (!resp.ok) throw new Error(`Could not start the Drive upload (${resp.status}).`)
     sessionUri = resp.headers.get('Location')
@@ -317,22 +331,16 @@ export function startResumableUpload({ name, mimeType = 'video/webm', folderPath
       drain()
     },
     // Uploads the tail, finalizes, and resolves { driveId, link, bytes }.
+    // id/link come from the up-front file creation, never from response parsing.
     async finish() {
       const tail = new Blob(buffer.splice(0), { type: mimeType })
       buffered = 0
-      let resp
       chain = chain.then(async () => {
         const total = offset + tail.size
-        resp = await putChunk(tail, true, total)
+        await putChunk(tail, true, total)
       })
       await chain
-      const data = await resp.json().catch(() => ({}))
-      const id = data.id || ''
-      return {
-        driveId: id,
-        link: data.webViewLink || (id ? `https://drive.google.com/file/d/${id}/view` : ''),
-        bytes: offset,
-      }
+      return { driveId: fileId, link: fileLink, bytes: offset }
     },
     abort() {
       aborted = true
@@ -341,6 +349,18 @@ export function startResumableUpload({ name, mimeType = 'video/webm', folderPath
       chain.then(() => { if (sessionUri) fetch(sessionUri, { method: 'DELETE' }).catch(() => {}) }).catch(() => {})
     },
   }
+}
+
+// Make an existing Drive file (e.g. a class recording) viewable by anyone
+// with the link, so the professor can share it to students. Deliberately a
+// separate, explicit action - recordings stay private until shared.
+export async function shareDriveFile(driveId) {
+  if (!driveId) throw new Error('No Drive file to share.')
+  await driveFetch(`https://www.googleapis.com/drive/v3/files/${driveId}/permissions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role: 'reader', type: 'anyone' }),
+  })
 }
 
 // Upload one File into AcadFlow / {classLabel} / {Photos|Modules}, make it
