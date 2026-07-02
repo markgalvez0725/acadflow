@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio, MonitorPlay, Sparkles, Play, Share2, FileText, Loader2 } from 'lucide-react'
+import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio, MonitorPlay, Sparkles, Play, Share2, FileText, Loader2, Users, MessageSquare, CircleDot, MonitorUp, Zap, Info, AlertTriangle, Check } from 'lucide-react'
 import RecapModal from '@/components/meeting/RecapModal'
 import { shareDriveFile, checkDriveVideoProcessedNow } from '@/utils/googleDrive'
 import { courseShort } from '@/constants/courses'
@@ -146,6 +146,16 @@ export default function OnlineClassesTab() {
   const [form, setForm] = useState({ classId: '', subject: '', title: '', scheduledAt: '', description: '', where: 'inapp' })
   const [scheduling, setScheduling] = useState(false)
   const scheduleClass = classes.find(c => c.id === form.classId)
+  // Link availability, LINK MODE ONLY (in-app rooms never need one): the
+  // meeting uses the subject's saved link, else the class default. 'none'
+  // blocks scheduling so students are never sent to a dead Join button.
+  const schedSubjectLink = (form.subject && scheduleClass?.meetLinks?.[form.subject]) || ''
+  const schedFallbackLink = scheduleClass?.meetLink || ''
+  const linkStatus = form.where !== 'link' || !scheduleClass ? null
+    : schedSubjectLink ? 'ok'
+    : !form.subject && schedFallbackLink ? 'ok'
+    : schedFallbackLink ? 'warn'
+    : 'none'
 
   async function handleSchedule(e) {
     e.preventDefault()
@@ -154,10 +164,15 @@ export default function OnlineClassesTab() {
     if (!ts) { toast('Pick a future date and time.', 'error'); return }
     const cls = classes.find(c => c.id === form.classId)
     if (!cls) return
+    const inapp = form.where === 'inapp'
+    const meetLink = inapp ? '' : ((form.subject && cls.meetLinks?.[form.subject]) || cls.meetLink || '')
+    // Never schedule a link-mode class nobody can join.
+    if (!inapp && !meetLink) {
+      toast('No Google Meet link saved for this class. Set one in Classes, or use the in-app room.', 'error')
+      return
+    }
     setScheduling(true)
     try {
-      const inapp = form.where === 'inapp'
-      const meetLink = inapp ? '' : ((form.subject && cls.meetLinks?.[form.subject]) || cls.meetLink || '')
       await scheduleMeeting({
         classId: cls.id,
         className: classLabel(cls),
@@ -499,13 +514,15 @@ export default function OnlineClassesTab() {
         </div>
       </section>}
 
-      {/* Section 2 - Schedule Meeting Form */}
+      {/* Section 2 - Schedule form. Venue-first: the in-app room is a real
+          choice with its features on display, and link talk (status, class
+          default fallback) appears ONLY in link mode - see linkStatus. */}
       {panel === 'schedule' && <section className="card" style={{ padding: 18, maxWidth: 560 }}>
         <div className="olc-lc-h" style={{ marginBottom: 14 }}>
           <span className="olc-lc-ic"><CalendarPlus size={17} /></span>
           <div className="olc-lc-name">
-            <b>Schedule a meeting</b>
-            <span>Students are notified as soon as it is saved</span>
+            <b>Schedule a class</b>
+            <span>Students are notified the moment it is saved</span>
           </div>
         </div>
         <form onSubmit={handleSchedule} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -525,7 +542,7 @@ export default function OnlineClassesTab() {
               </select>
             </div>
             <div>
-              <label className="label">Date & Time</label>
+              <label className="label">Date and time</label>
               <input
                 className="input"
                 type="datetime-local"
@@ -537,35 +554,81 @@ export default function OnlineClassesTab() {
           </div>
           <div>
             <label className="label">Where</label>
-            <select
-              className="input"
-              value={form.where}
-              onChange={e => setForm(f => ({ ...f, where: e.target.value }))}
-            >
-              <option value="inapp">In-app room - runs inside AcadFlow (up to 60 people)</option>
-              <option value="link">Google Meet - opens the class link in a new tab</option>
-            </select>
+            <div className="olc-where">
+              <button
+                type="button"
+                className={`olc-wcard${form.where === 'inapp' ? ' on' : ''}`}
+                aria-pressed={form.where === 'inapp'}
+                onClick={() => setForm(f => ({ ...f, where: 'inapp' }))}
+              >
+                <span className="olc-wcard-h">
+                  <Video size={15} />
+                  <b>In-app room</b>
+                  <span className="olc-wcard-badge">Recommended</span>
+                </span>
+                <span className="olc-wcard-sub">Runs inside AcadFlow, students join in one tap</span>
+                <span className="olc-wcard-chips">
+                  <span className="olc-wchip"><Users size={11} /> Up to 60</span>
+                  <span className="olc-wchip"><MonitorUp size={11} /> Present</span>
+                  <span className="olc-wchip"><MessageSquare size={11} /> Chat + reactions</span>
+                  <span className="olc-wchip"><CircleDot size={11} /> Record to Drive</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className={`olc-wcard${form.where === 'link' ? ' on' : ''}`}
+                aria-pressed={form.where === 'link'}
+                onClick={() => setForm(f => ({ ...f, where: 'link' }))}
+              >
+                <span className="olc-wcard-h">
+                  <ExternalLink size={15} />
+                  <b>Google Meet link</b>
+                </span>
+                <span className="olc-wcard-sub">Opens this subject's saved link in a new tab</span>
+                <span className="olc-wcard-sub">Uses the link saved in Classes</span>
+              </button>
+            </div>
           </div>
           {scheduleClass?.subjects?.length > 0 && (
             <div>
-              <label className="label">Subject {form.where === 'link' && <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(picks that subject's saved Meet link)</span>}</label>
+              <label className="label">Subject</label>
               <select
                 className="input"
                 value={form.subject}
                 onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}
               >
-                <option value="">Use class default link</option>
+                <option value="">{form.where === 'link' ? 'Use the class default link' : 'No specific subject'}</option>
                 {scheduleClass.subjects.map(s => (
-                  <option key={s} value={s}>{s}{scheduleClass.meetLinks?.[s] ? '' : ' (no link set)'}</option>
+                  <option key={s} value={s}>{s}</option>
                 ))}
               </select>
             </div>
           )}
+          {form.where === 'inapp' && scheduleClass?.subjects?.length > 0 && (
+            <div className="olc-subhint" style={{ marginTop: -6 }}>
+              <Info size={13} /> Names the room and the class card. No link needed.
+            </div>
+          )}
+          {linkStatus === 'ok' && (
+            <div className="olc-linkstat olc-linkstat-ok" style={{ marginTop: -6 }}>
+              <Check size={13} /> {schedSubjectLink ? 'Link saved for this subject.' : 'Uses the class default link.'}
+            </div>
+          )}
+          {linkStatus === 'warn' && (
+            <div className="olc-linkstat olc-linkstat-warn" style={{ marginTop: -6 }}>
+              <AlertTriangle size={13} /> No link saved for this subject. The class default link will be used.
+            </div>
+          )}
+          {linkStatus === 'none' && (
+            <div className="olc-linkstat olc-linkstat-bad" style={{ marginTop: -6 }}>
+              <AlertTriangle size={13} /> No link saved for this class{form.subject ? ' or subject' : ''}. Set one in Classes, or use the in-app room.
+            </div>
+          )}
           <div>
-            <label className="label">Meeting Title</label>
+            <label className="label">Class title</label>
             <input
               className="input"
-              placeholder="e.g. Chapter 5 Review"
+              placeholder="Chapter 5 review"
               value={form.title}
               onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
               required
@@ -582,11 +645,28 @@ export default function OnlineClassesTab() {
               style={{ resize: 'vertical' }}
             />
           </div>
-          <div>
-            <button className="btn btn-primary" type="submit" disabled={scheduling}>
+          <div className="olc-form-foot">
+            <button className="btn btn-primary" type="submit" disabled={scheduling || linkStatus === 'none'}>
               <CalendarPlus size={15} style={{ marginRight: 6 }} />
-              {scheduling ? 'Scheduling...' : 'Schedule Meeting'}
+              {scheduling ? 'Scheduling...' : 'Schedule class'}
             </button>
+            {form.where === 'inapp' && (
+              <button
+                className="btn"
+                type="button"
+                disabled={!!goingLive || scheduling}
+                title="Skip scheduling - create the room and go live right now"
+                onClick={() => {
+                  const cls = classes.find(c => c.id === form.classId)
+                  if (!cls) { toast('Pick a class first.', 'error'); return }
+                  handleGoLiveInApp(cls, form.subject || null)
+                }}
+              >
+                <Zap size={14} style={{ marginRight: 5 }} />
+                {goingLive ? 'Starting...' : 'Go live now'}
+              </button>
+            )}
+            <span className="olc-form-note">Notification sent right away</span>
           </div>
         </form>
       </section>}

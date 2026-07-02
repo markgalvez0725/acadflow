@@ -3055,6 +3055,76 @@ textarea.input { resize: vertical; }
 .olc-lc-name { min-width: 0; flex: 1; }
 .olc-lc-name b { display: block; font-weight: 700; font-size: 0.875rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
 .olc-lc-name span { font-size: 0.6875rem; color: var(--ink3); }
+
+/* Schedule form: venue picker cards + link status (in-app first design).
+   Status tints are literal rgba so they read on light, dark, and frost. */
+.olc-where { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 620px) { .olc-where { grid-template-columns: 1fr; } }
+.olc-wcard {
+  font: inherit;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+.olc-wcard:hover { border-color: var(--accent); }
+.olc-wcard.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+  background: var(--accent-l);
+}
+.olc-wcard-h { display: flex; align-items: center; gap: 7px; font-size: 0.8438rem; }
+.olc-wcard-h svg { color: var(--accent); flex-shrink: 0; }
+.olc-wcard-h b { font-weight: 700; color: var(--ink); }
+.olc-wcard-badge {
+  margin-left: auto;
+  font-size: 0.6563rem;
+  font-weight: 700;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+.olc-wcard-sub { font-size: 0.75rem; color: var(--ink3); }
+.olc-wcard-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.olc-wchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.6875rem;
+  color: var(--ink3);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+.olc-wchip svg { flex-shrink: 0; }
+.olc-subhint { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--ink3); }
+.olc-subhint svg { flex-shrink: 0; }
+.olc-linkstat {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: 1px solid;
+  border-radius: 10px;
+  padding: 7px 10px;
+}
+.olc-linkstat svg { flex-shrink: 0; margin-top: 1px; }
+.olc-linkstat-ok { color: #34a866; border-color: rgba(52, 168, 102, 0.35); background: rgba(52, 168, 102, 0.08); }
+.olc-linkstat-warn { color: #c8892a; border-color: rgba(200, 137, 42, 0.4); background: rgba(200, 137, 42, 0.09); }
+.olc-linkstat-bad { color: #dd5454; border-color: rgba(221, 84, 84, 0.4); background: rgba(221, 84, 84, 0.09); }
+.olc-form-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.olc-form-note { margin-left: auto; font-size: 0.7188rem; color: var(--ink3); white-space: nowrap; }
 .olc-sec-chip { font-size: 0.625rem; font-weight: 700; color: var(--accent); background: var(--accent-l); border-radius: 999px; padding: 3px 9px; flex-shrink: 0; }
 .olc-sub-lb { font-size: 0.75rem; font-weight: 600; color: var(--ink2); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
 .olc-nolink { font-size: 0.6875rem; color: var(--gold-var); font-weight: 600; }
