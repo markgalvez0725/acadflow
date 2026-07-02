@@ -281,13 +281,14 @@ function EditClassModal({ cls, onClose }) {
           const keep = subjectsOfOtherClasses(s)
           const toRemove = removedSubs.filter(sub => !keep.has(sub))
           if (!toRemove.length && !addedSubs.length) return s
-          const ns = { ...s, grades: { ...s.grades }, attendance: { ...s.attendance }, excuse: { ...s.excuse } }
+          const ns = { ...s, grades: { ...s.grades }, attendance: { ...s.attendance }, excuse: { ...s.excuse }, late: { ...(s.late || {}) } }
           if (s.gradeComponents) ns.gradeComponents = { ...s.gradeComponents }
           if (s.gradeUploadedAt) ns.gradeUploadedAt = { ...s.gradeUploadedAt }
           toRemove.forEach(sub => {
             delete ns.grades[sub]
             delete ns.attendance[sub]
             delete ns.excuse[sub]
+            delete ns.late[sub]
             if (ns.gradeComponents) delete ns.gradeComponents[sub]
             if (ns.gradeUploadedAt) delete ns.gradeUploadedAt[sub]
           })
@@ -295,6 +296,7 @@ function EditClassModal({ cls, onClose }) {
             if (ns.grades[sub] === undefined)  ns.grades[sub] = null
             if (!ns.attendance[sub])           ns.attendance[sub] = new Set()
             if (!ns.excuse[sub])               ns.excuse[sub] = new Set()
+            if (!ns.late[sub])                 ns.late[sub] = new Set()
           })
           affectedStudentIds.push(s.id)
           return ns

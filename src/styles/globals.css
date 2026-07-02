@@ -2301,6 +2301,12 @@ textarea.input { resize: vertical; }
   border-color: var(--green);
   font-weight: 700;
 }
+.att-toggle-btn.active-late {
+  background: var(--yellow-l, #fef9c3);
+  color: var(--gold-var, #ca8a04);
+  border-color: var(--yellow, #ca8a04);
+  font-weight: 700;
+}
 .att-toggle-btn.active-excuse {
   background: var(--purple-l);
   color: var(--purple);
@@ -3256,6 +3262,7 @@ textarea.input { resize: vertical; }
 .sa-future  { background: transparent; color: var(--ink3); }
 .sa-weekend { color: var(--accent); opacity: .5; }
 .sa-present { background: var(--green);  color: #fff; }
+.sa-late    { background: var(--gold-var, #ca8a04); color: #fff; }
 .sa-excuse  { background: var(--purple); color: #fff; }
 .sa-absent  { background: var(--red);    color: #fff; }
 .sa-today   { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
@@ -3278,6 +3285,7 @@ textarea.input { resize: vertical; }
   background: var(--surface);
 }
 .sa-record-item.is-present { }
+.sa-record-item.is-late    { }
 .sa-record-item.is-excuse  { }
 .sa-record-item.is-absent  { }
 
@@ -3329,6 +3337,9 @@ textarea.input { resize: vertical; }
   border-radius: var(--radius);
   padding: 8px 10px;
 }
+/* With an odd chip count (Present/Late/Absent/Excused/Sessions) let the
+   trailing Sessions chip span the full row instead of orphaning. */
+.att2-chip:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .att2-chip b { font-size: 1.05rem; font-weight: 700; line-height: 1; }
 .att2-chip small { font-size: 0.72rem; color: var(--ink2); }
 .att2-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }

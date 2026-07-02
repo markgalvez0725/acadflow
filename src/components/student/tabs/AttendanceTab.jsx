@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react'
 import { useData } from '@/context/DataContext'
 import { useAuth } from '@/context/AuthContext'
 import { useUI } from '@/context/UIContext'
-import { CalendarCheck, Calendar, CheckCircle2, FileCheck, XCircle, Award, UserCheck, Radio, ClipboardList, Send, ShieldCheck, AlertTriangle, Flame, PartyPopper } from 'lucide-react'
+import { CalendarCheck, Calendar, CheckCircle2, Clock, FileCheck, XCircle, Award, UserCheck, Radio, ClipboardList, Send, ShieldCheck, AlertTriangle, Flame, PartyPopper } from 'lucide-react'
 import TakeAttendanceModal from '@/components/student/modals/TakeAttendanceModal'
 import StandingRing from '@/components/primitives/StandingRing'
 import EmptyState from '@/components/ds/EmptyState'
@@ -71,6 +71,7 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
     const today = new Date()
     return subs.map(sub => {
       const pres = s.attendance?.[sub] || new Set()
+      const lt   = s.late?.[sub]       || new Set()
       const exc  = s.excuse?.[sub]     || new Set()
       const held = new Set()
       ;[...classMates, s].forEach(x => {
@@ -79,6 +80,7 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
       })
       const heldArr = [...held].filter(d => new Date(d + 'T00:00:00') <= today).sort()
       const present = pres.size
+      const late    = lt.size
       const excused = exc.size
       const total   = heldArr.length
       const absent  = Math.max(0, total - present - excused)
@@ -103,16 +105,16 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
         marginAbs = Math.max(1, Math.floor(kFloat) + 1)
       }
 
-      return { sub, present, excused, absent, total, rate, absentStreak, presentStreak, marginAbs }
+      return { sub, present, late, excused, absent, total, rate, absentStreak, presentStreak, marginAbs }
     })
   }, [subs, classMates, s])
 
   const totals = useMemo(() => {
-    let p = 0, e = 0, exp = 0
-    subStats.forEach(x => { p += x.present; e += x.excused; exp += x.total })
-    return { totalPresent: p, totalExcuse: e, totalExpected: exp }
+    let p = 0, l = 0, e = 0, exp = 0
+    subStats.forEach(x => { p += x.present; l += x.late; e += x.excused; exp += x.total })
+    return { totalPresent: p, totalLate: l, totalExcuse: e, totalExpected: exp }
   }, [subStats])
-  const { totalPresent, totalExcuse, totalExpected } = totals
+  const { totalPresent, totalLate, totalExcuse, totalExpected } = totals
   const totalAbsent = Math.max(0, totalExpected - totalPresent - totalExcuse)
   const globalRate = totalExpected > 0 ? totalPresent / totalExpected * 100 : 0
   const rateColor = globalRate >= 90 ? 'var(--green)' : globalRate >= 80 ? 'var(--yellow)' : 'var(--red)'
@@ -223,7 +225,8 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
           <div className="att2-ring-row">
             <StandingRing rate={globalRate} color={rateColor} box={120} draw={100} radius={50} stroke={12} valueSize={25} labelSize={11} valueY={58} labelY={77} label="present" formatValue={(r) => `${r.toFixed(0)}%`} transition style={{ flexShrink: 0 }} />
             <div className="att2-chips">
-              <div className="att2-chip"><span className="att2-dot" style={{ background: 'var(--green)' }} /><b>{totalPresent}</b><small>Present</small></div>
+              <div className="att2-chip"><span className="att2-dot" style={{ background: 'var(--green)' }} /><b>{Math.max(0, totalPresent - totalLate)}</b><small>Present</small></div>
+              <div className="att2-chip"><span className="att2-dot" style={{ background: 'var(--gold-var, #ca8a04)' }} /><b>{totalLate}</b><small>Late</small></div>
               <div className="att2-chip"><span className="att2-dot" style={{ background: 'var(--red)' }} /><b>{totalAbsent}</b><small>Absent</small></div>
               <div className="att2-chip"><span className="att2-dot" style={{ background: 'var(--purple)' }} /><b>{totalExcuse}</b><small>Excused</small></div>
               <div className="att2-chip"><span className="att2-dot" style={{ background: 'var(--ink3)' }} /><b>{totalExpected}</b><small>Sessions</small></div>
@@ -357,7 +360,9 @@ export default function AttendanceTab({ student: s, viewClassId, classes }) {
 
 function SubjectDetail({ sub, student: s, cls, students }) {
   const presentSet = s.attendance?.[sub] || new Set()
+  const lateSet    = s.late?.[sub]       || new Set()
   const excuseSet  = s.excuse?.[sub]     || new Set()
+  const onTimeCount = Math.max(0, presentSet.size - lateSet.size)
 
   // Collect all admin-recorded dates for this subject across the class
   const sEnrolledIds = s.classIds?.length ? s.classIds : (s.classId ? [s.classId] : [])
@@ -429,7 +434,8 @@ function SubjectDetail({ sub, student: s, cls, students }) {
       {/* View tabs */}
       <div className="sa-tab-bar att2-tabs">
         <button className={`sa-tab${viewMode === 'calendar' ? ' active' : ''}`} onClick={() => setViewMode('calendar')} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Calendar size={13} />Calendar</button>
-        <button className={`sa-tab${viewMode === 'present'  ? ' active' : ''}`} onClick={() => setViewMode('present')} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><CheckCircle2 size={13} />Present ({presentSet.size})</button>
+        <button className={`sa-tab${viewMode === 'present'  ? ' active' : ''}`} onClick={() => setViewMode('present')} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><CheckCircle2 size={13} />Present ({onTimeCount})</button>
+        <button className={`sa-tab${viewMode === 'late'     ? ' active' : ''}`} onClick={() => setViewMode('late')} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Clock size={13} />Late ({lateSet.size})</button>
         <button className={`sa-tab${viewMode === 'excuse'   ? ' active' : ''}`} onClick={() => setViewMode('excuse')} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><FileCheck size={13} />Excused ({excuseSet.size})</button>
         <button className={`sa-tab${viewMode === 'absent'   ? ' active' : ''}`} onClick={() => setViewMode('absent')} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><XCircle size={13} />Absent ({absentDates.length})</button>
       </div>
@@ -440,6 +446,7 @@ function SubjectDetail({ sub, student: s, cls, students }) {
           <div className="att2-cal-col">
             <CalendarView
               presentSet={presentSet}
+              lateSet={lateSet}
               excuseSet={excuseSet}
               adminDates={allAdminDates}
               year={calYear}
@@ -455,12 +462,14 @@ function SubjectDetail({ sub, student: s, cls, students }) {
                   <span style={{ color: rateColor }}>{rate.toFixed(1)}% present</span>
                 </div>
                 <div className="sa-progress-bar att2-bar">
-                  <div className="sa-progress-seg" style={{ background: 'var(--green)',  width: pct(presentSet.size) }} />
+                  <div className="sa-progress-seg" style={{ background: 'var(--green)',  width: pct(onTimeCount) }} />
+                  <div className="sa-progress-seg" style={{ background: 'var(--gold-var, #ca8a04)', width: pct(lateSet.size) }} />
                   <div className="sa-progress-seg" style={{ background: 'var(--purple)', width: pct(excuseSet.size) }} />
                   <div className="sa-progress-seg" style={{ background: 'var(--red-l)',   width: pct(absent) }} />
                 </div>
                 <div className="att2-counts">
-                  <span><span className="att2-dot" style={{ background: 'var(--green)' }} />Present <b>{presentSet.size}</b></span>
+                  <span><span className="att2-dot" style={{ background: 'var(--green)' }} />Present <b>{onTimeCount}</b></span>
+                  <span><span className="att2-dot" style={{ background: 'var(--gold-var, #ca8a04)' }} />Late <b>{lateSet.size}</b></span>
                   <span><span className="att2-dot" style={{ background: 'var(--purple)' }} />Excused <b>{excuseSet.size}</b></span>
                   <span><span className="att2-dot" style={{ background: 'var(--red)' }} />Absent <b>{absent}</b></span>
                   <span><span className="att2-dot" style={{ background: 'var(--ink3)' }} />Sessions <b>{expected}</b></span>
@@ -469,6 +478,7 @@ function SubjectDetail({ sub, student: s, cls, students }) {
             )}
             <div className="att2-legend">
               <span><span className="att2-ld" style={{ background: 'var(--green)' }} />Present</span>
+              <span><span className="att2-ld" style={{ background: 'var(--gold-var, #ca8a04)' }} />Late</span>
               <span><span className="att2-ld" style={{ background: 'var(--purple)' }} />Excused</span>
               <span><span className="att2-ld" style={{ background: 'var(--red)' }} />Absent</span>
               <span><span className="att2-ld" style={{ background: 'var(--border)' }} />No session</span>
@@ -476,7 +486,9 @@ function SubjectDetail({ sub, student: s, cls, students }) {
           </div>
         </div>
       ) : viewMode === 'present' ? (
-        <DateList dates={[...presentSet].sort().reverse()} type="present" />
+        <DateList dates={[...presentSet].filter(d => !lateSet.has(d)).sort().reverse()} type="present" />
+      ) : viewMode === 'late' ? (
+        <DateList dates={[...lateSet].sort().reverse()} type="late" />
       ) : viewMode === 'excuse' ? (
         <DateList dates={[...excuseSet].sort().reverse()} type="excuse" />
       ) : (
@@ -486,7 +498,7 @@ function SubjectDetail({ sub, student: s, cls, students }) {
   )
 }
 
-function CalendarView({ presentSet, excuseSet, adminDates, year, month, onNav }) {
+function CalendarView({ presentSet, lateSet, excuseSet, adminDates, year, month, onNav }) {
   const monthName   = new Date(year, month, 1).toLocaleString('default', { month: 'long', year: 'numeric' })
   const firstDay    = new Date(year, month, 1).getDay()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -515,6 +527,7 @@ function CalendarView({ presentSet, excuseSet, adminDates, year, month, onNav })
           const isWeekend = dow === 0 || dow === 6
           const isFuture  = new Date(year, month, d) > today
           const isPresent = presentSet.has(dateStr)
+          const isLate    = isPresent && lateSet?.has(dateStr)
           const isExcuse  = excuseSet.has(dateStr)
           const isAbsent  = !isFuture && adminDates.has(dateStr) && !isPresent && !isExcuse
           const isToday   = today.getFullYear() === year && today.getMonth() === month && today.getDate() === d
@@ -522,6 +535,7 @@ function CalendarView({ presentSet, excuseSet, adminDates, year, month, onNav })
           let cls = 'sa-day'
           let tip = dateStr
           if (isFuture)       { cls += ' sa-future';  tip += ' - upcoming' }
+          else if (isLate)    { cls += ' sa-late';    tip += ' - Late' }
           else if (isPresent) { cls += ' sa-present'; tip += ' - Present' }
           else if (isExcuse)  { cls += ' sa-excuse';  tip += ' - Excused' }
           else if (isAbsent)  { cls += ' sa-absent';  tip += ' - Absent' }
@@ -540,20 +554,23 @@ const DATE_FMT = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeri
 
 const DATE_ICONS = {
   present: <CheckCircle2 size={14} style={{ verticalAlign: 'middle', color: 'var(--green)' }} />,
+  late:    <Clock size={14} style={{ verticalAlign: 'middle', color: 'var(--gold-var, #ca8a04)' }} />,
   excuse:  <FileCheck size={14} style={{ verticalAlign: 'middle', color: 'var(--purple)' }} />,
   absent:  <XCircle size={14} style={{ verticalAlign: 'middle', color: 'var(--red)' }} />,
 }
 const EMPTY_ICONS = {
   present: CheckCircle2,
+  late:    Clock,
   excuse:  FileCheck,
   absent:  Award,
 }
 
 function DateList({ dates, type }) {
-  const clsMap = { present: 'is-present', excuse: 'is-excuse', absent: 'is-absent' }
-  const labels = { present: 'Present', excuse: 'Excused', absent: 'Absent' }
+  const clsMap = { present: 'is-present', late: 'is-late', excuse: 'is-excuse', absent: 'is-absent' }
+  const labels = { present: 'Present', late: 'Late', excuse: 'Excused', absent: 'Absent' }
   const empties = {
     present: { icon: EMPTY_ICONS.present, msg: 'No present days recorded yet.' },
+    late:    { icon: EMPTY_ICONS.late,    msg: 'No late arrivals recorded - great job!' },
     excuse:  { icon: EMPTY_ICONS.excuse,  msg: 'No excused absences recorded.' },
     absent:  { icon: EMPTY_ICONS.absent,  msg: 'No recorded absences - great job!' },
   }

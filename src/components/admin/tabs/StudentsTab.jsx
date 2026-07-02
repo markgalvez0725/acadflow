@@ -124,7 +124,7 @@ function AddStudentModal({ onClose }) {
     }
 
     const allClassIds = [...new Set([classId, ...extraIds].filter(Boolean))]
-    const grades = {}, attendance = {}, excuse = {}, gradeComponents = {}
+    const grades = {}, attendance = {}, excuse = {}, late = {}, gradeComponents = {}
     allClassIds.forEach(cid => {
       const cls = classes.find(c => c.id === cid)
       if (!cls) return
@@ -132,6 +132,7 @@ function AddStudentModal({ onClose }) {
         if (grades[sub] === undefined) grades[sub] = null
         if (!attendance[sub]) attendance[sub] = new Set()
         if (!excuse[sub]) excuse[sub] = new Set()
+        if (!late[sub]) late[sub] = new Set()
       })
     })
 
@@ -140,7 +141,7 @@ function AddStudentModal({ onClose }) {
 
     setSaving(true)
     try {
-      const newStudent = { id, name: composedName, course: course.trim(), year, studentType, section: finalSection, classId: classId || null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account }
+      const newStudent = { id, name: composedName, course: course.trim(), year, studentType, section: finalSection, classId: classId || null, classIds: allClassIds, grades, attendance, excuse, late, gradeComponents, account }
       await saveStudents([...students, newStudent], [id])
       await provisionStudentSecret(id, passHash)
       toast('Student added!', 'green')
@@ -389,7 +390,7 @@ function EditStudentModal({ student, onClose }) {
     const allClassIds = [...new Set([newClassId, ...extraIds].filter(Boolean))]
     const finalId = snumChanged ? trimSnum : student.id
 
-    const ns = { ...student, id: finalId, name: composedName, course: course.trim(), year, studentType, section: inheritedSection, classId: newClassId, classIds: allClassIds, grades: { ...student.grades }, attendance: { ...student.attendance }, excuse: { ...student.excuse } }
+    const ns = { ...student, id: finalId, name: composedName, course: course.trim(), year, studentType, section: inheritedSection, classId: newClassId, classIds: allClassIds, grades: { ...student.grades }, attendance: { ...student.attendance }, excuse: { ...student.excuse }, late: { ...(student.late || {}) } }
     if (student.gradeComponents) ns.gradeComponents = { ...student.gradeComponents }
     allClassIds.forEach(cid => {
       const cls = classes.find(c => c.id === cid)
@@ -398,6 +399,7 @@ function EditStudentModal({ student, onClose }) {
         if (ns.grades[sub] === undefined)  ns.grades[sub] = null
         if (!ns.attendance[sub])           ns.attendance[sub] = new Set()
         if (!ns.excuse[sub])               ns.excuse[sub] = new Set()
+        if (!ns.late[sub])                 ns.late[sub] = new Set()
       })
     })
 
@@ -908,8 +910,8 @@ function ImportStudentsModal({ onClose }) {
       const newStudents = validRows.map(r => {
         const id = r.id.toUpperCase()
         const allClassIds = []
-        const grades = {}, attendance = {}, excuse = {}, gradeComponents = {}
-        return { id, name: (r.name || '').toUpperCase(), course: r.course, year: normalizeYearLevel(r.year) || '1st Year', section: r.section || '', mobile: r.mobile || '', dob: r.dob || '', classId: null, classIds: allClassIds, grades, attendance, excuse, gradeComponents, account: { registered: true, email: '', _tempPass: true, needsProfileSetup: true, verified: true, verification: { method: 'teacher', at: Date.now() } } }
+        const grades = {}, attendance = {}, excuse = {}, late = {}, gradeComponents = {}
+        return { id, name: (r.name || '').toUpperCase(), course: r.course, year: normalizeYearLevel(r.year) || '1st Year', section: r.section || '', mobile: r.mobile || '', dob: r.dob || '', classId: null, classIds: allClassIds, grades, attendance, excuse, late, gradeComponents, account: { registered: true, email: '', _tempPass: true, needsProfileSetup: true, verified: true, verification: { method: 'teacher', at: Date.now() } } }
       })
       await saveStudents([...students, ...newStudents], newStudents.map(s => s.id))
       // Store each temp-password secret (sequential to stay gentle on quotas).

@@ -735,6 +735,7 @@ export function DataProvider({ children }) {
           gradeUploadedAt: s.gradeUploadedAt?.[sub] ?? null,
           _att: s.attendance?.[sub] ? [...s.attendance[sub]] : [],
           _exc: s.excuse?.[sub] ? [...s.excuse[sub]] : [],
+          _late: s.late?.[sub] ? [...s.late[sub]] : [],
         }
       })
 
@@ -753,6 +754,7 @@ export function DataProvider({ children }) {
         grades:         { ...s.grades },
         attendance:     { ...s.attendance },
         excuse:         { ...s.excuse },
+        late:           { ...(s.late || {}) },
         gradeComponents: { ...(s.gradeComponents || {}) },
       }
       if (s.gradeUploadedAt) ns.gradeUploadedAt = { ...s.gradeUploadedAt }
@@ -763,6 +765,7 @@ export function DataProvider({ children }) {
       cls.subjects.forEach(sub => {
         delete ns.attendance[sub]
         delete ns.excuse[sub]
+        delete ns.late[sub]
       })
 
       // Un-enroll from this class
@@ -815,6 +818,7 @@ export function DataProvider({ children }) {
         grades:          { ...s.grades },
         attendance:      { ...(s.attendance || {}) },
         excuse:          { ...(s.excuse || {}) },
+        late:            { ...(s.late || {}) },
         gradeComponents: { ...(s.gradeComponents || {}) },
       }
       if (s.gradeUploadedAt) ns.gradeUploadedAt = { ...s.gradeUploadedAt }
@@ -831,6 +835,7 @@ export function DataProvider({ children }) {
         }
         ns.attendance[sub] = new Set(subData._att || [])
         ns.excuse[sub]     = new Set(subData._exc || [])
+        ns.late[sub]       = new Set(subData._late || [])
       })
 
       // Re-enroll in the class
@@ -880,6 +885,7 @@ export function DataProvider({ children }) {
         grades:          { ...s.grades },
         attendance:      { ...(s.attendance || {}) },
         excuse:          { ...(s.excuse || {}) },
+        late:            { ...(s.late || {}) },
         gradeComponents: { ...(s.gradeComponents || {}) },
       }
       if (s.gradeUploadedAt) ns.gradeUploadedAt = { ...s.gradeUploadedAt }
@@ -889,6 +895,7 @@ export function DataProvider({ children }) {
         delete ns.grades[sub]
         delete ns.attendance[sub]
         delete ns.excuse[sub]
+        delete ns.late[sub]
         delete ns.gradeComponents[sub]
         if (ns.gradeUploadedAt) delete ns.gradeUploadedAt[sub]
       })
@@ -1299,9 +1306,11 @@ export function DataProvider({ children }) {
     // the professor's gradebook, so they aren't needed here.
     const attendance = { ...student.attendance }
     const excuse     = { ...student.excuse }
+    const late       = { ...(student.late || {}) }
     cls.subjects.forEach(sub => {
       if (!attendance[sub]) attendance[sub] = new Set()
       if (!excuse[sub])     excuse[sub] = new Set()
+      if (!late[sub])       late[sub] = new Set()
     })
 
     const newClassIds = [...currentIds, classId]
@@ -1311,6 +1320,7 @@ export function DataProvider({ children }) {
       classIds: newClassIds,
       attendance,
       excuse,
+      late,
     }
     const updatedStudents = students.map(s => s.id === studentId ? updatedStudent : s)
     // Optimistic update, then a STRICT write. If the write fails we must roll
@@ -1465,13 +1475,16 @@ export function DataProvider({ children }) {
     if (approve) {
       const updated = students.map(s => {
         if (s.id !== req.studentId) return s
-        const ns = { ...s, attendance: { ...(s.attendance || {}) }, excuse: { ...(s.excuse || {}) } }
+        const ns = { ...s, attendance: { ...(s.attendance || {}) }, excuse: { ...(s.excuse || {}) }, late: { ...(s.late || {}) } }
         const exc = new Set(ns.excuse[req.subject] || [])
         const att = new Set(ns.attendance[req.subject] || [])
+        const lt  = new Set(ns.late[req.subject] || [])
         exc.add(req.date)
         att.delete(req.date)
+        lt.delete(req.date)
         ns.excuse[req.subject] = exc
         ns.attendance[req.subject] = att
+        ns.late[req.subject] = lt
         return ns
       })
       setStudents(updated)

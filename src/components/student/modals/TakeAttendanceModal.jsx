@@ -5,7 +5,7 @@ import { sortByLastName } from '@/utils/format'
 import { courseShort } from '@/constants/courses'
 import Modal, { ModalHeader } from '@/components/primitives/Modal'
 import Avatar from '@/components/primitives/Avatar'
-import { CalendarDays, Check, ClipboardList, X, UserCheck } from 'lucide-react'
+import { CalendarDays, Check, Clock, ClipboardList, X, UserCheck } from 'lucide-react'
 
 /**
  * TakeAttendanceModal - shown only to a student who is the designated rep for a subject.
@@ -31,16 +31,18 @@ export default function TakeAttendanceModal({ classId, subject, onClose }) {
     const init = {}
     studs.forEach(s => {
       const isPresent = (s.attendance?.[subject] || new Set()).has(today)
+      const isLate    = isPresent && (s.late?.[subject] || new Set()).has(today)
       const isExcuse  = !isPresent && (s.excuse?.[subject] || new Set()).has(today)
-      init[s.id] = isPresent ? 'present' : isExcuse ? 'excuse' : 'absent'
+      init[s.id] = isLate ? 'late' : isPresent ? 'present' : isExcuse ? 'excuse' : 'absent'
     })
     return init
   })
   const [saving, setSaving] = useState(false)
 
   const presentCount = Object.values(statuses).filter(v => v === 'present').length
+  const lateCount    = Object.values(statuses).filter(v => v === 'late').length
   const excuseCount  = Object.values(statuses).filter(v => v === 'excuse').length
-  const absentCount  = studs.length - presentCount - excuseCount
+  const absentCount  = studs.length - presentCount - lateCount - excuseCount
 
   function setStatus(studentId, status) {
     setStatuses(prev => ({ ...prev, [studentId]: status }))
@@ -56,16 +58,20 @@ export default function TakeAttendanceModal({ classId, subject, onClose }) {
     setSaving(true)
     const updated = students.map(s => {
       if (s.classId !== classId && !s.classIds?.includes(classId)) return s
-      const ns  = { ...s, attendance: { ...(s.attendance || {}) }, excuse: { ...(s.excuse || {}) } }
+      const ns  = { ...s, attendance: { ...(s.attendance || {}) }, excuse: { ...(s.excuse || {}) }, late: { ...(s.late || {}) } }
       const att = new Set(ns.attendance[subject] || [])
       const exc = new Set(ns.excuse[subject]     || [])
+      const lt  = new Set(ns.late[subject]       || [])
       att.delete(today)
       exc.delete(today)
+      lt.delete(today)
       const st = statuses[s.id] || 'absent'
       if (st === 'present') att.add(today)
+      else if (st === 'late') { att.add(today); lt.add(today) }
       else if (st === 'excuse') exc.add(today)
       ns.attendance[subject] = att
       ns.excuse[subject]     = exc
+      ns.late[subject]       = lt
       return ns
     })
     try {
@@ -99,6 +105,7 @@ export default function TakeAttendanceModal({ classId, subject, onClose }) {
         <div className="flex gap-2">
           {[
             { count: presentCount, label: 'PRESENT' },
+            { count: lateCount,    label: 'LATE' },
             { count: excuseCount,  label: 'EXCUSED' },
             { count: absentCount,  label: 'ABSENT' },
             { count: studs.length, label: 'TOTAL' },
@@ -137,8 +144,8 @@ export default function TakeAttendanceModal({ classId, subject, onClose }) {
         )}
         {studs.map(s => {
           const st = statuses[s.id] || 'absent'
-          const iconBg    = st === 'present' ? 'var(--green-l)'  : st === 'excuse' ? 'var(--purple-l)' : 'var(--red-l)'
-          const iconColor = st === 'present' ? 'var(--green)'    : st === 'excuse' ? 'var(--purple)'   : 'var(--red)'
+          const iconBg    = st === 'present' ? 'var(--green-l)'  : st === 'late' ? 'var(--yellow-l, #fef9c3)' : st === 'excuse' ? 'var(--purple-l)' : 'var(--red-l)'
+          const iconColor = st === 'present' ? 'var(--green)'    : st === 'late' ? 'var(--gold-var, #ca8a04)' : st === 'excuse' ? 'var(--purple)'   : 'var(--red)'
           return (
             <div key={s.id} className="att-row-item flex items-center justify-between gap-3 px-3.5 py-2"
               style={{ borderBottom: '1px solid var(--border)' }}>
@@ -153,14 +160,16 @@ export default function TakeAttendanceModal({ classId, subject, onClose }) {
                 </div>
               </div>
               <div className="att-toggle flex gap-1">
-                {(['present', 'excuse', 'absent']).map(opt => {
+                {(['present', 'late', 'excuse', 'absent']).map(opt => {
                   const active = st === opt
-                  const activeCls = opt === 'present' ? 'active-present' : opt === 'excuse' ? 'active-excuse' : 'active-absent'
+                  const activeCls = opt === 'present' ? 'active-present' : opt === 'late' ? 'active-late' : opt === 'excuse' ? 'active-excuse' : 'active-absent'
                   const label = opt === 'present'
                     ? <><Check size={11} className="inline-block mr-0.5" />Present</>
-                    : opt === 'excuse'
-                      ? <><ClipboardList size={11} className="inline-block mr-0.5" />Excuse</>
-                      : <><X size={11} className="inline-block mr-0.5" />Absent</>
+                    : opt === 'late'
+                      ? <><Clock size={11} className="inline-block mr-0.5" />Late</>
+                      : opt === 'excuse'
+                        ? <><ClipboardList size={11} className="inline-block mr-0.5" />Excuse</>
+                        : <><X size={11} className="inline-block mr-0.5" />Absent</>
                   return (
                     <button key={opt} type="button"
                       className={`att-toggle-btn ${active ? activeCls : ''}`}

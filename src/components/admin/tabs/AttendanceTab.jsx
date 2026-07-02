@@ -16,7 +16,7 @@ import QRCode from '@/components/primitives/QRCode'
 import KebabMenu from '@/components/primitives/KebabMenu'
 import EmptyState from '@/components/ds/EmptyState'
 import PageHeader from '@/components/ds/PageHeader'
-import { Download, Upload, AlertTriangle, Shuffle, RefreshCw, CalendarDays, Check, ClipboardList, X, ClipboardCheck, Archive, ArchiveRestore, UserCheck, UserX, Radio, Copy, ListFilter, Radar, TrendingDown, Star } from 'lucide-react'
+import { Download, Upload, AlertTriangle, Shuffle, RefreshCw, CalendarDays, Check, Clock, ClipboardList, X, ClipboardCheck, Archive, ArchiveRestore, UserCheck, UserX, Radio, Copy, ListFilter, Radar, TrendingDown, Star } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
 const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
@@ -67,6 +67,7 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
     if (!raw) return 'absent'
     const v = String(raw).trim().toLowerCase()
     if (v === 'p' || v === 'present' || v === '1') return 'present'
+    if (v === 'l' || v === 'late' || v === 'tardy') return 'late'
     if (v === 'e' || v === 'excuse' || v === 'excused') return 'excuse'
     return 'absent'
   }
@@ -149,7 +150,7 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
       const byId = {}
       studs.forEach(s => { byId[s.id] = s })
 
-      const RECOGNIZED = new Set(['p', 'present', '1', 'e', 'excuse', 'excused', 'a', 'absent', '0'])
+      const RECOGNIZED = new Set(['p', 'present', '1', 'l', 'late', 'tardy', 'e', 'excuse', 'excused', 'a', 'absent', '0'])
       let unrecognized = 0
 
       const rows     = []
@@ -192,25 +193,30 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
     try {
       const changedIds = new Set()
       const studentsMap = {}
-      students.forEach(s => { studentsMap[s.id] = { ...s, attendance: { ...(s.attendance || {}) }, excuse: { ...(s.excuse || {}) } } })
+      students.forEach(s => { studentsMap[s.id] = { ...s, attendance: { ...(s.attendance || {}) }, excuse: { ...(s.excuse || {}) }, late: { ...(s.late || {}) } } })
 
       preview.rows.forEach(({ student, statuses }) => {
         const ns = studentsMap[student.id]
         if (!ns) return
 
-        const attSet = new Set(mode === 'merge' ? (ns.attendance[subject] || new Set()) : [])
-        const excSet = new Set(mode === 'merge' ? (ns.excuse[subject]    || new Set()) : [])
+        const attSet  = new Set(mode === 'merge' ? (ns.attendance[subject] || new Set()) : [])
+        const excSet  = new Set(mode === 'merge' ? (ns.excuse[subject]    || new Set()) : [])
+        const lateSet = new Set(mode === 'merge' ? (ns.late[subject]      || new Set()) : [])
 
         Object.entries(statuses).forEach(([date, status]) => {
-          // Always clear the date first, then re-apply
+          // Always clear the date first, then re-apply. Late counts as
+          // attended (attSet) plus the tardy mark (lateSet).
           attSet.delete(date)
           excSet.delete(date)
+          lateSet.delete(date)
           if (status === 'present') attSet.add(date)
+          else if (status === 'late') { attSet.add(date); lateSet.add(date) }
           else if (status === 'excuse') excSet.add(date)
         })
 
         ns.attendance[subject] = attSet
         ns.excuse[subject]     = excSet
+        ns.late[subject]       = lateSet
         changedIds.add(student.id)
       })
 
@@ -225,8 +231,8 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
     }
   }
 
-  const STATUS_COLORS = { present: 'var(--green)', excuse: 'var(--purple)', absent: 'var(--red)' }
-  const STATUS_LABELS = { present: 'P', excuse: 'E', absent: 'A' }
+  const STATUS_COLORS = { present: 'var(--green)', late: 'var(--gold-var, #ca8a04)', excuse: 'var(--purple)', absent: 'var(--red)' }
+  const STATUS_LABELS = { present: 'P', late: 'L', excuse: 'E', absent: 'A' }
 
   function downloadTemplate() {
     const XLSX = window.XLSX
@@ -289,7 +295,7 @@ function ImportAttendanceModal({ classId, subject, onClose }) {
       {/* Format hint */}
       <div className="rounded-lg p-3 mb-4 text-xs" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
         <strong>Expected format:</strong> Column A = Student No., remaining columns = dates (header: YYYY-MM-DD or M/D/YYYY).
-        Cell values: <strong>P</strong> / Present, <strong>E</strong> / Excuse, <strong>A</strong> / Absent (or blank).
+        Cell values: <strong>P</strong> / Present, <strong>L</strong> / Late, <strong>E</strong> / Excuse, <strong>A</strong> / Absent (or blank).
         Sheet name should match the subject name for auto-detection.
         <br /><strong>Tip:</strong> Download the template above - it's pre-filled with your students and today's dates.
       </div>
@@ -442,8 +448,9 @@ function AttendanceCalendarModal({ classId, subject, readOnly, onClose }) {
     const init = {}
     studs.forEach(s => {
       const isPresent = (s.attendance?.[subject] || new Set()).has(dateStr)
+      const isLate    = isPresent && (s.late?.[subject] || new Set()).has(dateStr)
       const isExcuse  = !isPresent && (s.excuse?.[subject] || new Set()).has(dateStr)
-      init[s.id] = isPresent ? 'present' : isExcuse ? 'excuse' : 'absent'
+      init[s.id] = isLate ? 'late' : isPresent ? 'present' : isExcuse ? 'excuse' : 'absent'
     })
     setStatuses(init)
     setSelDate(dateStr)
@@ -474,17 +481,21 @@ function AttendanceCalendarModal({ classId, subject, readOnly, onClose }) {
     setSaving(true)
     const updated = students.map(s => {
       if (s.classId !== classId && !s.classIds?.includes(classId)) return s
-      const ns = { ...s, attendance: { ...(s.attendance || {}) }, excuse: { ...(s.excuse || {}) } }
-      const attSet = new Set(ns.attendance[subject] || [])
-      const excSet = new Set(ns.excuse[subject] || [])
-      // Clean this date then re-add
+      const ns = { ...s, attendance: { ...(s.attendance || {}) }, excuse: { ...(s.excuse || {}) }, late: { ...(s.late || {}) } }
+      const attSet  = new Set(ns.attendance[subject] || [])
+      const excSet  = new Set(ns.excuse[subject] || [])
+      const lateSet = new Set(ns.late[subject] || [])
+      // Clean this date then re-add. Late counts as attended plus the tardy mark.
       attSet.delete(selDate)
       excSet.delete(selDate)
+      lateSet.delete(selDate)
       const st = statuses[s.id] || 'absent'
       if (st === 'present') attSet.add(selDate)
+      else if (st === 'late') { attSet.add(selDate); lateSet.add(selDate) }
       else if (st === 'excuse') excSet.add(selDate)
       ns.attendance[subject] = attSet
       ns.excuse[subject]     = excSet
+      ns.late[subject]       = lateSet
       return ns
     })
     try {
@@ -500,8 +511,9 @@ function AttendanceCalendarModal({ classId, subject, readOnly, onClose }) {
 
   // ── Counts for day view header ───────────────────────────────────────────
   const presentCount = Object.values(statuses).filter(v => v === 'present').length
+  const lateCount    = Object.values(statuses).filter(v => v === 'late').length
   const excuseCount  = Object.values(statuses).filter(v => v === 'excuse').length
-  const absentCount  = studs.length - presentCount - excuseCount
+  const absentCount  = studs.length - presentCount - lateCount - excuseCount
 
   // ── Calendar grid ────────────────────────────────────────────────────────
   const monthName    = new Date(year, month, 1).toLocaleString('default', { month: 'long' })
@@ -619,6 +631,7 @@ function AttendanceCalendarModal({ classId, subject, readOnly, onClose }) {
             <div className="flex gap-2">
               {[
                 { count: presentCount, label: 'PRESENT' },
+                { count: lateCount,    label: 'LATE' },
                 { count: excuseCount,  label: 'EXCUSED' },
                 { count: absentCount,  label: 'ABSENT' },
                 { count: studs.length, label: 'TOTAL' },
@@ -653,8 +666,8 @@ function AttendanceCalendarModal({ classId, subject, readOnly, onClose }) {
             )}
             {studs.map(s => {
               const st = statuses[s.id] || 'absent'
-              const iconBg    = st === 'present' ? 'var(--green-l)' : st === 'excuse' ? 'var(--purple-l)' : 'var(--red-l)'
-              const iconColor = st === 'present' ? 'var(--green)' : st === 'excuse' ? 'var(--purple)' : 'var(--red)'
+              const iconBg    = st === 'present' ? 'var(--green-l)' : st === 'late' ? 'var(--yellow-l, #fef9c3)' : st === 'excuse' ? 'var(--purple-l)' : 'var(--red-l)'
+              const iconColor = st === 'present' ? 'var(--green)' : st === 'late' ? 'var(--gold-var, #ca8a04)' : st === 'excuse' ? 'var(--purple)' : 'var(--red)'
               return (
                 <div key={s.id} className="att-row-item flex items-center justify-between gap-3 px-3.5 py-2"
                   style={{ borderBottom: '1px solid var(--border)' }}>
@@ -669,11 +682,14 @@ function AttendanceCalendarModal({ classId, subject, readOnly, onClose }) {
                     </div>
                   </div>
                   <div className="att-toggle flex gap-1">
-                    {(['present', 'excuse', 'absent']).map(opt => {
+                    {(['present', 'late', 'excuse', 'absent']).map(opt => {
                       const active = st === opt
-                      const label = opt === 'present' ? <><Check size={11} className="inline-block mr-0.5" />Present</> : opt === 'excuse' ? <><ClipboardList size={11} className="inline-block mr-0.5" />Excuse</> : <><X size={11} className="inline-block mr-0.5" />Absent</>
+                      const label = opt === 'present' ? <><Check size={11} className="inline-block mr-0.5" />Present</>
+                        : opt === 'late' ? <><Clock size={11} className="inline-block mr-0.5" />Late</>
+                        : opt === 'excuse' ? <><ClipboardList size={11} className="inline-block mr-0.5" />Excuse</>
+                        : <><X size={11} className="inline-block mr-0.5" />Absent</>
 
-                      const activeCls = opt === 'present' ? 'active-present' : opt === 'excuse' ? 'active-excuse' : 'active-absent'
+                      const activeCls = opt === 'present' ? 'active-present' : opt === 'late' ? 'active-late' : opt === 'excuse' ? 'active-excuse' : 'active-absent'
                       return (
                         <button key={opt} type="button"
                           className={`att-toggle-btn ${active ? activeCls : ''}`}
@@ -817,11 +833,15 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
   const held = getHeldDays(classId, sub, studs)
 
   const allStats = useMemo(() => studs.map(s => {
-    const present = (s.attendance?.[sub] || new Set()).size
-    const excuse  = (s.excuse?.[sub]    || new Set()).size
-    const absent  = Math.max(0, held - present - excuse)
-    const rate    = held > 0 ? parseFloat(((present / held) * 100).toFixed(1)) : 0
-    return { s, name: s.name, id: s.id, present, excuse, absent, rate, dates: s.attendance?.[sub] || new Set() }
+    // `attendance` = every attended day (on time or late); `late` marks the
+    // tardy subset. Rate keeps counting late as attended.
+    const attended = (s.attendance?.[sub] || new Set()).size
+    const late     = (s.late?.[sub]       || new Set()).size
+    const present  = Math.max(0, attended - late)
+    const excuse   = (s.excuse?.[sub]     || new Set()).size
+    const absent   = Math.max(0, held - attended - excuse)
+    const rate     = held > 0 ? parseFloat(((attended / held) * 100).toFixed(1)) : 0
+    return { s, name: s.name, id: s.id, present, late, excuse, absent, rate, dates: s.attendance?.[sub] || new Set() }
   }), [studs, sub, held])
 
   const avgRate = allStats.length
@@ -1077,9 +1097,10 @@ function SubjectAttCard({ classId, sub, studs, readOnly, onCalendar, onExport, o
                 </div>
               )}
 
-              <div className="grid mt-2.5 pt-2.5" style={{ gridTemplateColumns: 'repeat(3, 1fr)', textAlign: 'center', borderTop: '1px solid var(--border)' }}>
+              <div className="grid mt-2.5 pt-2.5" style={{ gridTemplateColumns: 'repeat(4, 1fr)', textAlign: 'center', borderTop: '1px solid var(--border)' }}>
                 <div><div style={{ fontSize: 17, fontWeight: 800, color: 'var(--green)' }}>{st.present}</div><div className="text-xs text-ink3">Present</div></div>
-                <div><div style={{ fontSize: 17, fontWeight: 800, color: 'var(--gold-var, #ca8a04)' }}>{st.excuse}</div><div className="text-xs text-ink3">Excused</div></div>
+                <div><div style={{ fontSize: 17, fontWeight: 800, color: 'var(--gold-var, #ca8a04)' }}>{st.late}</div><div className="text-xs text-ink3">Late</div></div>
+                <div><div style={{ fontSize: 17, fontWeight: 800, color: 'var(--purple)' }}>{st.excuse}</div><div className="text-xs text-ink3">Excused</div></div>
                 <div><div style={{ fontSize: 17, fontWeight: 800, color: 'var(--red)' }}>{st.absent}</div><div className="text-xs text-ink3">Absent</div></div>
               </div>
             </div>

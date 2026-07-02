@@ -698,19 +698,21 @@ export function buildAttendanceWorkbook(data, students, classes) {
     })
     const dates = [...dateSet].sort()
 
-    const subHdr = ['Student Name', 'Student No.', ...dates, 'Total Present', 'Excused', 'Total Sessions', 'Rate (%)']
+    const subHdr = ['Student Name', 'Student No.', ...dates, 'Total Present', 'Late', 'Excused', 'Total Sessions', 'Rate (%)']
     const subRows = roster.map(s => {
-      const attSet = s.attendance?.[sub]
-      const exSet  = s.excuse?.[sub]
-      const attArr = attSet instanceof Set ? [...attSet] : (Array.isArray(attSet) ? attSet : [])
-      const exArr  = exSet  instanceof Set ? [...exSet]  : (Array.isArray(exSet)  ? exSet  : [])
+      const attSet  = s.attendance?.[sub]
+      const exSet   = s.excuse?.[sub]
+      const lateSet = s.late?.[sub]
+      const attArr  = attSet  instanceof Set ? [...attSet]  : (Array.isArray(attSet)  ? attSet  : [])
+      const exArr   = exSet   instanceof Set ? [...exSet]   : (Array.isArray(exSet)   ? exSet   : [])
+      const lateArr = lateSet instanceof Set ? [...lateSet] : (Array.isArray(lateSet) ? lateSet : [])
       const perDate = dates.map(d => {
-        if (attArr.includes(d)) return 'P'
+        if (attArr.includes(d)) return lateArr.includes(d) ? 'L' : 'P'
         if (exArr.includes(d))  return 'E'
         return 'A'
       })
       const rate = held > 0 ? parseFloat(((attArr.length / held) * 100).toFixed(1)) : '-'
-      return [s.name, s.id, ...perDate, attArr.length, exArr.length, held, rate]
+      return [s.name, s.id, ...perDate, attArr.length, lateArr.length, exArr.length, held, rate]
     })
     const subAoa = [
       [`${sub} - ${cls.name || cls.id}`],
@@ -719,7 +721,7 @@ export function buildAttendanceWorkbook(data, students, classes) {
       ...subRows,
     ]
     const wsSub = XLSX.utils.aoa_to_sheet(subAoa)
-    wsSub['!cols'] = [{ wch: 28 }, { wch: 14 }, ...dates.map(() => ({ wch: 12 })), { wch: 13 }, { wch: 9 }, { wch: 15 }, { wch: 10 }]
+    wsSub['!cols'] = [{ wch: 28 }, { wch: 14 }, ...dates.map(() => ({ wch: 12 })), { wch: 13 }, { wch: 7 }, { wch: 9 }, { wch: 15 }, { wch: 10 }]
     wsSub['!freeze'] = { xSplit: 2, ySplit: 3 }
     const safeName = sub.replace(/[\[\]/*?:\\ ]/g, '_').slice(0, 30)
     XLSX.utils.book_append_sheet(wb, wsSub, safeName || `Sub${subs.indexOf(sub) + 1}`)
