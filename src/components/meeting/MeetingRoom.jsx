@@ -194,6 +194,14 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
       })
       recorder.start()
       recRef.current = { recorder, uploader, meeting, startAt: Date.now() }
+      // Persist the Drive pointer the moment the file exists (long before the
+      // class ends): even if this tab dies mid-class, the past-session row
+      // still shows the recording and the status poller resolves it later.
+      uploader.ready.then(info => {
+        if (recRef.current && recRef.current.uploader === uploader) {
+          saveMeetingRecording(meeting, { ...info, at: Date.now(), status: 'processing' })
+        }
+      })
       setRecState('on')
       setRecordingFlag(true)
       toast('Recording - it streams into your Google Drive as the class runs.', 'success')

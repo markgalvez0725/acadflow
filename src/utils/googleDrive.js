@@ -27,6 +27,7 @@ const SS_TOKEN = 'gdrive_token' // sessionStorage: { access_token, expires_at }
 const DIR_PREFIX = 'gdrive_dir:' // + `${parentId}/${name}` -> folderId
 
 let _tokenClient = null
+let _tokenErrCb = null // per-request error hook (popup blocked/closed) - see requestToken
 
 // The access token is cached in sessionStorage (not just memory) so a page
 // reload within the ~1h lifetime reuses it instead of re-prompting Google. It is
@@ -78,6 +79,10 @@ async function getTokenClient() {
       // account chooser instead of prompting the teacher to pick/sign in again.
       hint: localStorage.getItem(LS_EMAIL) || undefined,
       callback: () => {},
+      // Without this, a blocked/closed consent popup leaves the pending
+      // requestToken promise hanging FOREVER (the recording status poller
+      // would stall on it). Routes to the per-request reject below.
+      error_callback: err => { if (_tokenErrCb) _tokenErrCb(err) },
     })
   }
   return _tokenClient
@@ -91,12 +96,14 @@ function tokenValid() {
 function requestToken(interactive) {
   return new Promise((resolve, reject) => {
     getTokenClient().then(client => {
+      _tokenErrCb = err => { _tokenErrCb = null; reject(new Error(err?.type || 'Google sign-in was blocked.')) }
       client.callback = resp => {
+        _tokenErrCb = null
         if (resp.error) { reject(new Error(resp.error_description || resp.error)); return }
         resolve(storeToken(resp.access_token, resp.expires_in))
       }
       try { client.requestAccessToken({ prompt: interactive ? 'consent' : '' }) }
-      catch (e) { reject(e) }
+      catch (e) { _tokenErrCb = null; reject(e) }
     }).catch(reject)
   })
 }
@@ -261,6 +268,11 @@ export function startResumableUpload({ name, mimeType = 'video/webm', folderPath
 
   let fileId = ''
   let fileLink = ''
+  let readyResolve
+  // Resolves { driveId, link } as soon as the Drive file exists (well before
+  // the class ends) so the caller can persist the pointer immediately - a
+  // closed tab mid-class then still leaves a recording entry to recover.
+  const ready = new Promise(r => { readyResolve = r })
 
   async function init() {
     const token = await getToken()
@@ -276,6 +288,7 @@ export function startResumableUpload({ name, mimeType = 'video/webm', folderPath
     fileId = created.id
     fileLink = created.webViewLink || (fileId ? `https://drive.google.com/file/d/${fileId}/view` : '')
     if (!fileId) throw new Error('Drive did not create the recording file.')
+    readyResolve({ driveId: fileId, link: fileLink })
     const resp = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=resumable`, {
       method: 'PATCH',
       headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json; charset=UTF-8' },
@@ -324,6 +337,7 @@ export function startResumableUpload({ name, mimeType = 'video/webm', folderPath
   }
 
   return {
+    ready,
     append(blob) {
       if (aborted || !blob || !blob.size) return
       buffer.push(blob)
@@ -382,6 +396,15 @@ export async function checkDriveVideoProcessed(driveId) {
     const f = await resp.json()
     return !!(f.videoMediaMetadata || f.thumbnailLink)
   } catch { return null }
+}
+
+// Same check, but on a user click: allowed to open the Drive consent popup
+// (user gesture), so it works even when no silent token exists. Throws on
+// auth/network failure; resolves true (processed) / false (still processing).
+export async function checkDriveVideoProcessedNow(driveId) {
+  if (!driveId) throw new Error('No recording file to check.')
+  const f = await driveFetch(`https://www.googleapis.com/drive/v3/files/${driveId}?fields=videoMediaMetadata,thumbnailLink`)
+  return !!(f.videoMediaMetadata || f.thumbnailLink)
 }
 
 // Make an existing Drive file (e.g. a class recording) viewable by anyone

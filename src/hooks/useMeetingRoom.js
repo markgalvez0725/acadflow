@@ -22,6 +22,7 @@ import {
   rtcSendSignal, rtcListenParticipants, rtcListenSignals, rtcAddTranscript,
 } from '@/firebase/rtc'
 import { speechSupported, startTranscriber, getSpeechLang, setSpeechLang } from '@/utils/transcribe'
+import { whisperSupported, startWhisperTranscriber, prewarmWhisper } from '@/utils/whisperTranscribe'
 
 // Total outgoing bandwidth budget for video, split across every connection.
 // Keeping video on a hard budget is what keeps VOICE crystal clear: when a
@@ -119,20 +120,99 @@ export default function useMeetingRoom({ db, roomId, self }) {
     // it builds the class transcript the Smart Recap summarizes). Runs only
     // while the mic is live - the recognizer would otherwise keep hearing a
     // muted speaker.
-    function startTranscription() {
-      if (transcriber || dead || !speechSupported()) return
+    //
+    // Two engines, picked automatically:
+    //  1. The browser's SpeechRecognition (free, live). It opens its OWN mic
+    //     capture, and on plenty of systems it goes silently deaf while
+    //     WebRTC already holds the microphone (Firefox has no engine at all).
+    //  2. On-device Whisper (utils/whisperTranscribe, CDN) reading the SAME
+    //     stream the meeting captured - it cannot go deaf.
+    // A watchdog meters actual speech energy on the local stream; once ~15s
+    // of real speech produced zero recognition events, this session switches
+    // to Whisper for good (prewarming the model at the first sign of trouble).
+    let whisperMode = !speechSupported() // engine choice for THIS session
+    let watchdog = null
+    let meter = null
+    let deafVoicedMs = 0
+
+    function makeMeter(stream) {
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext
+        if (!AC || !stream.getAudioTracks().length) return null
+        const ac = new AC()
+        const an = ac.createAnalyser()
+        an.fftSize = 512
+        ac.createMediaStreamSource(stream).connect(an)
+        ac.resume().catch(() => { /* resumes on gesture */ })
+        const buf = new Uint8Array(an.fftSize)
+        return {
+          rms() {
+            an.getByteTimeDomainData(buf)
+            let s = 0
+            for (let i = 0; i < buf.length; i++) { const d = (buf[i] - 128) / 128; s += d * d }
+            return Math.sqrt(s / buf.length)
+          },
+          close() { try { ac.close() } catch { /* noop */ } },
+        }
+      } catch { return null }
+    }
+
+    function transcriptSink() {
       const s = selfRef.current || {}
+      return text => {
+        rtcAddTranscript(db, roomId, {
+          at: Date.now(), uid: s.uid || '', name: s.name || 'Participant',
+          role: s.role || 'student', lang: langRef.current, text,
+        }).catch(() => { /* transcript is best-effort */ })
+      }
+    }
+
+    function stopWatchdog() {
+      if (watchdog) { clearInterval(watchdog); watchdog = null }
+      deafVoicedMs = 0
+    }
+
+    function switchToWhisper() {
+      if (whisperMode) return
+      whisperMode = true
+      stopTranscription()
+      startTranscription()
+    }
+
+    function startWatchdog() {
+      if (watchdog || dead) return
+      if (!meter && local) meter = makeMeter(local)
+      if (!meter) return // cannot meter - keep Web Speech and hope
+      deafVoicedMs = 0
+      watchdog = setInterval(() => {
+        if (dead || !transcriber) return
+        const track = local && local.getAudioTracks()[0]
+        if (!track || !track.enabled) return
+        if (meter.rms() >= 0.02) deafVoicedMs += 1000
+        if (deafVoicedMs >= 5000 && whisperSupported()) prewarmWhisper()
+        if (deafVoicedMs >= 15000 && whisperSupported()) switchToWhisper()
+      }, 1000)
+    }
+
+    function startTranscription() {
+      if (transcriber || dead) return
+      if (whisperMode) {
+        transcriber = startWhisperTranscriber({
+          stream: local, lang: langRef.current, onFlush: transcriptSink(),
+        })
+        stopWatchdog() // whisper reads our own stream; nothing to watch
+        return
+      }
+      if (!speechSupported()) return
       transcriber = startTranscriber({
         lang: langRef.current,
-        onFlush: text => {
-          rtcAddTranscript(db, roomId, {
-            at: Date.now(), uid: s.uid || '', name: s.name || 'Participant',
-            role: s.role || 'student', lang: langRef.current, text,
-          }).catch(() => { /* transcript is best-effort */ })
-        },
+        onFlush: transcriptSink(),
+        onResult: () => { deafVoicedMs = 0 }, // any event = the engine hears
       })
+      startWatchdog()
     }
     function stopTranscription() {
+      stopWatchdog()
       if (!transcriber) return
       transcriber.stop() // flushes any buffered speech first
       transcriber = null
@@ -297,6 +377,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
 
     function teardown() {
       stopTranscription()
+      if (meter) { meter.close(); meter = null }
       if (heartbeat) { clearInterval(heartbeat); heartbeat = null }
       unsubs.splice(0).forEach(u => { try { u() } catch { /* noop */ } })
       for (const peerId of [...pcs.keys()]) closePeer(peerId)
@@ -464,6 +545,6 @@ export default function useMeetingRoom({ db, roomId, self }) {
     setTranscribeLang: code => apiRef.current.setTranscribeLang?.(code),
     setRecordingFlag: on => apiRef.current.setRecordingFlag?.(on),
     canShare: typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia,
-    speechOk: speechSupported(),
+    speechOk: speechSupported() || whisperSupported(), // either engine can transcribe
   }
 }

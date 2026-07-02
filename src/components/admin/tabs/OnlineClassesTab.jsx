@@ -3,7 +3,7 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio, MonitorPlay, Sparkles, Play, Share2, FileText, Loader2 } from 'lucide-react'
 import RecapModal from '@/components/meeting/RecapModal'
-import { shareDriveFile } from '@/utils/googleDrive'
+import { shareDriveFile, checkDriveVideoProcessedNow } from '@/utils/googleDrive'
 import { courseShort } from '@/constants/courses'
 import { isValidUrl, parseFutureTs } from '@/utils/validators'
 import EmptyState from '@/components/ds/EmptyState'
@@ -37,7 +37,7 @@ function fmtElapsed(ms) {
 }
 
 export default function OnlineClassesTab() {
-  const { classes, meetings, saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting, generateMeetingRecap, saveAnnouncement, pushAnnouncementNotifs } = useData()
+  const { classes, meetings, saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting, generateMeetingRecap, markMeetingRecordingReady, saveAnnouncement, pushAnnouncementNotifs } = useData()
   // The room itself is hosted at the layout level (MeetingHost) so the call
   // survives tab navigation - this tab only opens it by id.
   const { toast, openMeetingRoom, openDialog } = useUI()
@@ -307,6 +307,28 @@ export default function OnlineClassesTab() {
   // The transcript needs no recap: open the same panel on its Transcript tab.
   function handleTranscript(m) {
     setRecapView({ id: m.id, tab: 'transcript' })
+  }
+
+  // Click on the "Processing in Drive" pill: check Drive right now. Runs on a
+  // user gesture, so it may open the Drive consent popup where the silent
+  // background poller cannot.
+  const [checkingId, setCheckingId] = useState('')
+  async function handleCheckRecording(m) {
+    if (checkingId) return
+    setCheckingId(m.id)
+    try {
+      const done = await checkDriveVideoProcessedNow(m.recording?.driveId)
+      if (done) {
+        await markMeetingRecordingReady(m)
+        toast('The recording is ready to view.', 'success')
+      } else {
+        toast('Drive is still processing the video. Give it a few more minutes.', 'info')
+      }
+    } catch {
+      toast('Could not check Drive. Make sure your Google Drive is connected, then try again.', 'error')
+    } finally {
+      setCheckingId('')
+    }
   }
 
   const activeClasses = useMemo(() => classes.filter(c => !c.archived), [classes])
@@ -581,7 +603,7 @@ export default function OnlineClassesTab() {
           past.length === 0
             ? <EmptyState Icon={CheckCircle} title="No past meetings" text="Ended classes will appear here." tone="muted" compact />
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-                {past.map(m => <MeetingRow key={m.id} m={m} now={now} onRecap={handleRecap} onTranscript={handleTranscript} recapBusy={recapBusyId === m.id} onShareRecording={handleShareRecording} />)}
+                {past.map(m => <MeetingRow key={m.id} m={m} now={now} onRecap={handleRecap} onTranscript={handleTranscript} recapBusy={recapBusyId === m.id} onShareRecording={handleShareRecording} onCheckRecording={handleCheckRecording} checking={checkingId === m.id} />)}
               </div>
         )}
       </section>}
@@ -598,7 +620,7 @@ function classLabel(cls) {
 
 // One meeting as a date-chip row: calendar chip, title + meta, a countdown pill
 // (amber inside 3 hours) or a green Ended chip, and Start/Cancel actions.
-function MeetingRow({ m, now, onStart, onCancel, onRecap, onTranscript, recapBusy, onShareRecording }) {
+function MeetingRow({ m, now, onStart, onCancel, onRecap, onTranscript, recapBusy, onShareRecording, onCheckRecording, checking }) {
   const dt = new Date(m.scheduledAt)
   const ended = m.status === 'ended'
   const mo = dt.toLocaleDateString('en-PH', { month: 'short' })
@@ -638,18 +660,27 @@ function MeetingRow({ m, now, onStart, onCancel, onRecap, onTranscript, recapBus
       {(() => {
         // Older recordings may have saved without webViewLink - the Drive id
         // alone is enough to build a working view link. Recordings saved
-        // before the status field existed count as ready.
+        // before the status field existed count as ready, and a recording
+        // stuck "processing" for over 30 minutes fails OPEN here (Drive is
+        // long done by then; only the doc flag could not be updated).
         const recLink = m.recording?.link
           || (m.recording?.driveId ? `https://drive.google.com/file/d/${m.recording.driveId}/view` : '')
         const processing = !!m.recording && m.recording.status === 'processing'
+          && now - Math.max(m.recording.at || 0, m.endedAt || 0) < 30 * 60000
         if (!ended || (m.provider !== 'inapp' && !recLink)) return null
         return (
           <div className="olc-row-actions">
             {m.recording && (
               processing ? (
-                <span className="olc-cd olc-cd-soon" title="Drive is processing the video - you will be notified when it is ready to view">
-                  <Loader2 size={12} className="animate-spin" /> Processing in Drive
-                </span>
+                <button
+                  className="olc-cd olc-cd-soon"
+                  style={{ border: 'none', cursor: 'pointer' }}
+                  disabled={checking}
+                  onClick={() => onCheckRecording && onCheckRecording(m)}
+                  title="Drive is processing the video - click to check right now"
+                >
+                  <Loader2 size={12} className="animate-spin" /> {checking ? 'Checking…' : 'Processing in Drive'}
+                </button>
               ) : (
                 <span className="olc-cd olc-cd-done" title="The recording is processed and ready to view">
                   <CheckCircle size={12} /> Ready to view

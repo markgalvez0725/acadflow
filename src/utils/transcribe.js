@@ -45,8 +45,10 @@ export function setSpeechLang(code) {
 }
 
 // Start transcribing. Returns { stop() }. onFlush(text) receives a few
-// seconds of finished speech at a time (never interim guesses).
-export function startTranscriber({ lang, onFlush, flushMs = 5000 } = {}) {
+// seconds of finished speech at a time (never interim guesses). onResult()
+// fires on EVERY recognition event (interim included) - it is the liveness
+// signal the deaf-engine watchdog in useMeetingRoom listens for.
+export function startTranscriber({ lang, onFlush, onResult, flushMs = 5000 } = {}) {
   const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition
   if (!Ctor) return null
 
@@ -69,9 +71,12 @@ export function startTranscriber({ lang, onFlush, flushMs = 5000 } = {}) {
     rec = new Ctor()
     rec.lang = lang || getSpeechLang()
     rec.continuous = true
-    rec.interimResults = false
+    // Interim results on: they are never flushed, but asking for them keeps
+    // Chrome's recognizer session warm and proves the engine actually hears.
+    rec.interimResults = true
     rec.maxAlternatives = 1
     rec.onresult = e => {
+      if (onResult) { try { onResult() } catch { /* watchdog's problem */ } }
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const r = e.results[i]
         if (!r.isFinal) continue

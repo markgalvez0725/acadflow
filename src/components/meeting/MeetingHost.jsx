@@ -32,8 +32,10 @@ export default function MeetingHost({ role, student }) {
   // again on the next visit.
   const meetingsRef = useRef(meetings)
   meetingsRef.current = meetings
+  // Only ENDED meetings: the early pointer exists while the class still runs,
+  // and the video cannot finish processing before the upload finalizes.
   const processingKey = role === 'admin'
-    ? meetings.filter(m => m.recording?.status === 'processing' && m.recording?.driveId).map(m => m.id).join(',')
+    ? meetings.filter(m => m.status === 'ended' && m.recording?.status === 'processing' && m.recording?.driveId).map(m => m.id).join(',')
     : ''
   useEffect(() => {
     if (!processingKey) return
@@ -45,10 +47,13 @@ export default function MeetingHost({ role, student }) {
       try {
         for (const m of meetingsRef.current) {
           const rec = m.recording
-          if (dead || !rec || rec.status !== 'processing' || !rec.driveId) continue
+          if (dead || m.status !== 'ended' || !rec || rec.status !== 'processing' || !rec.driveId) continue
           const done = await checkDriveVideoProcessed(rec.driveId)
           if (dead) return
-          const gaveUp = done === false && Date.now() - (rec.at || 0) > PROCESSING_GIVE_UP_MS
+          // The clock starts at whichever is later: the recording save or the
+          // class end (the early pointer carries the record START time).
+          const since = Math.max(rec.at || 0, m.endedAt || 0)
+          const gaveUp = done === false && Date.now() - since > PROCESSING_GIVE_UP_MS
           if (done || gaveUp) {
             try { await markMeetingRecordingReady(m) } catch { /* retried next tick */ }
           }
