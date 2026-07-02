@@ -2,8 +2,9 @@ import React, { useState, useMemo } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import {
-  ChevronLeft, ChevronRight, CalendarDays, X, CalendarPlus, ClipboardList, FileQuestion,
+  ChevronLeft, ChevronRight, CalendarDays, CalendarPlus, ClipboardList, FileQuestion,
   Megaphone, Clock3, ShieldCheck, AlertTriangle, ArrowRight, CalendarClock, CalendarCheck,
+  Video, Radio,
 } from 'lucide-react'
 import { SkeletonRows } from '@/components/primitives/SkeletonLoader'
 import { buildICS, downloadICS } from '@/utils/ics'
@@ -18,6 +19,7 @@ const EVENT_COLORS = {
   activity:     { dot: '#3b82f6', bg: 'rgba(59,130,246,0.12)', text: '#2563eb', label: 'Activity',     Icon: ClipboardList },
   quiz:         { dot: '#a855f7', bg: 'rgba(168,85,247,0.12)', text: '#9333ea', label: 'Quiz',         Icon: FileQuestion },
   announcement: { dot: '#22c55e', bg: 'rgba(34,197,94,0.12)',  text: '#16a34a', label: 'Announcement', Icon: Megaphone },
+  class:        { dot: '#f97316', bg: 'rgba(249,115,22,0.13)', text: '#ea580c', label: 'Class',        Icon: Video },
 }
 
 function toDateKey(ts) {
@@ -26,7 +28,24 @@ function toDateKey(ts) {
 }
 
 function fmtTime(ts) {
-  return new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  return new Date(ts).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+}
+
+// Short countdown for class rows ("in 45 m", "in 2 h", "in 3 d").
+function fmtIn(ts, now) {
+  const d = ts - now
+  if (d <= 0) return 'now'
+  const m = Math.round(d / 60000)
+  if (m < 60) return `in ${m} m`
+  if (m < 24 * 60) return `in ${Math.round(m / 60)} h`
+  return `in ${Math.round(m / (24 * 60))} d`
+}
+
+// State chip for class events: live, ended, or a countdown.
+function ClassChip({ ev }) {
+  if (ev.live) return <span className="cal-chip cal-chip-live"><Radio size={10} /> Live now</span>
+  if (ev.endedClass) return <span className="cal-chip cal-chip-ended">Ended</span>
+  return <span className="cal-chip cal-chip-soon">{fmtIn(ev.ts, Date.now())}</span>
 }
 
 function fmtDate(key) {
@@ -51,16 +70,20 @@ function shortDay(key) {
   return new Date(y, m, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-const TAB_MAP = { activity: 'activities', quiz: 'quizzes', announcement: 'stream' }
+// Classes navigate as type 'meeting' targets so the Online Classes row gets
+// the same highlight the notification deep-links use.
+const TAB_MAP = { activity: 'activities', quiz: 'quizzes', announcement: 'stream', class: 'onlineClasses' }
 
 export default function CalendarTab({ student, viewClassId, classes }) {
-  const { activities, quizzes, announcements, fbReady, semester } = useData()
+  const { activities, quizzes, announcements, meetings, fbReady, semester } = useData()
   const { setStudentTab, toast, navigateToTarget } = useUI()
 
   const today = new Date()
+  const todayKey = toDateKey(today.getTime())
   const [year,  setYear]  = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
-  const [selectedKey, setSelectedKey] = useState(null)
+  // The day rail always shows a day - today until another one is picked.
+  const [selectedKey, setSelectedKey] = useState(todayKey)
 
   function prevMonth() {
     if (month === 0) { setYear(y => y - 1); setMonth(11) } else setMonth(m => m - 1)
@@ -125,8 +148,25 @@ export default function CalendarTab({ student, viewClassId, classes }) {
       })
     })
 
+    // Scheduled classes for the student's enrolled sections, on their day
+    // WITH the time; ended ones stay as history, cancelled ones are deleted.
+    meetings.forEach(mt => {
+      if (!mt.scheduledAt) return
+      if (mt.status !== 'scheduled' && mt.status !== 'live' && mt.status !== 'ended') return
+      if (!studentClassIds.includes(mt.classId)) return
+      add(toDateKey(mt.scheduledAt), {
+        type: 'class', id: mt.id, classId: mt.classId,
+        title: mt.title || 'Online class',
+        subtitle: [mt.className, mt.subject].filter(Boolean).join(' · '),
+        ts: mt.scheduledAt,
+        live: mt.status === 'live',
+        endedClass: mt.status === 'ended',
+        provider: mt.provider === 'inapp' ? 'In-app room' : 'Meet link',
+      })
+    })
+
     return map
-  }, [activities, quizzes, announcements, studentClassIds, student?.id, classes])
+  }, [activities, quizzes, announcements, meetings, studentClassIds, student?.id, classes])
 
   const { days, startOffset } = useMemo(() => {
     const firstDay = new Date(year, month, 1).getDay()
@@ -134,8 +174,7 @@ export default function CalendarTab({ student, viewClassId, classes }) {
     return { days: daysInMonth, startOffset: firstDay }
   }, [year, month])
 
-  const todayKey = toDateKey(today.getTime())
-  const selectedEvents = selectedKey ? (eventMap[selectedKey] || []) : []
+  const selectedEvents = eventMap[selectedKey] || []
 
   const monthEventCount = useMemo(() => {
     let count = 0
@@ -144,17 +183,19 @@ export default function CalendarTab({ student, viewClassId, classes }) {
   }, [eventMap, year, month, days])
 
   const monthTypeCounts = useMemo(() => {
-    const counts = { activity: 0, quiz: 0, announcement: 0 }
+    const counts = { activity: 0, quiz: 0, announcement: 0, class: 0 }
     for (let d = 1; d <= days; d++) {
       ;(eventMap[`${year}-${month}-${d}`] || []).forEach(ev => { counts[ev.type] = (counts[ev.type] || 0) + 1 })
     }
     return counts
   }, [eventMap, year, month, days])
 
-  const upcomingEvents = useMemo(() => {
+  // Everything still ahead (live classes included even if they started).
+  const upcomingAll = useMemo(() => {
     const now = Date.now()
-    return Object.values(eventMap).flat().filter(ev => ev.ts >= now).sort((a, b) => a.ts - b.ts).slice(0, 5)
+    return Object.values(eventMap).flat().filter(ev => ev.ts >= now || ev.live).sort((a, b) => a.ts - b.ts)
   }, [eventMap])
+  const upcomingEvents = upcomingAll.slice(0, 5)
 
   // Deterministic "Schedule Watch" - past-due, next-up, busy days in the next 7
   // days. Recomputed from the same event map the grid renders. no network calls.
@@ -179,7 +220,7 @@ export default function CalendarTab({ student, viewClassId, classes }) {
     if (next)
       f.push({ tone: 'info', Icon: ArrowRight, lead: 'Next up', text: ` - ${next.title}, ${relDay(next.ts, now)}.` })
     if (busy)
-      f.push({ tone: 'warn', Icon: CalendarClock, lead: 'Busy day', text: ` - ${shortDay(busy.k)} has ${busy.n} deadlines.` })
+      f.push({ tone: 'warn', Icon: CalendarClock, lead: 'Busy day', text: ` - ${shortDay(busy.k)} has ${busy.n} events.` })
     if (!f.length)
       f.push({ tone: 'good', Icon: CalendarCheck, lead: 'Clear week', text: ' - nothing due in the next 7 days.' })
     const lead = weekAhead.length
@@ -200,14 +241,30 @@ export default function CalendarTab({ student, viewClassId, classes }) {
       return {
         uid: `${ev.type}-${ev.id}`,
         title: `[${label}] ${ev.title}`,
-        description: [ev.subtitle, ev.type === 'activity' ? 'Activity deadline' : ev.type === 'quiz' ? 'Quiz closes' : 'Announcement']
-          .filter(Boolean).join(' - '),
+        description: [
+          ev.subtitle,
+          ev.type === 'activity' ? 'Activity deadline'
+            : ev.type === 'quiz' ? 'Quiz closes'
+            : ev.type === 'class' ? `Online class (${ev.provider || 'In-app room'})`
+            : 'Announcement',
+        ].filter(Boolean).join(' - '),
         start: ev.ts,
         url: origin,
       }
     })
     downloadICS('acadflow-calendar', buildICS(icsEvents, 'AcadFlow Calendar'))
     toast?.(`Exported ${icsEvents.length} event${icsEvents.length !== 1 ? 's' : ''} to your calendar.`, 'success')
+  }
+
+  function goEvent(ev) {
+    if (ev.type === 'announcement') { setStudentTab(TAB_MAP[ev.type]); return }
+    navigateToTarget({
+      side: 'student',
+      tab: TAB_MAP[ev.type],
+      type: ev.type === 'class' ? 'meeting' : ev.type,
+      id: ev.id,
+      classId: ev.classId,
+    })
   }
 
   if (!fbReady) return <SkeletonRows />
@@ -218,7 +275,7 @@ export default function CalendarTab({ student, viewClassId, classes }) {
       <div className="cal2-head">
         <div>
           <div className="cal2-title">Your calendar</div>
-          <div className="cal2-sub">{monthEventCount} this month · {upcomingEvents.length} upcoming</div>
+          <div className="cal2-sub">{monthEventCount} this month · {upcomingAll.length} upcoming</div>
         </div>
         <button
           onClick={exportCalendar}
@@ -238,7 +295,7 @@ export default function CalendarTab({ student, viewClassId, classes }) {
               <button className="icon-btn" onClick={prevMonth} aria-label="Previous month"><ChevronLeft size={16} /></button>
               <span className="font-bold text-ink text-sm min-w-[124px] text-center select-none">{MONTHS[month]} {year}</span>
               <button className="icon-btn" onClick={nextMonth} aria-label="Next month"><ChevronRight size={16} /></button>
-              <button className="link-btn text-xs ml-1" onClick={() => { setYear(today.getFullYear()); setMonth(today.getMonth()); setSelectedKey(null) }}>Today</button>
+              <button className="link-btn text-xs ml-1" onClick={() => { setYear(today.getFullYear()); setMonth(today.getMonth()); setSelectedKey(todayKey) }}>Today</button>
             </div>
             <div className="cal2-legend">
               {Object.entries(EVENT_COLORS).map(([type, { dot, label }]) => (
@@ -253,7 +310,10 @@ export default function CalendarTab({ student, viewClassId, classes }) {
           {/* Day-of-week header */}
           <div className="grid grid-cols-7" style={{ background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}>
             {DAYS.map((d, i) => (
-              <div key={d} className="text-center text-[10px] font-semibold py-2 uppercase tracking-[0.06em]" style={{ color: i === 0 || i === 6 ? 'var(--ink3)' : 'var(--ink2)' }}>{d}</div>
+              <div key={d} className="text-center text-[10px] font-semibold py-2 uppercase tracking-[0.06em]" style={{ color: i === 0 || i === 6 ? 'var(--ink3)' : 'var(--ink2)' }}>
+                <span className="sm:hidden">{d[0]}</span>
+                <span className="hidden sm:inline">{d}</span>
+              </div>
             ))}
           </div>
 
@@ -285,22 +345,28 @@ export default function CalendarTab({ student, viewClassId, classes }) {
                   }}
                   onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'var(--surface2)' }}
                   onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = isWeekend ? 'color-mix(in srgb, var(--surface2) 55%, transparent)' : 'transparent' }}
-                  onClick={() => setSelectedKey(isSelected ? null : key)}
+                  onClick={() => setSelectedKey(key)}
                 >
-                  <div className="text-[11px] font-bold w-[22px] h-[22px] flex items-center justify-center rounded-full mb-0.5" style={isToday ? { background: 'var(--accent)', color: '#fff' } : isSelected ? { color: 'var(--accent)' } : { color: 'var(--ink)' }}>
+                  <div className="text-[11px] font-bold w-[22px] h-[22px] flex items-center justify-center rounded-full mb-0.5 mx-auto sm:mx-0" style={isToday ? { background: 'var(--accent)', color: '#fff' } : isSelected ? { color: 'var(--accent)' } : { color: 'var(--ink)' }}>
                     {dayNum}
                   </div>
-                  <div className="space-y-0.5">
+                  <div className="hidden sm:block space-y-0.5">
                     {events.slice(0, 2).map((ev, idx) => {
                       const c = EVENT_COLORS[ev.type]
                       return (
-                        <div key={ev.id + idx} className="truncate text-[9px] rounded px-1 py-0.5 leading-tight font-medium flex items-center gap-1" style={{ background: c?.bg, color: c?.text }} title={ev.title}>
+                        <div key={ev.id + idx} className="truncate text-[9px] rounded px-1 py-0.5 leading-tight font-medium flex items-center gap-1" style={{ background: c?.bg, color: ev.live ? '#ef4444' : c?.text }} title={ev.title}>
                           <span style={{ width: 4, height: 4, borderRadius: '50%', background: c?.dot, flexShrink: 0 }} />
-                          <span className="truncate">{ev.title}</span>
+                          <span className="truncate">{ev.type === 'class' ? `${ev.live ? 'LIVE ' : ''}${fmtTime(ev.ts)} ${ev.title}` : ev.title}</span>
                         </div>
                       )
                     })}
                     {events.length > 2 && <div className="text-[9px] text-ink3 pl-1 font-medium">+{events.length - 2}</div>}
+                  </div>
+                  {/* Phones: category dots instead of crushed text pills */}
+                  <div className="flex sm:hidden flex-wrap gap-[3px] justify-center pt-0.5">
+                    {events.slice(0, 4).map((ev, idx) => (
+                      <span key={idx} style={{ width: 5, height: 5, borderRadius: '50%', background: EVENT_COLORS[ev.type]?.dot }} />
+                    ))}
                   </div>
                 </div>
               )
@@ -312,8 +378,50 @@ export default function CalendarTab({ student, viewClassId, classes }) {
           </div>
         </div>
 
-        {/* Side rail: Schedule Watch + Upcoming */}
+        {/* Side rail: selected day (defaults to today) + Schedule Watch + Upcoming */}
         <div className="cal2-rail">
+          <div className="sact-card" style={{ padding: 13 }}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-semibold text-ink text-sm flex items-center gap-1.5">
+                <CalendarDays size={14} className="text-accent" /> {fmtDate(selectedKey)}
+              </span>
+              {selectedKey !== todayKey && (
+                <button className="link-btn text-xs" onClick={() => setSelectedKey(todayKey)}>Today</button>
+              )}
+            </div>
+            {selectedEvents.length === 0 ? (
+              <p className="text-ink3 text-xs text-center py-2">Nothing on this day.</p>
+            ) : (
+              selectedEvents.map((ev, idx) => {
+                const color = EVENT_COLORS[ev.type]
+                const Icon = color.Icon
+                const statusLabel =
+                  ev.type === 'activity' ? (ev.submitted ? 'Submitted' : ev.past ? 'Past due' : 'Open') :
+                  ev.type === 'quiz'     ? (ev.taken ? 'Taken' : ev.past ? 'Closed' : 'Open') : null
+                const statusStyle =
+                  statusLabel === 'Submitted' || statusLabel === 'Taken'   ? { bg: 'rgba(34,197,94,0.12)', text: '#15803d' }
+                  : statusLabel === 'Past due' || statusLabel === 'Closed' ? { bg: 'rgba(239,68,68,0.12)', text: '#dc2626' }
+                  : statusLabel === 'Open'                                 ? { bg: 'rgba(59,130,246,0.12)', text: '#2563eb' } : null
+                return (
+                  <div key={ev.id + idx} className="cal2-ag cursor-pointer" onClick={() => goEvent(ev)} title="Open">
+                    <span className="cal2-agi" style={{ background: color.bg, color: color.text }}><Icon size={15} /></span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-semibold text-ink truncate">{ev.title}</div>
+                      <div className="text-[11px] text-ink2 truncate">
+                        {[ev.subtitle, fmtTime(ev.ts), ev.provider].filter(Boolean).join(' · ')}
+                      </div>
+                    </div>
+                    {ev.type === 'class' && <ClassChip ev={ev} />}
+                    {statusLabel && statusStyle && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap" style={{ background: statusStyle.bg, color: statusStyle.text }}>{statusLabel}</span>
+                    )}
+                    <ChevronRight size={13} className="text-ink3 flex-shrink-0" />
+                  </div>
+                )
+              })
+            )}
+          </div>
+
           <div className="sact-card sact-watch">
             <div className="sact-watch-h">
               <ShieldCheck size={16} style={{ color: 'var(--accent)' }} />
@@ -341,13 +449,15 @@ export default function CalendarTab({ student, viewClassId, classes }) {
                 const color = EVENT_COLORS[ev.type]
                 const Icon = color.Icon
                 return (
-                  <div key={ev.id + idx} className="cal2-ag">
+                  <div key={ev.id + idx} className="cal2-ag cursor-pointer" onClick={() => goEvent(ev)} title="Open">
                     <span className="cal2-agi" style={{ background: color.bg, color: color.text }}><Icon size={15} /></span>
                     <div className="min-w-0 flex-1">
                       <div className="text-xs font-semibold text-ink truncate">{ev.title}</div>
                       <div className="text-[11px] text-ink2 truncate">{ev.subtitle || color.label}</div>
                     </div>
-                    <span className="text-[11px] text-ink3 whitespace-nowrap">{new Date(ev.ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                    {ev.type === 'class' && ev.live
+                      ? <ClassChip ev={ev} />
+                      : <span className="text-[11px] text-ink3 whitespace-nowrap">{new Date(ev.ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
                   </div>
                 )
               })
@@ -355,56 +465,6 @@ export default function CalendarTab({ student, viewClassId, classes }) {
           </div>
         </div>
       </div>
-
-      {/* Selected day detail (full width, below the grid) */}
-      {selectedKey && (
-        <div className="card p-4" style={{ border: '1px solid var(--border)' }}>
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="font-semibold text-ink text-sm flex items-center gap-2"><CalendarDays size={15} className="text-accent" /> {fmtDate(selectedKey)}</h4>
-            <button className="icon-btn text-ink3 hover:text-ink" onClick={() => setSelectedKey(null)} aria-label="Close"><X size={14} /></button>
-          </div>
-
-          {selectedEvents.length === 0 ? (
-            <p className="text-ink3 text-sm text-center py-4">No events on this day.</p>
-          ) : (
-            <div className="space-y-2">
-              {selectedEvents.map((ev, idx) => {
-                const color = EVENT_COLORS[ev.type]
-                const statusLabel =
-                  ev.type === 'activity' ? (ev.submitted ? 'Submitted' : ev.past ? 'Past due' : 'Open') :
-                  ev.type === 'quiz'     ? (ev.taken ? 'Taken' : ev.past ? 'Closed' : 'Open') : null
-                const statusStyle =
-                  statusLabel === 'Submitted' || statusLabel === 'Taken'   ? { bg: 'rgba(34,197,94,0.12)', text: '#15803d' }
-                  : statusLabel === 'Past due' || statusLabel === 'Closed' ? { bg: 'rgba(239,68,68,0.12)', text: '#dc2626' }
-                  : statusLabel === 'Open'                                 ? { bg: 'rgba(59,130,246,0.12)', text: '#2563eb' } : null
-
-                return (
-                  <div key={ev.id + idx} className="flex items-center gap-3 p-3 rounded-lg" style={{ border: '1px solid var(--border)' }}>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-sm text-ink">{ev.title}</span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium capitalize" style={{ background: color.bg, color: color.text }}>{color.label}</span>
-                        {statusLabel && statusStyle && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: statusStyle.bg, color: statusStyle.text }}>{statusLabel}</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                        {ev.subtitle && <span className="text-xs text-ink2">{ev.subtitle}</span>}
-                        <span className="text-xs text-ink3">{fmtTime(ev.ts)}</span>
-                      </div>
-                    </div>
-                    <button className="btn btn-secondary text-xs py-1 px-3 flex-shrink-0" onClick={() => {
-                      setSelectedKey(null)
-                      if (ev.type === 'activity' || ev.type === 'quiz') navigateToTarget({ side: 'student', tab: TAB_MAP[ev.type], type: ev.type, id: ev.id, classId: ev.classId })
-                      else setStudentTab(TAB_MAP[ev.type] || 'overview')
-                    }}>View →</button>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   )
 }

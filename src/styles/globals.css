@@ -1808,6 +1808,7 @@ textarea.input { resize: vertical; }
 .sc-icon-wrap.purple { background: var(--purple-l); color: var(--purple); }
 .sc-icon-wrap.yellow { background: var(--yellow-l); color: var(--yellow); }
 .sc-icon-wrap.teal   { background: var(--teal-l);   color: var(--teal); }
+.sc-icon-wrap.orange { background: rgba(249, 115, 22, 0.14); color: #ea580c; }
 
 
 .sc-val   { font-size: 2rem; font-weight: 800; color: var(--ink); line-height: 1.1; letter-spacing: -.03em; }
@@ -5162,6 +5163,12 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: -.02em; }
 .cal2-leg-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .cal2-ag { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 10px; }
 .cal2-ag + .cal2-ag { margin-top: 6px; }
+.cal2-ag.cursor-pointer:hover { background: var(--surface2); }
+/* Class-event state chips (calendar day rail + up next, both sides). */
+.cal-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600; border-radius: 999px; padding: 2px 8px; white-space: nowrap; flex-shrink: 0; }
+.cal-chip-live { color: #ef4444; background: rgba(239, 68, 68, 0.12); }
+.cal-chip-ended { color: var(--ink3); background: var(--surface2); }
+.cal-chip-soon { color: #ea580c; background: rgba(249, 115, 22, 0.13); }
 .cal2-agi { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 
 /* Online classes redesign - hero + Session Watch + single-scroll sections */
