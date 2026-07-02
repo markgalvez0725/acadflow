@@ -48,16 +48,6 @@ function initials(name) {
   return String(name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?'
 }
 
-// Draw a video into a rect, cropped to fill (cover).
-function drawCover(ctx, el, x, y, w, h) {
-  const vw = el.videoWidth, vh = el.videoHeight
-  if (!vw || !vh) return false
-  const scale = Math.max(w / vw, h / vh)
-  const sw = w / scale, sh = h / scale
-  ctx.drawImage(el, (vw - sw) / 2, (vh - sh) / 2, sw, sh, x, y, w, h)
-  return true
-}
-
 // Draw a video into a rect, letterboxed (contain).
 function drawContain(ctx, el, x, y, w, h) {
   const vw = el.videoWidth, vh = el.videoHeight
@@ -232,12 +222,9 @@ export function createMeetingRecorder({ onChunk, onError }) {
       ctx.fillRect(x, y, tw, th)
       let drew = false
       if (t.stream && t.camOn !== false) {
-        const el = videoFor(t.key, t.stream)
-        // Portrait feeds (phones) letterbox so the whole frame is recorded;
-        // landscape feeds fill the 16:9 cell as before.
-        drew = el.videoHeight > el.videoWidth
-          ? drawContain(ctx, el, x, y, tw, th)
-          : drawCover(ctx, el, x, y, tw, th)
+        // Every feed is recorded WHOLE (contain), matching the live tiles -
+        // portrait phones and odd-shaped webcams letterbox, never crop.
+        drew = drawContain(ctx, videoFor(t.key, t.stream), x, y, tw, th)
       }
       if (!drew) drawAvatar(ctx, t.name, x + tw / 2, y + th / 2, Math.min(tw, th) * 0.22)
       drawLabel(ctx, t.name || '', x + 8, y + th - 10)

@@ -6377,7 +6377,29 @@ html[data-glass="on"][data-theme="dark"] body::before {
     text-align: center;
     margin-top: 18px;
   }
-  .mr-chat-msg { font-size: 12.5px; }
+  .mr-chat-msg {
+    font-size: 12.5px;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .mr-chat-av {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #5046e4;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex: none;
+    margin-top: 1px;
+  }
+  .mr-chat-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .mr-chat-body { flex: 1; min-width: 0; }
   .mr-chat-meta {
     display: flex;
     align-items: center;
@@ -6411,7 +6433,12 @@ html[data-glass="on"][data-theme="dark"] body::before {
     border-radius: 999px;
     padding: 4px 6px 4px 14px;
   }
-  .mr-chat-input input {
+  /* The PILL is the field: the inner input must never draw its own box or
+     focus ring (the app's base :focus-visible ring would otherwise paint a
+     rectangle inside the pill). Focus shows on the pill instead. */
+  .mr-chat-input input,
+  .mr-chat-input input:focus,
+  .mr-chat-input input:focus-visible {
     flex: 1;
     min-width: 0;
     border: none;
@@ -6419,9 +6446,17 @@ html[data-glass="on"][data-theme="dark"] body::before {
     font-size: 12.5px;
     color: #202124;
     outline: none;
+    box-shadow: none;
+    border-radius: 999px;
+    appearance: none;
     padding: 6px 0;
   }
+  .mr-chat-input:focus-within {
+    background: #eceef1;
+    box-shadow: 0 0 0 2px rgba(80, 70, 228, 0.35);
+  }
   .mr-chat-input input::placeholder { color: #80868b; }
+  .mr-chat-input button:focus-visible { box-shadow: 0 0 0 2px rgba(80, 70, 228, 0.35); }
   .mr-chat-input button {
     border: none;
     background: transparent;

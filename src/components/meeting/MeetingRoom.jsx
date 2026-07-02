@@ -86,25 +86,6 @@ function AvatarCircle({ photo, name, small }) {
   )
 }
 
-// Watch a <video> element's real frame shape (0 until metadata arrives; the
-// 'resize' event fires again when a phone rotates mid-call).
-function useVideoRatio(ref, stream) {
-  const [ratio, setRatio] = useState(0)
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const meas = () => { if (el.videoWidth && el.videoHeight) setRatio(el.videoWidth / el.videoHeight) }
-    meas()
-    el.addEventListener('loadedmetadata', meas)
-    el.addEventListener('resize', meas)
-    return () => {
-      el.removeEventListener('loadedmetadata', meas)
-      el.removeEventListener('resize', meas)
-    }
-  }, [ref, stream])
-  return ratio
-}
-
 function VideoTile({
   stream, name, role, micOn, camOn, muted, failed, photo, speaking,
   hand, onHandClick, onPin, pinned, peerId,
@@ -116,16 +97,16 @@ function VideoTile({
     if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream || null
   }, [stream])
   const showVideo = !noVideo && !!stream && camOn !== false
-  // A portrait feed (phone) shows its WHOLE frame sharp in the middle of the
-  // cell, over a blurred echo of itself - never crop-zoomed into 16:9.
-  const ratio = useVideoRatio(ref, stream)
-  const portrait = showVideo && ratio > 0 && ratio < 1
+  // EVERY video FITS its landscape tile: the whole frame renders contained
+  // over a blurred echo of itself that fills whatever the frame leaves open.
+  // Portrait phones, 4:3 webcams, and screen shares alike - nothing is ever
+  // crop-zoomed, and every tile keeps the grid's uniform shape.
   useEffect(() => {
     const el = blurRef.current
     if (!el) return
-    const want = portrait ? stream : null
+    const want = showVideo ? stream : null
     if (el.srcObject !== want) el.srcObject = want
-  }, [stream, portrait])
+  }, [stream, showVideo])
   return (
     <div
       className={
@@ -137,11 +118,21 @@ function VideoTile({
       }
       data-peer={peerId || undefined}
     >
-      {portrait && <video ref={blurRef} autoPlay playsInline muted className="mr-video-blur" />}
       {/* Keep the <video> mounted even when the camera is off - it still
           carries the audio. noVideo tiles (filmstrip copy of the presenter)
           skip it entirely so a peer's audio never plays twice. data-rv marks
           remote videos as pop-out fallbacks. */}
+      {!noVideo && (
+        <video
+          ref={blurRef}
+          autoPlay
+          playsInline
+          muted
+          aria-hidden="true"
+          className="mr-video-blur"
+          style={{ visibility: showVideo ? 'visible' : 'hidden' }}
+        />
+      )}
       {!noVideo && (
         <video
           ref={ref}
@@ -149,7 +140,7 @@ function VideoTile({
           playsInline
           muted={muted}
           data-rv={muted ? undefined : '1'}
-          className={`mr-video${portrait ? ' mr-video-fit' : ''}`}
+          className="mr-video mr-video-fit"
           style={{ visibility: showVideo ? 'visible' : 'hidden' }}
         />
       )}
@@ -204,9 +195,7 @@ function MiniVideo({ stream, onClick }) {
   useEffect(() => {
     if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream || null
   }, [stream])
-  // The mini player keeps its 16:9 card; a portrait feed letterboxes inside
-  // it instead of being crop-zoomed.
-  const ratio = useVideoRatio(ref, stream)
+  // The mini player fits the whole frame too - never crop-zoomed.
   return (
     <video
       ref={ref}
@@ -215,7 +204,7 @@ function MiniVideo({ stream, onClick }) {
       muted
       data-rv="1"
       className="mr-video"
-      style={ratio > 0 && ratio < 1 ? { objectFit: 'contain' } : undefined}
+      style={{ objectFit: 'contain' }}
       onClick={onClick}
     />
   )
@@ -995,8 +984,10 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
             <div
               className={`mr-pip${speaking.has('self') ? ' mr-tile-speaking' : ''}`}
               data-peer="self"
-              style={!sharing && camOn && localStream && selfRatio > 0 && selfRatio < 1
-                ? { width: 'auto', height: 150, aspectRatio: String(Math.max(selfRatio, 9 / 16)) }
+              style={!sharing && camOn && localStream && selfRatio > 0
+                ? (selfRatio < 1
+                  ? { width: 'auto', height: 150, aspectRatio: String(Math.max(selfRatio, 9 / 16)) }
+                  : { aspectRatio: String(Math.min(selfRatio, 16 / 9)) })
                 : undefined}
             >
               {sharing ? (
@@ -1034,6 +1025,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
           selfUid={self?.uid}
           isAdmin={isAdmin}
           locked={chatLocked}
+          photoOf={photoFor}
           onToggleLock={toggleChatLock}
           onSend={sendChat}
           onClose={() => setChatOpen(false)}

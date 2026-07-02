@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { X, Send } from 'lucide-react'
 
+function initials(name) {
+  return String(name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?'
+}
+
 // Meet-style "In-call messages" side panel. Deliberately LIGHT inside the
 // dark room (matching Google Meet); messages are ephemeral - they live under
 // rtcRooms/{id}/chat and the End-class purge deletes them, which is exactly
@@ -10,8 +14,9 @@ import { X, Send } from 'lucide-react'
 //   selfUid    - to label own rows "You"
 //   isAdmin    - shows the lock toggle
 //   locked     - chat currently locked to professor-only
+//   photoOf    - ({ uid, role }) -> profile photo URL or null
 //   onToggleLock(next) / onSend(text) / onClose()
-export default function MeetingChat({ open, messages, selfUid, isAdmin, locked, onToggleLock, onSend, onClose }) {
+export default function MeetingChat({ open, messages, selfUid, isAdmin, locked, photoOf, onToggleLock, onSend, onClose }) {
   const [text, setText] = useState('')
   const listRef = useRef(null)
 
@@ -58,17 +63,27 @@ export default function MeetingChat({ open, messages, selfUid, isAdmin, locked, 
         {messages.length === 0 && (
           <div className="mr-chat-empty">No messages yet. Say hi to the class.</div>
         )}
-        {messages.map(m => (
-          <div key={m.id} className="mr-chat-msg">
-            <div className="mr-chat-meta">
-              <b>{m.uid === selfUid ? 'You' : m.name}</b>
-              {m.role === 'admin' && <span className="mr-chat-prof">PROF</span>}
-              <span>{timeStr(m.at)}</span>
+        {messages.map(m => {
+          const photo = photoOf ? photoOf({ uid: m.uid, role: m.role }) : null
+          return (
+            <div key={m.id} className="mr-chat-msg">
+              <span className="mr-chat-av" aria-hidden="true">
+                {photo ? <img src={photo} alt="" /> : initials(m.name)}
+              </span>
+              <div className="mr-chat-body">
+                <div className="mr-chat-meta">
+                  <b>{m.uid === selfUid ? 'You' : m.name}</b>
+                  {m.role === 'admin' && <span className="mr-chat-prof">PROF</span>}
+                  <span>{timeStr(m.at)}</span>
+                </div>
+                <div className="mr-chat-text">{m.text}</div>
+              </div>
             </div>
-            <div className="mr-chat-text">{m.text}</div>
-          </div>
-        ))}
+          )
+        })}
       </div>
+      {/* Inline chrome-kill on the input: the app's base input/focus styles
+          must never draw a box inside the pill - the PILL is the field. */}
       <form className="mr-chat-input" onSubmit={submit}>
         <input
           type="text"
@@ -77,6 +92,7 @@ export default function MeetingChat({ open, messages, selfUid, isAdmin, locked, 
           disabled={!canSend}
           placeholder={canSend ? 'Send a message to everyone' : 'The professor turned off messages'}
           onChange={e => setText(e.target.value)}
+          style={{ border: 'none', outline: 'none', background: 'transparent', borderRadius: 999, appearance: 'none' }}
         />
         <button type="submit" disabled={!canSend || !text.trim()} aria-label="Send message">
           <Send size={16} />
