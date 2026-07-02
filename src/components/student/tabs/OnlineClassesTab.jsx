@@ -6,7 +6,7 @@ import {
   ShieldCheck, ArrowRight, Unlink, CheckCircle2, MonitorPlay, Sparkles, FileText,
 } from 'lucide-react'
 import RecapModal from '@/components/meeting/RecapModal'
-import { activeClassIds } from '@/utils/active'
+import { activeClassIds, activeSubjects } from '@/utils/active'
 import { courseShort } from '@/constants/courses'
 import EmptyState from '@/components/ds/EmptyState'
 import PageHeader from '@/components/ds/PageHeader'
@@ -67,9 +67,20 @@ export default function OnlineClassesTab({ student }) {
     [myMeetings]
   )
 
+  // History matches by SUBJECT too, not only by class id: a newly enrolled
+  // student immediately sees every past session of the subjects they now
+  // take, including ones held under a sibling section (or before they joined
+  // the class). Live/upcoming above stay class-scoped on purpose - students
+  // should not be invited into another section's ongoing lecture.
+  const mySubjects = useMemo(
+    () => activeSubjects(student, classes, semester),
+    [student, classes, semester]
+  )
   const past = useMemo(() =>
-    myMeetings.filter(m => m.status === 'ended').sort((a, b) => b.scheduledAt - a.scheduledAt),
-    [myMeetings]
+    meetings.filter(m => m.status === 'ended'
+      && (studentClassIds.includes(m.classId) || (m.subject && mySubjects.includes(m.subject)))
+    ).sort((a, b) => b.scheduledAt - a.scheduledAt),
+    [meetings, studentClassIds, mySubjects]
   )
 
   const [pastOpen, setPastOpen] = useState(false)
