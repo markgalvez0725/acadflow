@@ -1,14 +1,17 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react'
+import React, { useState, useMemo, useEffect, useRef, lazy, Suspense } from 'react'
 import { useData } from '@/context/DataContext'
 import {
   Video, Radio, ExternalLink, Clock, ChevronDown, ChevronUp,
-  ShieldCheck, ArrowRight, Unlink, CheckCircle2,
+  ShieldCheck, ArrowRight, Unlink, CheckCircle2, MonitorPlay,
 } from 'lucide-react'
 import { activeClassIds } from '@/utils/active'
 import { courseShort } from '@/constants/courses'
 import EmptyState from '@/components/ds/EmptyState'
 import PageHeader from '@/components/ds/PageHeader'
 import { useRedirectHighlight } from '@/navigation/useRedirectHighlight'
+
+// In-app WebRTC classroom - only loaded when the student actually joins one.
+const MeetingRoom = lazy(() => import('@/components/meeting/MeetingRoom'))
 
 const IMMINENT_MS = 15 * 60 * 1000 // a class "starting soon" - show one-tap join
 
@@ -41,6 +44,9 @@ export default function OnlineClassesTab({ student }) {
   const { meetings, classes, semester } = useData()
   const highlightId = useRedirectHighlight('meeting')
   const now = useNow(30000)
+  // Id of the in-app room the student is currently in (full-screen overlay).
+  const [roomMeetingId, setRoomMeetingId] = useState('')
+  const roomMeeting = roomMeetingId ? meetings.find(m => m.id === roomMeetingId) : null
 
   const studentClassIds = useMemo(
     () => activeClassIds(student, classes, semester),
@@ -79,7 +85,7 @@ export default function OnlineClassesTab({ student }) {
   // from the same meetings the list renders. no network calls.
   const watch = useMemo(() => {
     const f = []
-    const noLink = upcoming.filter(m => !m.meetLink)
+    const noLink = upcoming.filter(m => !m.meetLink && m.provider !== 'inapp')
     if (liveMeetings.length)
       f.push({ tone: 'bad', Icon: Radio, lead: `${liveMeetings.length} live now`, text: ` - ${liveMeetings[0].title}, join in one tap.` })
     if (upcoming.length) {
@@ -128,7 +134,11 @@ export default function OnlineClassesTab({ student }) {
             </div>
             <div style={{ fontSize: 15, fontWeight: 700 }}>{heroLive.title}</div>
             <div style={{ fontSize: 12, color: 'var(--ink3)', margin: '3px 0 12px' }}>{meetingClassLabel(heroLive, classNameById)}</div>
-            {heroLive.meetLink ? (
+            {heroLive.provider === 'inapp' ? (
+              <button className="btn btn-primary btn-sm" style={{ background: '#ef4444', borderColor: '#ef4444' }} onClick={() => setRoomMeetingId(heroLive.id)}>
+                <MonitorPlay size={14} style={{ marginRight: 6 }} /> Join in app
+              </button>
+            ) : heroLive.meetLink ? (
               <a href={heroLive.meetLink} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm" style={{ background: '#ef4444', borderColor: '#ef4444' }}>
                 <ExternalLink size={14} style={{ marginRight: 6 }} /> Join meeting
               </a>
@@ -142,7 +152,11 @@ export default function OnlineClassesTab({ student }) {
             <div style={{ fontSize: 13, fontWeight: 700, color: heroNextSoon ? 'var(--accent)' : 'var(--ink2)', display: 'flex', alignItems: 'center', gap: 5, marginBottom: 12 }}>
               <Clock size={14} /> starts {untilLabel(heroNextMs)}
             </div>
-            {heroNext.meetLink ? (
+            {heroNext.provider === 'inapp' ? (
+              <span style={{ fontSize: 12, color: 'var(--ink3)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <MonitorPlay size={13} /> Runs here in AcadFlow - Join appears when class starts
+              </span>
+            ) : heroNext.meetLink ? (
               <a href={heroNext.meetLink} target="_blank" rel="noopener noreferrer" className={`btn btn-sm ${heroNextSoon ? 'btn-primary' : 'btn-ghost'}`}>
                 <ExternalLink size={14} style={{ marginRight: 6 }} /> Join
               </a>
@@ -188,7 +202,11 @@ export default function OnlineClassesTab({ student }) {
                   <div style={{ fontSize: 13.5, fontWeight: 600 }}>{m.title}</div>
                   <div style={{ fontSize: 12, color: 'var(--ink3)' }}>{meetingClassLabel(m, classNameById)}</div>
                 </div>
-                {m.meetLink ? (
+                {m.provider === 'inapp' ? (
+                  <button className="btn btn-primary btn-sm" style={{ background: '#ef4444', borderColor: '#ef4444', flexShrink: 0 }} onClick={() => setRoomMeetingId(m.id)}>
+                    <MonitorPlay size={13} style={{ marginRight: 5 }} /> Join
+                  </button>
+                ) : m.meetLink ? (
                   <a href={m.meetLink} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm" style={{ background: '#ef4444', borderColor: '#ef4444', flexShrink: 0 }}>
                     <ExternalLink size={13} style={{ marginRight: 5 }} /> Join
                   </a>
@@ -221,7 +239,11 @@ export default function OnlineClassesTab({ student }) {
                   </div>
                   {m.description && <div style={{ fontSize: 12, color: 'var(--ink2)', marginTop: 4 }}>{m.description}</div>}
                 </div>
-                {m.meetLink ? (
+                {m.provider === 'inapp' ? (
+                  <span style={{ fontSize: 11.5, color: 'var(--ink3)', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <MonitorPlay size={12} /> In-app
+                  </span>
+                ) : m.meetLink ? (
                   <a href={m.meetLink} target="_blank" rel="noopener noreferrer" className={`btn btn-sm ${soon ? 'btn-primary' : 'btn-ghost'}`} style={{ flexShrink: 0 }}>
                     <ExternalLink size={13} style={{ marginRight: 5 }} /> Join
                   </a>
@@ -257,6 +279,17 @@ export default function OnlineClassesTab({ student }) {
         <div style={{ marginTop: 10 }}>
           <EmptyState Icon={Clock} title="No past sessions yet." compact />
         </div>
+      )}
+
+      {/* In-app classroom overlay - closes itself when the professor ends the class. */}
+      {roomMeetingId && (
+        <Suspense fallback={null}>
+          <MeetingRoom
+            meeting={roomMeeting}
+            self={{ uid: student.id, name: student.name || 'Student', role: 'student' }}
+            onClose={() => setRoomMeetingId('')}
+          />
+        </Suspense>
       )}
     </div>
   )

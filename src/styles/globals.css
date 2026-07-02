@@ -5849,3 +5849,182 @@ html[data-glass="on"][data-theme="dark"] body::before {
   .ai-find-grid,
   .ds-stud-grid { grid-template-columns: 1fr; }
 }
+
+/* ── In-app meeting room (MeetingRoom.jsx) ─────────────────────────────────
+   The live classroom overlay. Deliberately theme-independent: a video call
+   surface is dark in light, dark, and frost themes alike (like every VC app),
+   so colors here are fixed instead of tokenized. z-index sits above modals
+   (300) but below toasts (1100) so status toasts stay visible in-call. */
+@layer components {
+  .mr-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 950;
+    background: #101116;
+    color: #e7e7ea;
+    display: flex;
+    flex-direction: column;
+    padding: max(10px, env(safe-area-inset-top)) 14px max(10px, env(safe-area-inset-bottom));
+  }
+  .mr-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 4px 2px 10px;
+  }
+  .mr-head-t { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .mr-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: #fff;
+    background: #dc2626;
+    border-radius: 999px;
+    padding: 4px 10px;
+    flex-shrink: 0;
+  }
+  .mr-live svg { animation: oc-pulse 1.4s ease-in-out infinite; }
+  .mr-head-title { display: flex; flex-direction: column; min-width: 0; }
+  .mr-head-title b {
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .mr-head-title span { font-size: 11.5px; color: #9a9aa3; }
+  .mr-head-actions { display: flex; align-items: center; gap: 8px; }
+  .mr-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: #9a9aa3;
+    padding-right: 2px;
+  }
+  .mr-end-btn { background: #dc2626; color: #fff; border-color: #dc2626; }
+  .mr-leave-link { color: #c9c9cf; }
+  .mr-grid {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+    gap: 10px;
+    align-content: center;
+  }
+  .mr-tile {
+    position: relative;
+    background: #1b1d24;
+    border-radius: 12px;
+    overflow: hidden;
+    aspect-ratio: 4 / 3;
+    min-height: 120px;
+  }
+  .mr-tile-featured { grid-column: 1 / -1; aspect-ratio: 16 / 8; }
+  .mr-video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .mr-tile-featured .mr-video { object-fit: contain; background: #000; }
+  .mr-tile-avatar {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .mr-avatar-circle {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #3f3fb4;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 19px;
+    font-weight: 700;
+  }
+  .mr-tile-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11.5px;
+    color: #9a9aa3;
+  }
+  .mr-tile-bad { color: #fbbf24; }
+  .mr-tile-name {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    max-width: calc(100% - 16px);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11.5px;
+    font-weight: 600;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    border-radius: 7px;
+    padding: 3px 8px;
+  }
+  .mr-tile-name span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .mr-tile-prof {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    background: #3f3fb4;
+    border-radius: 4px;
+    padding: 1px 5px;
+    flex-shrink: 0;
+  }
+  .mr-controls {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    padding: 12px 0 4px;
+  }
+  .mr-ctl {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    border: none;
+    background: #2a2d36;
+    color: #e7e7ea;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+  .mr-ctl:hover { background: #363a45; }
+  .mr-ctl:active { transform: scale(0.94); }
+  .mr-ctl-off { background: #dc2626; color: #fff; }
+  .mr-ctl-off:hover { background: #b91c1c; }
+  .mr-ctl-on { background: #16a34a; color: #fff; }
+  .mr-ctl-on:hover { background: #15803d; }
+  .mr-ctl-hang { background: #dc2626; color: #fff; }
+  .mr-ctl-hang:hover { background: #b91c1c; }
+  .mr-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-align: center;
+    padding: 0 24px;
+  }
+  .mr-center b { font-size: 16px; }
+  .mr-center span { font-size: 13px; color: #9a9aa3; max-width: 380px; }
+  .mr-center .btn { margin-top: 10px; background: #2a2d36; color: #e7e7ea; border-color: #3a3d48; }
+  @media (max-width: 560px) {
+    .mr-grid { grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); align-content: start; }
+    .mr-tile-featured { aspect-ratio: 16 / 10; }
+    .mr-head-title span { display: none; }
+  }
+}

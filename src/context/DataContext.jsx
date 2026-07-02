@@ -16,6 +16,7 @@ import {
   fbSetQuizProgress,
 } from '@/firebase/persistence'
 import { fbPushReminderNotif } from '@/firebase/reminders'
+import { rtcCleanupRoom } from '@/firebase/rtc'
 import { serializeStudents } from '@/utils/attendance'
 import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase, saveSemesterToFirebase, saveLatePolicyToFirebase, saveGradeFloorToFirebase, saveBrandingToFirebase } from '@/firebase/settings'
 import { setReportBranding, setReportProfessor } from '@/export/reportTemplate'
@@ -1121,6 +1122,9 @@ export function DataProvider({ children }) {
       && (m.subject || null) === (meeting.subject || null))
     const targets = liveSiblings.length ? liveSiblings : [meeting]
     for (const m of targets) await fbEndMeeting(dbRef.current, m.id)
+    // In-app rooms leave ephemeral signaling docs behind (rtcRooms/*) - purge
+    // them best-effort; anyone still connected also self-deletes on leave.
+    for (const m of targets) if (m.provider === 'inapp') rtcCleanupRoom(dbRef.current, m.id)
     await fbPushMeetingNotifs(dbRef.current, meeting, students, 'meeting_ended')
   }, [students, meetings])
 

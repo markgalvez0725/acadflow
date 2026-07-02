@@ -1,11 +1,15 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, lazy, Suspense } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio } from 'lucide-react'
+import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio, MonitorPlay } from 'lucide-react'
 import { courseShort } from '@/constants/courses'
 import { isValidUrl, parseFutureTs } from '@/utils/validators'
 import EmptyState from '@/components/ds/EmptyState'
 import PageHeader from '@/components/ds/PageHeader'
+
+// The in-app WebRTC classroom - heavy (WebRTC engine + signaling), so it only
+// loads when a room is actually opened.
+const MeetingRoom = lazy(() => import('@/components/meeting/MeetingRoom'))
 
 // Relative-time pill for a scheduled meeting ("in 45 m", "in 2 h 15 m",
 // "Fri · in 2 days", then a plain date once it is over a week out).
@@ -35,10 +39,14 @@ function fmtElapsed(ms) {
 }
 
 export default function OnlineClassesTab() {
-  const { classes, meetings, saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting } = useData()
+  const { classes, meetings, admin, saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting } = useData()
   const { toast } = useUI()
   const [panel, setPanel] = useState('links')
   const [goingLive, setGoingLive] = useState('') // key of the link currently going live
+  // Id of the in-app room currently open (full-screen overlay). Kept as an id,
+  // not an object, so the overlay always renders the fresh meeting doc.
+  const [roomMeetingId, setRoomMeetingId] = useState('')
+  const roomMeeting = roomMeetingId ? meetings.find(m => m.id === roomMeetingId) : null
 
   // Half-minute tick so the countdown/elapsed pills stay fresh while open.
   const [now, setNow] = useState(() => Date.now())
@@ -99,8 +107,41 @@ export default function OnlineClassesTab() {
     return meetings.find(m => m.status === 'live' && m.classId === classId && (m.subject || null) === (subject || null))
   }
 
+  // One-click "Go live in app": create + start an in-app WebRTC meeting (no
+  // Meet link involved) and drop the professor straight into the room.
+  async function handleGoLiveInApp(cls, subject) {
+    const key = linkKey(cls.id, subject) + '::app'
+    setGoingLive(key)
+    try {
+      const live = await startInstantMeeting({
+        classId: cls.id,
+        className: classLabel(cls),
+        subject: subject || null,
+        title: subject || `${cls.name} - live class`,
+        description: '',
+        meetLink: '',
+        provider: 'inapp',
+      })
+      if (!live) { toast('Failed to go live.', 'error'); return }
+      if (live.provider !== 'inapp') {
+        // startInstantMeeting reuses an existing live session for this
+        // class+subject; if that one is a Meet-link session, don't open a
+        // half-empty in-app room next to it.
+        toast('This class is already live with a Meet link. End it first to switch to an in-app room.', 'error')
+        setPanel('meetings')
+        return
+      }
+      setRoomMeetingId(live.id)
+      toast('You are live - students can join from their Online Classes tab.', 'success')
+    } catch (e) {
+      toast('Failed to go live.', 'error')
+    } finally {
+      setGoingLive('')
+    }
+  }
+
   // ── Section 2: Schedule Form ──────────────────────────────────────────
-  const [form, setForm] = useState({ classId: '', subject: '', title: '', scheduledAt: '', description: '' })
+  const [form, setForm] = useState({ classId: '', subject: '', title: '', scheduledAt: '', description: '', where: 'inapp' })
   const [scheduling, setScheduling] = useState(false)
   const scheduleClass = classes.find(c => c.id === form.classId)
 
@@ -113,7 +154,8 @@ export default function OnlineClassesTab() {
     if (!cls) return
     setScheduling(true)
     try {
-      const meetLink = (form.subject && cls.meetLinks?.[form.subject]) || cls.meetLink || ''
+      const inapp = form.where === 'inapp'
+      const meetLink = inapp ? '' : ((form.subject && cls.meetLinks?.[form.subject]) || cls.meetLink || '')
       await scheduleMeeting({
         classId: cls.id,
         className: classLabel(cls),
@@ -121,10 +163,11 @@ export default function OnlineClassesTab() {
         title: form.title.trim(),
         description: form.description.trim(),
         meetLink,
+        provider: inapp ? 'inapp' : 'link',
         scheduledAt: ts,
       })
       toast('Meeting scheduled. Students have been notified.', 'success')
-      setForm({ classId: '', subject: '', title: '', scheduledAt: '', description: '' })
+      setForm({ classId: '', subject: '', title: '', scheduledAt: '', description: '', where: 'inapp' })
     } catch (e) {
       toast('Failed to schedule meeting.', 'error')
     } finally {
@@ -158,6 +201,16 @@ export default function OnlineClassesTab() {
   const scheduledOnly = useMemo(() => upcoming.filter(m => m.status === 'scheduled'), [upcoming])
 
   async function handleStart(m) {
+    if (m.provider === 'inapp') {
+      try {
+        await startMeeting(m)
+        setRoomMeetingId(m.id)
+        toast('Meeting is now live. Students have been notified.', 'success')
+      } catch (e) {
+        toast('Failed to start meeting.', 'error')
+      }
+      return
+    }
     if (!m.meetLink?.trim()) {
       toast('No Meet link set for this class. Add one in the Meet Links panel first.', 'error')
       return
@@ -232,7 +285,11 @@ export default function OnlineClassesTab() {
             <span>{m.className}{m.subject ? ` · ${m.subject}` : ''} · started {fmtElapsed(now - m.scheduledAt)}</span>
           </div>
           <div className="olc-hero-actions">
-            {!!m.meetLink?.trim() && (
+            {m.provider === 'inapp' ? (
+              <button className="btn btn-primary btn-sm" onClick={() => setRoomMeetingId(m.id)} title="Open the in-app classroom">
+                <MonitorPlay size={14} style={{ marginRight: 4 }} /> Open room
+              </button>
+            ) : !!m.meetLink?.trim() && (
               <button className="btn btn-primary btn-sm" onClick={() => window.open(m.meetLink, '_blank', 'noopener,noreferrer')} title="Open the Meet in a new tab">
                 <ExternalLink size={14} style={{ marginRight: 4 }} /> Open Meet
               </button>
@@ -304,18 +361,32 @@ export default function OnlineClassesTab() {
                           >
                             <Radio size={13} className="animate-pulse" style={{ marginRight: 5 }} /> Live now - manage in Meetings
                           </button>
-                        ) : val.trim() ? (
-                          <button
-                            className="btn btn-primary btn-sm"
-                            style={{ marginTop: 6, width: '100%' }}
-                            disabled={goingLive === linkKey(cls.id, sub)}
-                            onClick={() => handleGoLive(cls, sub, val)}
-                            title="Start the class now - students get a Join button"
-                          >
-                            <Radio size={13} style={{ marginRight: 5 }} />
-                            {goingLive === linkKey(cls.id, sub) ? 'Going live…' : 'Go Live now'}
-                          </button>
-                        ) : null}
+                        ) : (
+                          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                            <button
+                              className="btn btn-primary btn-sm"
+                              style={{ flex: 1 }}
+                              disabled={goingLive === linkKey(cls.id, sub) + '::app'}
+                              onClick={() => handleGoLiveInApp(cls, sub)}
+                              title="Run the class inside AcadFlow - no Meet link needed (up to 8 people)"
+                            >
+                              <MonitorPlay size={13} style={{ marginRight: 5 }} />
+                              {goingLive === linkKey(cls.id, sub) + '::app' ? 'Going live…' : 'Go live in app'}
+                            </button>
+                            {val.trim() && (
+                              <button
+                                className="btn btn-ghost btn-sm"
+                                style={{ flex: 1 }}
+                                disabled={goingLive === linkKey(cls.id, sub)}
+                                onClick={() => handleGoLive(cls, sub, val)}
+                                title="Start the class on Google Meet - students get a Join button"
+                              >
+                                <Radio size={13} style={{ marginRight: 5 }} />
+                                {goingLive === linkKey(cls.id, sub) ? 'Going live…' : 'Go live on Meet'}
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )
                   })}
@@ -362,9 +433,20 @@ export default function OnlineClassesTab() {
               />
             </div>
           </div>
+          <div>
+            <label className="label">Where</label>
+            <select
+              className="input"
+              value={form.where}
+              onChange={e => setForm(f => ({ ...f, where: e.target.value }))}
+            >
+              <option value="inapp">In-app room - runs inside AcadFlow (up to 8 people)</option>
+              <option value="link">Google Meet - opens the class link in a new tab</option>
+            </select>
+          </div>
           {scheduleClass?.subjects?.length > 0 && (
             <div>
-              <label className="label">Subject <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(picks that subject's saved Meet link)</span></label>
+              <label className="label">Subject {form.where === 'link' && <span style={{ color: 'var(--ink3)', fontWeight: 400 }}>(picks that subject's saved Meet link)</span>}</label>
               <select
                 className="input"
                 value={form.subject}
@@ -437,6 +519,18 @@ export default function OnlineClassesTab() {
         )}
       </section>}
     </div>
+
+    {/* In-app classroom overlay (full screen, above the tab UI). */}
+    {roomMeetingId && (
+      <Suspense fallback={null}>
+        <MeetingRoom
+          meeting={roomMeeting}
+          self={{ uid: 'admin', name: admin?.name || 'Professor', role: 'admin' }}
+          onClose={() => setRoomMeetingId('')}
+          onEndClass={() => roomMeeting && handleEnd(roomMeeting)}
+        />
+      </Suspense>
+    )}
     </>
   )
 }
@@ -466,7 +560,7 @@ function MeetingRow({ m, now, onStart, onCancel }) {
       </div>
       <div className="olc-row-t">
         <b>{m.title}</b>
-        <span>{m.className}{m.subject ? ` · ${m.subject}` : ''} · {timeStr}{durMin ? ` · ${durMin} min` : ''}</span>
+        <span>{m.className}{m.subject ? ` · ${m.subject}` : ''} · {timeStr}{durMin ? ` · ${durMin} min` : ''}{m.provider === 'inapp' ? ' · In-app room' : ''}</span>
         {m.description && <span style={{ display: 'block' }}>{m.description}</span>}
       </div>
       {ended

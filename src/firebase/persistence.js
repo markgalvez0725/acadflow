@@ -741,6 +741,9 @@ export async function fbScheduleMeeting(db, meetingData) {
     title: meetingData.title,
     description: meetingData.description || '',
     meetLink: meetingData.meetLink || '',
+    // 'link' opens the Meet URL in a new tab; 'inapp' runs the class in the
+    // built-in WebRTC room (rtcRooms/{meetingId}, see src/firebase/rtc.js).
+    provider: meetingData.provider === 'inapp' ? 'inapp' : 'link',
     scheduledAt: meetingData.scheduledAt, // JS timestamp (ms)
     status: 'scheduled',
     createdAt: Date.now(),

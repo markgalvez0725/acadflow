@@ -20,9 +20,10 @@ rules_version = '2';
 // an unmatched collection is denied by default, so ADD a match here whenever a new
 // feature introduces a new top-level collection — otherwise it will silently fail):
 //   students · portal/* (classes, config, settings, admin, rubricLibrary) ·
-//   onlineMeetings · auditLog · messages · typing · activities · notifications ·
-//   quizzes · announcements · attendanceSessions · excuseRequests · studentFeedback ·
-//   pushTokens · studentSecrets.  resetSessions/* is intentionally server-only (see bottom).
+//   onlineMeetings · rtcRooms/* (in-app class WebRTC signaling) · auditLog ·
+//   messages · typing · activities · notifications · quizzes · announcements ·
+//   attendanceSessions · excuseRequests · studentFeedback · pushTokens ·
+//   studentSecrets.  resetSessions/* is intentionally server-only (see bottom).
 //
 // HOW TO APPLY (these rules only take effect once PUBLISHED):
 //   Firebase Console → project (collegeportal-d2b98) → Build → Firestore
@@ -131,6 +132,14 @@ service cloud.firestore {
 
     // Online meetings are scheduled and controlled by the teacher.
     match /onlineMeetings/{docId}     { allow read: if signedIn(); allow write: if isAdmin(); }
+
+    // In-app class rooms: EPHEMERAL WebRTC signaling for the built-in video
+    // classroom (participants + offer/answer/ICE messages under
+    // rtcRooms/{meetingId}/...). Students must be able to write their own
+    // participant + signal docs here, so this stays login-gated like typing/*.
+    // Docs are transient: peers delete their own on leave and the professor's
+    // End-class purges stragglers. No grades or content ever live here.
+    match /rtcRooms/{document=**}     { allow read, write: if signedIn(); }
 
     // Audit log: append-only history of admin actions (grade edits, deletions).
     // Teacher-only — written by the admin client and read only in the Audit Log
