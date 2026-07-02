@@ -8,6 +8,7 @@ import { courseShort } from '@/constants/courses'
 import { isValidUrl, parseFutureTs } from '@/utils/validators'
 import EmptyState from '@/components/ds/EmptyState'
 import PageHeader from '@/components/ds/PageHeader'
+import { useRedirectHighlight } from '@/navigation/useRedirectHighlight'
 
 // Relative-time pill for a scheduled meeting ("in 45 m", "in 2 h 15 m",
 // "Fri · in 2 days", then a plain date once it is over a week out).
@@ -178,6 +179,18 @@ export default function OnlineClassesTab() {
 
   // ── Section 3: Meetings List ──────────────────────────────────────────
   const [listTab, setListTab] = useState('upcoming')
+
+  // Deep-links (e.g. the "Recording is ready to view" notification carries
+  // link "meeting:{id}") land on this tab, but the row only exists once the
+  // Meetings panel AND the right Upcoming/Past list are showing - switch both
+  // before the highlight hook's scroll fires (160ms after the claim).
+  const highlightId = useRedirectHighlight('meeting')
+  useEffect(() => {
+    if (!highlightId) return
+    setPanel('meetings')
+    const m = meetings.find(x => x.id === highlightId)
+    if (m) setListTab(m.status === 'ended' ? 'past' : 'upcoming')
+  }, [highlightId]) // eslint-disable-line react-hooks/exhaustive-deps
   const upcoming = useMemo(() => {
     const active = meetings.filter(m => m.status === 'scheduled' || m.status === 'live')
     // Collapse duplicate sessions for the same class + subject + status that an
@@ -595,7 +608,7 @@ export default function OnlineClassesTab() {
                 ? <EmptyState Icon={CalendarPlus} title="No other upcoming meetings" text="Your live class is pinned above." tone="muted" compact />
                 : <EmptyState Icon={CalendarPlus} title="No upcoming meetings" text="Schedule one, or go live straight from Meet Links." />)
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-                {scheduledOnly.map(m => <MeetingRow key={m.id} m={m} now={now} onStart={handleStart} onCancel={handleCancel} />)}
+                {scheduledOnly.map(m => <MeetingRow key={m.id} m={m} now={now} onStart={handleStart} onCancel={handleCancel} highlight={highlightId === m.id} />)}
               </div>
         )}
 
@@ -603,7 +616,7 @@ export default function OnlineClassesTab() {
           past.length === 0
             ? <EmptyState Icon={CheckCircle} title="No past meetings" text="Ended classes will appear here." tone="muted" compact />
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-                {past.map(m => <MeetingRow key={m.id} m={m} now={now} onRecap={handleRecap} onTranscript={handleTranscript} recapBusy={recapBusyId === m.id} onShareRecording={handleShareRecording} onCheckRecording={handleCheckRecording} checking={checkingId === m.id} />)}
+                {past.map(m => <MeetingRow key={m.id} m={m} now={now} onRecap={handleRecap} onTranscript={handleTranscript} recapBusy={recapBusyId === m.id} onShareRecording={handleShareRecording} onCheckRecording={handleCheckRecording} checking={checkingId === m.id} highlight={highlightId === m.id} />)}
               </div>
         )}
       </section>}
@@ -620,7 +633,7 @@ function classLabel(cls) {
 
 // One meeting as a date-chip row: calendar chip, title + meta, a countdown pill
 // (amber inside 3 hours) or a green Ended chip, and Start/Cancel actions.
-function MeetingRow({ m, now, onStart, onCancel, onRecap, onTranscript, recapBusy, onShareRecording, onCheckRecording, checking }) {
+function MeetingRow({ m, now, onStart, onCancel, onRecap, onTranscript, recapBusy, onShareRecording, onCheckRecording, checking, highlight }) {
   const dt = new Date(m.scheduledAt)
   const ended = m.status === 'ended'
   const mo = dt.toLocaleDateString('en-PH', { month: 'short' })
@@ -632,7 +645,7 @@ function MeetingRow({ m, now, onStart, onCancel, onRecap, onTranscript, recapBus
   const durMin = durMs > 0 && durMs < 12 * 3600000 ? Math.max(1, Math.round(durMs / 60000)) : null
 
   return (
-    <div className={`card olc-row${ended ? ' past' : ''}`}>
+    <div id={`meeting-${m.id}`} className={`card olc-row${ended ? ' past' : ''}${highlight ? ' redirect-glow' : ''}`}>
       <div className="olc-dchip">
         <span className="olc-dchip-mo">{mo}</span>
         <span className="olc-dchip-dy">{dt.getDate()}</span>
