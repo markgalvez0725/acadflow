@@ -62,10 +62,11 @@ export default function useMeetingRoom({ db, roomId, self }) {
     setSharing(false)
     let dead = false
     const myId = uuidv4()
-    const pcs = new Map()        // peerId -> RTCPeerConnection
-    const streams = new Map()    // peerId -> MediaStream
-    const connState = new Map()  // peerId -> RTCPeerConnection.connectionState
-    const pendingIce = new Map() // peerId -> [candidateJSON] queued pre-remoteDescription
+    const pcs = new Map()          // peerId -> RTCPeerConnection
+    const streams = new Map()      // peerId -> MediaStream
+    const connState = new Map()    // peerId -> RTCPeerConnection.connectionState
+    const pendingIce = new Map()   // peerId -> [candidateJSON] queued pre-remoteDescription
+    const videoSenders = new Map() // peerId -> RTCRtpSender for the outgoing video slot
     const initiated = new Set()
     let roster = []
     let myJoinedAt = 0
@@ -98,17 +99,26 @@ export default function useMeetingRoom({ db, roomId, self }) {
       connState.delete(peerId)
       pendingIce.delete(peerId)
       initiated.delete(peerId)
+      videoSenders.delete(peerId)
     }
 
     function makePc(peerId) {
       const pc = new RTCPeerConnection(RTC_CONFIG)
       pcs.set(peerId, pc)
-      if (local) for (const t of local.getTracks()) pc.addTrack(t, local)
-      // If a share is already running, the new peer should get the screen.
-      if (screenTrack) {
-        const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video')
-        if (sender) sender.replaceTrack(screenTrack).catch(() => {})
+      let vSender = null
+      if (local) for (const t of local.getTracks()) {
+        const s = pc.addTrack(t, local)
+        if (t.kind === 'video') vSender = s
       }
+      // Audio-only joiners (camera blocked/missing) still get a negotiated
+      // video slot, so a later screen share can replaceTrack into it without
+      // any renegotiation. Without this, their "Present" button sent nothing.
+      if (!vSender) {
+        try { vSender = pc.addTransceiver('video', { direction: 'sendrecv' }).sender } catch { /* very old browser */ }
+      }
+      if (vSender) videoSenders.set(peerId, vSender)
+      // If a share is already running, the new peer should get the screen.
+      if (screenTrack && vSender) vSender.replaceTrack(screenTrack).catch(() => {})
       pc.onicecandidate = e => { if (e.candidate) send(peerId, 'ice', e.candidate.toJSON()) }
       pc.ontrack = e => {
         if (e.streams && e.streams[0]) { streams.set(peerId, e.streams[0]); publish() }
@@ -278,23 +288,19 @@ export default function useMeetingRoom({ db, roomId, self }) {
         catch { return } // picker dismissed
         screenTrack = ds.getVideoTracks()[0]
         if (!screenTrack) return
-        for (const pc of pcs.values()) {
-          const sender = pc.getSenders().find(x => x.track && x.track.kind === 'video')
-          if (sender) sender.replaceTrack(screenTrack).catch(() => {})
-        }
+        for (const sender of videoSenders.values()) sender.replaceTrack(screenTrack).catch(() => {})
         screenTrack.onended = () => apiRef.current.stopShare()
         setSharing(true)
-        rtcUpdateParticipant(db, roomId, myId, { sharing: true })
+        // sharedAt lets everyone feature the LATEST presenter when two people
+        // share at once (Meet behavior).
+        rtcUpdateParticipant(db, roomId, myId, { sharing: true, sharedAt: Date.now() })
       },
       stopShare() {
         if (!screenTrack) return
         try { screenTrack.stop() } catch { /* noop */ }
         screenTrack = null
         const cam = local && local.getVideoTracks()[0]
-        for (const pc of pcs.values()) {
-          const sender = pc.getSenders().find(x => x.track && x.track.kind === 'video')
-          if (sender) sender.replaceTrack(cam || null).catch(() => {})
-        }
+        for (const sender of videoSenders.values()) sender.replaceTrack(cam || null).catch(() => {})
         setSharing(false)
         rtcUpdateParticipant(db, roomId, myId, { sharing: false })
       },

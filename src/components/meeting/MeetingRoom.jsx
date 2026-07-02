@@ -101,7 +101,12 @@ export default function MeetingRoom({ meeting, self, onClose, onEndClass }) {
     try { await onEndClass() } finally { setEnding(false) }
   }
 
-  const featuredPeer = useMemo(() => peers.find(p => p.sharing), [peers])
+  // Feature the LATEST presenter when more than one person shares at once.
+  const featuredPeer = useMemo(() => {
+    const sharers = peers.filter(p => p.sharing)
+    if (!sharers.length) return null
+    return sharers.sort((a, b) => (b.sharedAt || 0) - (a.sharedAt || 0))[0]
+  }, [peers])
   const isAdmin = self?.role === 'admin'
   const count = peers.length + 1
 
