@@ -11,6 +11,13 @@
 //    the participant doc so remote tiles can show the right badges.
 //  - Screen share swaps the outgoing video track via replaceTrack (no
 //    renegotiation needed) and reverts when the browser's Stop-sharing fires.
+//  - Share latency: the mesh encodes the share once PER PEER, so an uncapped
+//    retina grab (8-14MP frames) backs up the encoder queue - that queue IS
+//    the multi-second share lag. Fixes: capture capped at 1080p, encode fps
+//    laddered by room size, degradationPreference maintain-resolution (text
+//    drops frames under pressure, never blurs), receivers run a zero-target
+//    jitter buffer, and x-google-start-bitrate skips the slow first-seconds
+//    bitrate ramp.
 //  - No TURN server ($0 constraint): a strict-NAT pair may fail to connect;
 //    that peer's tile shows a connection warning instead of killing the room.
 
@@ -58,6 +65,30 @@ function tuneOpus(sdp, roomSize) {
 
 // Human-readable reason for a getUserMedia failure, so the room can tell the
 // user exactly how to recover instead of a generic "blocked".
+// Chrome's bandwidth estimator starts every video sender near 300kbps and
+// ramps up over several seconds - on a screen share that is the "blurry and
+// laggy at first" window, and every mid-class joiner restarts it for their
+// link. x-google-start-bitrate in the video codec fmtp of the sdp we apply
+// as the REMOTE description seeds the estimator higher (same direction as
+// tuneOpus: remote fmtp tells the local sender what to send). Non-Chromium
+// browsers ignore the unknown parameter, so this is free speed where it
+// works and a no-op everywhere else.
+function tuneVideoStart(sdp) {
+  try {
+    if (sdp.indexOf('x-google-start-bitrate') !== -1) return sdp
+    let out = sdp
+    const re = /a=rtpmap:(\d+) (?:VP8|VP9|H264|AV1)\/90000/g
+    let m
+    while ((m = re.exec(sdp))) {
+      const pt = m[1]
+      out = new RegExp('a=fmtp:' + pt + ' ').test(out)
+        ? out.replace(new RegExp('(a=fmtp:' + pt + ' [^\\r\\n]*)'), '$1;x-google-start-bitrate=600')
+        : out.replace(new RegExp('(a=rtpmap:' + pt + ' [^\\r\\n]*)'), '$1\r\na=fmtp:' + pt + ' x-google-start-bitrate=600')
+    }
+    return out
+  } catch { return sdp }
+}
+
 function explainGumError(e) {
   const name = e?.name || ''
   if (name === 'NotAllowedError' || name === 'SecurityError')
@@ -223,14 +254,30 @@ export default function useMeetingRoom({ db, roomId, self }) {
     function applyMediaBudget() {
       const n = Math.max(1, pcs.size)
       const camBits = Math.round(Math.min(350_000, Math.max(60_000, VIDEO_BUDGET / n)))
-      const shareBits = Math.round(Math.min(1_200_000, Math.max(120_000, SHARE_BUDGET / n)))
+      // Share bitrate: a generous ceiling for small rooms (crisp 1080p text
+      // wants ~2Mbps) and a floor high enough that text stays legible at
+      // scale. maxBitrate is only a CAP - per-link congestion control still
+      // adapts each student's feed to what their network actually delivers.
+      const shareBits = Math.round(Math.min(2_500_000, Math.max(300_000, SHARE_BUDGET / n)))
       const scale = screenTrack ? 1 : (n > 16 ? 4 : n > 6 ? 2 : 1)
+      // The mesh encodes the share once per peer, so cap the ENCODE framerate
+      // as the room grows: it keeps the sharer's CPU ahead of the frame queue
+      // (a backed-up encoder is exactly what share lag is). Slides are static
+      // so low fps is invisible; what moves stays in sync, just fewer frames.
+      const shareFps = n > 16 ? 10 : n > 6 ? 15 : 30
       for (const sender of videoSenders.values()) {
         try {
           const p = sender.getParameters()
           if (!p.encodings || !p.encodings.length) continue // pre-negotiation
           p.encodings[0].maxBitrate = screenTrack ? shareBits : camBits
           p.encodings[0].scaleResolutionDownBy = scale
+          if (screenTrack) p.encodings[0].maxFramerate = shareFps
+          else delete p.encodings[0].maxFramerate
+          // Spec-recommended pairing with the content hints: under CPU or
+          // bandwidth pressure the share ('detail') drops FRAMES and never
+          // blurs text; the camera ('motion') gives up resolution first so
+          // faces keep moving naturally.
+          p.degradationPreference = screenTrack ? 'maintain-resolution' : 'maintain-framerate'
           sender.setParameters(p).catch(() => {})
         } catch { /* renegotiating */ }
       }
@@ -267,6 +314,18 @@ export default function useMeetingRoom({ db, roomId, self }) {
       if (screenTrack && vSender) vSender.replaceTrack(screenTrack).catch(() => {})
       pc.onicecandidate = e => { if (e.candidate) send(peerId, 'ice', e.candidate.toJSON()) }
       pc.ontrack = e => {
+        // Live-first playout: the default adaptive jitter buffer grows to
+        // smooth out bursty frames, which turns a screen share into a feed
+        // that runs seconds behind the presenter. Target zero buffering for
+        // video (frames render the moment they are complete); audio keeps
+        // its own adaptive buffer so voice stays clean.
+        if (e.track && e.track.kind === 'video') {
+          try {
+            const r = e.receiver || (e.transceiver && e.transceiver.receiver)
+            if (r && 'jitterBufferTarget' in r) r.jitterBufferTarget = 0
+            else if (r && 'playoutDelayHint' in r) r.playoutDelayHint = 0
+          } catch { /* advisory knob */ }
+        }
         if (e.streams && e.streams[0]) { streams.set(peerId, e.streams[0]); publish() }
       }
       pc.onconnectionstatechange = () => {
@@ -300,14 +359,14 @@ export default function useMeetingRoom({ db, roomId, self }) {
       const from = msg.from
       if (msg.type === 'offer') {
         const pc = pcs.get(from) || makePc(from)
-        await pc.setRemoteDescription({ ...msg.data, sdp: tuneOpus(msg.data.sdp, pcs.size) })
+        await pc.setRemoteDescription({ ...msg.data, sdp: tuneVideoStart(tuneOpus(msg.data.sdp, pcs.size)) })
         const answer = await pc.createAnswer()
         await pc.setLocalDescription(answer)
         send(from, 'answer', pc.localDescription.toJSON())
         await flushIce(from)
       } else if (msg.type === 'answer') {
         const pc = pcs.get(from)
-        if (pc) { await pc.setRemoteDescription({ ...msg.data, sdp: tuneOpus(msg.data.sdp, pcs.size) }); await flushIce(from) }
+        if (pc) { await pc.setRemoteDescription({ ...msg.data, sdp: tuneVideoStart(tuneOpus(msg.data.sdp, pcs.size)) }); await flushIce(from) }
       } else if (msg.type === 'ice') {
         const pc = pcs.get(from)
         if (pc && pc.remoteDescription) { try { await pc.addIceCandidate(msg.data) } catch { /* stale */ } }
@@ -484,9 +543,32 @@ export default function useMeetingRoom({ db, roomId, self }) {
       },
       async startShare() {
         if (screenTrack || !navigator.mediaDevices?.getDisplayMedia) return
+        // Cap the capture itself: an uncapped retina/4K grab hands the mesh
+        // 8-14MP frames to encode once per peer, and that encode queue is
+        // where multi-second share lag comes from. 1080p at up to 30fps is
+        // what Meet ships for shares - text stays crisp at a fraction of the
+        // cost. selfBrowserSurface 'exclude' hides this very tab from the
+        // picker (sharing the meeting into itself = mirrors + wasted bits);
+        // surfaceSwitching lets Chrome swap the shared tab without stopping.
+        const capped = {
+          video: {
+            width: { max: 1920 },
+            height: { max: 1080 },
+            frameRate: { ideal: 24, max: 30 },
+          },
+          audio: false,
+          selfBrowserSurface: 'exclude',
+          surfaceSwitching: 'include',
+        }
         let ds
-        try { ds = await navigator.mediaDevices.getDisplayMedia({ video: true }) }
-        catch { return } // picker dismissed
+        try { ds = await navigator.mediaDevices.getDisplayMedia(capped) }
+        catch (e) {
+          // Dismissed picker = done. A browser that rejects the constraint
+          // shape instead retries plain, rather than losing share entirely.
+          if (!e || e.name === 'NotAllowedError' || e.name === 'AbortError') return
+          try { ds = await navigator.mediaDevices.getDisplayMedia({ video: true }) }
+          catch { return }
+        }
         screenTrack = ds.getVideoTracks()[0]
         if (!screenTrack) return
         try { screenTrack.contentHint = 'detail' } catch { /* advisory */ }
