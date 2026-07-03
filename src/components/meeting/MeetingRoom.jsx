@@ -498,32 +498,13 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     }
   }
 
-  // Feed the compositor the current scene (presenter > tile grid) and the
-  // audio mix (everyone + own mic) whenever the room changes. The recording
-  // follows the TRUE presenter, never a local pin.
+  // The recording follows the TRUE presenter, never a local pin. (The scene
+  // feed itself lives further down, after the speaking detector it reads.)
   const sharerPeer = useMemo(() => {
     const sharers = peers.filter(p => p.sharing)
     if (!sharers.length) return null
     return sharers.sort((a, b) => (b.sharedAt || 0) - (a.sharedAt || 0))[0]
   }, [peers])
-  useEffect(() => {
-    const rec = recRef.current
-    if (!rec || recState !== 'on') return
-    const featured = sharerPeer?.stream
-      ? { stream: sharerPeer.stream, label: `${sharerPeer.name} is presenting` }
-      : (sharing && screenStream)
-        ? { stream: screenStream, label: `${self?.name || 'Professor'} is presenting` }
-        : null
-    rec.recorder.setScene({
-      featured,
-      tiles: [
-        { key: 'self', stream: localStream, name: self?.name || 'You', camOn: camOn && !sharing },
-        ...peers.map(p => ({ key: p.peerId, stream: p.stream, name: p.name, camOn: p.camOn !== false && !p.sharing })),
-      ],
-      audioStreams: [localStream, ...peers.map(p => p.stream)].filter(Boolean),
-    })
-    trRef.current?.setAudioStreams([localStream, ...peers.map(p => p.stream)].filter(Boolean))
-  }, [recState, peers, localStream, screenStream, sharing, camOn, sharerPeer, self])
 
   // Never leak a recorder: finalize on unmount (logout, hard close).
   useEffect(() => () => { stopRecording(true) }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -663,9 +644,13 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     setFloats(f => [...f.slice(-11), { key, e: emoji, name, left, top, dx, rot }])
     setTimeout(() => setFloats(f => f.filter(x => x.key !== key)), 2600)
   }
+  // Own last reaction, kept as state so the recorder scene sees it too (a
+  // peer's reaction rides their participant doc; ours never comes back).
+  const [selfReact, setSelfReact] = useState(null)
   function react(emoji) {
     sendReaction(emoji)
     spawnFloat('self', emoji, 'You')
+    setSelfReact({ e: emoji, at: Date.now() })
   }
 
   // ── In-room event snackbars (join / leave / hand) ────────────────────────
@@ -788,6 +773,40 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     }
   }, [ready])
   const speaking = useMemo(() => new Set(speakSig ? speakSig.split(',') : []), [speakSig])
+
+  // Feed the recorder the current scene and audio mix whenever the room
+  // changes: the true presenter plus every tile's photo, mic, hand, reaction,
+  // and speaking state - the recording shows the class the way the room did.
+  useEffect(() => {
+    const rec = recRef.current
+    if (!rec || recState !== 'on') return
+    const featured = sharerPeer?.stream
+      ? { stream: sharerPeer.stream, label: `${sharerPeer.name} is presenting` }
+      : (sharing && screenStream)
+        ? { stream: screenStream, label: `${self?.name || 'Professor'} is presenting` }
+        : null
+    rec.recorder.setScene({
+      featured,
+      tiles: [
+        {
+          // localStream keeps the camera while presenting (the share rides its
+          // own stream), so the professor's face stays in the rail mid-share.
+          key: 'self', stream: localStream, name: self?.name || 'You', camOn,
+          photo: photoFor(self), micOn, hand: myHand, react: selfReact,
+          speaking: speaking.has('self'),
+        },
+        ...peers.map(p => ({
+          // A presenting peer's one video slot IS the share - avatar them.
+          key: p.peerId, stream: p.stream, name: p.name,
+          camOn: p.camOn !== false && !p.sharing,
+          photo: photoFor(p), micOn: p.micOn !== false, hand: !!p.hand,
+          react: p.react || null, speaking: speaking.has(p.peerId),
+        })),
+      ],
+      audioStreams: [localStream, ...peers.map(p => p.stream)].filter(Boolean),
+    })
+    trRef.current?.setAudioStreams([localStream, ...peers.map(p => p.stream)].filter(Boolean))
+  }, [recState, peers, localStream, screenStream, sharing, camOn, micOn, myHand, selfReact, speaking, sharerPeer, self, photoFor])
 
   // Who-was-speaking timeline for the transcript (only while recording): an
   // event is appended only when the speaking set CHANGES, so a whole class

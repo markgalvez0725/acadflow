@@ -1,8 +1,10 @@
 // ── 720p meeting recorder (professor's device) ──────────────────────────────
-// Composites the in-app class onto a hidden 1280x720 canvas - the presenter's
-// screen fills the frame when someone is sharing, otherwise a tile grid with
-// initials for cameras that are off - and mixes EVERYONE's audio (remote
-// streams + the professor's own mic) into one track with the Web Audio API.
+// Composites the in-app class onto a hidden 1280x720 canvas the way the room
+// LOOKED: a share plays big with a live people rail beside it (never a share
+// alone), cameras render whole, cam-off tiles show the real profile photo
+// (initials only when there is none), and the live overlays ride along -
+// speaking ring, mute badge, raised hands, floating reactions. Audio mixes
+// EVERYONE (remote streams + the professor's own mic) with the Web Audio API.
 // Each MediaRecorder timeslice chunk is handed to the caller, which streams
 // it into Google Drive (googleDrive.startResumableUpload). 720p hard cap.
 //
@@ -67,7 +69,38 @@ function drawLabel(ctx, text, x, y) {
   ctx.fillText(text, x + 7, y)
 }
 
-function drawAvatar(ctx, name, cx, cy, r) {
+// Profile photos: cached loaders, drawn ONLY after loading cleanly with
+// crossOrigin='anonymous' - one tainted pixel kills canvas.captureStream,
+// which is the whole recording (same rule as utils/meetingPip.js).
+const imgCache = new Map() // url -> { img, ok }
+function photoImg(url) {
+  if (!url) return null
+  let rec = imgCache.get(url)
+  if (!rec) {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    rec = { img, ok: false }
+    img.onload = () => { rec.ok = true }
+    img.src = url
+    imgCache.set(url, rec)
+  }
+  return rec.ok && rec.img.naturalWidth ? rec.img : null
+}
+
+function drawAvatar(ctx, name, photo, cx, cy, r) {
+  const img = photoImg(photo)
+  if (img) {
+    ctx.save()
+    ctx.beginPath()
+    ctx.arc(cx, cy, r, 0, Math.PI * 2)
+    ctx.clip()
+    const s = Math.max((r * 2) / img.naturalWidth, (r * 2) / img.naturalHeight)
+    const dw = img.naturalWidth * s
+    const dh = img.naturalHeight * s
+    ctx.drawImage(img, cx - dw / 2, cy - dh / 2, dw, dh)
+    ctx.restore()
+    return
+  }
   ctx.fillStyle = '#5046e4'
   ctx.beginPath()
   ctx.arc(cx, cy, r, 0, Math.PI * 2)
@@ -77,6 +110,57 @@ function drawAvatar(ctx, name, cx, cy, r) {
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText(initials(name), cx, cy)
+  ctx.textAlign = 'start'
+  ctx.textBaseline = 'alphabetic'
+}
+
+function drawMicOff(ctx, cx, cy, r) {
+  ctx.fillStyle = 'rgba(32,33,36,0.85)'
+  ctx.beginPath()
+  ctx.arc(cx, cy, r, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.font = `${Math.round(r * 1.2)}px sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText('🔇', cx, cy + 1)
+  ctx.textAlign = 'start'
+  ctx.textBaseline = 'alphabetic'
+}
+
+function drawHandBadge(ctx, x, y, s) {
+  ctx.fillStyle = '#fbbc04'
+  if (ctx.roundRect) {
+    ctx.beginPath()
+    ctx.roundRect(x, y, s, s, Math.round(s * 0.28))
+    ctx.fill()
+  } else {
+    ctx.fillRect(x, y, s, s)
+  }
+  ctx.font = `${Math.round(s * 0.68)}px sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText('✋', x + s / 2, y + s / 2 + 1)
+  ctx.textAlign = 'start'
+  ctx.textBaseline = 'alphabetic'
+}
+
+// A reaction rises and fades on its sender's tile, mirroring the room's
+// floating emoji (same 2.6s life).
+const REACT_MS = 2600
+function drawReaction(ctx, t, x, y, tw, th) {
+  const at = t.react && t.react.at
+  if (!at) return
+  const age = Date.now() - at
+  if (age < 0 || age > REACT_MS) return
+  const p = age / REACT_MS
+  const size = Math.max(22, Math.round(Math.min(tw, th) * 0.26))
+  ctx.font = `${size}px sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.globalAlpha = p < 0.7 ? 1 : Math.max(0, 1 - (p - 0.7) / 0.3)
+  const ry = y + th - size * 0.8 - (th - size * 1.6) * p
+  ctx.fillText(String(t.react.e || ''), x + tw / 2, ry)
+  ctx.globalAlpha = 1
   ctx.textAlign = 'start'
   ctx.textBaseline = 'alphabetic'
 }
@@ -181,7 +265,7 @@ export function createMeetingRecorder({ onChunk, onError }) {
   }
 
   // scene: { featured: {stream, label} | null,
-  //          tiles: [{ key, stream, name, camOn }],
+  //          tiles: [{ key, stream, name, camOn, photo, micOn, hand, react, speaking }],
   //          audioStreams: [MediaStream] }
   function setScene(next) {
     scene = next || { featured: null, tiles: [], audioStreams: [] }
@@ -194,40 +278,97 @@ export function createMeetingRecorder({ onChunk, onError }) {
     }
   }
 
+  // One tile, shared by the grid and the presenter rail: the video (contain)
+  // or photo/initials avatar, then the live overlays - speaking ring, name,
+  // mute badge, raised hand, floating reaction.
+  function drawTile(t, x, y, tw, th) {
+    ctx.fillStyle = '#3c4043'
+    ctx.fillRect(x, y, tw, th)
+    let drew = false
+    if (t.stream && t.camOn !== false) {
+      // Every feed is recorded WHOLE (contain), matching the live tiles -
+      // portrait phones and odd-shaped webcams letterbox, never crop.
+      drew = drawContain(ctx, videoFor(t.key, t.stream), x, y, tw, th)
+    }
+    if (!drew) drawAvatar(ctx, t.name, t.photo, x + tw / 2, y + th / 2, Math.min(tw, th) * 0.22)
+    if (t.speaking) {
+      ctx.strokeStyle = '#7c72f8'
+      ctx.lineWidth = 3
+      ctx.strokeRect(x + 1.5, y + 1.5, tw - 3, th - 3)
+    }
+    drawLabel(ctx, t.name || '', x + 8, y + th - 10)
+    const bs = Math.max(18, Math.round(Math.min(tw, th) * 0.13))
+    if (t.micOn === false) drawMicOff(ctx, x + tw - bs / 2 - 8, y + bs / 2 + 8, bs / 2)
+    if (t.hand) drawHandBadge(ctx, x + 8, y + 8, bs)
+    drawReaction(ctx, t, x, y, tw, th)
+  }
+
+  const RAIL_W = 288  // 16:9 rail tiles beside the share
+  const RAIL_MAX = 4
+
   function draw() {
     ctx.fillStyle = '#202124'
     ctx.fillRect(0, 0, W, H)
     const { featured, tiles } = scene
+    const list = tiles || []
     if (featured && featured.stream) {
+      // Presenter layout: the share plays big on the left while a people rail
+      // keeps the class visible - whoever is speaking bubbles into the rail,
+      // and overflow collapses to a +K tile (the share NEVER erases people).
+      const hasRail = list.length > 0
+      const shareX = hasRail ? GAP : 0
+      const shareY = hasRail ? GAP : 0
+      const shareW = hasRail ? W - RAIL_W - GAP * 3 : W
+      const shareH = hasRail ? H - GAP * 2 : H
       ctx.fillStyle = '#000'
-      ctx.fillRect(0, 0, W, H)
+      ctx.fillRect(shareX, shareY, shareW, shareH)
       const el = videoFor('featured', featured.stream)
-      drawContain(ctx, el, 0, 0, W, H)
-      if (featured.label) drawLabel(ctx, featured.label, 14, H - 16)
+      drawContain(ctx, el, shareX, shareY, shareW, shareH)
+      if (featured.label) drawLabel(ctx, featured.label, shareX + 14, shareY + shareH - 16)
+      if (!hasRail) return
+      const cap = list.length > RAIL_MAX ? RAIL_MAX - 1 : RAIL_MAX
+      const rail = []
+      for (const t of list) if (t.speaking && rail.length < cap) rail.push(t)
+      for (const t of list) if (rail.length < cap && !rail.includes(t)) rail.push(t)
+      const more = list.length - rail.length
+      const slots = rail.length + (more > 0 ? 1 : 0)
+      const rth = Math.round(RAIL_W * 9 / 16)
+      const totalH = slots * rth + (slots - 1) * GAP
+      const rx = W - RAIL_W - GAP
+      let ry = Math.max(GAP, (H - totalH) / 2)
+      for (const t of rail) {
+        drawTile(t, rx, ry, RAIL_W, rth)
+        ry += rth + GAP
+      }
+      if (more > 0) {
+        ctx.fillStyle = '#3c4043'
+        ctx.fillRect(rx, ry, RAIL_W, rth)
+        ctx.fillStyle = '#ffffff'
+        ctx.font = '700 30px sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(`+${more}`, rx + RAIL_W / 2, ry + rth / 2 - 8)
+        ctx.font = '400 13px sans-serif'
+        ctx.fillStyle = '#9aa0a6'
+        ctx.fillText('others in class', rx + RAIL_W / 2, ry + rth / 2 + 18)
+        ctx.textAlign = 'start'
+        ctx.textBaseline = 'alphabetic'
+      }
       return
     }
-    const list = (tiles || []).slice(0, 9) // 9 tiles max on the recording
-    if (!list.length) return
-    const { cols, tw, th } = gridFor(list.length)
-    const rows = Math.ceil(list.length / cols)
+    const grid = list.slice(0, 9) // 9 tiles max on the recording
+    if (!grid.length) return
+    const { cols, tw, th } = gridFor(grid.length)
+    const rows = Math.ceil(grid.length / cols)
     const totalH = rows * th + (rows - 1) * GAP
     const y0 = (H - totalH) / 2
-    list.forEach((t, i) => {
+    grid.forEach((t, i) => {
       const row = Math.floor(i / cols)
-      const inRow = Math.min(cols, list.length - row * cols)
+      const inRow = Math.min(cols, grid.length - row * cols)
       const rowW = inRow * tw + (inRow - 1) * GAP
       const x = (W - rowW) / 2 + (i % cols) * (tw + GAP)
       const y = y0 + row * (th + GAP)
-      ctx.fillStyle = '#3c4043'
-      ctx.fillRect(x, y, tw, th)
-      let drew = false
-      if (t.stream && t.camOn !== false) {
-        // Every feed is recorded WHOLE (contain), matching the live tiles -
-        // portrait phones and odd-shaped webcams letterbox, never crop.
-        drew = drawContain(ctx, videoFor(t.key, t.stream), x, y, tw, th)
-      }
-      if (!drew) drawAvatar(ctx, t.name, x + tw / 2, y + th / 2, Math.min(tw, th) * 0.22)
-      drawLabel(ctx, t.name || '', x + 8, y + th - 10)
+      drawTile(t, x, y, tw, th)
     })
   }
 
