@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect, lazy, Suspense } from 'react'
+import React, { useState, useMemo, useEffect, Suspense } from 'react'
+import { lazyRetry } from '@/utils/lazyRetry'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { useRedirectHighlight } from '@/navigation/useRedirectHighlight'
@@ -14,7 +15,7 @@ import { buildClassReportCards } from '@/export/reportCard'
 import { courseOptions, courseShort } from '@/constants/courses'
 import { firstDuplicateCI, isSafeMapKey, normSectionKey } from '@/utils/validators'
 
-const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
+const ExportPreviewModal = lazyRetry(() => import('@/components/admin/modals/ExportPreviewModal'))
 
 const PER_PAGE = 12
 

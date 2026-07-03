@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, lazy, Suspense } from 'react'
+import React, { useState, useEffect, useRef, Suspense } from 'react'
+import { lazyRetry } from '@/utils/lazyRetry'
 import { Eye, EyeOff, BarChart2, CalendarCheck, Rss, MessageSquare, KeyRound, Check, ShieldCheck, GraduationCap, IdCard, Lock, HelpCircle, Fingerprint, ScanFace } from 'lucide-react'
 import FaceResetModal from '@/components/student/modals/FaceResetModal'
 import AcadFlowLogo from '@/components/primitives/AcadFlowLogo'
@@ -13,7 +14,7 @@ import { validateSnum, sanitizeSnum } from '@/utils/validate'
 import Button from '@/components/ds/Button'
 import ThemeToggle from '@/components/primitives/ThemeToggle'
 
-const FaqModal = lazy(() => import('@/components/auth/FaqModal'))
+const FaqModal = lazyRetry(() => import('@/components/auth/FaqModal'))
 
 const STUDENT_FEATURES = [
   { Icon: BarChart2,     label: 'Grades' },

@@ -1,4 +1,5 @@
-import React, { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import React, { Suspense, useEffect, useRef, useState } from 'react'
+import { lazyRetry } from '@/utils/lazyRetry'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { checkDriveVideoProcessed } from '@/utils/googleDrive'
@@ -8,8 +9,8 @@ import { checkDriveVideoProcessed } from '@/utils/googleDrive'
 // class keeps the call alive - the tabs only set meetingRoomId via
 // useUI().openMeetingRoom(id). Minimizing swaps the full room for the floating
 // mini player without unmounting the engine.
-const MeetingRoom = lazy(() => import('@/components/meeting/MeetingRoom'))
-const ClassAttendanceModal = lazy(() => import('@/components/meeting/ClassAttendanceModal'))
+const MeetingRoom = lazyRetry(() => import('@/components/meeting/MeetingRoom'))
+const ClassAttendanceModal = lazyRetry(() => import('@/components/meeting/ClassAttendanceModal'))
 
 // If Drive can be queried but a recording has sat in 'processing' this long,
 // fail open to 'ready' - the file page works even while the preview finishes.

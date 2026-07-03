@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, lazy, Suspense } from 'react'
+import React, { useState, useEffect, useRef, Suspense } from 'react'
+import { lazyRetry } from '@/utils/lazyRetry'
 import { useUI } from '@/context/UIContext'
 import { useData } from '@/context/DataContext'
 import { useAuth } from '@/context/AuthContext'
@@ -36,27 +37,27 @@ const MORE_NAV = [
 ]
 
 // Lazy-load tabs
-const DashboardTab    = lazy(() => import('./tabs/DashboardTab'))
-const ClassesTab      = lazy(() => import('./tabs/ClassesTab'))
-const StudentsTab     = lazy(() => import('./tabs/StudentsTab'))
-const GradesTab       = lazy(() => import('./tabs/GradesTab'))
-const AttendanceTab   = lazy(() => import('./tabs/AttendanceTab'))
-const ActivitiesTab   = lazy(() => import('./tabs/ActivitiesTab'))
-const CaseStudiesTab  = lazy(() => import('./tabs/CaseStudiesTab'))
-const NotificationsTab  = lazy(() => import('./tabs/NotificationsTab'))
-const QuizTab           = lazy(() => import('./tabs/QuizTab'))
-const StreamTab         = lazy(() => import('./tabs/StreamTab'))
-const CalendarTab       = lazy(() => import('./tabs/CalendarTab'))
-const OnlineClassesTab  = lazy(() => import('./tabs/OnlineClassesTab'))
-const MessagesTab       = lazy(() => import('./tabs/MessagesTab'))
-const AuditLogTab       = lazy(() => import('./tabs/AuditLogTab'))
-const FeedbackHubTab    = lazy(() => import('./tabs/FeedbackHubTab'))
-const GradeIntegrityTab = lazy(() => import('./tabs/GradeIntegrityTab'))
+const DashboardTab    = lazyRetry(() => import('./tabs/DashboardTab'))
+const ClassesTab      = lazyRetry(() => import('./tabs/ClassesTab'))
+const StudentsTab     = lazyRetry(() => import('./tabs/StudentsTab'))
+const GradesTab       = lazyRetry(() => import('./tabs/GradesTab'))
+const AttendanceTab   = lazyRetry(() => import('./tabs/AttendanceTab'))
+const ActivitiesTab   = lazyRetry(() => import('./tabs/ActivitiesTab'))
+const CaseStudiesTab  = lazyRetry(() => import('./tabs/CaseStudiesTab'))
+const NotificationsTab  = lazyRetry(() => import('./tabs/NotificationsTab'))
+const QuizTab           = lazyRetry(() => import('./tabs/QuizTab'))
+const StreamTab         = lazyRetry(() => import('./tabs/StreamTab'))
+const CalendarTab       = lazyRetry(() => import('./tabs/CalendarTab'))
+const OnlineClassesTab  = lazyRetry(() => import('./tabs/OnlineClassesTab'))
+const MessagesTab       = lazyRetry(() => import('./tabs/MessagesTab'))
+const AuditLogTab       = lazyRetry(() => import('./tabs/AuditLogTab'))
+const FeedbackHubTab    = lazyRetry(() => import('./tabs/FeedbackHubTab'))
+const GradeIntegrityTab = lazyRetry(() => import('./tabs/GradeIntegrityTab'))
 
 // Modals (lazy)
-const AdminSettingsModal     = lazy(() => import('./modals/AdminSettingsModal'))
-const StudentProfileModal    = lazy(() => import('./modals/StudentProfileModal'))
-const StudentGradeEditModal  = lazy(() => import('./modals/StudentGradeEditModal'))
+const AdminSettingsModal     = lazyRetry(() => import('./modals/AdminSettingsModal'))
+const StudentProfileModal    = lazyRetry(() => import('./modals/StudentProfileModal'))
+const StudentGradeEditModal  = lazyRetry(() => import('./modals/StudentGradeEditModal'))
 
 const TAB_TITLES = {
   stream:        ['Stream',         'Class activity feed - announcements, grades, activities, quizzes, and attendance'],

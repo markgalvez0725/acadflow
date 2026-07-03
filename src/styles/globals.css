@@ -7851,6 +7851,20 @@ html[data-glass="on"][data-theme="dark"] body::before {
   .mr-pre-bar.on { background: #8ab4f8; }
   .mr-pre-meter-say { font-size: 11.5px; color: #9aa0a6; margin-left: 5px; }
   .mr-pre-meter-say.ok { color: #8ab4f8; }
+  /* Pre-join connection readiness row (good / weak / offline) */
+  .mr-pre-net {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #9aa0a6;
+    margin-bottom: 10px;
+    min-height: 18px;
+  }
+  .mr-pre-net svg { flex: none; margin-top: 2px; }
+  .mr-pre-net.warn { color: #fdd663; }
+  .mr-pre-net.bad { color: #f28b82; }
   .mr-pre-who {
     display: flex;
     align-items: center;

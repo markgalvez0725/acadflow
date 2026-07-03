@@ -3,14 +3,17 @@ import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import LoadingScreen from '@/components/primitives/LoadingScreen'
+import ErrorState from '@/components/ds/ErrorState'
+import { lazyRetry } from '@/utils/lazyRetry'
 
-// Screens - imported lazily to keep initial bundle small
-const LoginScreen      = React.lazy(() => import('@/components/auth/LoginScreen'))
-const AdminLoginScreen = React.lazy(() => import('@/components/auth/AdminLoginScreen'))
-const AdminLayout      = React.lazy(() => import('@/components/admin/AdminLayout'))
-const StudentLayout    = React.lazy(() => import('@/components/student/StudentLayout'))
-const CommandPalette   = React.lazy(() => import('@/components/primitives/CommandPalette'))
-const QuickUnlock      = React.lazy(() => import('@/components/auth/QuickUnlock'))
+// Screens - imported lazily to keep initial bundle small (lazyRetry survives
+// dropped chunk fetches on flaky mobile data instead of hard-failing)
+const LoginScreen      = lazyRetry(() => import('@/components/auth/LoginScreen'))
+const AdminLoginScreen = lazyRetry(() => import('@/components/auth/AdminLoginScreen'))
+const AdminLayout      = lazyRetry(() => import('@/components/admin/AdminLayout'))
+const StudentLayout    = lazyRetry(() => import('@/components/student/StudentLayout'))
+const CommandPalette   = lazyRetry(() => import('@/components/primitives/CommandPalette'))
+const QuickUnlock      = lazyRetry(() => import('@/components/auth/QuickUnlock'))
 
 // Fades out and removes the instant boot splash baked into index.html. It is
 // rendered INSIDE the Suspense boundary alongside the real screen, so its effect
@@ -54,13 +57,40 @@ export default function AppRouter() {
     }
   }, [fbReady])
 
+  // Safety net for slow or dead connections: the boot splash (index.html) is
+  // auto-removed after 10s by boot-fallback.js, and without this the user was
+  // left staring at a permanently blank page whenever Firebase never became
+  // ready. After 12s of waiting we surface an honest "still trying" screen
+  // with a reload action instead.
+  const [bootStalled, setBootStalled] = useState(false)
+  useEffect(() => {
+    if (fbReady) { setBootStalled(false); return }
+    const t = setTimeout(() => setBootStalled(true), 12000)
+    return () => clearTimeout(t)
+  }, [fbReady])
+
   // While Firebase boots we render nothing here: the instant #boot-splash overlay
   // (index.html, outside #root) is already covering the screen and keeps animating
   // continuously. The old code swapped in a React <LoadingScreen> at this point,
   // which remounted an identical splash and made its animation visibly restart
   // ("double firing"). BootSplashHider below removes the overlay once the first
   // real screen commits.
-  if (!fbReady) return null
+  if (!fbReady) {
+    if (!bootStalled) return null
+    return (
+      <div style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', padding: 24 }}>
+        <BootSplashHider />
+        <ErrorState
+          title="Taking longer than usual"
+          text={navigator.onLine === false
+            ? 'You are offline. AcadFlow will start as soon as you are back on the internet.'
+            : 'Your connection may be slow. Hang on, we are still trying - or reload to start over.'}
+          onRetry={() => window.location.reload()}
+          retryLabel="Reload"
+        />
+      </div>
+    )
+  }
 
   return (
     <React.Suspense fallback={<LoadingScreen />}>

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
+import { lazyRetry } from '@/utils/lazyRetry'
 import { Eye, EyeOff, ShieldCheck, BookOpen, Users, CalendarCheck, BarChart2, Mail, Lock, HelpCircle } from 'lucide-react'
 import AcadFlowLogo from '@/components/primitives/AcadFlowLogo'
 import { useTypingEffect } from '@/hooks/useTypingEffect'
@@ -22,8 +23,8 @@ const ADMIN_PHRASES = [
   ['Empower your', '\nstudents, today.'],
 ]
 
-const ResetPinModal = lazy(() => import('@/components/auth/ResetPinModal'))
-const FaqModal = lazy(() => import('@/components/auth/FaqModal'))
+const ResetPinModal = lazyRetry(() => import('@/components/auth/ResetPinModal'))
+const FaqModal = lazyRetry(() => import('@/components/auth/FaqModal'))
 
 export default function AdminLoginScreen() {
   const { loginAdmin } = useAuth()

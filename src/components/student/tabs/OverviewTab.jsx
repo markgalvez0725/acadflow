@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useRef, useEffect, lazy, Suspense } from 'react'
+import React, { useState, useMemo, useRef, useEffect, Suspense } from 'react'
+import { lazyRetry } from '@/utils/lazyRetry'
 import { getGWA, getAttRate, computeFinalGradeFromTerms } from '@/utils/grades'
 import { computeSubjectGrade } from '@/utils/gradeEngine'
 import { computeSemesterWrapped } from '@/utils/semesterWrapped'
@@ -27,7 +28,7 @@ import { resolveMentions } from '@/utils/mentions'
 import { notifyMention } from '@/firebase/messageNotify'
 import DOMPurify from 'dompurify'
 
-const SemesterWrapped = lazy(() => import('@/components/student/modals/SemesterWrapped'))
+const SemesterWrapped = lazyRetry(() => import('@/components/student/modals/SemesterWrapped'))
 
 // Defense-in-depth: announcement HTML is sanitized on save, but sanitize again
 // at render in case a record was written directly to the database.

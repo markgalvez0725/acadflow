@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, lazy, Suspense } from 'react'
+import React, { useState, useEffect, useRef, Suspense } from 'react'
+import { lazyRetry } from '@/utils/lazyRetry'
 import { onSnapshot, doc } from 'firebase/firestore'
 import { useUI } from '@/context/UIContext'
 import { useData } from '@/context/DataContext'
@@ -54,27 +55,27 @@ function VerificationGate({ onVerify, onContact }) {
 }
 
 // Lazy-load tabs
-const StreamTab        = lazy(() => import('./tabs/StreamTab'))
-const OverviewTab      = lazy(() => import('./tabs/OverviewTab'))
-const GradesTab        = lazy(() => import('./tabs/GradesTab'))
-const AttendanceTab    = lazy(() => import('./tabs/AttendanceTab'))
-const ActivitiesTab    = lazy(() => import('./tabs/ActivitiesTab'))
-const AssignmentsTab   = lazy(() => import('./tabs/AssignmentsTab'))
-const NotificationsTab = lazy(() => import('./tabs/NotificationsTab'))
-const StudentQuizTab   = lazy(() => import('./tabs/QuizTab'))
-const CalendarTab      = lazy(() => import('./tabs/CalendarTab'))
-const OnlineClassesTab = lazy(() => import('./tabs/OnlineClassesTab'))
-const EnrollmentTab    = lazy(() => import('./tabs/EnrollmentTab'))
-const MessagesTab      = lazy(() => import('./tabs/MessagesTab'))
-const FeedbackTab      = lazy(() => import('./tabs/FeedbackTab'))
+const StreamTab        = lazyRetry(() => import('./tabs/StreamTab'))
+const OverviewTab      = lazyRetry(() => import('./tabs/OverviewTab'))
+const GradesTab        = lazyRetry(() => import('./tabs/GradesTab'))
+const AttendanceTab    = lazyRetry(() => import('./tabs/AttendanceTab'))
+const ActivitiesTab    = lazyRetry(() => import('./tabs/ActivitiesTab'))
+const AssignmentsTab   = lazyRetry(() => import('./tabs/AssignmentsTab'))
+const NotificationsTab = lazyRetry(() => import('./tabs/NotificationsTab'))
+const StudentQuizTab   = lazyRetry(() => import('./tabs/QuizTab'))
+const CalendarTab      = lazyRetry(() => import('./tabs/CalendarTab'))
+const OnlineClassesTab = lazyRetry(() => import('./tabs/OnlineClassesTab'))
+const EnrollmentTab    = lazyRetry(() => import('./tabs/EnrollmentTab'))
+const MessagesTab      = lazyRetry(() => import('./tabs/MessagesTab'))
+const FeedbackTab      = lazyRetry(() => import('./tabs/FeedbackTab'))
 
 // Lazy-load modals
-const EditProfileModal         = lazy(() => import('./modals/EditProfileModal'))
-const StudentActionSheet       = lazy(() => import('./modals/StudentActionSheet'))
-const FaceEnrollModal          = lazy(() => import('./modals/FaceEnrollModal'))
-const NotifyPrompt             = lazy(() => import('./NotifyPrompt'))
-const OnboardingTour           = lazy(() => import('./OnboardingTour'))
-const SubjectPassedModal       = lazy(() => import('./modals/SubjectPassedModal'))
+const EditProfileModal         = lazyRetry(() => import('./modals/EditProfileModal'))
+const StudentActionSheet       = lazyRetry(() => import('./modals/StudentActionSheet'))
+const FaceEnrollModal          = lazyRetry(() => import('./modals/FaceEnrollModal'))
+const NotifyPrompt             = lazyRetry(() => import('./NotifyPrompt'))
+const OnboardingTour           = lazyRetry(() => import('./OnboardingTour'))
+const SubjectPassedModal       = lazyRetry(() => import('./modals/SubjectPassedModal'))
 
 const TAB_TITLES = {
   overview:      ['Home',           'Your academic overview'],

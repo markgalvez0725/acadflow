@@ -12,6 +12,20 @@ import { registerServiceWorker } from './pwa/registerSW'
 // and fight the theme styling.
 try { localStorage.removeItem('acadflow_glass') } catch (e) {}
 
+// A lazy chunk's module preload failed - either the connection dropped mid
+// fetch, or a fresh deploy replaced the hashed files this page was built
+// against. If we're online and haven't already tried, one reload fetches the
+// new index + chunks. Offline (or on a second failure) we let lazyRetry's
+// in-place recovery screen handle it instead of reload-looping.
+window.addEventListener('vite:preloadError', (event) => {
+  let alreadyReloaded = false
+  try { alreadyReloaded = sessionStorage.getItem('af_chunk_reloaded') === '1' } catch (e) {}
+  if (alreadyReloaded || navigator.onLine === false) return
+  try { sessionStorage.setItem('af_chunk_reloaded', '1') } catch (e) {}
+  event.preventDefault()
+  window.location.reload()
+})
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>

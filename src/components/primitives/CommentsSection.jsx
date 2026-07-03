@@ -138,6 +138,9 @@ export default function CommentsSection({ ann, authorId, authorName, role, compa
       fireMentions(comment.text)
       notifyFollowers(comment.text)
       setText('')
+    } catch {
+      // The write failed (weak signal, timeout) - the text stays in the box.
+      toast('Could not post your comment - check your connection and try again. Your text is kept.', 'error')
     } finally {
       setPosting(false)
     }
@@ -154,6 +157,8 @@ export default function CommentsSection({ ann, authorId, authorName, role, compa
       notifyFollowers(reply.text)
       setReplyText('')
       setReplyTo(null)
+    } catch {
+      toast('Could not post your reply - check your connection and try again. Your text is kept.', 'error')
     } finally {
       setReplyPosting(false)
     }
@@ -178,6 +183,8 @@ export default function CommentsSection({ ann, authorId, authorName, role, compa
       if (editing.replyId) await editCommentReply(ann.id, editing.commentId, editing.replyId, text)
       else await editAnnouncementComment(ann.id, editing.commentId, text)
       cancelEdit()
+    } catch {
+      toast('Could not save the edit - check your connection and try again.', 'error')
     } finally {
       setEditSaving(false)
     }
@@ -185,13 +192,13 @@ export default function CommentsSection({ ann, authorId, authorName, role, compa
   function commentMenu(c) {
     return [
       canEdit(c) && { label: 'Edit', onClick: () => startEdit(c.id, null, c.text) },
-      canDelete(c) && { label: 'Delete', danger: true, onClick: () => deleteAnnouncementComment(ann.id, c.id) },
+      canDelete(c) && { label: 'Delete', danger: true, onClick: () => Promise.resolve(deleteAnnouncementComment(ann.id, c.id)).catch(() => toast('Could not delete - check your connection and try again.', 'error')) },
     ]
   }
   function replyMenu(c, r) {
     return [
       canEdit(r) && { label: 'Edit', onClick: () => startEdit(c.id, r.id, r.text) },
-      canDelete(r) && { label: 'Delete', danger: true, onClick: () => deleteCommentReply(ann.id, c.id, r.id) },
+      canDelete(r) && { label: 'Delete', danger: true, onClick: () => Promise.resolve(deleteCommentReply(ann.id, c.id, r.id)).catch(() => toast('Could not delete - check your connection and try again.', 'error')) },
     ]
   }
 

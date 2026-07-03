@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useRef, useEffect, lazy, Suspense } from 'react'
+import React, { useState, useMemo, useRef, useEffect, Suspense } from 'react'
+import { lazyRetry } from '@/utils/lazyRetry'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { useRedirectHighlight } from '@/navigation/useRedirectHighlight'
@@ -19,7 +20,7 @@ import PageHeader from '@/components/ds/PageHeader'
 import { Download, Upload, AlertTriangle, Shuffle, RefreshCw, CalendarDays, Check, Clock, ClipboardList, X, ClipboardCheck, Archive, ArchiveRestore, UserCheck, UserX, Radio, Copy, ListFilter, Radar, TrendingDown, Star } from 'lucide-react'
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 
-const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
+const ExportPreviewModal = lazyRetry(() => import('@/components/admin/modals/ExportPreviewModal'))
 
 const ATT_PER_PAGE = 10
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']

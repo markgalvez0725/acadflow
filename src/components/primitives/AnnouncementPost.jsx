@@ -9,6 +9,7 @@ import TextCard from '@/components/primitives/TextCard'
 import CommentsSection from '@/components/primitives/CommentsSection'
 import KebabMenu from '@/components/primitives/KebabMenu'
 import { mediaFromAnnouncement, isPreviewableLink } from '@/utils/streamMedia'
+import { useUI } from '@/context/UIContext'
 
 // Instagram-style announcement post shared by the student AND teacher Stream.
 // The card is identical; each side just passes different kebab `menuItems`, a
@@ -99,6 +100,8 @@ export default function AnnouncementPost({
   const [lightbox, setLightbox] = useState(-1)
   const [expanded, setExpanded] = useState(false)
   const composerRef = useRef(null)
+  const likeBusy = useRef(false)
+  const { toast } = useUI()
 
   const hasMedia = media.length > 0
   // Text card only when there's actual body content (message or topics); a
@@ -106,7 +109,17 @@ export default function AnnouncementPost({
   const showTextCard = !hasMedia && !!cardHtml
   const TypeIcon = typeMeta?.Icon
 
-  function onLike() { if (viewerId && onToggleLike) onToggleLike(ann.id, viewerId, !liked) }
+  // One like write at a time: a double-tap on a slow connection used to queue
+  // two toggles (net effect: nothing), and a failed write gave no feedback at
+  // all. `liked` derives from live data, so no rollback is needed - the heart
+  // simply doesn't flip until the write lands.
+  function onLike() {
+    if (!viewerId || !onToggleLike || likeBusy.current) return
+    likeBusy.current = true
+    Promise.resolve(onToggleLike(ann.id, viewerId, !liked))
+      .catch(() => toast('Could not update the like - check your connection and try again.', 'error'))
+      .finally(() => { likeBusy.current = false })
+  }
   function focusComposer() { composerRef.current?.focus() }
 
   return (

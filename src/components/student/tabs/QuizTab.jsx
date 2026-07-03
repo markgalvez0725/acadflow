@@ -242,6 +242,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
   }, [submitted, quiz.questions.length, draftKey, toast])
 
   // Auto-submit when time expires
+  const autoRetryRef = useRef(0) // bounded re-attempts when a timer auto-submit fails
   const handleSubmit = useCallback(async (isAuto = false) => {
     if (submitting || submitted) return
 
@@ -288,12 +289,26 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
         ? existing.map((q, i) => i === existingIdx ? quizEntry : q)
         : [...existing, quizEntry]
 
-      await submitQuizResult({
-        quizId: quiz.id,
-        studentId: student.id,
-        submission: { score, total, timeTaken, leftCount: leftCountRef.current, penaltyPct, pct, answers, submittedAt: Date.now() },
-        quizResults: { ...quizResults, [subject]: updatedList },
-      })
+      // The one write a student must never lose: ride out transient drops with
+      // in-place retries (weak mobile signal flaps for a few seconds far more
+      // often than it dies) before surfacing a failure.
+      let lastErr = null
+      for (let i = 0; i < 3; i++) {
+        try {
+          lastErr = null
+          await submitQuizResult({
+            quizId: quiz.id,
+            studentId: student.id,
+            submission: { score, total, timeTaken, leftCount: leftCountRef.current, penaltyPct, pct, answers, submittedAt: Date.now() },
+            quizResults: { ...quizResults, [subject]: updatedList },
+          })
+          break
+        } catch (e) {
+          lastErr = e
+          if (i < 2) await new Promise(r => setTimeout(r, 1500 * (i + 1)))
+        }
+      }
+      if (lastErr) throw lastErr
 
       try { localStorage.removeItem(draftKey) } catch (e) { /* ignore */ }
       exitFullscreen() // leave focus mode; show the result card normally
@@ -302,7 +317,15 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
       toast(isAuto ? `Time's up! Score: ${score}/${total}` : `Submitted! Score: ${score}/${total}`, 'success')
       onSubmitted({ score, total, pct })
     } catch (e) {
-      toast('Submission failed: ' + e.message, 'error')
+      if (isAuto && autoRetryRef.current < 3) {
+        // Time-expired submits get no second click from the student, so they
+        // retry themselves. Answers stay in the on-device draft throughout.
+        autoRetryRef.current += 1
+        toast('Submitting is taking a while - retrying automatically. Your answers are saved on this device.', 'warn')
+        setTimeout(() => { handleSubmit(true) }, 8000)
+      } else {
+        toast('Submission failed: ' + e.message + '. Your answers are saved on this device - check your connection and submit again.', 'error')
+      }
     } finally {
       setSubmitting(false)
     }

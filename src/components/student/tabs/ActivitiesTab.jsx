@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { doc, updateDoc, runTransaction } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -177,6 +177,13 @@ export default function ActivitiesTab({ student: s, activities }) {
 
   function pickFilter(next) { setFilter(next); setPage(1) }
 
+  // Survives a "Drive upload succeeded but the Firestore write timed out"
+  // split on flaky mobile data: the uploaded link (and extracted text) is
+  // remembered per activity + file, so tapping Submit again finishes the
+  // submission instantly instead of re-uploading the whole file.
+  const uploadedRef = useRef({})
+  const fileKey = f => (f ? `${f.name}|${f.size}|${f.lastModified}` : '')
+
   async function submitActivity(actId) {
     // Re-check the deadline at write time: the card may have been rendered
     // before the deadline passed. Matches the render-time gating and copy.
@@ -196,7 +203,14 @@ export default function ActivitiesTab({ student: s, activities }) {
     try {
       let link = typedLink
       let contentText = null, contentMeta = null
-      if (file) {
+      const done = uploadedRef.current[actId]
+      if (file && done && done.key === fileKey(file)) {
+        // This exact file already made it to Drive on a previous attempt that
+        // failed at the Firestore step - reuse the link, skip the re-upload.
+        link = done.link
+        contentText = done.contentText
+        contentMeta = done.contentMeta
+      } else if (file) {
         // Step 1: read the file's text ON DEVICE (OCR/PDF/DOCX/text) so the
         //    professor's Smart grader can score it later without anyone pasting.
         //    Best-effort: a failure just means we submit without the extracted text.
@@ -214,6 +228,7 @@ export default function ActivitiesTab({ student: s, activities }) {
           onProgress: pct => setUploadPct(prev => ({ ...prev, [actId]: pct })),
         })
         link = res.link
+        uploadedRef.current[actId] = { key: fileKey(file), link, contentText, contentMeta }
       }
       const sidPath = `submissions.${s.id}`
       await updateDoc(doc(db.current, 'activities', actId), {
@@ -227,18 +242,25 @@ export default function ActivitiesTab({ student: s, activities }) {
         // file stays in this entry's history (written by the professor's return).
         [`${sidPath}.returned`]: null,
       })
+      delete uploadedRef.current[actId]
       setLinkInputs(prev => ({ ...prev, [actId]: '' }))
       setPendingFiles(prev => ({ ...prev, [actId]: null }))
       setEditing(prev => ({ ...prev, [actId]: false }))
+      // Best-effort: the submission itself already saved - a failed professor
+      // notification must not scare the student with a "Failed to submit".
       await pushAdminNotif(
         db.current, s,
         `Submitted: ${act?.title || actId}`,
         'act_sub',
         'act:' + actId
-      )
+      ).catch(() => {})
       toast('Submission updated!', 'success')
     } catch (e) {
-      toast('Failed to submit: ' + e.message, 'error')
+      if (uploadedRef.current[actId]) {
+        toast('Your file is uploaded but saving the submission failed. Check your connection and tap Submit again to finish - the file will not re-upload.', 'error')
+      } else {
+        toast('Failed to submit: ' + e.message, 'error')
+      }
     } finally {
       setExtractPct(prev => ({ ...prev, [actId]: null }))
       setUploadPct(prev => ({ ...prev, [actId]: null }))
@@ -288,7 +310,8 @@ export default function ActivitiesTab({ student: s, activities }) {
         })
       })
       setPendingFiles(prev => ({ ...prev, [actId]: null }))
-      await pushAdminNotif(db.current, s, `Group submitted: ${act?.title || actId} (${group.name})`, 'act_sub', 'act:' + actId)
+      // Best-effort: the group submission is already locked in at this point.
+      await pushAdminNotif(db.current, s, `Group submitted: ${act?.title || actId} (${group.name})`, 'act_sub', 'act:' + actId).catch(() => {})
       toast('Group submission locked in!', 'success')
     } catch (e) {
       if (String(e.message).startsWith('LOCKED:')) {

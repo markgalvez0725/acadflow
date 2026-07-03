@@ -268,6 +268,16 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   // lives in the More sheet (CSS decides - desktop never sees the button).
   const [moreOpen, setMoreOpen] = useState(false)
 
+  // The joining spinner must never be a dead end on weak mobile data: past
+  // 20s of 'connecting' we own up to the stall and offer Retry / Close (the
+  // engine keeps trying underneath either way).
+  const [joinSlow, setJoinSlow] = useState(false)
+  useEffect(() => {
+    if (phase !== 'connecting') { setJoinSlow(false); return }
+    const t = setTimeout(() => setJoinSlow(true), 20000)
+    return () => clearTimeout(t)
+  }, [phase])
+
   // The professor muted this device - say so, and say the way back.
   useEffect(() => {
     if (forcedMuteAt) toast('The professor muted your microphone. Unmute when you need to speak.')
@@ -1058,8 +1068,18 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
           ) : phase === 'connecting' ? (
             <div className="mr-center">
               <Loader2 size={30} className="animate-spin" />
-              <b>Joining the room…</b>
-              <span>Hang tight, your audio and video are being set up.</span>
+              <b>{joinSlow ? 'Still joining…' : 'Joining the room…'}</b>
+              <span>
+                {joinSlow
+                  ? 'This is taking longer than usual - a weak signal can slow it down. You can keep waiting, retry, or come back later.'
+                  : 'Hang tight, your audio and video are being set up.'}
+              </span>
+              {joinSlow && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-sm mr-retry-btn" onClick={retry}>Retry join</button>
+                  <button className="btn btn-sm" onClick={handleLeave}>Close</button>
+                </div>
+              )}
             </div>
           ) : phase === 'error' ? (
             <div className="mr-center">

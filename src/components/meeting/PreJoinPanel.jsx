@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { Mic, MicOff, Video, VideoOff, ChevronDown, AlertTriangle, X, Loader2 } from 'lucide-react'
+// NOTE: this lucide build has WifiOff/Activity but NOT the Wifi/WifiLow
+// variants - Activity stands in for the healthy-connection icon.
+import { Mic, MicOff, Video, VideoOff, ChevronDown, AlertTriangle, X, Loader2, Activity, WifiOff } from 'lucide-react'
 import { rtcFetchParticipants, STALE_MS } from '@/firebase/rtc'
 
 // Green room shown before entering the in-app classroom: a mirrored camera
@@ -48,8 +50,13 @@ export default function PreJoinPanel({ db, roomId, self, isAdmin, photo, label, 
   const [heard, setHeard] = useState(false)
   const [already, setAlready] = useState(null) // null while the peek loads
   const [going, setGoing] = useState(false)
+  // null = checking | 'good' | 'weak' | 'offline'
+  const [net, setNet] = useState(null)
+  const [autoOffNote, setAutoOffNote] = useState(false)
   const videoRef = useRef(null)
   const streamRef = useRef(null)
+  const camTouched = useRef(false)
+  const autoCamOff = useRef(false)
 
   // ── Preview stream (re-acquired when a picker changes) ───────────────────
   useEffect(() => {
@@ -158,6 +165,59 @@ export default function PreJoinPanel({ db, roomId, self, isAdmin, photo, label, 
     }
   }, [stream, micOn])
 
+  // ── Connection readiness check ────────────────────────────────────────────
+  // One lightweight probe (Network Information hints + a timed fetch of the
+  // tiny favicon) so students on weak mobile data know what to expect BEFORE
+  // committing to the join. Re-runs when the browser regains connectivity.
+  useEffect(() => {
+    let dead = false
+    async function probe() {
+      if (!dead) setNet(null)
+      if (navigator.onLine === false) { if (!dead) setNet('offline'); return }
+      const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection
+      let weak = !!(conn && (
+        conn.saveData ||
+        String(conn.effectiveType || '').includes('2g') ||
+        (conn.downlink && conn.downlink < 0.5) ||
+        (conn.rtt && conn.rtt > 1000)
+      ))
+      const t0 = Date.now()
+      try {
+        const ctl = new AbortController()
+        const timer = setTimeout(() => { try { ctl.abort() } catch { /* noop */ } }, 6000)
+        await fetch('/favicon-32.png?prejoin=' + t0, { cache: 'no-store', signal: ctl.signal })
+        clearTimeout(timer)
+        if (Date.now() - t0 > 1800) weak = true
+      } catch {
+        if (navigator.onLine === false) { if (!dead) setNet('offline'); return }
+        weak = true
+      }
+      if (!dead) setNet(weak ? 'weak' : 'good')
+    }
+    probe()
+    const onUp = () => probe()
+    const onDown = () => setNet('offline')
+    window.addEventListener('online', onUp)
+    window.addEventListener('offline', onDown)
+    return () => {
+      dead = true
+      window.removeEventListener('online', onUp)
+      window.removeEventListener('offline', onDown)
+    }
+  }, [])
+
+  // Weak signal: default the camera off once for a smoother, audio-first join.
+  // Never fights the user - skipped forever after they touch the cam toggle,
+  // and they can flip it right back on.
+  useEffect(() => {
+    if (net !== 'weak' || camTouched.current || autoCamOff.current) return
+    if (camOn) {
+      autoCamOff.current = true
+      setCamOn(false)
+      setAutoOffNote(true)
+    }
+  }, [net]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── One-shot peek at who is already in the room ───────────────────────────
   useEffect(() => {
     if (!db || !roomId) { setAlready([]); return }
@@ -236,7 +296,7 @@ export default function PreJoinPanel({ db, roomId, self, isAdmin, photo, label, 
               </button>
               <button
                 className={`mr-ctl${camOn && camLive ? '' : ' mr-ctl-off'}`}
-                onClick={() => setCamOn(v => !v)}
+                onClick={() => { camTouched.current = true; setAutoOffNote(false); setCamOn(v => !v) }}
                 disabled={blocked === 'all' || blocked === 'cam'}
                 aria-label={camOn ? 'Turn camera off' : 'Turn camera on'}
                 title={camOn ? 'Turn camera off' : 'Turn camera on'}
@@ -288,12 +348,23 @@ export default function PreJoinPanel({ db, roomId, self, isAdmin, photo, label, 
               </div>
             </>
           )}
+          <div className={`mr-pre-net${net === 'weak' ? ' warn' : ''}${net === 'offline' ? ' bad' : ''}`}>
+            {net === 'offline' ? <WifiOff size={14} /> : net === 'weak' ? <AlertTriangle size={14} /> : <Activity size={14} />}
+            <span>
+              {net === null ? 'Checking your connection…'
+                : net === 'good' ? 'Connection looks good'
+                : net === 'weak' ? (autoOffNote
+                    ? 'Weak connection - camera turned off for a smoother join. You can turn it back on.'
+                    : 'Weak connection - joining with the camera off is smoother.')
+                : 'No internet connection. You can join once you are back online.'}
+            </span>
+          </div>
           <div className="mr-pre-who">
             {who.slice(0, 3).map(p => <span key={p.peerId} className="mr-pre-who-ava">{initials(p.name)}</span>)}
             <span className="mr-pre-who-text">{whoText}</span>
           </div>
-          <button className="mr-pre-join" onClick={handleJoin} disabled={going}>
-            {isAdmin ? (going ? 'Starting…' : 'Start class') : (going ? 'Joining…' : 'Join now')}
+          <button className="mr-pre-join" onClick={handleJoin} disabled={going || net === 'offline'}>
+            {net === 'offline' ? 'Waiting for network…' : isAdmin ? (going ? 'Starting…' : 'Start class') : (going ? 'Joining…' : 'Join now')}
           </button>
           <div className="mr-pre-cap">
             {isAdmin

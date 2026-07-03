@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect, useRef, lazy, Suspense } from 'react'
+import React, { useState, useMemo, useEffect, useRef, Suspense } from 'react'
+import { lazyRetry } from '@/utils/lazyRetry'
 import { doc, setDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -27,7 +28,7 @@ import { activeSubjects } from '@/utils/active'
 import { splitStudentName, buildStudentName } from '@/utils/studentName'
 import { verifyImportRows } from '@/utils/importVerifySmart'
 
-const ExportPreviewModal = lazy(() => import('@/components/admin/modals/ExportPreviewModal'))
+const ExportPreviewModal = lazyRetry(() => import('@/components/admin/modals/ExportPreviewModal'))
 
 const PER_PAGE = 50
 const IMPORT_PER_PAGE = 25   // import preview paginates once a file has more rows than this
