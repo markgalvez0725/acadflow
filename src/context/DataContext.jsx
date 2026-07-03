@@ -1183,7 +1183,9 @@ export function DataProvider({ children }) {
     if (!db || !meeting?.id) return null
     const segments = await rtcFetchTranscript(db, meeting.id)
     if (!segments.length) return null
-    const device = buildRecap(segments, meeting)
+    // Study-notes engine (embedding-powered topic sections + annotations);
+    // it resolves to the keyword recap on devices without the model.
+    const device = await buildRecap(segments, meeting)
     let recap = device
     try {
       const idToken = await getIdToken()

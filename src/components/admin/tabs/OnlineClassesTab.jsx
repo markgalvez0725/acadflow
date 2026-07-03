@@ -230,7 +230,7 @@ export default function OnlineClassesTab() {
         onProgress: ({ stage, pct }) => setGenText(stage === 'model' ? `Model ${pct}% (one time)` : `Transcribing ${pct}%`),
       })
       if (!lines.length) { toast('Whisper heard no clear speech in this class audio.', 'error'); return }
-      setGenText('Saving…')
+      setGenText('Building study notes…')
       await saveClassTranscript(m, lines)
       await clearSession(m.id).catch(() => {})
       setAudioIds(prev => { const n = new Set(prev); n.delete(m.id); return n })
