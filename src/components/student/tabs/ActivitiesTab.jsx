@@ -9,6 +9,7 @@ import { ClipboardList, Check, Circle, Users, ShieldCheck, AlertTriangle, Clock,
 import { SkeletonTable } from '@/components/primitives/SkeletonLoader'
 import StandingRing from '@/components/primitives/StandingRing'
 import SubmissionFileField from '@/components/student/SubmissionFileField'
+import CaseStudySection from '@/components/student/CaseStudySection'
 import SubmissionPreview from '@/components/primitives/SubmissionPreview'
 import RichText from '@/components/primitives/RichText'
 import StudentMeta from '@/components/primitives/StudentMeta'
@@ -304,12 +305,16 @@ export default function ActivitiesTab({ student: s, activities }) {
   if (!fbReady) return <SkeletonTable />
 
   if (!items.length) {
+    // Case study projects still show even before any activity exists.
     return (
-      <EmptyState
-        Icon={ClipboardList}
-        title="No activities yet"
-        text="Check back later."
-      />
+      <div className="student-activities">
+        <CaseStudySection student={s} />
+        <EmptyState
+          Icon={ClipboardList}
+          title="No activities yet"
+          text="Check back later."
+        />
+      </div>
     )
   }
 
@@ -328,6 +333,9 @@ export default function ActivitiesTab({ student: s, activities }) {
         title="Activities"
         subtitle={`${counts.open} open${counts.missed ? ` · ${counts.missed} missed` : ''}`}
       />
+
+      {/* Case study group projects (gantt + steps + member tasks) */}
+      <CaseStudySection student={s} />
 
       {/* Standing ring + Activity Watch */}
       <div className="sact-top">

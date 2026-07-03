@@ -16,6 +16,7 @@ import {
   fbSubmitQuizResult,
   fbSetQuizProgress,
   fbSaveCaseStudy, fbDeleteCaseStudy,
+  fbSaveCaseStudyPlan, fbDeleteCaseStudyPlan, fbDeletePlanTask,
 } from '@/firebase/persistence'
 import { fbPushReminderNotif } from '@/firebase/reminders'
 import { rtcCleanupRoom, rtcFetchTranscript, rtcSaveTranscript } from '@/firebase/rtc'
@@ -89,6 +90,7 @@ export function DataProvider({ children }) {
   const [auditLog, setAuditLog]                     = useState([])
   const [rubricLibrary, setRubricLibrary]           = useState([])
   const [caseStudies, setCaseStudies]               = useState([])
+  const [caseStudyPlans, setCaseStudyPlans]         = useState([])
   const [fbReady, setFbReady]           = useState(false)
   const [fbConfig, setFbConfig]         = useState(null) // decrypted config object
   const [semester, setSemester]         = useState(null)
@@ -180,6 +182,8 @@ export function DataProvider({ children }) {
         onRubricLibraryUpdate: _isAdmin ? setRubricLibrary : undefined,
         // Case studies: professor-only grading tool - never subscribed for students.
         onCaseStudiesUpdate: _isAdmin ? setCaseStudies : undefined,
+        // The plan (project management) layer is grade-free and read by BOTH roles.
+        onCaseStudyPlansUpdate: setCaseStudyPlans,
         onConfigUpdate: ({ ejsConfig }) => {
           if (ejsConfig) {
             setEjs({ ...ejsConfig, configured: true })
@@ -271,6 +275,7 @@ export function DataProvider({ children }) {
       // Professor-only authoring tool - see the matching gate in _bootstrap.
       onRubricLibraryUpdate: _isAdmin ? setRubricLibrary : undefined,
       onCaseStudiesUpdate: _isAdmin ? setCaseStudies : undefined,
+      onCaseStudyPlansUpdate: setCaseStudyPlans,
       onConfigUpdate: ({ ejsConfig }) => {
         if (ejsConfig) {
           setEjs({ ...ejsConfig, configured: true })
@@ -336,7 +341,64 @@ export function DataProvider({ children }) {
     const db = dbRef.current
     if (!db || !id) return
     setCaseStudies(prev => prev.filter(x => x.id !== id))
+    setCaseStudyPlans(prev => prev.filter(x => x.id !== id))
+    // The plan doc is the case study's shadow: it never outlives it. Best-effort
+    // so a missing plan (legacy case study) can't block the main delete.
+    fbDeleteCaseStudyPlan(db, id).catch(() => {})
     await fbDeleteCaseStudy(db, id)
+  }, [])
+
+  // ── Case study PLANS (student-visible project management layer) ─────────
+  // Merge-writes like saveCaseStudy, but the optimistic local merge must go
+  // DEEP on `progress` (per group, per milestone) and `tasks` (per group, per
+  // task): a partial write like "group g1 checked step m2" would otherwise
+  // locally wipe every other group's progress until the next snapshot.
+  const saveCaseStudyPlan = useCallback(async (plan) => {
+    const db = dbRef.current
+    if (!db || !plan?.id) return
+    setCaseStudyPlans(prev => {
+      const i = prev.findIndex(x => x.id === plan.id)
+      if (i === -1) return [...prev, { ...plan }]
+      const cur = prev[i]
+      const merged = { ...cur, ...plan }
+      if (plan.roles) {
+        merged.roles = { ...(cur.roles || {}), ...plan.roles }
+      }
+      if (plan.progress) {
+        const p = { ...(cur.progress || {}) }
+        for (const gid of Object.keys(plan.progress)) {
+          p[gid] = { ...(p[gid] || {}), ...plan.progress[gid] }
+        }
+        merged.progress = p
+      }
+      if (plan.tasks) {
+        const t = { ...(cur.tasks || {}) }
+        for (const gid of Object.keys(plan.tasks)) {
+          const g = { ...(t[gid] || {}) }
+          for (const tid of Object.keys(plan.tasks[gid] || {})) {
+            g[tid] = { ...(g[tid] || {}), ...plan.tasks[gid][tid] }
+          }
+          t[gid] = g
+        }
+        merged.tasks = t
+      }
+      const next = prev.slice()
+      next[i] = merged
+      return next
+    })
+    await fbSaveCaseStudyPlan(db, plan)
+  }, [])
+
+  const deletePlanTask = useCallback(async (planId, gid, taskId) => {
+    const db = dbRef.current
+    if (!db || !planId || !gid || !taskId) return
+    setCaseStudyPlans(prev => prev.map(p => {
+      if (p.id !== planId || !p.tasks?.[gid]?.[taskId]) return p
+      const g = { ...p.tasks[gid] }
+      delete g[taskId]
+      return { ...p, tasks: { ...p.tasks, [gid]: g } }
+    }))
+    await fbDeletePlanTask(db, planId, gid, taskId)
   }, [])
 
   const saveStudents = useCallback(async (updatedStudents, changedIds) => {
@@ -1711,6 +1773,7 @@ export function DataProvider({ children }) {
       generateMeetingRecap, fetchMeetingTranscript, saveMeetingRecording, markMeetingRecordingReady,
       patchMeeting, saveClassTranscript,
       caseStudies, saveCaseStudy, deleteCaseStudy,
+      caseStudyPlans, saveCaseStudyPlan, deletePlanTask,
       attendanceSessions, openCheckIn, closeCheckIn, studentCheckIn,
       excuseRequests, submitExcuseRequest, decideExcuseRequest,
       studentFeedback, submitStudentFeedback, updateFeedbackStatus,

@@ -60,6 +60,7 @@ export function fbStartListening(db, callbacks, opts = {}) {
     onAuditLogUpdate,
     onRubricLibraryUpdate,
     onCaseStudiesUpdate,
+    onCaseStudyPlansUpdate,
   } = callbacks;
 
   // Stop any previous listeners
@@ -268,6 +269,23 @@ export function fbStartListening(db, callbacks, opts = {}) {
       e => console.error('[Firebase] caseStudies listener error:', e.message)
     );
     _unsub.push(uCS);
+  }
+
+  // ── caseStudyPlans collection (project management layer) ───────────────
+  // The grade-free companion of caseStudies: milestones, roles, per-group
+  // step progress and member tasks. BOTH roles subscribe - a student's UI
+  // scopes to the groups they belong to, and no scores ever live here.
+  if (onCaseStudyPlansUpdate) {
+    const uCSP = onSnapshot(
+      collection(db, 'caseStudyPlans'),
+      snap => {
+        const list = [];
+        snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+        onCaseStudyPlansUpdate(list);
+      },
+      e => console.error('[Firebase] caseStudyPlans listener error:', e.message)
+    );
+    _unsub.push(uCSP);
   }
 
   // ── studentFeedback collection ────────────────────────────────────────

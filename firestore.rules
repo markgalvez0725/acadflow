@@ -150,6 +150,19 @@ service cloud.firestore {
     // as normal exam grades on their own student doc).
     match /caseStudies/{docId}        { allow read, write: if isAdmin(); }
 
+    // Case study PLANS: the student-visible project management layer of a
+    // case study (timeline milestones + categories/notes, member roles,
+    // per-group step progress, per-member tasks). Deliberately a SEPARATE doc
+    // so group scores never leave the admin-only caseStudies doc above.
+    // Students may only touch the collaborative fields: step check-offs
+    // (`progress`) and the task board (`tasks`); the plan itself
+    // (milestones/roles/groups/meta) stays teacher-owned.
+    match /caseStudyPlans/{docId} {
+      allow read:           if signedIn();
+      allow create, delete: if isAdmin();
+      allow update:         if isAdmin() || (signedIn() && onlyAffects(['progress', 'tasks']));
+    }
+
     // ── Teacher-owned content with student collaboration ─────────────────
     // PRINCIPLE: the teacher OWNS the content (creates/deletes it and edits its
     // body); students may only touch the collaborative side-fields. Previously

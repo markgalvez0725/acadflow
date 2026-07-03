@@ -251,6 +251,42 @@ export async function fbDeleteCaseStudy(db, id) {
   return fbWithTimeout(deleteDoc(doc(db, 'caseStudies', id)))
 }
 
+// ── Case study plans (student-visible project management companion doc) ────
+// Merge-writes like fbSaveCaseStudy: partial payloads (a single step check-off,
+// one task toggle) deep-merge into the doc instead of clobbering it. The id is
+// deliberately kept OUT of the written payload: students may only touch the
+// `progress`/`tasks` keys (rules onlyAffects), so the payload must never
+// introduce any other key.
+export async function fbSaveCaseStudyPlan(db, plan) {
+  if (!plan?.id) return
+  const { id, ...data } = plan
+  setFbWriting(true)
+  try {
+    return await fbWithTimeout(setDoc(doc(db, 'caseStudyPlans', id), JSON.parse(JSON.stringify(data)), { merge: true }))
+  } finally {
+    setFbWriting(false)
+  }
+}
+
+export async function fbDeleteCaseStudyPlan(db, id) {
+  if (!id) return
+  return fbWithTimeout(deleteDoc(doc(db, 'caseStudyPlans', id)))
+}
+
+// Removing a task needs a real field delete (a merge write can only set).
+// updateDoc touching only `tasks.*` stays inside the student allow-list, so
+// a group Lead can remove a task they added.
+export async function fbDeletePlanTask(db, planId, gid, taskId) {
+  if (!planId || !gid || !taskId) return
+  const { updateDoc, deleteField } = await import('firebase/firestore')
+  setFbWriting(true)
+  try {
+    return await fbWithTimeout(updateDoc(doc(db, 'caseStudyPlans', planId), { ['tasks.' + gid + '.' + taskId]: deleteField() }))
+  } finally {
+    setFbWriting(false)
+  }
+}
+
 // ── Announcement writes ────────────────────────────────────────────────────
 export async function fbSaveAnnouncement(db, announcement) {
   const { doc: fbDoc, setDoc } = await import('firebase/firestore')

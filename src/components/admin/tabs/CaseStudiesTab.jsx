@@ -5,6 +5,11 @@ import { Plus, ChevronDown, ChevronRight, Trash2, Check, Loader2, X, ArrowRight,
 import PageHeader from '@/components/ds/PageHeader'
 import EmptyState from '@/components/ds/EmptyState'
 import GroupsModal from '@/components/admin/modals/GroupsModal'
+import CaseStudyGantt from '@/components/casestudy/CaseStudyGantt'
+import StepList from '@/components/casestudy/StepList'
+import TaskBoard from '@/components/casestudy/TaskBoard'
+import PlanEditorModal from '@/components/casestudy/PlanEditorModal'
+import { groupStepStats, planId } from '@/utils/caseStudyPlan'
 import { sortByLastName, getInitials } from '@/utils/format'
 import { courseShort } from '@/constants/courses'
 
@@ -56,11 +61,67 @@ function Ava({ s, size = 20 }) {
 }
 
 export default function CaseStudiesTab() {
-  const { caseStudies, students, classes, semester, saveStudents, saveCaseStudy, deleteCaseStudy } = useData()
+  const {
+    caseStudies, students, classes, semester, saveStudents, saveCaseStudy, deleteCaseStudy,
+    caseStudyPlans, saveCaseStudyPlan, deletePlanTask, admin,
+  } = useData()
   const { toast, openDialog } = useUI()
 
   const activeClasses = useMemo(() => classes.filter(c => !c.archived), [classes])
   const byId = useMemo(() => new Map(students.map(s => [s.id, s])), [students])
+  const planById = useMemo(() => new Map((caseStudyPlans || []).map(p => [p.id, p])), [caseStudyPlans])
+
+  // ── Project plan (companion doc) writers ────────────────────────────────
+  // Every professor-side plan write carries the meta + groups mirror, so a
+  // legacy case study (created before plans existed) materializes a complete
+  // plan doc the first time any planning feature is touched.
+  const professorName = admin?.name || 'Professor'
+  function planMeta(cs) {
+    return {
+      id: cs.id,
+      title: cs.title || '',
+      classId: cs.classId || '',
+      className: cs.className || '',
+      subject: cs.subject || '',
+      term: cs.term || 'midterm',
+      dueAt: cs.dueAt || null,
+      createdAt: cs.createdAt || Date.now(),
+      groups: cs.groups || [],
+    }
+  }
+  const planWriteFailed = () => toast('Could not save the plan change. Check your connection.', 'error')
+
+  function toggleStep(cs, gid, m, done) {
+    saveCaseStudyPlan({
+      ...planMeta(cs),
+      progress: { [gid]: { [m.id]: { done, at: Date.now(), byName: professorName } } },
+    }).catch(planWriteFailed)
+  }
+
+  function setMemberRole(cs, sid, role) {
+    saveCaseStudyPlan({ ...planMeta(cs), roles: { [sid]: role } }).catch(planWriteFailed)
+  }
+
+  function assignTask(cs, gid, { assigneeId, title, category }) {
+    saveCaseStudyPlan({
+      ...planMeta(cs),
+      tasks: { [gid]: { [planId('t')]: { title, category, assigneeId, done: false, createdAt: Date.now(), addedByName: professorName } } },
+    }).catch(planWriteFailed)
+  }
+
+  function toggleTask(cs, gid, t, done) {
+    saveCaseStudyPlan({
+      ...planMeta(cs),
+      tasks: { [gid]: { [t.id]: { done, at: Date.now(), byName: professorName } } },
+    }).catch(planWriteFailed)
+  }
+
+  function removeTask(cs, gid, t) {
+    deletePlanTask(cs.id, gid, t.id).catch(planWriteFailed)
+  }
+
+  // Case study whose timeline is being planned (PlanEditorModal).
+  const [planFor, setPlanFor] = useState(null)
 
   // ── Creation form ────────────────────────────────────────────────────────
   const [formOpen, setFormOpen] = useState(false)
@@ -103,6 +164,8 @@ export default function CaseStudiesTab() {
     saveCaseStudy(cs)
       .then(() => toast('Case study created.', 'success'))
       .catch(() => toast('Failed to create the case study.', 'error'))
+    // Companion plan doc (students read THIS, never the grade doc above).
+    saveCaseStudyPlan(planMeta(cs)).catch(() => {})
     setForm({ title: '', classId: '', subject: '', term: 'midterm', due: todayInput(), maxScore: 100 })
     setFormGroups([])
     setFormOpen(false)
@@ -407,6 +470,8 @@ export default function CaseStudiesTab() {
                 const memberCount = new Set(groups.flatMap(g => g.memberIds || [])).size
                 const termLabel = cs.term === 'finals' ? 'Finals' : 'Midterm'
                 const st = saveState[cs.id]
+                const plan = planById.get(cs.id)
+                const hasPlan = (plan?.milestones?.length || 0) > 0
                 return (
                   <section key={cs.id} className="card cs-card">
                     <div className="cs-head">
@@ -418,6 +483,9 @@ export default function CaseStudiesTab() {
                       {st === 'saving' && <span className="cs-save saving"><Loader2 size={11} className="animate-spin" /> Saving...</span>}
                       {st === 'saved' && <span className="cs-save"><Check size={11} /> Saved</span>}
                       {st === 'error' && <span className="cs-save err">Not saved</span>}
+                      <button className="btn btn-ghost btn-sm" title={hasPlan ? 'Edit the timeline plan' : 'Plan the timeline'} onClick={() => setPlanFor(cs)}>
+                        <CalendarDays size={14} />
+                      </button>
                       <button className="btn btn-ghost btn-sm" title="Edit the groups" onClick={() => setGroupsFor(cs)}>
                         <Users size={14} />
                       </button>
@@ -425,6 +493,14 @@ export default function CaseStudiesTab() {
                         <Trash2 size={14} />
                       </button>
                     </div>
+
+                    {hasPlan ? (
+                      <CaseStudyGantt plan={plan} />
+                    ) : !cs.appliedAt && (
+                      <div className="csp-plan-hint">
+                        No timeline yet - the calendar button above plans the steps every group follows, with categories, notes, member roles, and per-member tasks.
+                      </div>
+                    )}
 
                     {groups.length === 0 && (
                       <div className="cs-empty">No groups yet - use the groups button above to set them up.</div>
@@ -450,6 +526,14 @@ export default function CaseStudiesTab() {
                               {members.length > 4 && <span className="cs-ava cs-ava-more" style={{ width: 20, height: 20 }}>+{members.length - 4}</span>}
                             </span>
                             {overrides > 0 && <span className="cs-ovr-n">{overrides} override{overrides === 1 ? '' : 's'}</span>}
+                            {hasPlan && (() => {
+                              const gs = groupStepStats(plan, g.id)
+                              return (
+                                <span className={`csp-gprog${gs.behind ? ' behind' : ''}`}>
+                                  {gs.done}/{gs.total} steps{gs.behind ? ` · ${gs.behind} behind` : ''}
+                                </span>
+                              )
+                            })()}
                             <span className="cs-spacer" />
                             <input
                               className="cs-sco"
@@ -461,7 +545,8 @@ export default function CaseStudiesTab() {
                             />
                             <span className="cs-max">/ {max}</span>
                           </div>
-                          {isOpen && sortByLastName(members).map(m => {
+                          {isOpen && <>
+                          {sortByLastName(members).map(m => {
                             const own = d.memberScores?.[m.id]
                             const isOvr = own != null
                             return (
@@ -486,6 +571,30 @@ export default function CaseStudiesTab() {
                               </div>
                             )
                           })}
+                          <div className="csp-block">
+                            {hasPlan && (
+                              <>
+                                <div className="csp-sub">Timeline steps</div>
+                                <StepList
+                                  plan={plan}
+                                  gid={g.id}
+                                  canToggle
+                                  onToggle={(m, done) => toggleStep(cs, g.id, m, done)}
+                                />
+                              </>
+                            )}
+                            <TaskBoard
+                              plan={plan}
+                              group={g}
+                              members={members}
+                              isAdmin
+                              onRoleChange={(sid, role) => setMemberRole(cs, sid, role)}
+                              onToggleTask={(t, done) => toggleTask(cs, g.id, t, done)}
+                              onAssignTask={p => assignTask(cs, g.id, p)}
+                              onDeleteTask={t => removeTask(cs, g.id, t)}
+                            />
+                          </div>
+                          </>}
                         </div>
                       )
                     })}
@@ -517,6 +626,23 @@ export default function CaseStudiesTab() {
         </div>
       </div>
 
+      {planFor && (
+        <PlanEditorModal
+          cs={planFor}
+          plan={planById.get(planFor.id)}
+          onClose={() => setPlanFor(null)}
+          onSave={async (milestones) => {
+            try {
+              await saveCaseStudyPlan({ ...planMeta(planFor), milestones })
+              toast('Timeline plan saved.', 'success')
+            } catch (e) {
+              toast('Could not save the plan. Check your connection.', 'error')
+              throw e
+            }
+          }}
+        />
+      )}
+
       {groupsFor && (
         <GroupsModal
           roster={roster}
@@ -534,6 +660,8 @@ export default function CaseStudiesTab() {
               saveCaseStudy({ id: groupsFor.id, groups })
                 .then(() => toast('Groups updated.', 'success'))
                 .catch(() => toast('Failed to update the groups.', 'error'))
+              // Keep the student-visible plan doc's roster in sync.
+              saveCaseStudyPlan({ ...planMeta(groupsFor), groups }).catch(() => {})
             }
           }}
           onClose={() => setGroupsFor(null)}
