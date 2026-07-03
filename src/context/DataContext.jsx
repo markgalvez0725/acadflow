@@ -18,7 +18,7 @@ import {
   fbSaveCaseStudy, fbDeleteCaseStudy,
 } from '@/firebase/persistence'
 import { fbPushReminderNotif } from '@/firebase/reminders'
-import { rtcCleanupRoom, rtcFetchTranscript } from '@/firebase/rtc'
+import { rtcCleanupRoom, rtcFetchTranscript, rtcSaveTranscript } from '@/firebase/rtc'
 import { buildRecap, transcriptToText } from '@/utils/meetingRecap'
 import { serializeStudents } from '@/utils/attendance'
 import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase, saveSemesterToFirebase, saveLatePolicyToFirebase, saveGradeFloorToFirebase, saveBrandingToFirebase } from '@/firebase/settings'
@@ -1119,6 +1119,11 @@ export function DataProvider({ children }) {
   }, [students])
 
   const startMeeting = useCallback(async (meeting) => {
+    // Fresh room guarantee: purge anything a badly-ended earlier session left
+    // under rtcRooms/{id} (chat, ghost participants, stale signals) BEFORE
+    // students can join. The End-class purge is best-effort; this catches
+    // whatever it missed, so old chat can never greet a new class.
+    if (meeting.provider === 'inapp') { try { await rtcCleanupRoom(dbRef.current, meeting.id) } catch { /* best-effort */ } }
     await fbStartMeeting(dbRef.current, meeting.id)
     await fbPushMeetingNotifs(dbRef.current, meeting, students, 'meeting_live')
   }, [students])
@@ -1137,6 +1142,9 @@ export function DataProvider({ children }) {
     if (already) return already
     const meeting = await fbScheduleMeeting(dbRef.current, { ...meetingData, scheduledAt: Date.now() })
     if (!meeting) return null
+    // New uuid = clean room, but purge anyway: belt and braces against any
+    // future id-reuse path (same guarantee startMeeting gives scheduled docs).
+    if (meeting.provider === 'inapp') { try { await rtcCleanupRoom(dbRef.current, meeting.id) } catch { /* best-effort */ } }
     await fbStartMeeting(dbRef.current, meeting.id)
     const live = { ...meeting, status: 'live' }
     setMeetings(prev => [live, ...prev])
@@ -1216,6 +1224,16 @@ export function DataProvider({ children }) {
     await fbSaveMeetingRecording(db, meeting.id, recording)
     setMeetings(prev => prev.map(m => m.id === meeting.id ? { ...m, recording } : m))
   }, [])
+
+  // On-device Whisper output: save the lines where the legacy viewer already
+  // reads (rtcRooms/{id}/transcript), then build + save the recap off them -
+  // that recap stamp is what makes the row's Recap/Transcript buttons appear.
+  const saveClassTranscript = useCallback(async (meeting, lines) => {
+    const db = dbRef.current
+    if (!db || !meeting?.id || !lines?.length) return null
+    await rtcSaveTranscript(db, meeting.id, lines)
+    return generateMeetingRecap(meeting)
+  }, [generateMeetingRecap])
 
   // Small professor-side patches on a meeting doc (joinLog, attMarkedAt).
   const patchMeeting = useCallback(async (meeting, patch) => {
@@ -1689,7 +1707,7 @@ export function DataProvider({ children }) {
       liveMeetings: meetings.filter(m => m.status === 'live'),
       saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting,
       generateMeetingRecap, fetchMeetingTranscript, saveMeetingRecording, markMeetingRecordingReady,
-      patchMeeting,
+      patchMeeting, saveClassTranscript,
       caseStudies, saveCaseStudy, deleteCaseStudy,
       attendanceSessions, openCheckIn, closeCheckIn, studentCheckIn,
       excuseRequests, submitExcuseRequest, decideExcuseRequest,

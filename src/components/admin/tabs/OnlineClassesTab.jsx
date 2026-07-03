@@ -6,6 +6,8 @@ import RecapModal from '@/components/meeting/RecapModal'
 import RecordingPlayerModal from '@/components/meeting/RecordingPlayerModal'
 import ClassAttendanceModal from '@/components/meeting/ClassAttendanceModal'
 import { shareDriveFile, checkDriveVideoProcessedNow } from '@/utils/googleDrive'
+import { listSessionIds, loadSession, clearSession } from '@/utils/transcriptAudio'
+import { transcribeSession } from '@/utils/whisperTranscriber'
 import { courseShort } from '@/constants/courses'
 import { isValidUrl, parseFutureTs } from '@/utils/validators'
 import EmptyState from '@/components/ds/EmptyState'
@@ -40,7 +42,7 @@ function fmtElapsed(ms) {
 }
 
 export default function OnlineClassesTab() {
-  const { classes, meetings, saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting, generateMeetingRecap, markMeetingRecordingReady, saveMeetingRecording, saveAnnouncement, pushAnnouncementNotifs } = useData()
+  const { classes, meetings, saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting, generateMeetingRecap, markMeetingRecordingReady, saveMeetingRecording, saveAnnouncement, pushAnnouncementNotifs, saveClassTranscript } = useData()
   // The room itself is hosted at the layout level (MeetingHost) so the call
   // survives tab navigation - this tab only opens it by id.
   const { toast, openMeetingRoom, openDialog } = useUI()
@@ -199,6 +201,47 @@ export default function OnlineClassesTab() {
   // In-app recording player (Drive embed) - shared with the student tab.
   const [watchMeeting, setWatchMeeting] = useState(null)
   const [attnMeeting, setAttnMeeting] = useState(null)
+
+  // On-device Whisper: which ended classes still have captured audio waiting
+  // in this browser, and the progress of the run currently transcribing.
+  const [audioIds, setAudioIds] = useState(() => new Set())
+  const [genId, setGenId] = useState('')
+  const [genText, setGenText] = useState('')
+  useEffect(() => {
+    let dead = false
+    listSessionIds().then(ids => { if (!dead) setAudioIds(new Set(ids)) }).catch(() => {})
+    return () => { dead = true }
+  }, [meetings.length]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleGenTranscript(m) {
+    if (genId) return
+    setGenId(m.id)
+    setGenText('Preparing…')
+    try {
+      const { segments, meta } = await loadSession(m.id)
+      if (!segments.length) {
+        toast('No transcript audio was captured for this class on this browser.', 'error')
+        setAudioIds(prev => { const n = new Set(prev); n.delete(m.id); return n })
+        return
+      }
+      const lines = await transcribeSession({
+        segments,
+        speakers: meta?.speakers || [],
+        onProgress: ({ stage, pct }) => setGenText(stage === 'model' ? `Model ${pct}% (one time)` : `Transcribing ${pct}%`),
+      })
+      if (!lines.length) { toast('Whisper heard no clear speech in this class audio.', 'error'); return }
+      setGenText('Saving…')
+      await saveClassTranscript(m, lines)
+      await clearSession(m.id).catch(() => {})
+      setAudioIds(prev => { const n = new Set(prev); n.delete(m.id); return n })
+      toast(`Transcript ready - ${lines.length} lines. The recap was generated from it too.`, 'success')
+    } catch (e) {
+      toast('Transcription failed: ' + (e?.message || 'engine error'), 'error')
+    } finally {
+      setGenId('')
+      setGenText('')
+    }
+  }
 
   // Deep-links (e.g. the "Recording is ready to view" notification carries
   // link "meeting:{id}") land on this tab, but the row only exists once the
@@ -705,7 +748,7 @@ export default function OnlineClassesTab() {
           past.length === 0
             ? <EmptyState Icon={CheckCircle} title="No past meetings" text="Ended classes will appear here." tone="muted" compact />
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-                {past.map(m => <MeetingRow key={m.id} m={m} now={now} onRecap={handleRecap} onTranscript={handleTranscript} recapBusy={recapBusyId === m.id} onShareRecording={handleShareRecording} onCheckRecording={handleCheckRecording} onWatch={setWatchMeeting} onAttendance={setAttnMeeting} checking={checkingId === m.id} highlight={highlightId === m.id} />)}
+                {past.map(m => <MeetingRow key={m.id} m={m} now={now} onRecap={handleRecap} onTranscript={handleTranscript} recapBusy={recapBusyId === m.id} onShareRecording={handleShareRecording} onCheckRecording={handleCheckRecording} onWatch={setWatchMeeting} onAttendance={setAttnMeeting} onGenTranscript={audioIds.has(m.id) ? handleGenTranscript : undefined} genBusy={genId === m.id} genText={genText} genLocked={!!genId} checking={checkingId === m.id} highlight={highlightId === m.id} />)}
               </div>
         )}
       </section>}
@@ -724,7 +767,7 @@ function classLabel(cls) {
 
 // One meeting as a date-chip row: calendar chip, title + meta, a countdown pill
 // (amber inside 3 hours) or a green Ended chip, and Start/Cancel actions.
-function MeetingRow({ m, now, onStart, onCancel, onRecap, onTranscript, recapBusy, onShareRecording, onCheckRecording, onWatch, onAttendance, checking, highlight }) {
+function MeetingRow({ m, now, onStart, onCancel, onRecap, onTranscript, recapBusy, onShareRecording, onCheckRecording, onWatch, onAttendance, onGenTranscript, genBusy, genText, genLocked, checking, highlight }) {
   const { toast } = useUI()
   const dt = new Date(m.scheduledAt)
   const ended = m.status === 'ended'
@@ -787,8 +830,25 @@ function MeetingRow({ m, now, onStart, onCancel, onRecap, onTranscript, recapBus
           </button>
         </div>
       )}
+      {/* On-device Whisper: captured audio for this class is waiting in THIS
+          browser - one click transcribes it locally (no key, no server). */}
+      {ended && !m.recap && onGenTranscript && (
+        <div className="olc-row-actions">
+          <button
+            className="btn btn-ghost btn-sm"
+            disabled={genLocked && !genBusy}
+            onClick={() => onGenTranscript(m)}
+            title="Transcribe this class on this computer - the audio never leaves it"
+          >
+            {genBusy
+              ? <><Loader2 size={14} className="animate-spin" style={{ marginRight: 4 }} /> {genText || 'Working…'}</>
+              : <><FileText size={14} style={{ marginRight: 4 }} /> Generate transcript</>}
+          </button>
+        </div>
+      )}
       {/* Live transcription was retired; classes that captured one keep
-          their saved recap + transcript, newer classes have neither. */}
+          their saved recap + transcript. On-device Whisper (above) fills
+          this same viewer for newly recorded classes. */}
       {ended && m.recap && (onRecap || onTranscript) && (
         <div className="olc-row-actions">
           {onRecap && (

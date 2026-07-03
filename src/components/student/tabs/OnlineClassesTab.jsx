@@ -35,6 +35,15 @@ function untilLabel(ms) {
   return `in ${Math.max(1, Math.ceil(ms / 1000))}s`
 }
 
+// How long a live class has been running (instant meetings stamp scheduledAt
+// at go-live, so this is the true elapsed; close enough for scheduled ones).
+function startedAgoLabel(ms) {
+  const m = Math.floor(ms / 60000)
+  if (m < 1) return 'started just now'
+  if (m < 60) return `started ${m} min ago`
+  return `started ${Math.floor(m / 60)} h ${m % 60} m ago`
+}
+
 function meetingClassLabel(meeting, classNameById) {
   const base = meeting.className || classNameById[meeting.classId] || 'Class'
   return meeting.subject ? `${base} · ${meeting.subject}` : base
@@ -150,7 +159,10 @@ export default function OnlineClassesTab({ student }) {
               <span style={{ fontSize: 11, fontWeight: 800, color: '#ef4444', letterSpacing: '0.08em' }}>LIVE NOW</span>
             </div>
             <div style={{ fontSize: 15, fontWeight: 700 }}>{heroLive.title}</div>
-            <div style={{ fontSize: 12, color: 'var(--ink3)', margin: '3px 0 12px' }}>{meetingClassLabel(heroLive, classNameById)}</div>
+            <div style={{ fontSize: 12, color: 'var(--ink3)', margin: '3px 0 12px' }}>
+              {meetingClassLabel(heroLive, classNameById)}
+              {heroLive.scheduledAt ? ` · ${startedAgoLabel(now - heroLive.scheduledAt)}` : ''}
+            </div>
             {heroLive.provider === 'inapp' ? (
               <button className="btn btn-primary btn-sm" style={{ background: '#ef4444', borderColor: '#ef4444' }} onClick={() => openMeetingRoom(heroLive.id)}>
                 <MonitorPlay size={14} style={{ marginRight: 6 }} /> Join in app

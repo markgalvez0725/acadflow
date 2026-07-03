@@ -7318,6 +7318,69 @@ html[data-glass="on"][data-theme="dark"] body::before {
     padding: 8px 14px 9px;
     line-height: 1.5;
   }
+  /* Bar footer reads "12:37 PM | BSIT 2A - CC 110 - DIGITAL GRAPHICS". */
+  .mr-meta { text-transform: uppercase; letter-spacing: 0.02em; }
+
+  /* Apple-style continuous corners on the floating self view. */
+  .mr-pip { border-radius: 18px; }
+
+  /* Springier reactions: pop in, drift sideways with a wobble, fade out.
+     Transform + opacity only - the animation never costs the video. */
+  .mr-float { animation: mr-float-rise 2.6s cubic-bezier(0.2, 0.7, 0.3, 1) forwards; }
+  @keyframes mr-float-rise {
+    0% { opacity: 0; transform: translate(0, 12px) scale(0.4) rotate(0deg); }
+    10% { opacity: 1; transform: translate(calc(var(--fdx, 0px) * 0.15), -10px) scale(1.22) rotate(calc(var(--frot, 0deg) * 0.5)); }
+    26% { transform: translate(calc(var(--fdx, 0px) * 0.32), -38px) scale(1) rotate(calc(var(--frot, 0deg) * -0.4)); }
+    62% { opacity: 1; transform: translate(calc(var(--fdx, 0px) * 0.75), -100px) scale(1) rotate(var(--frot, 0deg)); }
+    100% { opacity: 0; transform: translate(var(--fdx, 0px), -156px) scale(0.9) rotate(calc(var(--frot, 0deg) * 0.3)); }
+  }
+
+  /* Phone control bar: mic, camera, More, End - everything else moves into
+     the labeled More sheet, so no control can ever clip or cram. */
+  .mr-more-btn { display: none; }
+  .mr-more-scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 46;
+    background: rgba(0, 0, 0, 0.35);
+  }
+  .mr-more-sheet {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: 84px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    background: #24262b;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 18px;
+    padding: 12px 8px;
+    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.4);
+  }
+  .mr-more-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    border: none;
+    background: transparent;
+    color: #bdc1c6;
+    font-size: 10.5px;
+    font-weight: 600;
+    font-family: inherit;
+    padding: 4px 2px;
+    border-radius: 12px;
+    cursor: pointer;
+  }
+  .mr-more-item:hover { background: rgba(255, 255, 255, 0.05); }
+  .mr-more-item:disabled { opacity: 0.55; cursor: default; }
+  .mr-more-item .mr-ctl { width: 40px; height: 40px; }
+  @media (max-width: 560px) {
+    .mr-ctl-x { display: none; }
+    .mr-more-btn { display: inline-flex; }
+  }
+
   /* Phones: the panel becomes a bottom sheet, exactly like the chat. */
   @media (max-width: 760px) {
     .mr-people {
@@ -7356,7 +7419,7 @@ html[data-glass="on"][data-theme="dark"] body::before {
     bottom: 14px;
     z-index: 260;
     width: 300px;
-    border-radius: 14px;
+    border-radius: 18px;
     background: var(--surface, #fff);
     border: 1px solid var(--border, #e5e7eb);
     box-shadow: 0 12px 36px rgba(0, 0, 0, 0.3);

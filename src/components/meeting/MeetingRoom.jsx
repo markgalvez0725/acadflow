@@ -4,7 +4,7 @@ import {
   Mic, MicOff, Video, VideoOff, MonitorUp, PhoneOff, Radio,
   Users, AlertTriangle, Loader2, CheckCircle, Minimize2, Maximize2,
   PictureInPicture2, CircleDot, Square, Hand, Pin, PinOff, Volume2,
-  MessageSquare, Smile, LogIn, LogOut, UserX,
+  MessageSquare, Smile, LogIn, LogOut, UserX, MoreHorizontal,
 } from 'lucide-react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -19,6 +19,9 @@ import MeetingChat from '@/components/meeting/MeetingChat'
 import MeetingPeople from '@/components/meeting/MeetingPeople'
 import EmojiIcon from '@/components/primitives/EmojiIcon'
 import { getLateThreshold, setLateThreshold, LATE_THR_DEFAULT } from '@/utils/attendance'
+import { createTranscriptRecorder, transcriptCaptureSupported } from '@/utils/transcriptRecorder'
+import { saveSegment, saveMeta } from '@/utils/transcriptAudio'
+import { courseShort } from '@/constants/courses'
 
 // Full-screen in-app classroom shared by the professor and student tabs,
 // laid out Google Meet style: a stage the tile grid FILLS edge to edge
@@ -242,7 +245,7 @@ function MiniVideo({ stream, onClick }) {
 }
 
 export default function MeetingRoom({ meeting, self, minimized, onMinimize, onClose, onEndClass }) {
-  const { db: dbRef, saveMeetingRecording, patchMeeting, students, admin } = useData()
+  const { db: dbRef, saveMeetingRecording, patchMeeting, students, classes, admin } = useData()
   const { toast } = useUI()
   const db = dbRef?.current || null
   const {
@@ -260,6 +263,9 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   const [peopleOpen, setPeopleOpen] = useState(false)
   const [sheetPeer, setSheetPeer] = useState(null)
   const [confirmRemove, setConfirmRemove] = useState(null)
+  // Phone control bar: only mic, camera, More, End fit; everything else
+  // lives in the More sheet (CSS decides - desktop never sees the button).
+  const [moreOpen, setMoreOpen] = useState(false)
 
   // The professor muted this device - say so, and say the way back.
   useEffect(() => {
@@ -324,6 +330,15 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     if (meeting) patchMeeting(meeting, { lateThr: v }).catch(() => { /* local view already updated */ })
   }
 
+  // Bar label: "SECTION - SUBJECT" resolved from the class record (the old
+  // title · subject often read as the same string twice).
+  const barLabel = useMemo(() => {
+    const cls = (classes || []).find(c => c.id === meeting?.classId)
+    const sec = cls ? `${courseShort(cls.name)}${cls.section ? ` ${cls.section}` : ''}` : (meeting?.className || '')
+    const sub = meeting?.subject || meeting?.title || 'Live class'
+    return sec ? `${sec} - ${sub}` : sub
+  }, [classes, meeting?.classId, meeting?.className, meeting?.subject, meeting?.title])
+
   // Own camera frame shape, read off the capture track (the self-view element
   // unmounts across minimize/share, so the element itself can't be watched).
   // Phones report portrait dimensions; rotation re-sizes the track.
@@ -372,6 +387,11 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   // ── Recording (professor only): 720p compositor streaming into Drive ────
   const [recState, setRecState] = useState('idle') // idle | starting | on | saving
   const recRef = useRef(null) // { recorder, uploader, meeting, startAt }
+  const recStateRef = useRef(recState); recStateRef.current = recState
+  // Speech-tuned parallel audio capture + who-was-speaking timeline, feeding
+  // the on-device Whisper transcript. Rides the Record button; ~1% CPU.
+  const trRef = useRef(null)
+  const spkRef = useRef({ events: [], sig: '' })
 
   async function startRecording() {
     if (recState !== 'idle' || !meeting || recRef.current) return
@@ -400,6 +420,18 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
       })
       recorder.start()
       recRef.current = { recorder, uploader, meeting, startAt: Date.now() }
+      // Transcript audio capture (best-effort - recording never depends on it).
+      if (transcriptCaptureSupported()) {
+        try {
+          const mid = meeting.id
+          const tr = createTranscriptRecorder({
+            onSegment: (blob, index, startedAt) => saveSegment(mid, index, blob, startedAt).catch(() => { /* segment lost */ }),
+          })
+          tr.start()
+          trRef.current = tr
+          spkRef.current = { events: [], sig: '' }
+        } catch { /* transcript capture unavailable */ }
+      }
       // Persist the Drive pointer the moment the file exists (long before the
       // class ends): even if this tab dies mid-class, the past-session row
       // still shows the recording and the status poller resolves it later.
@@ -432,6 +464,16 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     recRef.current = null
     setRecState('saving')
     setRecordingFlag(false)
+    // Flush the transcript capture alongside (its last segment + the speaker
+    // timeline persist to IndexedDB; the Generate transcript button on the
+    // ended row picks them up).
+    const tr = trRef.current
+    trRef.current = null
+    if (tr) {
+      tr.stop()
+        .then(() => saveMeta(rec.meeting.id, { speakers: spkRef.current.events.slice(0, 6000) }))
+        .catch(() => { /* transcript audio best-effort */ })
+    }
     try {
       await rec.recorder.stop() // resolves after the final chunk is handed over
       const out = await rec.uploader.finish()
@@ -479,6 +521,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
       ],
       audioStreams: [localStream, ...peers.map(p => p.stream)].filter(Boolean),
     })
+    trRef.current?.setAudioStreams([localStream, ...peers.map(p => p.stream)].filter(Boolean))
   }, [recState, peers, localStream, screenStream, sharing, camOn, sharerPeer, self])
 
   // Never leak a recorder: finalize on unmount (logout, hard close).
@@ -612,7 +655,11 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
       top = r.top - hostRect.top + r.height * 0.4
     }
     const key = ++floatSeq.current
-    setFloats(f => [...f.slice(-11), { key, e: emoji, name, left, top }])
+    // Per-float drift + wobble make a burst of the same emoji read as many
+    // (transform/opacity only - the animation never costs the video).
+    const dx = Math.round((Math.random() * 2 - 1) * 38)
+    const rot = Math.round((Math.random() * 2 - 1) * 14)
+    setFloats(f => [...f.slice(-11), { key, e: emoji, name, left, top, dx, rot }])
     setTimeout(() => setFloats(f => f.filter(x => x.key !== key)), 2600)
   }
   function react(emoji) {
@@ -703,8 +750,10 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     const iv = setInterval(() => {
       // No surface shows the speaking ring while the room is minimized or
       // the tab is hidden - skip the analyser sweep entirely (it is pure
-      // battery on phones, and main-thread time everywhere else).
-      if (minimizedRef.current || document.visibilityState === 'hidden') return
+      // battery on phones, and main-thread time everywhere else). EXCEPT
+      // while recording: the sweep also feeds the transcript's speaker
+      // timeline, which must keep running when the professor minimizes.
+      if ((minimizedRef.current || document.visibilityState === 'hidden') && recStateRef.current !== 'on') return
       if (ac.state === 'suspended') ac.resume().catch(() => { /* stays quiet */ })
       const speaking = []
       const seen = new Set()
@@ -739,6 +788,21 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   }, [ready])
   const speaking = useMemo(() => new Set(speakSig ? speakSig.split(',') : []), [speakSig])
 
+  // Who-was-speaking timeline for the transcript (only while recording): an
+  // event is appended only when the speaking set CHANGES, so a whole class
+  // is a few hundred entries. Whisper's timestamps are matched against this
+  // to put real names on transcript lines.
+  useEffect(() => {
+    if (recState !== 'on') return
+    const names = [...speaking]
+      .map(id => (id === 'self' ? (self?.name || 'Professor') : peers.find(p => p.peerId === id)?.name))
+      .filter(Boolean)
+    const sig = names.slice().sort().join(',')
+    if (sig === spkRef.current.sig) return
+    spkRef.current.sig = sig
+    if (spkRef.current.events.length < 6000) spkRef.current.events.push({ t: Date.now(), names })
+  }, [speaking, recState, peers, self])
+
   // ── In-call chat ─────────────────────────────────────────────────────────
   const [chatOpen, setChatOpen] = useState(false)
   const [chatMsgs, setChatMsgs] = useState([])
@@ -746,9 +810,13 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   const lastReadRef = useRef(0)
   useEffect(() => {
     if (!db || !meeting?.id) return
-    const unsub = rtcListenChat(db, meeting.id, setChatMsgs)
+    // Only THIS session's messages: anything older than a wide margin before
+    // the class start is a leftover from a failed end-purge - never show it.
+    const startGuard = (meeting?.scheduledAt || 0) - 20 * 60000
+    const unsub = rtcListenChat(db, meeting.id, msgs =>
+      setChatMsgs(startGuard > 0 ? msgs.filter(m2 => (m2.at || 0) >= startGuard) : msgs))
     return () => { unsub(); setChatMsgs([]) }
-  }, [db, meeting?.id])
+  }, [db, meeting?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (chatOpen) lastReadRef.current = Date.now()
   }, [chatOpen, chatMsgs.length])
@@ -825,6 +893,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
       : phase === 'error' ? 'Could not join'
       : phase === 'full' ? 'Room is full'
       : phase === 'removed' ? 'Removed from class'
+      : phase === 'replaced' ? 'Joined somewhere else'
       : null
     const expand = () => onMinimize?.(false)
     const mini = (
@@ -973,6 +1042,13 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
               <span>The professor removed you from this class session. If you think this was a mistake, message your professor.</span>
               <button className="btn btn-sm" onClick={handleLeave}>Close</button>
             </div>
+          ) : phase === 'replaced' ? (
+            <div className="mr-center">
+              <Users size={30} style={{ color: '#fdd663' }} />
+              <b>Joined somewhere else</b>
+              <span>You joined this class from another tab or device, so this one left the room. The class continues there.</span>
+              <button className="btn btn-sm" onClick={handleLeave}>Close</button>
+            </div>
           ) : featuredPeer ? (
             <>
               <div className="mr-present">
@@ -1030,8 +1106,8 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
 
           {/* Floating reactions rising off tiles. */}
           {floats.map(f => (
-            <span key={f.key} className="mr-float" style={{ left: f.left, top: f.top }}>
-              <EmojiIcon emoji={f.e} size={26} />
+            <span key={f.key} className="mr-float" style={{ left: f.left, top: f.top, '--fdx': `${f.dx || 0}px`, '--frot': `${f.rot || 0}deg` }}>
+              <EmojiIcon emoji={f.e} size={28} />
               <i>{f.name}</i>
             </span>
           ))}
@@ -1183,11 +1259,63 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
         />
       </div>
 
+      {/* Phone More sheet: every control the compact bar hides, with labels.
+          Desktop never opens it (the More button only exists under 560px). */}
+      {moreOpen && ready && !ended && (
+        <div className="mr-more-scrim" onClick={() => setMoreOpen(false)}>
+          <div className="mr-more-sheet" role="menu" aria-label="More controls" onClick={e => e.stopPropagation()}>
+            <button
+              className="mr-more-item"
+              onClick={() => { setMoreOpen(false); if (sharing) stopShare(); else if (canShare) startShare(); else toast('Phones and tablets cannot share their screen from the browser - no mobile browser allows it. To present, join the class from a computer using Chrome, Edge, or Safari.', 'error', 6000) }}
+            >
+              <span className={`mr-ctl${sharing ? ' mr-ctl-on' : ''}${canShare ? '' : ' mr-ctl-dim'}`}><MonitorUp size={18} /></span>
+              <span>{sharing ? 'Stop present' : 'Present'}</span>
+            </button>
+            {isAdmin && recordingSupported() && (
+              <button
+                className="mr-more-item"
+                disabled={recState === 'starting' || recState === 'saving'}
+                onClick={() => { setMoreOpen(false); if (recState === 'on') stopRecording(false); else startRecording() }}
+              >
+                <span className={`mr-ctl${recState === 'on' ? ' mr-ctl-rec' : ''}`}>{recState === 'on' ? <Square size={16} /> : <CircleDot size={18} />}</span>
+                <span>{recState === 'on' ? 'Stop record' : 'Record'}</span>
+              </button>
+            )}
+            <button className="mr-more-item" onClick={() => { setMoreOpen(false); toggleHand() }}>
+              <span className={`mr-ctl${myHand ? ' mr-ctl-hand' : ''}`}><Hand size={18} /></span>
+              <span>{myHand ? 'Lower hand' : 'Raise hand'}</span>
+            </button>
+            <button className="mr-more-item" onClick={() => { setMoreOpen(false); setReactOpen(true) }}>
+              <span className="mr-ctl"><Smile size={18} /></span>
+              <span>React</span>
+            </button>
+            <button className="mr-more-item" onClick={() => { setMoreOpen(false); setPeopleOpen(false); setChatOpen(true) }}>
+              <span className="mr-ctl"><MessageSquare size={18} />{unread > 0 && <span className="mr-ctl-badge">{unread > 9 ? '9+' : unread}</span>}</span>
+              <span>Chat</span>
+            </button>
+            <button className="mr-more-item" onClick={() => { setMoreOpen(false); setChatOpen(false); setPeopleOpen(true) }}>
+              <span className="mr-ctl"><Users size={18} /></span>
+              <span>People</span>
+            </button>
+            {canPip && (
+              <button className="mr-more-item" onClick={() => { setMoreOpen(false); popOut() }}>
+                <span className="mr-ctl"><PictureInPicture2 size={16} /></span>
+                <span>Pop out</span>
+              </button>
+            )}
+            <button className="mr-more-item" onClick={() => { setMoreOpen(false); onMinimize?.(true) }}>
+              <span className="mr-ctl"><Minimize2 size={16} /></span>
+              <span>Minimize</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="mr-bar">
         <div className="mr-bar-left">
           <span className="mr-clock">{timeStr}</span>
           <span className="mr-sep">|</span>
-          <span className="mr-meta">{meeting?.title || 'Live class'}{meeting?.subject ? ` · ${meeting.subject}` : ''}</span>
+          <span className="mr-meta">{barLabel}</span>
           {!ended && (
             <span className="mr-live-chip"><Radio size={11} /> {fmtElapsed(now - (meeting?.scheduledAt || now))}</span>
           )}
@@ -1210,7 +1338,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
                   native apps can), so phones get a dimmed button with an
                   explanation instead of a mysteriously missing one. */}
               <button
-                className={`mr-ctl${sharing ? ' mr-ctl-on' : ''}${canShare ? '' : ' mr-ctl-dim'}`}
+                className={`mr-ctl mr-ctl-x${sharing ? ' mr-ctl-on' : ''}${canShare ? '' : ' mr-ctl-dim'}`}
                 onClick={sharing ? stopShare : canShare ? startShare : () => toast('Phones and tablets cannot share their screen from the browser - no mobile browser allows it. To present, join the class from a computer using Chrome, Edge, or Safari.', 'error', 6000)}
                 title={sharing ? 'Stop presenting' : canShare ? 'Present your screen' : 'Presenting needs a computer - phone browsers cannot capture the screen'}
               >
@@ -1218,7 +1346,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
               </button>
               {isAdmin && recordingSupported() && (
                 <button
-                  className={`mr-ctl${recState === 'on' ? ' mr-ctl-rec' : ''}`}
+                  className={`mr-ctl mr-ctl-x${recState === 'on' ? ' mr-ctl-rec' : ''}`}
                   disabled={recState === 'starting' || recState === 'saving'}
                   onClick={recState === 'on' ? () => stopRecording(false) : startRecording}
                   title={recState === 'on' ? 'Stop recording' : recState === 'saving' ? 'Saving the recording to Drive…' : 'Record the class to your Google Drive (720p)'}
@@ -1228,14 +1356,14 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
                     : recState === 'on' ? <Square size={16} /> : <CircleDot size={18} />}
                 </button>
               )}
-              <button className={`mr-ctl${myHand ? ' mr-ctl-hand' : ''}`} onClick={toggleHand} title={myHand ? 'Lower your hand' : 'Raise your hand'}>
+              <button className={`mr-ctl mr-ctl-x${myHand ? ' mr-ctl-hand' : ''}`} onClick={toggleHand} title={myHand ? 'Lower your hand' : 'Raise your hand'}>
                 <Hand size={18} />
               </button>
-              <button className={`mr-ctl${reactOpen ? ' mr-ctl-accent' : ''}`} onClick={() => setReactOpen(o => !o)} title="Send a reaction">
+              <button className={`mr-ctl mr-ctl-x${reactOpen ? ' mr-ctl-accent' : ''}`} onClick={() => setReactOpen(o => !o)} title="Send a reaction">
                 <Smile size={18} />
               </button>
               <button
-                className={`mr-ctl${chatOpen ? ' mr-ctl-accent' : ''}`}
+                className={`mr-ctl mr-ctl-x${chatOpen ? ' mr-ctl-accent' : ''}`}
                 onClick={() => setChatOpen(o => { const n = !o; if (n) setPeopleOpen(false); return n })}
                 title="In-call messages"
               >
@@ -1243,11 +1371,19 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
                 {unread > 0 && <span className="mr-ctl-badge">{unread > 9 ? '9+' : unread}</span>}
               </button>
               <button
-                className={`mr-ctl${peopleOpen ? ' mr-ctl-accent' : ''}`}
+                className={`mr-ctl mr-ctl-x${peopleOpen ? ' mr-ctl-accent' : ''}`}
                 onClick={() => setPeopleOpen(o => { const n = !o; if (n) setChatOpen(false); return n })}
                 title="People in this class"
               >
                 <Users size={18} />
+              </button>
+              <button
+                className={`mr-ctl mr-more-btn${moreOpen ? ' mr-ctl-accent' : ''}`}
+                onClick={() => setMoreOpen(o => !o)}
+                title="More controls"
+              >
+                <MoreHorizontal size={18} />
+                {unread > 0 && !moreOpen && <span className="mr-ctl-badge">{unread > 9 ? '9+' : unread}</span>}
               </button>
             </>
           )}
@@ -1257,12 +1393,12 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
         </div>
         <div className="mr-bar-right">
           {ready && canPip && (
-            <button className="mr-ctl mr-ctl-sm" onClick={popOut} title="Pop out a floating player (stays on top when you switch apps)">
+            <button className="mr-ctl mr-ctl-sm mr-ctl-x" onClick={popOut} title="Pop out a floating player (stays on top when you switch apps)">
               <PictureInPicture2 size={16} />
             </button>
           )}
           {ready && (
-            <button className="mr-ctl mr-ctl-sm" onClick={() => onMinimize?.(true)} title="Minimize - the class keeps running while you use AcadFlow">
+            <button className="mr-ctl mr-ctl-sm mr-ctl-x" onClick={() => onMinimize?.(true)} title="Minimize - the class keeps running while you use AcadFlow">
               <Minimize2 size={16} />
             </button>
           )}

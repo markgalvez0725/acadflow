@@ -188,6 +188,28 @@ export async function rtcFetchTranscript(db, roomId) {
   return snap.docs.map(d => d.data()).sort((a, b) => (a.at || 0) - (b.at || 0))
 }
 
+// Batched write of an on-device Whisper transcript: {at, name, text} docs
+// under rtcRooms/{id}/transcript - the EXACT shape the legacy live engine
+// wrote, so RecapModal and generateMeetingRecap read it unchanged. Any
+// previous lines are wiped first (regenerating never duplicates).
+export async function rtcSaveTranscript(db, roomId, lines) {
+  if (!db || !roomId || !lines?.length) return
+  const col = roomCol(db, roomId, 'transcript')
+  const old = await getDocs(col)
+  const ops = [
+    ...old.docs.map(d => ({ del: d.ref })),
+    ...lines.map(l => ({ ref: doc(col), data: { at: l.at || 0, name: l.name || 'Class', text: String(l.text || '').slice(0, 2000) } })),
+  ]
+  for (let i = 0; i < ops.length; i += 400) {
+    const batch = writeBatch(db)
+    for (const op of ops.slice(i, i + 400)) {
+      if (op.del) batch.delete(op.del)
+      else batch.set(op.ref, op.data)
+    }
+    await batch.commit()
+  }
+}
+
 // Best-effort purge of everything under rtcRooms/{roomId}. Called when the
 // professor ends the class; anyone still connected also deletes their own
 // docs on leave, so this only needs to catch stragglers.

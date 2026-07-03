@@ -189,6 +189,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
     const seenLocal = new Map() // peerId -> { sig, at }: OUR clock when their heartbeat last changed
     const joinStamp = new Map() // peerId -> joinedAt we built the pc against
     const swept = new Set()     // ghost docs this device already deleted
+    const dupes = new Set()     // older docs of a uid that joined again (hidden instantly)
     let aliveSig = ''
     let lastPub = ''
     const unsubs = []
@@ -206,6 +207,10 @@ export default function useMeetingRoom({ db, roomId, self }) {
       return rec ? Date.now() - rec.at : 0
     }
     function isGone(p) {
+      // An older doc of a uid that joined again is gone the moment the new
+      // one exists - the fix for "their old tile said Reconnecting while
+      // their new connection sat right next to it".
+      if (dupes.has(p.peerId)) return true
       const age = seenAge(p.peerId)
       if (age >= STALE_MS) return true
       // Dead link + quiet heartbeat = gone early. NAT-blocked peers who are
@@ -261,7 +266,9 @@ export default function useMeetingRoom({ db, roomId, self }) {
       if (!sweeper || sweeper.peerId !== myId) return
       for (const p of roster) {
         if (p.peerId === myId || swept.has(p.peerId)) continue
-        if (seenAge(p.peerId) >= STALE_MS + 10000) {
+        // Duplicate docs (same uid joined again) are deleted right away -
+        // stale ghosts wait out the full window as before.
+        if (dupes.has(p.peerId) || seenAge(p.peerId) >= STALE_MS + 10000) {
           swept.add(p.peerId)
           rtcLeaveRoom(db, roomId, p.peerId) // idempotent; also drops their queued signals
         }
@@ -340,6 +347,10 @@ export default function useMeetingRoom({ db, roomId, self }) {
       if (!pc || (st !== 'failed' && st !== 'disconnected')) return
       const p = roster.find(x => x.peerId === peerId)
       if (!p || isGone(p)) return // actually left; the presence sweep owns it
+      // Their heartbeat has gone quiet on top of the dead link: they are
+      // leaving, not lagging - stop resuscitating and let presence evict them
+      // (this is what kept a departed peer's tile alive as "Reconnecting").
+      if (seenAge(peerId) >= STALE_FAST_MS) return
       // My own pipe is down: signaling cannot deliver anything anyway, so
       // wait for the 'online' event (it re-kicks every dead link).
       if (offline) { scheduleHeal(peerId, 3000); return }
@@ -626,6 +637,9 @@ export default function useMeetingRoom({ db, roomId, self }) {
     async function onSignal(msg) {
       if (dead) return
       const from = msg.from
+      // A replaced incarnation may still be flushing signals - ignore them
+      // (fresh unknown joiners are never in dupes, so first contact is safe).
+      if (dupes.has(from)) return
       if (msg.type === 'offer') {
         const pc = pcs.get(from) || makePc(from)
         await pc.setRemoteDescription({ ...msg.data, sdp: tuneVideoStart(tuneOpus(msg.data.sdp, pcs.size)) })
@@ -686,6 +700,29 @@ export default function useMeetingRoom({ db, roomId, self }) {
       for (const id of [...seenLocal.keys()]) {
         if (!list.some(p => p.peerId === id)) seenLocal.delete(id)
       }
+      // Same account in the room twice (rejoined after a killed tab whose doc
+      // lingered, or opened a second device): only the NEWEST doc per uid is
+      // real. Older ones are hidden instantly (isGone), their pcs closed, and
+      // the sweeper deletes their docs without waiting out the stale window.
+      dupes.clear()
+      const newestByUid = new Map()
+      for (const p of list) {
+        if (!p.uid) continue
+        const cur = newestByUid.get(p.uid)
+        if (!cur || (p.joinedAt || 0) > (cur.joinedAt || 0)
+          || ((p.joinedAt || 0) === (cur.joinedAt || 0) && p.peerId > cur.peerId)) newestByUid.set(p.uid, p)
+      }
+      for (const p of list) {
+        if (!p.uid) continue
+        const w = newestByUid.get(p.uid)
+        if (w && w.peerId !== p.peerId) {
+          dupes.add(p.peerId)
+          if (pcs.has(p.peerId)) closePeer(p.peerId)
+        }
+      }
+      // It is THIS device that got replaced (the same account joined again
+      // elsewhere): bow out cleanly instead of seesaw-rejoining forever.
+      if (dupes.has(myId)) { teardown(); setPhase('replaced'); return }
       // Attendance trail: remember every STUDENT ever sighted in the room and
       // their earliest join time (their doc disappears when they leave, so
       // this is accumulated live, not read at the end). The professor stamps
