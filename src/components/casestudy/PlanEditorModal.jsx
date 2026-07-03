@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useLayoutEffect } from 'react'
 import Modal from '@/components/primitives/Modal'
 import SuggestInput from '@/components/primitives/SuggestInput'
 import { Plus, Trash2, CalendarDays, Loader2, GripVertical } from 'lucide-react'
@@ -79,6 +79,32 @@ export default function PlanEditorModal({ cs, plan, onSave, onClose }) {
   const rowsRef = useRef(rows)
   rowsRef.current = rows
   const rowElsRef = useRef({})
+
+  // FLIP slide on swap: while reordering, remember where each row sat and,
+  // when a swap moves it, play it from its old position into the new one
+  // (WAAPI, before paint). The row in hand is skipped - it snaps instantly so
+  // the drag stays responsive; only the displaced neighbors glide. Positions
+  // reset when the drag ends so the collapse/expand itself never animates.
+  const lastTopsRef = useRef({})
+  useLayoutEffect(() => {
+    if (dragIdx < 0) { lastTopsRef.current = {}; return }
+    const prev = lastTopsRef.current
+    const next = {}
+    rows.forEach((r, i) => {
+      const el = rowElsRef.current[r.id]
+      if (!el) return
+      const top = el.getBoundingClientRect().top
+      next[r.id] = top
+      const was = prev[r.id]
+      if (was != null && was !== top && i !== dragIdx && el.animate) {
+        el.animate(
+          [{ transform: `translateY(${was - top}px)` }, { transform: 'translateY(0)' }],
+          { duration: 160, easing: 'ease' }
+        )
+      }
+    })
+    lastTopsRef.current = next
+  }, [rows, dragIdx])
 
   function startRowDrag(e, i) {
     if (rows.length < 2) return
