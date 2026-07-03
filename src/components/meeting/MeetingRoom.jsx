@@ -656,6 +656,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   const peersRef = useRef(peers); peersRef.current = peers
   const localRef = useRef(localStream); localRef.current = localStream
   const micOnRef = useRef(micOn); micOnRef.current = micOn
+  const minimizedRef = useRef(minimized); minimizedRef.current = minimized
   const [speakSig, setSpeakSig] = useState('')
   useEffect(() => {
     if (!ready) { setSpeakSig(''); return }
@@ -680,6 +681,10 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
       } catch { return null }
     }
     const iv = setInterval(() => {
+      // No surface shows the speaking ring while the room is minimized or
+      // the tab is hidden - skip the analyser sweep entirely (it is pure
+      // battery on phones, and main-thread time everywhere else).
+      if (minimizedRef.current || document.visibilityState === 'hidden') return
       if (ac.state === 'suspended') ac.resume().catch(() => { /* stays quiet */ })
       const speaking = []
       const seen = new Set()

@@ -164,6 +164,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
     const healTimers = new Map()   // peerId -> pending self-heal timer
     const pcBorn = new Map()       // peerId -> when this pc incarnation was built
     const qual = new Map()         // peerId -> 'good' | 'weak' | 'bad', from the stats poll
+    const qualPend = new Map()     // peerId -> candidate quality awaiting a confirming poll
     const statPrev = new Map()     // peerId -> { lost, recv } totals at the last stats poll
     const joinLog = new Map()      // student uid -> { uid, name, joinedAt } earliest sighting
     const initiated = new Set()
@@ -185,6 +186,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
     const joinStamp = new Map() // peerId -> joinedAt we built the pc against
     const swept = new Set()     // ghost docs this device already deleted
     let aliveSig = ''
+    let lastPub = ''
     const unsubs = []
 
     const send = (to, type, data) =>
@@ -212,15 +214,30 @@ export default function useMeetingRoom({ db, roomId, self }) {
       if (dead) return
       const shown = roster.filter(p => p.peerId !== myId && !isGone(p))
       aliveSig = shown.map(p => p.peerId).sort().join(',')
-      setPeers(shown
-        .sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0))
-        .map(p => ({
-          ...p,
-          stream: streams.get(p.peerId) || null,
-          connState: connState.get(p.peerId) || 'new',
-          quality: qual.get(p.peerId) || 'good',
-          retry: retries.get(p.peerId) || 0,
-        })))
+      const sorted = shown.sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0))
+      // Skip identical publishes. Roster snapshots arrive on EVERY heartbeat
+      // write (a 30-person room produces one every ~700ms), and each publish
+      // used to re-render the whole room - React work that steals main-thread
+      // time from video decode exactly when a share needs it. The signature
+      // must cover EVERY peer field the room UI reads; a field missing here
+      // means its changes stop reaching the screen.
+      const sig = sorted.map(p =>
+        p.peerId + ':' + p.name + ':' + p.role + ':' + (p.joinedAt || 0)
+        + ':' + p.micOn + ':' + p.camOn + ':' + (p.sharing ? 1 : 0) + ':' + (p.sharedAt || 0)
+        + ':' + (p.hand || 0) + ':' + (p.react?.at || 0) + (p.react?.e || '')
+        + ':' + (p.recording ? 1 : 0) + ':' + (p.chatLock ? 1 : 0)
+        + ':' + (connState.get(p.peerId) || 'new') + ':' + (qual.get(p.peerId) || 'good')
+        + ':' + (retries.get(p.peerId) || 0) + ':' + (streams.get(p.peerId)?.id || '')
+      ).join('|')
+      if (sig === lastPub) return
+      lastPub = sig
+      setPeers(sorted.map(p => ({
+        ...p,
+        stream: streams.get(p.peerId) || null,
+        connState: connState.get(p.peerId) || 'new',
+        quality: qual.get(p.peerId) || 'good',
+        retry: retries.get(p.peerId) || 0,
+      })))
     }
 
     // Runs every few seconds: hides peers the moment they cross the stale
@@ -369,11 +386,14 @@ export default function useMeetingRoom({ db, roomId, self }) {
     // (inbound-rtp deltas) and round-trip time (the selected candidate pair).
     // Purely local - getStats never touches the network or Firestore.
     async function pollStats() {
-      if (dead) return
+      // Skip while nothing is on screen (backgrounded tab): the dots are
+      // invisible, and on a phone this poll is pure battery. The first poll
+      // after returning refreshes everything.
+      if (dead || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return
       let changed = false
       for (const [peerId, pc] of [...pcs]) {
         if (pc.connectionState !== 'connected') {
-          if (qual.get(peerId) !== 'bad') { qual.set(peerId, 'bad'); changed = true }
+          if (qual.get(peerId) !== 'bad') { qual.set(peerId, 'bad'); qualPend.delete(peerId); changed = true }
           continue
         }
         try {
@@ -396,11 +416,17 @@ export default function useMeetingRoom({ db, roomId, self }) {
           const q = (lossPct > 8 || rtt > 0.5) ? 'bad'
             : (lossPct > 2.5 || rtt > 0.25) ? 'weak'
             : 'good'
-          if (qual.get(peerId) !== q) { qual.set(peerId, q); changed = true }
+          // Hysteresis: a dot only flips after TWO consecutive polls agree,
+          // so a link sitting at a threshold boundary does not strobe the
+          // dot (and re-render the room) every 5 seconds.
+          const cur = qual.get(peerId) || 'good'
+          if (q === cur) qualPend.delete(peerId)
+          else if (qualPend.get(peerId) === q) { qual.set(peerId, q); qualPend.delete(peerId); changed = true }
+          else qualPend.set(peerId, q)
         } catch { /* stats unavailable this tick */ }
       }
       for (const id of [...qual.keys()]) {
-        if (!pcs.has(id)) { qual.delete(id); statPrev.delete(id); changed = true }
+        if (!pcs.has(id)) { qual.delete(id); qualPend.delete(id); statPrev.delete(id); changed = true }
       }
       const rank = { good: 0, weak: 1, bad: 2 }
       const vals = [...qual.values()].sort((a, b) => rank[a] - rank[b])
