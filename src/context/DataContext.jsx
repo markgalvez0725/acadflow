@@ -8,7 +8,7 @@ import {
   fbAddAnnouncementComment, fbAddCommentReply, fbEditAnnouncementComment, fbDeleteAnnouncementComment, fbEditCommentReply, fbDeleteCommentReply, fbToggleAnnouncementLike, fbToggleSavedPost, fbToggleAnnouncementFollow, fbSetGradeGoal,
   fbSaveRubricLibrary,
   fbSaveMeetLink, fbScheduleMeeting, fbStartMeeting, fbEndMeeting, fbCancelMeeting, fbPushMeetingNotifs,
-  fbSaveMeetingRecap, fbSaveMeetingRecording,
+  fbSaveMeetingRecap, fbSaveMeetingRecording, fbPatchMeeting,
   fbSetSubjectRep, fbDeleteClassRelatedData, fbAddAuditLog, fbRestoreFromBackup,
   fbSubmitStudentFeedback, fbUpdateFeedbackStatus,
   fbBackfillMessageActivity, fbFetchAllMessages,
@@ -1217,6 +1217,14 @@ export function DataProvider({ children }) {
     setMeetings(prev => prev.map(m => m.id === meeting.id ? { ...m, recording } : m))
   }, [])
 
+  // Small professor-side patches on a meeting doc (joinLog, attMarkedAt).
+  const patchMeeting = useCallback(async (meeting, patch) => {
+    const db = dbRef.current
+    if (!db || !meeting?.id || !patch) return
+    await fbPatchMeeting(db, meeting.id, patch)
+    setMeetings(prev => prev.map(m => m.id === meeting.id ? { ...m, ...patch } : m))
+  }, [])
+
   // Drive finished processing the video: mark it ready and tell the professor.
   const markMeetingRecordingReady = useCallback(async (meeting) => {
     const db = dbRef.current
@@ -1681,6 +1689,7 @@ export function DataProvider({ children }) {
       liveMeetings: meetings.filter(m => m.status === 'live'),
       saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting,
       generateMeetingRecap, fetchMeetingTranscript, saveMeetingRecording, markMeetingRecordingReady,
+      patchMeeting,
       caseStudies, saveCaseStudy, deleteCaseStudy,
       attendanceSessions, openCheckIn, closeCheckIn, studentCheckIn,
       excuseRequests, submitExcuseRequest, decideExcuseRequest,

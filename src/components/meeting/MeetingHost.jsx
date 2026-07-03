@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useRef } from 'react'
+import React, { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { checkDriveVideoProcessed } from '@/utils/googleDrive'
@@ -9,14 +9,18 @@ import { checkDriveVideoProcessed } from '@/utils/googleDrive'
 // useUI().openMeetingRoom(id). Minimizing swaps the full room for the floating
 // mini player without unmounting the engine.
 const MeetingRoom = lazy(() => import('@/components/meeting/MeetingRoom'))
+const ClassAttendanceModal = lazy(() => import('@/components/meeting/ClassAttendanceModal'))
 
 // If Drive can be queried but a recording has sat in 'processing' this long,
 // fail open to 'ready' - the file page works even while the preview finishes.
 const PROCESSING_GIVE_UP_MS = 45 * 60000
 
 export default function MeetingHost({ role, student }) {
-  const { meetings, admin, endMeeting, markMeetingRecordingReady } = useData()
+  const { meetings, admin, endMeeting, markMeetingRecordingReady, patchMeeting } = useData()
   const { meetingRoomId, meetingMinimized, closeMeetingRoom, setMeetingMinimized, toast } = useUI()
+  // Ended class waiting for its attendance pass (professor only). Holds the
+  // meeting id; the sheet opens once the room overlay has closed itself.
+  const [attnId, setAttnId] = useState('')
 
   // Logging out (or the layout otherwise unmounting) must not leave a stale
   // room id behind for the next session.
@@ -65,18 +69,43 @@ export default function MeetingHost({ role, student }) {
     return () => { dead = true; clearInterval(t) }
   }, [processingKey, markMeetingRecordingReady])
 
-  if (!meetingRoomId) return null
+  // Attendance sheet for the class that just ended: rendered once the room
+  // overlay is gone (it would stack under the room otherwise), and resolved
+  // fresh from the meetings listener so the stamped joinLog is on it.
+  const attnMeeting = role === 'admin' && attnId && !meetingRoomId
+    ? meetings.find(m => m.id === attnId) || null
+    : null
+  const attnModal = attnMeeting ? (
+    <Suspense fallback={null}>
+      <ClassAttendanceModal meeting={attnMeeting} onClose={() => setAttnId('')} />
+    </Suspense>
+  ) : null
+
+  if (!meetingRoomId) return attnModal
   const meeting = meetings.find(m => m.id === meetingRoomId) || null
   const self = role === 'admin'
     ? { uid: 'admin', name: admin?.name || 'Professor', role: 'admin' }
     : { uid: student?.id || '', name: student?.name || 'Student', role: 'student' }
   if (role === 'student' && !student) return null
 
-  async function handleEndClass() {
+  async function handleEndClass(joinLog) {
     if (!meeting) return
     try {
+      // Stamp who joined (merged with any earlier stamp - the professor may
+      // have rejoined mid-class) BEFORE ending, so the attendance sheet and
+      // the ended row both have the log. Attendance still works by hand if
+      // this write fails.
+      if (Array.isArray(joinLog) && joinLog.length) {
+        const merged = new Map((meeting.joinLog || []).map(e => [e.uid, e]))
+        for (const e of joinLog) {
+          const cur = merged.get(e.uid)
+          if (!cur || (e.joinedAt || 0) < (cur.joinedAt || 0)) merged.set(e.uid, e)
+        }
+        try { await patchMeeting(meeting, { joinLog: [...merged.values()] }) } catch { /* hand-markable */ }
+      }
       await endMeeting(meeting)
       toast('Class ended for everyone.', 'success')
+      if (meeting.provider === 'inapp') setAttnId(meeting.id)
     } catch (e) {
       toast('Failed to end the class.', 'error')
     }

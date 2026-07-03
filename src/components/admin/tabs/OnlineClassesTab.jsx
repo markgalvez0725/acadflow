@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio, MonitorPlay, Sparkles, Play, Share2, FileText, Loader2, Users, MessageSquare, CircleDot, MonitorUp, Zap, Info, AlertTriangle, Check, Copy } from 'lucide-react'
+import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio, MonitorPlay, Sparkles, Play, Share2, FileText, Loader2, Users, MessageSquare, CircleDot, MonitorUp, Zap, Info, AlertTriangle, Check, Copy, CalendarCheck } from 'lucide-react'
 import RecapModal from '@/components/meeting/RecapModal'
 import RecordingPlayerModal from '@/components/meeting/RecordingPlayerModal'
+import ClassAttendanceModal from '@/components/meeting/ClassAttendanceModal'
 import { shareDriveFile, checkDriveVideoProcessedNow } from '@/utils/googleDrive'
 import { courseShort } from '@/constants/courses'
 import { isValidUrl, parseFutureTs } from '@/utils/validators'
@@ -197,6 +198,7 @@ export default function OnlineClassesTab() {
   const [listTab, setListTab] = useState('upcoming')
   // In-app recording player (Drive embed) - shared with the student tab.
   const [watchMeeting, setWatchMeeting] = useState(null)
+  const [attnMeeting, setAttnMeeting] = useState(null)
 
   // Deep-links (e.g. the "Recording is ready to view" notification carries
   // link "meeting:{id}") land on this tab, but the row only exists once the
@@ -703,7 +705,7 @@ export default function OnlineClassesTab() {
           past.length === 0
             ? <EmptyState Icon={CheckCircle} title="No past meetings" text="Ended classes will appear here." tone="muted" compact />
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-                {past.map(m => <MeetingRow key={m.id} m={m} now={now} onRecap={handleRecap} onTranscript={handleTranscript} recapBusy={recapBusyId === m.id} onShareRecording={handleShareRecording} onCheckRecording={handleCheckRecording} onWatch={setWatchMeeting} checking={checkingId === m.id} highlight={highlightId === m.id} />)}
+                {past.map(m => <MeetingRow key={m.id} m={m} now={now} onRecap={handleRecap} onTranscript={handleTranscript} recapBusy={recapBusyId === m.id} onShareRecording={handleShareRecording} onCheckRecording={handleCheckRecording} onWatch={setWatchMeeting} onAttendance={setAttnMeeting} checking={checkingId === m.id} highlight={highlightId === m.id} />)}
               </div>
         )}
       </section>}
@@ -711,6 +713,7 @@ export default function OnlineClassesTab() {
 
     {recapMeeting && <RecapModal meeting={recapMeeting} canManage initialTab={recapView.tab} onClose={() => setRecapView(null)} />}
     {watchMeeting && <RecordingPlayerModal meeting={watchMeeting} onClose={() => setWatchMeeting(null)} />}
+    {attnMeeting && <ClassAttendanceModal meeting={attnMeeting} onClose={() => setAttnMeeting(null)} />}
     </>
   )
 }
@@ -721,7 +724,7 @@ function classLabel(cls) {
 
 // One meeting as a date-chip row: calendar chip, title + meta, a countdown pill
 // (amber inside 3 hours) or a green Ended chip, and Start/Cancel actions.
-function MeetingRow({ m, now, onStart, onCancel, onRecap, onTranscript, recapBusy, onShareRecording, onCheckRecording, onWatch, checking, highlight }) {
+function MeetingRow({ m, now, onStart, onCancel, onRecap, onTranscript, recapBusy, onShareRecording, onCheckRecording, onWatch, onAttendance, checking, highlight }) {
   const { toast } = useUI()
   const dt = new Date(m.scheduledAt)
   const ended = m.status === 'ended'
@@ -768,6 +771,20 @@ function MeetingRow({ m, now, onStart, onCancel, onRecap, onTranscript, recapBus
               <Trash2 size={14} />
             </button>
           )}
+        </div>
+      )}
+      {/* Attendance from the room's join log: in-app classes only, and only
+          once there is a log (or a previous save) to open against. */}
+      {ended && m.provider === 'inapp' && onAttendance && (m.joinLog?.length > 0 || m.attMarkedAt) && (
+        <div className="olc-row-actions">
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => onAttendance(m)}
+            title={m.attMarkedAt ? 'Attendance was saved from this class - open to review or edit' : 'Prefill attendance from who joined this class'}
+          >
+            <CalendarCheck size={14} style={{ marginRight: 4 }} />
+            {m.attMarkedAt ? 'Attendance saved' : 'Mark attendance'}
+          </button>
         </div>
       )}
       {/* Live transcription was retired; classes that captured one keep

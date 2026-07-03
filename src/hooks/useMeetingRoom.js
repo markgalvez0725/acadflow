@@ -103,6 +103,17 @@ function explainGumError(e) {
   return 'Could not access your camera or microphone. Check your browser permissions, then press Try again.'
 }
 
+// How many self-heal attempts a dead link gets before its tile goes terminal
+// ("could not connect"). The counter resets whenever the link reaches
+// 'connected' or the device's own network comes back.
+const HEAL_MAX = 6
+
+// Rooms this device was removed from by the professor. Module-level so the
+// block survives the engine remounting - pressing Join again in the same
+// browser session lands straight on the removed screen instead of sneaking
+// back into the class. A full reload clears it (next session, next class).
+const ejectedRooms = new Set()
+
 export default function useMeetingRoom({ db, roomId, self }) {
   const [phase, setPhase] = useState('connecting') // connecting | ready | full | error | left
   const [errorMsg, setErrorMsg] = useState('')
@@ -116,6 +127,14 @@ export default function useMeetingRoom({ db, roomId, self }) {
   // Bumping this remounts the whole engine - used by Try again after a
   // permission error (the browser re-prompts on the fresh getUserMedia call).
   const [attempt, setAttempt] = useState(0)
+  // MY network dropped (offline event, or every link down at once) - the room
+  // shows one amber banner instead of blaming each peer's tile.
+  const [netDown, setNetDown] = useState(false)
+  // Aggregate health of my own links: the median across peers, so one student
+  // on hotel wifi never turns MY dot red.
+  const [selfQuality, setSelfQuality] = useState('good')
+  // Bumped when the professor force-mutes this device (the room toasts it).
+  const [forcedMuteAt, setForcedMuteAt] = useState(0)
   const apiRef = useRef({})
   const selfRef = useRef(self)
   selfRef.current = self
@@ -131,6 +150,9 @@ export default function useMeetingRoom({ db, roomId, self }) {
     setCamOn(true)
     setSharing(false)
     setScreenStream(null)
+    setNetDown(false)
+    setSelfQuality('good')
+    setForcedMuteAt(0)
     let dead = false
     const myId = uuidv4()
     const pcs = new Map()          // peerId -> RTCPeerConnection
@@ -138,6 +160,12 @@ export default function useMeetingRoom({ db, roomId, self }) {
     const connState = new Map()    // peerId -> RTCPeerConnection.connectionState
     const pendingIce = new Map()   // peerId -> [candidateJSON] queued pre-remoteDescription
     const videoSenders = new Map() // peerId -> RTCRtpSender for the outgoing video slot
+    const retries = new Map()      // peerId -> self-heal attempts since the link last connected
+    const healTimers = new Map()   // peerId -> pending self-heal timer
+    const pcBorn = new Map()       // peerId -> when this pc incarnation was built
+    const qual = new Map()         // peerId -> 'good' | 'weak' | 'bad', from the stats poll
+    const statPrev = new Map()     // peerId -> { lost, recv } totals at the last stats poll
+    const joinLog = new Map()      // student uid -> { uid, name, joinedAt } earliest sighting
     const initiated = new Set()
     let roster = []
     let myJoinedAt = 0
@@ -147,6 +175,9 @@ export default function useMeetingRoom({ db, roomId, self }) {
     let shareCapW = 0      // capture width bucket currently applied to the share track
     let heartbeat = null
     let presence = null
+    let statsTimer = null
+    let offline = typeof navigator !== 'undefined' && navigator.onLine === false
+    let netFlag = false
     let leaving = false
     let rejoining = false
     let cachedToken = ''       // for the pagehide leave beacon (fetch keepalive)
@@ -187,6 +218,8 @@ export default function useMeetingRoom({ db, roomId, self }) {
           ...p,
           stream: streams.get(p.peerId) || null,
           connState: connState.get(p.peerId) || 'new',
+          quality: qual.get(p.peerId) || 'good',
+          retry: retries.get(p.peerId) || 0,
         })))
     }
 
@@ -249,7 +282,131 @@ export default function useMeetingRoom({ db, roomId, self }) {
       pendingIce.delete(peerId)
       initiated.delete(peerId)
       videoSenders.delete(peerId)
+      pcBorn.delete(peerId)
+      qual.delete(peerId)
+      statPrev.delete(peerId)
+      const ht = healTimers.get(peerId)
+      if (ht) { clearTimeout(ht); healTimers.delete(peerId) }
+      // retries survives on purpose: the self-heal loop rebuilds through
+      // closePeer, and its backoff must remember how many tries it has spent.
       applyMediaBudget()
+    }
+
+    // ── Self-healing links ────────────────────────────────────────────────
+    // A dropped connection used to be terminal: the tile froze on "could not
+    // connect" until someone manually rejoined. Now every 'failed' link (and
+    // any 'disconnected' that does not recover by itself) is rebuilt through
+    // the exact join path - same deterministic initiator, fresh pc, fresh
+    // ICE - with backoff, until the peer is actually gone or HEAL_MAX is hit.
+    function iAmInitiator(peerId) {
+      const p = roster.find(x => x.peerId === peerId)
+      if (!p) return false
+      return (p.joinedAt < myJoinedAt) || (p.joinedAt === myJoinedAt && p.peerId < myId)
+    }
+
+    function scheduleHeal(peerId, delay) {
+      const old = healTimers.get(peerId)
+      if (old) clearTimeout(old)
+      healTimers.set(peerId, setTimeout(() => { healTimers.delete(peerId); healPeer(peerId) }, delay))
+    }
+
+    function healPeer(peerId) {
+      if (dead || leaving) return
+      const pc = pcs.get(peerId)
+      const st = pc ? pc.connectionState : ''
+      // Recovered (or mid-rebuild) on its own - nothing to do. A missing pc
+      // means the rebuild is already underway or the peer left.
+      if (!pc || (st !== 'failed' && st !== 'disconnected')) return
+      const p = roster.find(x => x.peerId === peerId)
+      if (!p || isGone(p)) return // actually left; the presence sweep owns it
+      // My own pipe is down: signaling cannot deliver anything anyway, so
+      // wait for the 'online' event (it re-kicks every dead link).
+      if (offline) { scheduleHeal(peerId, 3000); return }
+      const n = (retries.get(peerId) || 0) + 1
+      if (n > HEAL_MAX) { retries.set(peerId, HEAL_MAX + 1); publish(); return }
+      retries.set(peerId, n)
+      if (iAmInitiator(peerId)) {
+        closePeer(peerId)
+        initiate(peerId)
+      } else {
+        // Only the initiator may re-offer (no glare); tear down my side and
+        // ask them to rebuild. If the link died for them too they already
+        // are - the 'reoffer' handler ignores requests against a fresh pc.
+        closePeer(peerId)
+        send(peerId, 'reoffer', { n })
+      }
+      publish()
+      scheduleHeal(peerId, Math.min(16000, 2000 * n))
+    }
+
+    // ── My own network ────────────────────────────────────────────────────
+    function updateNetDown() {
+      let down = offline
+      if (!down && pcs.size >= 2) {
+        let bad = 0
+        for (const pc of pcs.values()) {
+          const s = pc.connectionState
+          if (s === 'failed' || s === 'disconnected') bad++
+        }
+        down = bad === pcs.size // every single link down at once = it's me
+      }
+      if (down !== netFlag) { netFlag = down; if (!dead) setNetDown(down) }
+    }
+
+    function onNetOffline() { offline = true; updateNetDown() }
+    function onNetOnline() {
+      offline = false
+      retries.clear() // fresh pipe, fresh patience
+      for (const [peerId, pc] of pcs) {
+        const s = pc.connectionState
+        if (s === 'failed' || s === 'disconnected') scheduleHeal(peerId, 800)
+      }
+      updateNetDown()
+    }
+
+    // ── Connection quality (the per-tile dot) ─────────────────────────────
+    // Every 5s, read each link's real numbers: packet loss over the window
+    // (inbound-rtp deltas) and round-trip time (the selected candidate pair).
+    // Purely local - getStats never touches the network or Firestore.
+    async function pollStats() {
+      if (dead) return
+      let changed = false
+      for (const [peerId, pc] of [...pcs]) {
+        if (pc.connectionState !== 'connected') {
+          if (qual.get(peerId) !== 'bad') { qual.set(peerId, 'bad'); changed = true }
+          continue
+        }
+        try {
+          const report = await pc.getStats()
+          if (dead) return
+          let lost = 0, recv = 0, rtt = -1, selId = ''
+          const pairs = new Map()
+          report.forEach(s => {
+            if (s.type === 'inbound-rtp') { lost += s.packetsLost || 0; recv += s.packetsReceived || 0 }
+            else if (s.type === 'candidate-pair') pairs.set(s.id, s)
+            else if (s.type === 'transport' && s.selectedCandidatePairId) selId = s.selectedCandidatePairId
+          })
+          const sel = pairs.get(selId) || [...pairs.values()].find(x => x.nominated && x.state === 'succeeded')
+          if (sel && typeof sel.currentRoundTripTime === 'number') rtt = sel.currentRoundTripTime
+          const prev = statPrev.get(peerId) || { lost, recv }
+          statPrev.set(peerId, { lost, recv })
+          const dLost = Math.max(0, lost - prev.lost)
+          const dRecv = Math.max(0, recv - prev.recv)
+          const lossPct = dLost + dRecv > 0 ? (dLost / (dLost + dRecv)) * 100 : 0
+          const q = (lossPct > 8 || rtt > 0.5) ? 'bad'
+            : (lossPct > 2.5 || rtt > 0.25) ? 'weak'
+            : 'good'
+          if (qual.get(peerId) !== q) { qual.set(peerId, q); changed = true }
+        } catch { /* stats unavailable this tick */ }
+      }
+      for (const id of [...qual.keys()]) {
+        if (!pcs.has(id)) { qual.delete(id); statPrev.delete(id); changed = true }
+      }
+      const rank = { good: 0, weak: 1, bad: 2 }
+      const vals = [...qual.values()].sort((a, b) => rank[a] - rank[b])
+      const selfQ = offline ? 'bad' : vals.length ? vals[Math.floor(vals.length / 2)] : 'good'
+      setSelfQuality(prevQ => (prevQ === selfQ ? prevQ : selfQ))
+      if (changed) publish()
     }
 
     // Split the video budget across every connection and pin audio at high
@@ -348,6 +505,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
     function makePc(peerId) {
       const pc = new RTCPeerConnection(RTC_CONFIG)
       pcs.set(peerId, pc)
+      pcBorn.set(peerId, Date.now())
       let vSender = null
       if (local) for (const t of local.getTracks()) {
         const s = pc.addTrack(t, local)
@@ -396,8 +554,22 @@ export default function useMeetingRoom({ db, roomId, self }) {
         if (e.streams && e.streams[0]) { streams.set(peerId, e.streams[0]); publish() }
       }
       pc.onconnectionstatechange = () => {
-        connState.set(peerId, pc.connectionState)
-        if (pc.connectionState === 'connected') applyMediaBudget()
+        const st = pc.connectionState
+        connState.set(peerId, st)
+        if (st === 'connected') {
+          retries.delete(peerId)
+          const ht = healTimers.get(peerId)
+          if (ht) { clearTimeout(ht); healTimers.delete(peerId) }
+          applyMediaBudget()
+        } else if (st === 'failed') {
+          // Small stagger lets a burst of state flaps settle before healing.
+          scheduleHeal(peerId, 300)
+        } else if (st === 'disconnected') {
+          // 'disconnected' often self-recovers within seconds - only heal the
+          // ones that stay down.
+          scheduleHeal(peerId, 4500)
+        }
+        updateNetDown()
         publish()
       }
       return pc
@@ -438,6 +610,36 @@ export default function useMeetingRoom({ db, roomId, self }) {
         const pc = pcs.get(from)
         if (pc && pc.remoteDescription) { try { await pc.addIceCandidate(msg.data) } catch { /* stale */ } }
         else pendingIce.set(from, [...(pendingIce.get(from) || []), msg.data])
+      } else if (msg.type === 'reoffer') {
+        // The other side sees our link as dead and cannot re-offer (only the
+        // initiator may - no glare). Rebuild, unless this pc was just built:
+        // then the crossing rebuild already happened and this request is
+        // stale.
+        if (!iAmInitiator(from)) return
+        if (Date.now() - (pcBorn.get(from) || 0) < 4000) return
+        closePeer(from)
+        initiate(from)
+      } else if (msg.type === 'ctl') {
+        // Professor room controls. Verified against the live roster - the
+        // sender's participant doc must say role admin - and the professor's
+        // own client ignores ctl entirely.
+        const sender = roster.find(p => p.peerId === from)
+        if (!sender || sender.role !== 'admin') return
+        if ((selfRef.current || {}).role === 'admin') return
+        const action = msg.data && msg.data.do
+        if (action === 'mute') {
+          const t = local && local.getAudioTracks()[0]
+          if (t && t.enabled) {
+            t.enabled = false
+            setMicOn(false)
+            setForcedMuteAt(Date.now())
+            rtcUpdateParticipant(db, roomId, myId, { micOn: false })
+          }
+        } else if (action === 'eject') {
+          ejectedRooms.add(roomId)
+          teardown()
+          setPhase('removed')
+        }
       }
     }
 
@@ -454,6 +656,17 @@ export default function useMeetingRoom({ db, roomId, self }) {
       for (const id of [...seenLocal.keys()]) {
         if (!list.some(p => p.peerId === id)) seenLocal.delete(id)
       }
+      // Attendance trail: remember every STUDENT ever sighted in the room and
+      // their earliest join time (their doc disappears when they leave, so
+      // this is accumulated live, not read at the end). The professor stamps
+      // it onto the meeting doc at End class.
+      for (const p of list) {
+        if (p.role === 'admin' || !p.uid) continue
+        const cur = joinLog.get(p.uid)
+        if (!cur || (p.joinedAt || 0) < cur.joinedAt) {
+          joinLog.set(p.uid, { uid: p.uid, name: p.name || '', joinedAt: p.joinedAt || Date.now() })
+        }
+      }
       if (myJoinedAt && !leaving && !list.some(p => p.peerId === myId)) { rejoin(); return }
       // A peer that REJOINED (fresh joinedAt, e.g. after being swept) needs
       // fresh connections: drop the dead pc so the initiator rule re-runs
@@ -461,11 +674,12 @@ export default function useMeetingRoom({ db, roomId, self }) {
       for (const p of list) {
         if (p.peerId === myId) continue
         const known = joinStamp.get(p.peerId)
-        if (known !== undefined && known !== p.joinedAt) closePeer(p.peerId)
+        // A fresh incarnation also gets a fresh self-heal budget.
+        if (known !== undefined && known !== p.joinedAt) { closePeer(p.peerId); retries.delete(p.peerId) }
         joinStamp.set(p.peerId, p.joinedAt)
       }
       for (const id of [...joinStamp.keys()]) {
-        if (!list.some(p => p.peerId === id)) joinStamp.delete(id)
+        if (!list.some(p => p.peerId === id)) { joinStamp.delete(id); retries.delete(id) }
       }
       const alive = list.filter(p => !isGone(p))
       // Deterministic overflow: order everyone by join time; whoever lands
@@ -497,6 +711,11 @@ export default function useMeetingRoom({ db, roomId, self }) {
       leaving = true
       if (heartbeat) { clearInterval(heartbeat); heartbeat = null }
       if (presence) { clearInterval(presence); presence = null }
+      if (statsTimer) { clearInterval(statsTimer); statsTimer = null }
+      for (const t of healTimers.values()) clearTimeout(t)
+      healTimers.clear()
+      window.removeEventListener('offline', onNetOffline)
+      window.removeEventListener('online', onNetOnline)
       unsubs.splice(0).forEach(u => { try { u() } catch { /* noop */ } })
       for (const peerId of [...pcs.keys()]) closePeer(peerId)
       if (screenTrack) { try { screenTrack.stop() } catch { /* noop */ } screenTrack = null }
@@ -589,8 +808,12 @@ export default function useMeetingRoom({ db, roomId, self }) {
         getIdToken().then(t => { if (t) cachedToken = t }).catch(() => {})
       }, HEARTBEAT_MS)
       presence = setInterval(presenceTick, 5000)
+      statsTimer = setInterval(pollStats, 5000)
       getIdToken().then(t => { if (t) cachedToken = t }).catch(() => {})
       window.addEventListener('pagehide', onPageHide)
+      window.addEventListener('offline', onNetOffline)
+      window.addEventListener('online', onNetOnline)
+      updateNetDown()
       setPhase('ready')
     }
 
@@ -684,18 +907,42 @@ export default function useMeetingRoom({ db, roomId, self }) {
         // Professor-only toggle; students read it off the professor's doc.
         rtcUpdateParticipant(db, roomId, myId, { chatLock: !!on })
       },
+      muteStudent(peerId) {
+        // Professor only: the student's client turns its own mic off (a
+        // browser cannot force a remote mic) - they can unmute to speak.
+        if ((selfRef.current || {}).role !== 'admin') return
+        send(peerId, 'ctl', { do: 'mute' })
+      },
+      muteAllStudents() {
+        if ((selfRef.current || {}).role !== 'admin') return
+        for (const p of roster) {
+          if (p.peerId === myId || p.role === 'admin' || isGone(p)) continue
+          if (p.micOn !== false) send(p.peerId, 'ctl', { do: 'mute' })
+        }
+      },
+      removeStudent(peerId) {
+        // Professor only: their client tears down, deletes its own docs, and
+        // blocks rejoining this room for the rest of their browser session.
+        if ((selfRef.current || {}).role !== 'admin') return
+        send(peerId, 'ctl', { do: 'eject' })
+      },
+      getJoinLog() {
+        return [...joinLog.values()]
+      },
       leave() {
         teardown()
         setPhase('left')
       },
     }
 
-    start()
+    if (ejectedRooms.has(roomId)) setPhase('removed')
+    else start()
     return () => { dead = true; teardown() }
   }, [db, roomId, attempt])
 
   return {
     phase, errorMsg, peers, localStream, micOn, camOn, sharing, screenStream,
+    netDown, selfQuality, forcedMuteAt,
     toggleMic: () => apiRef.current.toggleMic?.(),
     toggleCam: () => apiRef.current.toggleCam?.(),
     startShare: () => apiRef.current.startShare?.(),
@@ -707,6 +954,10 @@ export default function useMeetingRoom({ db, roomId, self }) {
     lowerHand: peerId => apiRef.current.lowerHand?.(peerId),
     sendReaction: e => apiRef.current.sendReaction?.(e),
     setChatLock: on => apiRef.current.setChatLock?.(on),
+    muteStudent: peerId => apiRef.current.muteStudent?.(peerId),
+    muteAllStudents: () => apiRef.current.muteAllStudents?.(),
+    removeStudent: peerId => apiRef.current.removeStudent?.(peerId),
+    getJoinLog: () => apiRef.current.getJoinLog?.() || [],
     canShare: typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia,
   }
 }

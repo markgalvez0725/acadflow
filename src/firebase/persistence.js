@@ -810,6 +810,14 @@ export async function fbSaveMeetingRecording(db, meetingId, recording) {
   await fbWithTimeout(updateDoc(doc(db, 'onlineMeetings', meetingId), { recording }));
 }
 
+// Small professor-written patches on a meeting doc (joinLog stamped at End
+// class, attMarkedAt after attendance is saved from it). Field-level update,
+// never a full setDoc - the doc keeps whatever else other writers added.
+export async function fbPatchMeeting(db, meetingId, patch) {
+  if (!db || !meetingId || !patch || !Object.keys(patch).length) return;
+  await fbWithTimeout(updateDoc(doc(db, 'onlineMeetings', meetingId), patch));
+}
+
 // NOTE: professor-feed notifications go through fbNotifyAdmin in
 // attendanceExtras.js (the canonical notifications/admin writer) - do not
 // add a second one here.

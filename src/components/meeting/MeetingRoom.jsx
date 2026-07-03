@@ -4,7 +4,7 @@ import {
   Mic, MicOff, Video, VideoOff, MonitorUp, PhoneOff, Radio,
   Users, AlertTriangle, Loader2, CheckCircle, Minimize2, Maximize2,
   PictureInPicture2, CircleDot, Square, Hand, Pin, PinOff, Volume2,
-  MessageSquare, Smile, LogIn, LogOut,
+  MessageSquare, Smile, LogIn, LogOut, UserX,
 } from 'lucide-react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -16,6 +16,7 @@ import { detectAudioShield } from '@/utils/audioShield'
 import { createPipSource } from '@/utils/meetingPip'
 import { playMeetingSound, preloadMeetingSounds } from '@/utils/meetingSounds'
 import MeetingChat from '@/components/meeting/MeetingChat'
+import MeetingPeople from '@/components/meeting/MeetingPeople'
 import EmojiIcon from '@/components/primitives/EmojiIcon'
 
 // Full-screen in-app classroom shared by the professor and student tabs,
@@ -89,12 +90,31 @@ function AvatarCircle({ photo, name, small }) {
 function VideoTile({
   stream, name, role, micOn, camOn, muted, failed, photo, speaking,
   hand, onHandClick, onPin, pinned, peerId,
+  quality, reconnecting, retryN, onMute, onRemove, onLongPress,
   isSelf, presenting, presentLabel, noVideo, noHint, className,
 }) {
   const ref = useRef(null)
   useEffect(() => {
     if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream || null
   }, [stream])
+  // Long press (phones have no hover): 500ms still-press opens the actions
+  // sheet; any real movement or release cancels. Right-click maps to the
+  // same sheet so desktops get it too.
+  const lp = useRef({ t: null, x: 0, y: 0 })
+  useEffect(() => () => clearTimeout(lp.current.t), [])
+  function lpStart(e) {
+    if (!onLongPress) return
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    clearTimeout(lp.current.t)
+    lp.current.x = e.clientX
+    lp.current.y = e.clientY
+    lp.current.t = setTimeout(onLongPress, 500)
+  }
+  function lpMove(e) {
+    if (!lp.current.t) return
+    if (Math.abs(e.clientX - lp.current.x) > 12 || Math.abs(e.clientY - lp.current.y) > 12) clearTimeout(lp.current.t)
+  }
+  function lpEnd() { clearTimeout(lp.current.t) }
   const showVideo = !noVideo && !!stream && camOn !== false
   // EVERY video FITS its landscape tile: the whole frame renders contained
   // over the tile's static gradient backdrop. Portrait phones, 4:3 webcams,
@@ -113,6 +133,12 @@ function VideoTile({
         + (className ? ` ${className}` : '')
       }
       data-peer={peerId || undefined}
+      onPointerDown={onLongPress ? lpStart : undefined}
+      onPointerMove={onLongPress ? lpMove : undefined}
+      onPointerUp={onLongPress ? lpEnd : undefined}
+      onPointerLeave={onLongPress ? lpEnd : undefined}
+      onPointerCancel={onLongPress ? lpEnd : undefined}
+      onContextMenu={onLongPress ? e => { e.preventDefault(); onLongPress() } : undefined}
     >
       {/* Keep the <video> mounted even when the camera is off - it still
           carries the audio. noVideo tiles (filmstrip copy of the presenter)
@@ -132,10 +158,17 @@ function VideoTile({
       {!showVideo && (
         <div className="mr-tile-avatar">
           <AvatarCircle photo={photo} name={name} />
-          {!noHint && !stream && !isSelf && !failed && <span className="mr-tile-hint">connecting…</span>}
-          {!noHint && failed && <span className="mr-tile-hint mr-tile-bad"><AlertTriangle size={12} /> could not connect</span>}
+          {!noHint && !stream && !isSelf && !failed && !reconnecting && <span className="mr-tile-hint">connecting…</span>}
+          {!noHint && failed && !reconnecting && <span className="mr-tile-hint mr-tile-bad"><AlertTriangle size={12} /> could not connect</span>}
         </div>
       )}
+      {reconnecting && !noHint && (
+        <span className="mr-reconn">
+          <Loader2 size={12} className="animate-spin" />
+          Reconnecting{retryN > 0 ? ` · retry ${Math.min(retryN, 6)} of 6` : '…'}
+        </span>
+      )}
+      {quality && !noHint && <span className={`mr-qdot mr-qdot-${quality} mr-qdot-tile`} title={quality === 'good' ? 'Connection is good' : quality === 'weak' ? 'Connection is a little weak' : 'Connection is struggling'} />}
       <div className="mr-tile-top">
         {role === 'admin' && <span className="mr-tile-prof">PROF</span>}
         {hand && (
@@ -149,11 +182,23 @@ function VideoTile({
           </button>
         )}
       </div>
-      {onPin && (
+      {(onPin || onMute || onRemove) && (
         <div className="mr-tile-acts">
-          <button onClick={onPin} title={pinned ? 'Unpin' : 'Pin to your screen'}>
-            {pinned ? <PinOff size={14} /> : <Pin size={14} />}
-          </button>
+          {onMute && (
+            <button onClick={onMute} title="Mute this student">
+              <MicOff size={14} />
+            </button>
+          )}
+          {onRemove && (
+            <button onClick={onRemove} className="mr-act-danger" title="Remove from class">
+              <UserX size={14} />
+            </button>
+          )}
+          {onPin && (
+            <button onClick={onPin} title={pinned ? 'Unpin' : 'Pin to your screen'}>
+              {pinned ? <PinOff size={14} /> : <Pin size={14} />}
+            </button>
+          )}
         </div>
       )}
       <div className="mr-tile-name">
@@ -203,9 +248,22 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     phase, errorMsg, peers, localStream, micOn, camOn, sharing, canShare,
     screenStream, setRecordingFlag, setHand, lowerHand, sendReaction, setChatLock,
     toggleMic, toggleCam, startShare, stopShare, leave, retry,
+    netDown, selfQuality, forcedMuteAt,
+    muteStudent, muteAllStudents, removeStudent, getJoinLog,
   } = useMeetingRoom({ db, roomId: meeting?.id, self })
 
   const [ending, setEnding] = useState(false)
+  // Host-control surfaces: the People panel, the long-press tile sheet, and
+  // the remove confirmation (rendered inside the room - the app's dialog
+  // portal would land under this overlay).
+  const [peopleOpen, setPeopleOpen] = useState(false)
+  const [sheetPeer, setSheetPeer] = useState(null)
+  const [confirmRemove, setConfirmRemove] = useState(null)
+
+  // The professor muted this device - say so, and say the way back.
+  useEffect(() => {
+    if (forcedMuteAt) toast('The professor muted your microphone. Unmute when you need to speak.')
+  }, [forcedMuteAt]) // eslint-disable-line react-hooks/exhaustive-deps
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000)
@@ -490,7 +548,9 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   async function handleEnd() {
     if (!onEndClass || ending) return
     setEnding(true)
-    try { await onEndClass() } finally { setEnding(false) }
+    // The join log rides along so the host can stamp it onto the meeting doc
+    // and open the attendance sheet right after the room closes.
+    try { await onEndClass(getJoinLog()) } finally { setEnding(false) }
   }
 
   // ── Pin (local spotlight), featured selection ───────────────────────────
@@ -739,6 +799,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
       : phase === 'connecting' ? 'Joining…'
       : phase === 'error' ? 'Could not join'
       : phase === 'full' ? 'Room is full'
+      : phase === 'removed' ? 'Removed from class'
       : null
     const expand = () => onMinimize?.(false)
     const mini = (
@@ -786,22 +847,36 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   }
 
   // ── Full room ───────────────────────────────────────────────────────────
-  const tileProps = p => ({
-    stream: p.stream,
-    name: p.name,
-    role: p.role,
-    photo: photoFor(p),
-    micOn: p.micOn,
-    camOn: p.camOn,
-    muted: false,
-    failed: p.connState === 'failed',
-    speaking: speaking.has(p.peerId),
-    hand: !!p.hand,
-    onHandClick: isAdmin ? () => lowerHand(p.peerId) : undefined,
-    onPin: () => togglePin(p),
-    pinned: pinnedId === p.peerId,
-    peerId: p.peerId,
-  })
+  const tileProps = p => {
+    // A down link shows the amber self-healing state while the engine still
+    // has retries left; "could not connect" is reserved for links that spent
+    // them all (usually a NAT pair that genuinely cannot meet without TURN).
+    const linkDown = p.connState === 'failed' || p.connState === 'disconnected'
+    const gaveUp = (p.retry || 0) > 6
+    const student = p.role !== 'admin'
+    return {
+      stream: p.stream,
+      name: p.name,
+      role: p.role,
+      photo: photoFor(p),
+      micOn: p.micOn,
+      camOn: p.camOn,
+      muted: false,
+      failed: linkDown && gaveUp,
+      reconnecting: (linkDown || (p.retry || 0) > 0) && !gaveUp,
+      retryN: p.retry || 0,
+      quality: p.quality || 'good',
+      speaking: speaking.has(p.peerId),
+      hand: !!p.hand,
+      onHandClick: isAdmin ? () => lowerHand(p.peerId) : undefined,
+      onPin: () => togglePin(p),
+      pinned: pinnedId === p.peerId,
+      onMute: isAdmin && student && p.micOn !== false ? () => muteStudent(p.peerId) : undefined,
+      onRemove: isAdmin && student ? () => setConfirmRemove(p) : undefined,
+      onLongPress: isAdmin && student ? () => setSheetPeer(p) : undefined,
+      peerId: p.peerId,
+    }
+  }
 
   const stageCells = [
     ...stagePeers.map(p => <VideoTile key={p.peerId} {...tileProps(p)} />),
@@ -820,6 +895,12 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     <div className="mr-overlay" ref={rootRef} role="dialog" aria-label="Live class room">
       <div className="mr-stage-wrap">
         <div className="mr-main" ref={mainRef}>
+          {netDown && !ended && phase === 'ready' && (
+            <div className="mr-net-banner" role="alert">
+              <Loader2 size={14} className="animate-spin" />
+              <span>Connection lost · rejoining the class, hang tight. No need to refresh.</span>
+            </div>
+          )}
           {shieldWarn && !ended && (
             <div className="mr-shield-warn" role="alert">
               <AlertTriangle size={15} />
@@ -860,26 +941,21 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
               <span>In-app rooms hold up to {ROOM_CAP} people including the professor. Try again once someone leaves.</span>
               <button className="btn btn-sm" onClick={handleLeave}>Close</button>
             </div>
+          ) : phase === 'removed' ? (
+            <div className="mr-center">
+              <UserX size={30} style={{ color: '#fdd663' }} />
+              <b>Removed from class</b>
+              <span>The professor removed you from this class session. If you think this was a mistake, message your professor.</span>
+              <button className="btn btn-sm" onClick={handleLeave}>Close</button>
+            </div>
           ) : featuredPeer ? (
             <>
               <div className="mr-present">
                 <VideoTile
                   key={`present-${featuredPeer.peerId}`}
-                  stream={featuredPeer.stream}
-                  name={featuredPeer.name}
-                  role={featuredPeer.role}
-                  photo={photoFor(featuredPeer)}
+                  {...tileProps(featuredPeer)}
                   presentLabel={featuredPeer.sharing ? `${featuredPeer.name} is presenting` : undefined}
                   camOn={featuredPeer.sharing ? true : featuredPeer.camOn}
-                  micOn={featuredPeer.micOn}
-                  muted={false}
-                  failed={featuredPeer.connState === 'failed'}
-                  speaking={speaking.has(featuredPeer.peerId)}
-                  hand={!!featuredPeer.hand}
-                  onHandClick={isAdmin ? () => lowerHand(featuredPeer.peerId) : undefined}
-                  onPin={() => togglePin(featuredPeer)}
-                  pinned={pinnedId === featuredPeer.peerId}
-                  peerId={featuredPeer.peerId}
                 />
               </div>
               <div className="mr-strip">
@@ -952,6 +1028,52 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
             </div>
           )}
 
+          {/* Long-press actions for a student tile (phones have no hover). */}
+          {sheetPeer && !ended && (
+            <div className="mr-sheet-scrim" onClick={() => setSheetPeer(null)}>
+              <div className="mr-sheet" role="menu" aria-label={`Actions for ${sheetPeer.name}`} onClick={e => e.stopPropagation()}>
+                <div className="mr-sheet-title">{sheetPeer.name}</div>
+                {peers.find(p => p.peerId === sheetPeer.peerId)?.micOn !== false && (
+                  <button onClick={() => { muteStudent(sheetPeer.peerId); setSheetPeer(null) }}>
+                    <MicOff size={16} /> Mute microphone
+                  </button>
+                )}
+                <button className="mr-sheet-danger" onClick={() => { setConfirmRemove(sheetPeer); setSheetPeer(null) }}>
+                  <UserX size={16} /> Remove from class
+                </button>
+                <button onClick={() => { togglePin(sheetPeer); setSheetPeer(null) }}>
+                  {pinnedId === sheetPeer.peerId ? <PinOff size={16} /> : <Pin size={16} />}
+                  {pinnedId === sheetPeer.peerId ? 'Unpin' : 'Pin to your screen'}
+                </button>
+                <button className="mr-sheet-cancel" onClick={() => setSheetPeer(null)}>Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {/* Remove confirmation - rendered in-room (the app's dialog portal
+              would stack under this overlay). */}
+          {confirmRemove && !ended && (
+            <div className="mr-sheet-scrim" onClick={() => setConfirmRemove(null)}>
+              <div className="mr-confirm" role="alertdialog" aria-label="Remove from class" onClick={e => e.stopPropagation()}>
+                <b>Remove {confirmRemove.name}?</b>
+                <span>They leave the class immediately and cannot rejoin this session.</span>
+                <div className="mr-confirm-btns">
+                  <button onClick={() => setConfirmRemove(null)}>Cancel</button>
+                  <button
+                    className="mr-confirm-danger"
+                    onClick={() => {
+                      removeStudent(confirmRemove.peerId)
+                      toast(`${confirmRemove.name} was removed from the class.`, 'success')
+                      setConfirmRemove(null)
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Reactions bar (toggled by the smiley control). */}
           {ready && reactOpen && (
             <div className="mr-react-bar">
@@ -998,6 +1120,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
                 </>
               )}
               {myHand && <span className="mr-hand-badge mr-hand-badge-self"><Hand size={12} /></span>}
+              <span className={`mr-qdot mr-qdot-${selfQuality} mr-qdot-tile`} title={selfQuality === 'good' ? 'Your connection is good' : selfQuality === 'weak' ? 'Your connection is a little weak' : 'Your connection is struggling'} />
               <span className="mr-pip-label">You</span>
               {!micOn && <span className="mr-mic-off"><MicOff size={12} /></span>}
             </div>
@@ -1014,6 +1137,19 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
           onToggleLock={toggleChatLock}
           onSend={sendChat}
           onClose={() => setChatOpen(false)}
+        />
+        <MeetingPeople
+          open={peopleOpen && !ended && ready}
+          peers={peers}
+          self={self}
+          micOn={micOn}
+          isAdmin={isAdmin}
+          photoOf={photoFor}
+          onMute={p => muteStudent(p.peerId)}
+          onMuteAll={() => { muteAllStudents(); toast('Muted all students. They can unmute when they need to speak.', 'success') }}
+          onRemove={p => setConfirmRemove(p)}
+          onLowerHand={p => lowerHand(p.peerId)}
+          onClose={() => setPeopleOpen(false)}
         />
       </div>
 
@@ -1068,9 +1204,20 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
               <button className={`mr-ctl${reactOpen ? ' mr-ctl-accent' : ''}`} onClick={() => setReactOpen(o => !o)} title="Send a reaction">
                 <Smile size={18} />
               </button>
-              <button className={`mr-ctl${chatOpen ? ' mr-ctl-accent' : ''}`} onClick={() => setChatOpen(o => !o)} title="In-call messages">
+              <button
+                className={`mr-ctl${chatOpen ? ' mr-ctl-accent' : ''}`}
+                onClick={() => setChatOpen(o => { const n = !o; if (n) setPeopleOpen(false); return n })}
+                title="In-call messages"
+              >
                 <MessageSquare size={18} />
                 {unread > 0 && <span className="mr-ctl-badge">{unread > 9 ? '9+' : unread}</span>}
+              </button>
+              <button
+                className={`mr-ctl${peopleOpen ? ' mr-ctl-accent' : ''}`}
+                onClick={() => setPeopleOpen(o => { const n = !o; if (n) setChatOpen(false); return n })}
+                title="People in this class"
+              >
+                <Users size={18} />
               </button>
             </>
           )}
@@ -1092,7 +1239,14 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
           {handCount > 0 && (
             <span className="mr-hand-chip" title={handTitle}><Hand size={13} /> {handCount}</span>
           )}
-          <span className="mr-count"><Users size={14} /> {count}/{ROOM_CAP}</span>
+          <button
+            type="button"
+            className="mr-count"
+            onClick={() => setPeopleOpen(o => { const n = !o; if (n) setChatOpen(false); return n })}
+            title="People in this class"
+          >
+            <Users size={14} /> {count}/{ROOM_CAP}
+          </button>
           {isAdmin && !ended && (
             <button className="mr-endclass" onClick={handleEnd} disabled={ending} title="End the class for everyone">
               {ending ? 'Ending…' : 'End class'}
