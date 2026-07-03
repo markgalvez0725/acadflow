@@ -103,10 +103,21 @@ function explainGumError(e) {
   return 'Could not access your camera or microphone. Check your browser permissions, then press Try again.'
 }
 
-// How many self-heal attempts a dead link gets before its tile goes terminal
-// ("could not connect"). The counter resets whenever the link reaches
-// 'connected' or the device's own network comes back.
-const HEAL_MAX = 6
+// Self-heal is NEVER terminal (Meet behavior): as long as a peer's heartbeat
+// says they are in the room, their link keeps getting repair attempts - the
+// first ones as cheap ICE restarts on the same connection, then full
+// rebuilds, with backoff capped at HEAL_BACKOFF_MAX. The retry counter only
+// shapes backoff and resets whenever the link reaches 'connected' or the
+// device's own network comes back.
+const HEAL_BACKOFF_MAX = 15000
+
+// Weak-hardware profile: few cores or little memory (entry phones, old
+// laptops) cannot run one video encoder per peer without the encoders
+// backing up - the link starves, flaps, and reads as "disconnecting". These
+// devices capture smaller frames and send fewer bits; capable devices are
+// untouched. deviceMemory is absent on Safari (treated as capable).
+const LOW_END = typeof navigator !== 'undefined'
+  && ((navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 2)
 
 // Rooms this device was removed from by the professor. Module-level so the
 // block survives the engine remounting - pressing Join again in the same
@@ -198,6 +209,9 @@ export default function useMeetingRoom({ db, roomId, self }) {
     let preferH264 = false // set once at start(): this device has a hardware H.264 encoder
     let shareCapW = 0      // capture width bucket currently applied to the share track
     let heartbeat = null
+    let hbWorker = null    // background-proof heartbeat timer (see startHeartbeat)
+    let hbUrl = ''
+    let selfQ = 'good'     // my own uplink grade; drives the adaptive send budget
     let presence = null
     let statsTimer = null
     let offline = typeof navigator !== 'undefined' && navigator.onLine === false
@@ -357,7 +371,23 @@ export default function useMeetingRoom({ db, roomId, self }) {
       healTimers.set(peerId, setTimeout(() => { healTimers.delete(peerId); healPeer(peerId) }, delay))
     }
 
-    function healPeer(peerId) {
+    // Cheap in-place repair, what Meet does first: fresh ICE candidates on
+    // the SAME connection. The DTLS session and negotiated codecs survive,
+    // the new gather round now includes the TURN relay, and media resumes in
+    // a couple round trips instead of a full teardown + re-signaling cycle.
+    async function iceRestart(peerId) {
+      const pc = pcs.get(peerId)
+      if (!pc) return false
+      try {
+        if (pc.restartIce) pc.restartIce()
+        const offer = await pc.createOffer({ iceRestart: true })
+        await pc.setLocalDescription(offer)
+        send(peerId, 'offer', pc.localDescription.toJSON())
+        return true
+      } catch { return false }
+    }
+
+    async function healPeer(peerId) {
       if (dead || leaving) return
       const pc = pcs.get(peerId)
       const st = pc ? pc.connectionState : ''
@@ -374,20 +404,30 @@ export default function useMeetingRoom({ db, roomId, self }) {
       // wait for the 'online' event (it re-kicks every dead link).
       if (offline) { scheduleHeal(peerId, 3000); return }
       const n = (retries.get(peerId) || 0) + 1
-      if (n > HEAL_MAX) { retries.set(peerId, HEAL_MAX + 1); publish(); return }
       retries.set(peerId, n)
-      if (iAmInitiator(peerId)) {
+      // Ladder: two ICE restarts first, full rebuild only for links a
+      // restart cannot save. Never terminal - while their heartbeat is
+      // alive the tries keep coming with capped backoff.
+      if (n <= 2 && st !== 'closed') {
+        if (iAmInitiator(peerId)) {
+          const ok = await iceRestart(peerId)
+          if (!ok) { closePeer(peerId); initiate(peerId) }
+        } else {
+          // Only the initiator may offer (no glare) - ask them to restart.
+          send(peerId, 'reoffer', { n, restart: true })
+        }
+      } else if (iAmInitiator(peerId)) {
         closePeer(peerId)
         initiate(peerId)
       } else {
-        // Only the initiator may re-offer (no glare); tear down my side and
-        // ask them to rebuild. If the link died for them too they already
-        // are - the 'reoffer' handler ignores requests against a fresh pc.
+        // Tear down my side and ask them to rebuild. If the link died for
+        // them too they already are - the 'reoffer' handler ignores
+        // requests against a fresh pc.
         closePeer(peerId)
         send(peerId, 'reoffer', { n })
       }
       publish()
-      scheduleHeal(peerId, Math.min(16000, 2000 * n))
+      scheduleHeal(peerId, Math.min(HEAL_BACKOFF_MAX, 2000 * n))
     }
 
     // ── My own network ────────────────────────────────────────────────────
@@ -413,6 +453,44 @@ export default function useMeetingRoom({ db, roomId, self }) {
         if (s === 'failed' || s === 'disconnected') scheduleHeal(peerId, 800)
       }
       updateNetDown()
+    }
+
+    // ── Background-proof presence ─────────────────────────────────────────
+    // Browsers clamp main-thread timers in hidden tabs - aggressively on
+    // phones (screen off, app switched). The heartbeat used to stop, the
+    // sweeper evicted the student as a ghost, and they bounced out of the
+    // room: THE "students keep disconnecting" loop. Worker timers are exempt
+    // from intensive throttling, so presence survives a backgrounded tab.
+    function beat() {
+      if (dead || leaving) return
+      rtcUpdateParticipant(db, roomId, myId, {})
+      // Keep a fresh ID token at hand for the pagehide leave beacon
+      // (resolves from the SDK cache - no network round-trip).
+      getIdToken().then(t => { if (t) cachedToken = t }).catch(() => {})
+    }
+    function startHeartbeat() {
+      try {
+        hbUrl = URL.createObjectURL(new Blob(
+          ['setInterval(function(){postMessage(0)},' + HEARTBEAT_MS + ')'],
+          { type: 'text/javascript' },
+        ))
+        hbWorker = new Worker(hbUrl)
+        hbWorker.onmessage = beat
+      } catch {
+        heartbeat = setInterval(beat, HEARTBEAT_MS) // no Worker: main-thread timer
+      }
+    }
+    // Back to a foreground tab: beat immediately (the sweep may be close),
+    // refresh the quality dots, and kick every downed link right away
+    // instead of waiting out its backoff.
+    function onVisible() {
+      if (dead || typeof document === 'undefined' || document.visibilityState !== 'visible') return
+      beat()
+      pollStats()
+      for (const [peerId, pc] of pcs) {
+        const s = pc.connectionState
+        if (s === 'failed' || s === 'disconnected') scheduleHeal(peerId, 500)
+      }
     }
 
     // ── Connection quality (the per-tile dot) ─────────────────────────────
@@ -464,8 +542,15 @@ export default function useMeetingRoom({ db, roomId, self }) {
       }
       const rank = { good: 0, weak: 1, bad: 2 }
       const vals = [...qual.values()].sort((a, b) => rank[a] - rank[b])
-      const selfQ = offline ? 'bad' : vals.length ? vals[Math.floor(vals.length / 2)] : 'good'
-      setSelfQuality(prevQ => (prevQ === selfQ ? prevQ : selfQ))
+      const q2 = offline ? 'bad' : vals.length ? vals[Math.floor(vals.length / 2)] : 'good'
+      if (q2 !== selfQ) {
+        // My own uplink changed grade: re-run the budget immediately so a
+        // struggling link sends smaller, lighter video (and a recovered one
+        // gets its quality back) without waiting for a room-size change.
+        selfQ = q2
+        applyMediaBudget()
+      }
+      setSelfQuality(prevQ => (prevQ === q2 ? prevQ : q2))
       if (changed) publish()
     }
 
@@ -475,13 +560,19 @@ export default function useMeetingRoom({ db, roomId, self }) {
     // parameters only stick after negotiation).
     function applyMediaBudget() {
       const n = Math.max(1, pcs.size)
-      const camBits = Math.round(Math.min(350_000, Math.max(60_000, VIDEO_BUDGET / n)))
+      // Weak devices and struggling uplinks send smaller, lighter camera
+      // video: half the pixels and fewer bits beat a stalled connection
+      // every time (the Meet trade - stay connected, degrade video first).
+      const camCap = LOW_END ? 220_000 : 350_000
+      let camBits = Math.round(Math.min(camCap, Math.max(60_000, VIDEO_BUDGET / n)))
+      if (selfQ === 'bad') camBits = Math.round(camBits * 0.6)
       // Share bitrate: a generous ceiling for small rooms (crisp 1080p text
       // wants ~2Mbps) and a floor high enough that text stays legible at
       // scale. maxBitrate is only a CAP - per-link congestion control still
       // adapts each student's feed to what their network actually delivers.
       const shareBits = Math.round(Math.min(2_500_000, Math.max(300_000, SHARE_BUDGET / n)))
-      const scale = screenTrack ? 1 : (n > 16 ? 4 : n > 6 ? 2 : 1)
+      let scale = screenTrack ? 1 : (n > 16 ? 4 : n > 6 ? 2 : 1)
+      if (!screenTrack && (LOW_END || selfQ === 'bad')) scale = Math.min(8, scale * 2)
       // The mesh encodes the share once per peer, so cap the ENCODE framerate
       // as the room grows: it keeps the sharer's CPU ahead of the frame queue
       // (a backed-up encoder is exactly what share lag is). Slides are static
@@ -680,10 +771,16 @@ export default function useMeetingRoom({ db, roomId, self }) {
         else pendingIce.set(from, [...(pendingIce.get(from) || []), msg.data])
       } else if (msg.type === 'reoffer') {
         // The other side sees our link as dead and cannot re-offer (only the
-        // initiator may - no glare). Rebuild, unless this pc was just built:
-        // then the crossing rebuild already happened and this request is
-        // stale.
+        // initiator may - no glare). Restart requests run the cheap ICE
+        // restart on the existing pc; rebuild requests tear down - unless
+        // this pc was just built: then the crossing rebuild already
+        // happened and this request is stale.
         if (!iAmInitiator(from)) return
+        const cur = pcs.get(from)
+        if (msg.data && msg.data.restart && cur && cur.connectionState !== 'closed') {
+          if (await iceRestart(from)) return
+          // Restart failed - fall through to the full rebuild.
+        }
         if (Date.now() - (pcBorn.get(from) || 0) < 4000) return
         closePeer(from)
         initiate(from)
@@ -814,6 +911,9 @@ export default function useMeetingRoom({ db, roomId, self }) {
     function teardown() {
       leaving = true
       if (heartbeat) { clearInterval(heartbeat); heartbeat = null }
+      if (hbWorker) { try { hbWorker.terminate() } catch { /* noop */ } hbWorker = null }
+      if (hbUrl) { try { URL.revokeObjectURL(hbUrl) } catch { /* noop */ } hbUrl = '' }
+      document.removeEventListener('visibilitychange', onVisible)
       if (presence) { clearInterval(presence); presence = null }
       if (statsTimer) { clearInterval(statsTimer); statsTimer = null }
       for (const t of healTimers.values()) clearTimeout(t)
@@ -846,7 +946,12 @@ export default function useMeetingRoom({ db, roomId, self }) {
       let camOk = true
       const AUDIO = { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
       if (prefs.audioId) AUDIO.deviceId = { ideal: prefs.audioId }
-      const VIDEO = { width: { ideal: 640 }, height: { ideal: 360 }, facingMode: 'user' }
+      // Low-end devices capture smaller and slower at the SOURCE: fewer
+      // pixels into every per-peer encoder is what keeps a budget phone's
+      // CPU (and its connection) alive in a full room.
+      const VIDEO = LOW_END
+        ? { width: { ideal: 480 }, height: { ideal: 270 }, frameRate: { ideal: 15, max: 24 }, facingMode: 'user' }
+        : { width: { ideal: 640 }, height: { ideal: 360 }, facingMode: 'user' }
       if (prefs.videoId) VIDEO.deviceId = { ideal: prefs.videoId }
       if (prefs.noMedia) {
         // "Join with both off" from a device-blocked green room: listen-only,
@@ -926,18 +1031,14 @@ export default function useMeetingRoom({ db, roomId, self }) {
 
       unsubs.push(rtcListenParticipants(db, roomId, onRoster))
       unsubs.push(rtcListenSignals(db, roomId, myId, onSignal))
-      heartbeat = setInterval(() => {
-        rtcUpdateParticipant(db, roomId, myId, {})
-        // Keep a fresh ID token at hand for the pagehide leave beacon
-        // (resolves from the SDK cache - no network round-trip).
-        getIdToken().then(t => { if (t) cachedToken = t }).catch(() => {})
-      }, HEARTBEAT_MS)
+      startHeartbeat()
       presence = setInterval(presenceTick, 5000)
       statsTimer = setInterval(pollStats, 5000)
       getIdToken().then(t => { if (t) cachedToken = t }).catch(() => {})
       window.addEventListener('pagehide', onPageHide)
       window.addEventListener('offline', onNetOffline)
       window.addEventListener('online', onNetOnline)
+      document.addEventListener('visibilitychange', onVisible)
       updateNetDown()
       setPhase('ready')
     }

@@ -1,5 +1,5 @@
 // ── Firestore persistence helpers ─────────────────────────────────────────
-import { doc, setDoc, deleteDoc, arrayUnion, runTransaction, collection, getDocs, query, where, updateDoc, deleteField } from 'firebase/firestore'
+import { doc, setDoc, deleteDoc, arrayUnion, runTransaction, collection, getDoc, getDocs, query, where, updateDoc, deleteField } from 'firebase/firestore'
 import { v4 as uuidv4 } from 'uuid'
 import { fbWithTimeout } from './firebaseInit'
 import { serializeStudents } from '@/utils/attendance'
@@ -489,17 +489,29 @@ function patchReplyOnce(replies, target, patchFn) {
 export async function fbEditMessageEntry(db, msgId, target, newBody) {
   if (!db || !msgId || !target || newBody == null) return
   const ref = doc(db, 'messages', msgId)
-  return fbWithTimeout(runTransaction(db, async (transaction) => {
-    const snap = await transaction.get(ref)
-    if (!snap.exists()) throw new Error('Message not found')
-    const now = Date.now()
-    if (target.main) {
-      transaction.update(ref, { body: newBody, editedAt: now })
-    } else {
-      const replies = snap.data().replies
-      transaction.update(ref, { replies: patchReplyOnce(replies, target, r => ({ ...r, body: newBody, editedAt: now })) })
-    }
-  }))
+  const now = Date.now()
+  // Main body: a direct field write - it cannot clobber replies, and unlike
+  // a transaction it does not need a synchronous server read first. The
+  // transactional version was why edits "kept failing" on wobbly links
+  // while plain sends (also simple writes) went through fine.
+  if (target.main) return fbWithTimeout(updateDoc(ref, { body: newBody, editedAt: now }))
+  const patchReplies = replies =>
+    patchReplyOnce(replies, target, r => ({ ...r, body: newBody, editedAt: now }))
+  try {
+    return await fbWithTimeout(runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(ref)
+      if (!snap.exists()) throw new Error('Message not found')
+      transaction.update(ref, { replies: patchReplies(snap.data().replies) })
+    }))
+  } catch (e) {
+    // Transactions need several clean round trips and abort outright when
+    // the client wobbles offline - exactly the networks this app lives on.
+    // Fallback: one fresh read + patched write. The theoretical concurrent-
+    // reply clobber window is a few ms; an edit that reliably sticks wins.
+    const snap = await fbWithTimeout(getDoc(ref))
+    if (!snap.exists()) throw e
+    return fbWithTimeout(updateDoc(ref, { replies: patchReplies(snap.data().replies) }))
+  }
 }
 
 // Delete a single message entry. `mode`:

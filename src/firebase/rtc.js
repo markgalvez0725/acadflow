@@ -33,13 +33,40 @@ import { fbWithTimeout } from './firebaseInit'
 export const ROOM_CAP = 60
 export const BIG_ROOM = 12
 
-// Free public STUN (connectivity discovery only - no media ever relays
-// through Google). Without a TURN server some strict-NAT pairs cannot
-// connect; the UI surfaces that per-tile instead of failing the whole room.
+// Free public STUN (connectivity discovery) plus a free public TURN relay
+// (Open Relay) as the LAST-RESORT media path. STUN-only meant a student
+// behind carrier-grade NAT - most mobile-data connections - could never
+// form a direct pair with anyone: their tile just cycled "Reconnecting"
+// forever, which read as "students keep disconnecting". ICE always prefers
+// direct host/srflx routes and only falls back to the relay when no direct
+// path exists, so the relay costs nothing for the pairs that never needed
+// it. A school-owned TURN can replace the public one via env, no code
+// change: VITE_TURN_URLS (comma-separated) + VITE_TURN_USER + VITE_TURN_PASS.
+const ENV_TURN = String(import.meta.env.VITE_TURN_URLS || '')
+  .split(',').map(s => s.trim()).filter(Boolean)
+const TURN_SERVER = ENV_TURN.length
+  ? {
+      urls: ENV_TURN,
+      username: import.meta.env.VITE_TURN_USER || '',
+      credential: import.meta.env.VITE_TURN_PASS || '',
+    }
+  : {
+      urls: [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turn:openrelay.metered.ca:443?transport=tcp',
+      ],
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    }
 export const RTC_CONFIG = {
   iceServers: [
     { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+    TURN_SERVER,
   ],
+  // Pre-gathered candidate pool: the first offer leaves with candidates
+  // already in hand, shaving seconds off every connect and reconnect.
+  iceCandidatePoolSize: 2,
 }
 
 // A participant is considered gone when their heartbeat has been quiet this

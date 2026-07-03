@@ -170,7 +170,7 @@ function VideoTile({
       {reconnecting && !noHint && (
         <span className="mr-reconn">
           <Loader2 size={12} className="animate-spin" />
-          Reconnecting{retryN > 0 ? ` · retry ${Math.min(retryN, 6)} of 6` : '…'}
+          Reconnecting…
         </span>
       )}
       {quality && !noHint && <span className={`mr-qdot mr-qdot-${quality} mr-qdot-tile`} title={quality === 'good' ? 'Connection is good' : quality === 'weak' ? 'Connection is a little weak' : 'Connection is struggling'} />}
@@ -986,11 +986,10 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
 
   // ── Full room ───────────────────────────────────────────────────────────
   const tileProps = p => {
-    // A down link shows the amber self-healing state while the engine still
-    // has retries left; "could not connect" is reserved for links that spent
-    // them all (usually a NAT pair that genuinely cannot meet without TURN).
+    // A down link shows the amber self-healing state for as long as it takes
+    // - the engine never gives up on a peer whose heartbeat says they are in
+    // the room (Meet behavior), so there is no terminal "could not connect".
     const linkDown = p.connState === 'failed' || p.connState === 'disconnected'
-    const gaveUp = (p.retry || 0) > 6
     const student = p.role !== 'admin'
     return {
       stream: p.stream,
@@ -1000,8 +999,8 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
       micOn: p.micOn,
       camOn: p.camOn,
       muted: false,
-      failed: linkDown && gaveUp,
-      reconnecting: (linkDown || (p.retry || 0) > 0) && !gaveUp,
+      failed: false,
+      reconnecting: linkDown || (p.retry || 0) > 0,
       retryN: p.retry || 0,
       quality: p.quality || 'good',
       speaking: speaking.has(p.peerId),
