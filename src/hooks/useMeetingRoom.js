@@ -30,7 +30,7 @@ import {
   RTC_CONFIG, ROOM_CAP, BIG_ROOM, HEARTBEAT_MS, STALE_MS, STALE_FAST_MS,
   rtcFetchParticipants, rtcJoinRoom, rtcLeaveRoom, rtcLeaveBeacon,
   rtcUpdateParticipant, rtcSendSignal, rtcListenParticipants,
-  rtcListenSignals,
+  rtcListenSignals, rtcIceConfig,
 } from '@/firebase/rtc'
 import { getIdToken } from '@/firebase/firebaseInit'
 
@@ -207,6 +207,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
     let local = null
     let screenTrack = null
     let preferH264 = false // set once at start(): this device has a hardware H.264 encoder
+    let iceConfig = RTC_CONFIG // upgraded to dedicated TURN at start() when configured
     let shareCapW = 0      // capture width bucket currently applied to the share track
     let heartbeat = null
     let hbWorker = null    // background-proof heartbeat timer (see startHeartbeat)
@@ -461,9 +462,14 @@ export default function useMeetingRoom({ db, roomId, self }) {
     // sweeper evicted the student as a ghost, and they bounced out of the
     // room: THE "students keep disconnecting" loop. Worker timers are exempt
     // from intensive throttling, so presence survives a backgrounded tab.
-    function beat() {
+    async function beat() {
       if (dead || leaving) return
-      rtcUpdateParticipant(db, roomId, myId, {})
+      const ok = await rtcUpdateParticipant(db, roomId, myId, {})
+      // One quick second chance: a single failed write must not eat a whole
+      // heartbeat window (two quiet windows is all it takes to be swept).
+      if (!ok && !dead && !leaving) {
+        setTimeout(() => { if (!dead && !leaving) rtcUpdateParticipant(db, roomId, myId, {}) }, 2500)
+      }
       // Keep a fresh ID token at hand for the pagehide leave beacon
       // (resolves from the SDK cache - no network round-trip).
       getIdToken().then(t => { if (t) cachedToken = t }).catch(() => {})
@@ -654,7 +660,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
     }
 
     function makePc(peerId) {
-      const pc = new RTCPeerConnection(RTC_CONFIG)
+      const pc = new RTCPeerConnection(iceConfig)
       pcs.set(peerId, pc)
       pcBorn.set(peerId, Date.now())
       let vSender = null
@@ -721,9 +727,10 @@ export default function useMeetingRoom({ db, roomId, self }) {
           // Small stagger lets a burst of state flaps settle before healing.
           scheduleHeal(peerId, 300)
         } else if (st === 'disconnected') {
-          // 'disconnected' often self-recovers within seconds - only heal the
-          // ones that stay down.
-          scheduleHeal(peerId, 4500)
+          // 'disconnected' often self-recovers within seconds - give it a
+          // short window, then repair. The first repair is a cheap in-place
+          // ICE restart, so reacting fast costs almost nothing.
+          scheduleHeal(peerId, 2500)
         }
         updateNetDown()
         publish()
@@ -941,6 +948,13 @@ export default function useMeetingRoom({ db, roomId, self }) {
       const prefs = joinPrefsRef.current || {}
       // Codec decision must exist before the first connection is built.
       preferH264 = await detectHwH264()
+      if (dead) return
+      // Dedicated TURN when the deployment configured one (capped at 2.5s,
+      // cached for the session, silently falls back to the static config).
+      try {
+        const tok = await getIdToken().catch(() => '')
+        iceConfig = await rtcIceConfig(tok)
+      } catch { /* static config */ }
       if (dead) return
       // Camera + mic; degrade to audio-only (camera busy/denied) before failing.
       let camOk = true

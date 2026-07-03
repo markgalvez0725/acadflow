@@ -55,18 +55,65 @@ const TURN_SERVER = ENV_TURN.length
         'turn:openrelay.metered.ca:80',
         'turn:openrelay.metered.ca:443',
         'turn:openrelay.metered.ca:443?transport=tcp',
+        // TLS on 443: traverses firewalls that only pass real HTTPS.
+        'turns:openrelay.metered.ca:443?transport=tcp',
       ],
       username: 'openrelayproject',
       credential: 'openrelayproject',
     }
 export const RTC_CONFIG = {
   iceServers: [
+    // Two independent STUN operators: one being unreachable never blocks
+    // discovery.
     { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+    { urls: 'stun:stun.cloudflare.com:3478' },
     TURN_SERVER,
   ],
   // Pre-gathered candidate pool: the first offer leaves with candidates
   // already in hand, shaving seconds off every connect and reconnect.
   iceCandidatePoolSize: 2,
+}
+
+// ── Dedicated TURN upgrade (optional, zero-redeploy) ────────────────────────
+// Asks the shared API route for dedicated TURN credentials (metered.ca or
+// Cloudflare, whichever the deployment configured via env). Absent, 501, or
+// slow (capped at 2.5s) = the static config above keeps working. The answer
+// is cached for the whole browser session either way.
+let _icePromise = null
+export function rtcIceConfig(idToken) {
+  if (_icePromise) return _icePromise
+  _icePromise = (async () => {
+    try {
+      const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null
+      const timer = ctl ? setTimeout(() => ctl.abort(), 2500) : null
+      const res = await fetch('/api/generate-quiz', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idToken ? { Authorization: 'Bearer ' + idToken } : {}),
+        },
+        body: JSON.stringify({ turn: 1 }),
+        ...(ctl ? { signal: ctl.signal } : {}),
+      })
+      if (timer) clearTimeout(timer)
+      if (res.ok) {
+        const j = await res.json()
+        if (Array.isArray(j?.iceServers) && j.iceServers.length) {
+          // Dedicated relay ahead of the public one; STUN stays first.
+          return {
+            ...RTC_CONFIG,
+            iceServers: [
+              ...RTC_CONFIG.iceServers.slice(0, 2),
+              ...j.iceServers,
+              TURN_SERVER,
+            ],
+          }
+        }
+      }
+    } catch { /* no endpoint / offline / slow - static config */ }
+    return RTC_CONFIG
+  })()
+  return _icePromise
 }
 
 // A participant is considered gone when their heartbeat has been quiet this
@@ -108,13 +155,16 @@ export async function rtcJoinRoom(db, roomId, peer) {
 
 // Heartbeat + mic/cam/sharing state ride on the same participant doc, so one
 // cheap update covers presence and the remote status badges together.
+// Returns true on success so callers that CARE (the heartbeat) can retry;
+// state-badge callers ignore the result as before.
 export async function rtcUpdateParticipant(db, roomId, peerId, patch) {
   try {
     await updateDoc(doc(db, 'rtcRooms', roomId, 'participants', peerId), {
       lastSeen: Date.now(),
       ...patch,
     })
-  } catch { /* best-effort - the doc may already be gone at teardown */ }
+    return true
+  } catch { return false /* best-effort - the doc may already be gone at teardown */ }
 }
 
 export async function rtcLeaveRoom(db, roomId, peerId) {
@@ -148,38 +198,76 @@ export function rtcLeaveBeacon(db, roomId, peerId, idToken) {
 }
 
 export async function rtcSendSignal(db, roomId, { to, from, type, data }) {
-  await fbWithTimeout(addDoc(roomCol(db, roomId, 'signals'), {
-    to, from, type,
-    data: JSON.stringify(data),
-    createdAt: Date.now(),
-  }))
+  const payload = { to, from, type, data: JSON.stringify(data), createdAt: Date.now() }
+  // A dropped offer/answer/ICE stalls that link until the next heal cycle,
+  // and network flaps are exactly when these messages matter - worth three
+  // tries with a short breather between them.
+  let lastErr = null
+  for (let i = 0; i < 3; i++) {
+    try { return await fbWithTimeout(addDoc(roomCol(db, roomId, 'signals'), payload)) }
+    catch (e) { lastErr = e; await new Promise(r => setTimeout(r, 400 * (i + 1))) }
+  }
+  throw lastErr
+}
+
+// A Firestore listener that errors out (expired auth stream mid-class, a
+// transport failure the SDK cannot retry) used to STAY dead: the device
+// looked fine but heard no roster changes and no signals - a zombie only a
+// manual rejoin fixed. Every room listener now re-attaches itself with
+// backoff until it is unsubscribed for real.
+function resilientSnapshot(makeQuery, onData) {
+  let unsub = null
+  let timer = null
+  let stopped = false
+  let delay = 1000
+  const attach = () => {
+    if (stopped) return
+    unsub = onSnapshot(makeQuery(), snap => { delay = 1000; onData(snap) }, () => {
+      try { if (unsub) unsub() } catch { /* already down */ }
+      unsub = null
+      if (stopped) return
+      timer = setTimeout(attach, delay)
+      delay = Math.min(15000, delay * 2)
+    })
+  }
+  attach()
+  return () => {
+    stopped = true
+    if (timer) clearTimeout(timer)
+    try { if (unsub) unsub() } catch { /* already down */ }
+  }
 }
 
 export function rtcListenParticipants(db, roomId, cb) {
-  return onSnapshot(roomCol(db, roomId, 'participants'), snap => {
-    cb(snap.docs.map(d => d.data()))
-  }, () => { /* listener error - the room UI shows the connection state */ })
+  return resilientSnapshot(
+    () => roomCol(db, roomId, 'participants'),
+    snap => cb(snap.docs.map(d => d.data())),
+  )
 }
 
 // Signals addressed to me, delivered in arrival order and deleted right after
-// the handler resolves (each SDP/ICE message is consumed exactly once).
+// the handler resolves (each SDP/ICE message is consumed exactly once). On a
+// re-attach after a listener error, unconsumed signals re-deliver as 'added'
+// - consumed ones were already deleted, so nothing double-processes.
 export function rtcListenSignals(db, roomId, peerId, handler) {
-  const q = query(roomCol(db, roomId, 'signals'), where('to', '==', peerId))
   let chain = Promise.resolve()
-  return onSnapshot(q, snap => {
-    const added = snap.docChanges().filter(c => c.type === 'added')
-      .map(c => ({ ref: c.doc.ref, msg: c.doc.data() }))
-      .sort((a, b) => (a.msg.createdAt || 0) - (b.msg.createdAt || 0))
-    for (const { ref, msg } of added) {
-      // Serialize processing: an ICE candidate must never overtake the offer
-      // it belongs to just because its snapshot callback won the race.
-      chain = chain
-        .then(() => handler({ ...msg, data: JSON.parse(msg.data) }))
-        .catch(() => {})
-        .then(() => deleteDoc(ref))
-        .catch(() => {})
-    }
-  }, () => {})
+  return resilientSnapshot(
+    () => query(roomCol(db, roomId, 'signals'), where('to', '==', peerId)),
+    snap => {
+      const added = snap.docChanges().filter(c => c.type === 'added')
+        .map(c => ({ ref: c.doc.ref, msg: c.doc.data() }))
+        .sort((a, b) => (a.msg.createdAt || 0) - (b.msg.createdAt || 0))
+      for (const { ref, msg } of added) {
+        // Serialize processing: an ICE candidate must never overtake the offer
+        // it belongs to just because its snapshot callback won the race.
+        chain = chain
+          .then(() => handler({ ...msg, data: JSON.parse(msg.data) }))
+          .catch(() => {})
+          .then(() => deleteDoc(ref))
+          .catch(() => {})
+      }
+    },
+  )
 }
 
 // ── In-call chat ────────────────────────────────────────────────────────────
@@ -198,11 +286,12 @@ export async function rtcSendChat(db, roomId, msg) {
 }
 
 export function rtcListenChat(db, roomId, cb) {
-  return onSnapshot(roomCol(db, roomId, 'chat'), snap => {
-    cb(snap.docs
+  return resilientSnapshot(
+    () => roomCol(db, roomId, 'chat'),
+    snap => cb(snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => (a.at || 0) - (b.at || 0)))
-  }, () => { /* listener error - the room UI shows the connection state */ })
+      .sort((a, b) => (a.at || 0) - (b.at || 0))),
+  )
 }
 
 // ── Meeting transcript (LEGACY READ) ────────────────────────────────────────

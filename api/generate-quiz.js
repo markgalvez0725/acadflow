@@ -9,13 +9,18 @@ import { requireUser } from './_fbadmin.js'
 //                           live transcription was retired 2026-07-02; this
 //                           path only serves Regenerate on old classes that
 //                           still have a stored transcript)
-// Both return 501 when GROQ_API_KEY is unset so clients fall back on-device.
+//   { turn: 1 }          -> dedicated TURN relay credentials for the in-app
+//                           classroom (see turnCredentials below)
+// AI modes return 501 when GROQ_API_KEY is unset so clients fall back
+// on-device; the TURN mode returns 501 when no provider is configured so the
+// client keeps its built-in public relay.
 export default async function handler(req, res) {
   if (guard(req, res, { max: 20 })) return
   if (req.method !== 'POST') return res.status(405).end()
   if (!(await requireUser(req, res))) return
 
-  const { prompt, transcript, meta } = req.body || {}
+  const { prompt, transcript, meta, turn } = req.body || {}
+  if (turn) return turnCredentials(res)
   if (!prompt && !transcript) return res.status(400).json({ error: 'Missing prompt' })
 
   // Prefer the server-only name; fall back to the legacy VITE_-prefixed var so
@@ -80,4 +85,62 @@ export default async function handler(req, res) {
   if (!response.ok) return res.status(response.status).json(data)
 
   res.status(200).json(data)
+}
+
+// ── Dedicated TURN credentials (shares this route: 12-function cap) ─────────
+// The in-app classroom ships with a free public relay baked into the client;
+// this mode upgrades it to a dedicated TURN service - better capacity and
+// uptime for relayed students - the moment either provider is configured,
+// with NO client redeploy:
+//   METERED_TURN_DOMAIN + METERED_TURN_KEY   metered.ca (free 20GB/mo tier;
+//                                            domain like myapp.metered.live)
+//   CF_TURN_KEY_ID + CF_TURN_API_TOKEN       Cloudflare Calls TURN
+// Responds { iceServers: [...] }; 501 when neither is set so the client keeps
+// its built-in fallback. Credentials are cached per warm instance and
+// refreshed before they expire.
+let _turnCache = null // { servers, until }
+async function turnCredentials(res) {
+  if (_turnCache && Date.now() < _turnCache.until) {
+    return res.status(200).json({ iceServers: _turnCache.servers })
+  }
+  try {
+    const mDomain = process.env.METERED_TURN_DOMAIN
+    const mKey = process.env.METERED_TURN_KEY
+    if (mDomain && mKey) {
+      const r = await fetch(
+        'https://' + mDomain + '/api/v1/turn/credentials?apiKey=' + encodeURIComponent(mKey)
+      )
+      if (r.ok) {
+        const servers = await r.json()
+        if (Array.isArray(servers) && servers.length) {
+          _turnCache = { servers, until: Date.now() + 6 * 3600_000 }
+          return res.status(200).json({ iceServers: servers })
+        }
+      }
+      return res.status(502).json({ error: 'TURN provider unavailable' })
+    }
+    const cfId = process.env.CF_TURN_KEY_ID
+    const cfTok = process.env.CF_TURN_API_TOKEN
+    if (cfId && cfTok) {
+      const r = await fetch(
+        'https://rtc.live.cloudflare.com/v1/turn/keys/' + encodeURIComponent(cfId) + '/credentials/generate',
+        {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + cfTok, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ttl: 43200 }),
+        }
+      )
+      if (r.ok) {
+        const j = await r.json()
+        const servers = j && j.iceServers ? [j.iceServers] : []
+        if (servers.length) {
+          // Refresh comfortably before the 12h credential ttl runs out.
+          _turnCache = { servers, until: Date.now() + 10 * 3600_000 }
+          return res.status(200).json({ iceServers: servers })
+        }
+      }
+      return res.status(502).json({ error: 'TURN provider unavailable' })
+    }
+  } catch { /* fall through to 501 */ }
+  return res.status(501).json({ error: 'No dedicated TURN configured' })
 }
