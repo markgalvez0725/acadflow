@@ -115,7 +115,8 @@ const HEAL_MAX = 6
 const ejectedRooms = new Set()
 
 export default function useMeetingRoom({ db, roomId, self }) {
-  const [phase, setPhase] = useState('connecting') // connecting | ready | full | error | left
+  // prejoin | connecting | ready | full | error | left | removed | replaced
+  const [phase, setPhase] = useState('prejoin')
   const [errorMsg, setErrorMsg] = useState('')
   const [peers, setPeers] = useState([])
   const [localStream, setLocalStream] = useState(null)
@@ -127,6 +128,14 @@ export default function useMeetingRoom({ db, roomId, self }) {
   // Bumping this remounts the whole engine - used by Try again after a
   // permission error (the browser re-prompts on the fresh getUserMedia call).
   const [attempt, setAttempt] = useState(0)
+  // Green room: the engine idles in 'prejoin' until confirmJoin(prefs) hands
+  // over the user's mic/cam choices. Prefs live in a ref so Try again (an
+  // attempt bump) keeps them, while a NEW roomId clears them - every fresh
+  // room entry gets the panel. Auto-reconnect and the mini player never
+  // remount the engine, so they never fall back into prejoin.
+  const [joinEpoch, setJoinEpoch] = useState(0)
+  const joinPrefsRef = useRef(null)
+  const prefRoomRef = useRef('')
   // MY network dropped (offline event, or every link down at once) - the room
   // shows one amber banner instead of blaming each peer's tile.
   const [netDown, setNetDown] = useState(false)
@@ -144,6 +153,16 @@ export default function useMeetingRoom({ db, roomId, self }) {
 
   useEffect(() => {
     if (!db || !roomId) return
+    if (prefRoomRef.current !== roomId) {
+      prefRoomRef.current = roomId
+      joinPrefsRef.current = null
+    }
+    // Removed by the professor earlier this session: land straight on the
+    // removed screen, before the green room can invite a doomed setup.
+    if (ejectedRooms.has(roomId)) { apiRef.current = {}; setPhase('removed'); return }
+    // Green room: idle here (no capture, no room writes) until the panel
+    // confirms. Stale APIs from a previous engine run must not be callable.
+    if (!joinPrefsRef.current) { apiRef.current = {}; setPhase('prejoin'); return }
     // Fresh attempt: reset everything a previous failed try may have left.
     setPhase('connecting')
     setErrorMsg('')
@@ -558,6 +577,11 @@ export default function useMeetingRoom({ db, roomId, self }) {
       if (!vSender) {
         try { vSender = pc.addTransceiver('video', { direction: 'sendrecv' }).sender } catch { /* very old browser */ }
       }
+      // Device-less joiners ("join with both off") still need an audio slot in
+      // THEIR offer, or remote voices never flow on links they initiate.
+      if (!local || !local.getAudioTracks().length) {
+        try { pc.addTransceiver('audio', { direction: 'recvonly' }) } catch { /* very old browser */ }
+      }
       if (vSender) videoSenders.set(peerId, vSender)
       // H.264-first codec order when this device has the hardware encoder.
       // Reorder ONLY - nothing is removed, so a peer without H.264 falls
@@ -813,37 +837,57 @@ export default function useMeetingRoom({ db, roomId, self }) {
     }
 
     async function start() {
+      // Green-room choices (mic/cam on-off + device ids); {} on direct joins.
+      const prefs = joinPrefsRef.current || {}
       // Codec decision must exist before the first connection is built.
       preferH264 = await detectHwH264()
       if (dead) return
       // Camera + mic; degrade to audio-only (camera busy/denied) before failing.
       let camOk = true
       const AUDIO = { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-      try {
-        local = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 640 }, height: { ideal: 360 }, facingMode: 'user' },
-          audio: AUDIO,
-        })
-      } catch {
+      if (prefs.audioId) AUDIO.deviceId = { ideal: prefs.audioId }
+      const VIDEO = { width: { ideal: 640 }, height: { ideal: 360 }, facingMode: 'user' }
+      if (prefs.videoId) VIDEO.deviceId = { ideal: prefs.videoId }
+      if (prefs.noMedia) {
+        // "Join with both off" from a device-blocked green room: listen-only,
+        // no capture at all (makePc adds a recvonly audio slot so remote
+        // voices still reach this device on links it initiates).
         camOk = false
+      } else {
         try {
-          local = await navigator.mediaDevices.getUserMedia({ audio: AUDIO })
-        } catch (e2) {
-          if (!dead) { setPhase('error'); setErrorMsg(explainGumError(e2)) }
-          return
+          local = await navigator.mediaDevices.getUserMedia({ video: VIDEO, audio: AUDIO })
+        } catch {
+          camOk = false
+          try {
+            local = await navigator.mediaDevices.getUserMedia({ audio: AUDIO })
+          } catch (e2) {
+            if (!dead) { setPhase('error'); setErrorMsg(explainGumError(e2)) }
+            return
+          }
         }
       }
-      if (dead) { local.getTracks().forEach(t => t.stop()); return }
+      if (dead) { if (local) local.getTracks().forEach(t => t.stop()); return }
       // Content hints steer the encoders: speech-optimized audio, motion-
       // optimized camera (the screen track gets 'detail' when sharing).
       try {
-        const mic = local.getAudioTracks()[0]
+        const mic = local && local.getAudioTracks()[0]
         if (mic) mic.contentHint = 'speech'
-        const cam = local.getVideoTracks()[0]
+        const cam = local && local.getVideoTracks()[0]
         if (cam) cam.contentHint = 'motion'
       } catch { /* hints are advisory */ }
       setLocalStream(local)
-      setCamOn(camOk)
+      // Enter exactly as configured in the green room: tracks stay live (an
+      // in-room tap re-enables instantly) but start disabled when chosen off.
+      const wantMic = !!local && prefs.micOn !== false && !!local.getAudioTracks()[0]
+      const wantCam = camOk && prefs.camOn !== false
+      if (local) {
+        const mt = local.getAudioTracks()[0]
+        if (mt) mt.enabled = wantMic
+        const vt = local.getVideoTracks()[0]
+        if (vt) vt.enabled = wantCam
+      }
+      setMicOn(wantMic)
+      setCamOn(wantCam)
 
       // Join-time cap check (the roster listener re-checks deterministically).
       try {
@@ -851,7 +895,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
         const now = Date.now()
         const aliveCount = existing.filter(p => now - (p.lastSeen || 0) < STALE_MS).length
         if (aliveCount >= ROOM_CAP) {
-          local.getTracks().forEach(t => t.stop()); local = null
+          if (local) { local.getTracks().forEach(t => t.stop()); local = null }
           if (!dead) setPhase('full')
           return
         }
@@ -863,13 +907,14 @@ export default function useMeetingRoom({ db, roomId, self }) {
         // screen get the bandwidth.
         const quiet = aliveCount >= BIG_ROOM && s.role !== 'admin'
         if (quiet) {
-          for (const t of local.getTracks()) t.enabled = false
+          if (local) for (const t of local.getTracks()) t.enabled = false
           setMicOn(false)
           setCamOn(false)
         }
         const me = await rtcJoinRoom(db, roomId, {
           peerId: myId, uid: s.uid, name: s.name, role: s.role,
-          micOn: !quiet, camOn: quiet ? false : camOk,
+          micOn: quiet ? false : wantMic,
+          camOn: quiet ? false : wantCam,
         })
         myJoinedAt = me.joinedAt
       } catch {
@@ -1015,10 +1060,9 @@ export default function useMeetingRoom({ db, roomId, self }) {
       },
     }
 
-    if (ejectedRooms.has(roomId)) setPhase('removed')
-    else start()
+    start()
     return () => { dead = true; teardown() }
-  }, [db, roomId, attempt])
+  }, [db, roomId, attempt, joinEpoch])
 
   return {
     phase, errorMsg, peers, localStream, micOn, camOn, sharing, screenStream,
@@ -1029,6 +1073,8 @@ export default function useMeetingRoom({ db, roomId, self }) {
     stopShare: () => apiRef.current.stopShare?.(),
     leave: () => apiRef.current.leave?.(),
     retry: () => setAttempt(a => a + 1),
+    // Green room handoff: prefs = { micOn, camOn, audioId, videoId, noMedia }.
+    confirmJoin: prefs => { joinPrefsRef.current = prefs || {}; setJoinEpoch(e => e + 1) },
     setRecordingFlag: on => apiRef.current.setRecordingFlag?.(on),
     setHand: on => apiRef.current.setHand?.(on),
     lowerHand: peerId => apiRef.current.lowerHand?.(peerId),

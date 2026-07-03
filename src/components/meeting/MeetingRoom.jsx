@@ -17,6 +17,7 @@ import { createPipSource } from '@/utils/meetingPip'
 import { playMeetingSound, preloadMeetingSounds } from '@/utils/meetingSounds'
 import MeetingChat from '@/components/meeting/MeetingChat'
 import MeetingPeople from '@/components/meeting/MeetingPeople'
+import PreJoinPanel from '@/components/meeting/PreJoinPanel'
 import EmojiIcon from '@/components/primitives/EmojiIcon'
 import { getLateThreshold, setLateThreshold, LATE_THR_DEFAULT } from '@/utils/attendance'
 import { createTranscriptRecorder, transcriptCaptureSupported } from '@/utils/transcriptRecorder'
@@ -251,7 +252,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   const {
     phase, errorMsg, peers, localStream, micOn, camOn, sharing, canShare,
     screenStream, setRecordingFlag, setHand, lowerHand, sendReaction, setChatLock,
-    toggleMic, toggleCam, startShare, stopShare, leave, retry,
+    toggleMic, toggleCam, startShare, stopShare, leave, retry, confirmJoin,
     netDown, selfQuality, forcedMuteAt, joinLogLive,
     muteStudent, muteAllStudents, removeStudent, getJoinLog,
   } = useMeetingRoom({ db, roomId: meeting?.id, self })
@@ -889,6 +890,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   // ── Mini player (minimized) ─────────────────────────────────────────────
   if (minimized) {
     const statusText = ended ? 'Class ended'
+      : phase === 'prejoin' ? 'Waiting to join'
       : phase === 'connecting' ? 'Joining…'
       : phase === 'error' ? 'Could not join'
       : phase === 'full' ? 'Room is full'
@@ -938,6 +940,29 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
       </div>
     )
     return createPortal(mini, document.body)
+  }
+
+  // ── Green room (pre-join) ────────────────────────────────────────────────
+  // Deliberate entries only: the engine idles in 'prejoin' until the panel
+  // hands over mic/cam choices through confirmJoin. Auto-reconnects and the
+  // mini player never remount the engine, so they never land here. Closing
+  // the panel just closes the overlay - nothing was captured or joined yet.
+  if (phase === 'prejoin' && !ended) {
+    const pre = (
+      <div className="mr-overlay" role="dialog" aria-label="Set up before joining">
+        <PreJoinPanel
+          db={db}
+          roomId={meeting?.id}
+          self={self}
+          isAdmin={isAdmin}
+          photo={photoFor(self)}
+          label={barLabel}
+          onJoin={confirmJoin}
+          onCancel={onClose}
+        />
+      </div>
+    )
+    return createPortal(pre, document.body)
   }
 
   // ── Full room ───────────────────────────────────────────────────────────
@@ -1016,7 +1041,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
             <div className="mr-center">
               <Loader2 size={30} className="animate-spin" />
               <b>Joining the room…</b>
-              <span>Your browser will ask for camera and microphone access.</span>
+              <span>Hang tight, your audio and video are being set up.</span>
             </div>
           ) : phase === 'error' ? (
             <div className="mr-center">

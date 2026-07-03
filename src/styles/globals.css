@@ -7683,3 +7683,246 @@ html[data-glass="on"][data-theme="dark"] body::before {
     .catt-pill { min-width: 64px; padding: 5px 10px; }
   }
 }
+
+/* ── Green room: the pre-join setup panel inside the meeting overlay ────────
+   Same dark shell (#202124), same .mr-ctl round controls, purple primary.
+   Desktop/tablet: preview | settings two-column. Phones: one column, the
+   Join button pinned to the bottom of the screen. */
+@layer components {
+  .mr-pre {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px 14px;
+    overflow-y: auto;
+  }
+  .mr-pre-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: #9aa0a6;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .mr-pre-close:hover { background: #3c4043; color: #e8eaed; }
+  .mr-pre-card {
+    width: min(920px, 100%);
+    display: flex;
+    align-items: center;
+    gap: 30px;
+    margin: auto;
+  }
+  .mr-pre-stage { flex: 1.35; min-width: 0; }
+  .mr-pre-frame {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: #101113;
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .mr-pre-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+  }
+  .mr-pre-off {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: #101113;
+    color: #9aa0a6;
+  }
+  .mr-pre-off-note { font-size: 12px; }
+  .mr-pre-ava {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: #5046e4;
+    color: #fff;
+    font-size: 24px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .mr-pre-ava img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .mr-pre-chip {
+    position: absolute;
+    top: 10px;
+    font-size: 11px;
+    color: #e8eaed;
+    background: rgba(0, 0, 0, 0.45);
+    border-radius: 6px;
+    padding: 3px 8px;
+    pointer-events: none;
+  }
+  .mr-pre-chip-tl { left: 10px; }
+  .mr-pre-chip-tr { right: 10px; color: #9aa0a6; }
+  .mr-pre-ctls {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 12px;
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+  }
+  .mr-pre-ctls .mr-ctl:disabled { opacity: 0.55; cursor: default; }
+  .mr-pre-side {
+    flex: 1;
+    min-width: 250px;
+    display: flex;
+    flex-direction: column;
+    color: #e8eaed;
+  }
+  .mr-pre-title {
+    font-family: var(--font-display);
+    font-size: 21px;
+    font-weight: 800;
+    color: #fff;
+  }
+  .mr-pre-meta { font-size: 12.5px; color: #9aa0a6; margin: 4px 0 16px; }
+  .mr-pre-dev {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #2a2d31;
+    border-radius: 10px;
+    padding: 0 12px;
+    margin-bottom: 8px;
+    color: #9aa0a6;
+  }
+  /* The PILL is the field (same rule as the chat input): the inner select
+     must never draw its own box or focus ring. */
+  .mr-pre-dev select,
+  .mr-pre-dev select:focus,
+  .mr-pre-dev select:focus-visible {
+    flex: 1;
+    min-width: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    outline: none;
+    box-shadow: none;
+    background: transparent;
+    color: #e8eaed;
+    font-size: 12.5px;
+    padding: 10px 18px 10px 0;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+  .mr-pre-dev select option { background: #202124; color: #e8eaed; }
+  .mr-pre-dev:focus-within { box-shadow: 0 0 0 2px rgba(80, 70, 228, 0.35); }
+  .mr-pre-dev-chev { position: absolute; right: 12px; pointer-events: none; }
+  .mr-pre-meter {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin: 12px 0 14px;
+    min-height: 16px;
+  }
+  .mr-pre-meter-lab { font-size: 11.5px; color: #9aa0a6; margin-right: 3px; }
+  .mr-pre-bar {
+    width: 5px;
+    height: 14px;
+    border-radius: 2px;
+    background: #3c4043;
+    transition: background 0.12s ease;
+  }
+  .mr-pre-bar.on { background: #8ab4f8; }
+  .mr-pre-meter-say { font-size: 11.5px; color: #9aa0a6; margin-left: 5px; }
+  .mr-pre-meter-say.ok { color: #8ab4f8; }
+  .mr-pre-who {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+    min-height: 22px;
+  }
+  .mr-pre-who-ava {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #3c4043;
+    color: #e8eaed;
+    font-size: 10.5px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #202124;
+    margin-right: -6px;
+    flex: none;
+  }
+  .mr-pre-who-text { font-size: 12px; color: #9aa0a6; }
+  .mr-pre-who-ava ~ .mr-pre-who-text { margin-left: 14px; }
+  .mr-pre-blocked {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    background: rgba(251, 188, 4, 0.12);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #fdd663;
+    margin-bottom: 16px;
+  }
+  .mr-pre-blocked svg { flex: none; margin-top: 2px; }
+  .mr-pre-join {
+    width: 100%;
+    border: none;
+    border-radius: 12px;
+    background: #5046e4;
+    color: #fff;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 14px;
+    padding: 13px 16px;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+  .mr-pre-join:hover { background: #4038c7; }
+  .mr-pre-join:active { transform: scale(0.98); }
+  .mr-pre-join:disabled { opacity: 0.65; cursor: default; }
+  .mr-pre-cap {
+    margin-top: 9px;
+    text-align: center;
+    font-size: 11.5px;
+    color: #9aa0a6;
+    line-height: 1.5;
+  }
+  @media (max-width: 760px) {
+    .mr-pre { align-items: stretch; padding: 12px 10px max(12px, env(safe-area-inset-bottom)); }
+    .mr-pre-card {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 14px;
+      margin: 0;
+      min-height: 100%;
+    }
+    .mr-pre-stage { flex: none; width: 100%; }
+    .mr-pre-side { flex: 1; min-width: 0; }
+    .mr-pre-join { margin-top: auto; }
+    .mr-pre-title { font-size: 18px; }
+    .mr-pre-close { top: 6px; right: 6px; }
+  }
+}
