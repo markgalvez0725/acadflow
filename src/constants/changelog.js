@@ -4,9 +4,22 @@
 // features ships, so the "What's new" modal always reflects the current build.
 // User-facing copy: keep it plain, no em-dashes.
 
-export const APP_VERSION = '2.4.0'
+export const APP_VERSION = '2.5.0'
 
 export const CHANGELOG = [
+  {
+    version: '2.5.0',
+    date: 'July 2026',
+    title: 'Set up before you join, smart class notes, and hands-off attendance',
+    changes: [
+      'Joining a class now opens a setup screen first: preview your camera, pick your microphone and camera, and do a quick mic check before stepping in. Your choices are remembered on this device, and the professor enters with a Start class button while students can wait inside.',
+      'Recordings now capture the class the way it happened: the presented screen plays beside a live strip of the class, profile photos stand in for cameras that are off, and reactions, raised hands, mutes, and who is speaking all show up in the video. Recordings can be watched right inside the app.',
+      'After a recorded class, the professor can generate the transcript and Smart study notes on their own computer, private and free: clean sections with key terms and speaker names, in English and Tagalog alike, ready to share to the class Stream in one tap. The first run downloads a speech model once and reuses it after.',
+      'Attendance takes care of itself: during class the People panel shows who is present, late, or not yet joined against the enrolled list, and ending the class opens a ready-made attendance sheet the professor can save in one tap.',
+      'Professors got host controls: mute a student, mute everyone, or remove someone from the room. Connections heal themselves after wifi hiccups with honest reconnecting labels, a quality dot next to every person, and a warning pill when your own internet turns slow or unstable.',
+      'Beyond classes: the Calendar was rebuilt on both sides with live classes synced in, and Case Studies lets professors grade grouped practical exams straight into the midterm and finals columns.',
+    ],
+  },
   {
     version: '2.4.0',
     date: 'July 2026',
