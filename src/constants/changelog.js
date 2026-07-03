@@ -4,9 +4,22 @@
 // features ships, so the "What's new" modal always reflects the current build.
 // User-facing copy: keep it plain, no em-dashes.
 
-export const APP_VERSION = '2.5.0'
+export const APP_VERSION = '2.6.0'
 
 export const CHANGELOG = [
+  {
+    version: '2.6.0',
+    date: 'July 2026',
+    title: 'Built for weak signal: classes and work that hold on',
+    changes: [
+      'Online classes now hold on through weak internet. Students on mobile data get a stronger connection path, short drops heal themselves in seconds, and the room never gives up on someone who is still in class - no more endless "Reconnecting" walls.',
+      'The join setup screen now checks your connection first: a clear Good or Weak label before you commit. On a weak signal your camera starts off for a smoother, audio-first join (turn it back on anytime), and if joining ever stalls you get Retry and Close buttons instead of a stuck spinner.',
+      'Your work survives bad signal: quiz submissions retry themselves and your answers stay saved on your device until they go through, activity files never have to upload twice after a failed save, and comments keep your typed text if posting fails so you can just try again.',
+      'Fairer quiz grading: a taken quiz never counts below 50 in the grade computation, and past quizzes follow the new rule automatically.',
+      'The app itself loads reliably on slow data: any screen that fails to load shows a Try again button and fixes itself the moment you are back online, instead of going blank.',
+      'Also in this release: case study plans got a full project timeline with steps you can drag to reorder (dates re-schedule themselves), group task boards for members, and editing a message no longer fails on shaky connections.',
+    ],
+  },
   {
     version: '2.5.0',
     date: 'July 2026',
