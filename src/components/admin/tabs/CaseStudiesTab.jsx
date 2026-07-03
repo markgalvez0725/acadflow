@@ -9,7 +9,7 @@ import CaseStudyGantt from '@/components/casestudy/CaseStudyGantt'
 import StepList from '@/components/casestudy/StepList'
 import TaskBoard from '@/components/casestudy/TaskBoard'
 import PlanEditorModal from '@/components/casestudy/PlanEditorModal'
-import { groupStepStats, planId } from '@/utils/caseStudyPlan'
+import { groupStepStats, planId, fmtShortDay as fmtPlanDay } from '@/utils/caseStudyPlan'
 import { sortByLastName, getInitials } from '@/utils/format'
 import { courseShort } from '@/constants/courses'
 
@@ -118,6 +118,20 @@ export default function CaseStudiesTab() {
 
   function removeTask(cs, gid, t) {
     deletePlanTask(cs.id, gid, t.id).catch(planWriteFailed)
+  }
+
+  // Drag/resize commit from the Gantt: one step gets its new whole-day dates,
+  // the list re-sorts by start (same rule as the plan editor), and statuses,
+  // axis, and group chips all re-derive from the write.
+  function rescheduleMilestone(cs, m, startAt, dueAt) {
+    const plan = planById.get(cs.id)
+    if (!plan?.milestones?.length) return
+    const milestones = plan.milestones
+      .map(x => (x.id === m.id ? { ...x, startAt, dueAt } : x))
+      .sort((a, b) => a.startAt - b.startAt || a.dueAt - b.dueAt)
+    saveCaseStudyPlan({ ...planMeta(cs), milestones })
+      .then(() => toast(`"${m.title}" rescheduled: ${fmtPlanDay(startAt)} to ${fmtPlanDay(dueAt)}.`, 'success'))
+      .catch(planWriteFailed)
   }
 
   // Case study whose timeline is being planned (PlanEditorModal).
@@ -495,7 +509,11 @@ export default function CaseStudiesTab() {
                     </div>
 
                     {hasPlan ? (
-                      <CaseStudyGantt plan={plan} />
+                      <CaseStudyGantt
+                        plan={plan}
+                        editable
+                        onChangeDates={(m, startAt, dueAt) => rescheduleMilestone(cs, m, startAt, dueAt)}
+                      />
                     ) : !cs.appliedAt && (
                       <div className="csp-plan-hint">
                         No timeline yet - the calendar button above plans the steps every group follows, with categories, notes, member roles, and per-member tasks.

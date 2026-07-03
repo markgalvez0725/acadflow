@@ -8101,3 +8101,25 @@ html[data-glass="on"][data-theme="dark"] body::before {
     .csp-ed-row { padding-right: 36px; }
   }
 }
+
+/* ── Case study Gantt: draggable + resizable bars (professor) ─────────────── */
+@layer components {
+  .csp-bar.csp-edit { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .csp-bar.csp-edit.dragging { cursor: grabbing; opacity: 0.85; z-index: 4; box-shadow: var(--shadow); }
+  .csp-rz { position: absolute; top: 0; bottom: 0; width: 10px; cursor: ew-resize; touch-action: none; }
+  .csp-rz.l { left: 0; }
+  .csp-rz.r { right: 0; }
+  .csp-rz::after {
+    content: ''; position: absolute; top: 22%; bottom: 22%; width: 2px;
+    border-radius: 2px; background: currentColor; opacity: 0;
+  }
+  .csp-rz.l::after { left: 3px; }
+  .csp-rz.r::after { right: 3px; }
+  .csp-bar.csp-edit:hover .csp-rz::after, .csp-bar.csp-edit.dragging .csp-rz::after { opacity: 0.55; }
+  .csp-drag-hint {
+    position: absolute; top: -22px; font-size: 0.625rem; font-weight: 700;
+    color: var(--ink); background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 1px 7px; white-space: nowrap; z-index: 5;
+    box-shadow: var(--shadow); pointer-events: none;
+  }
+}
