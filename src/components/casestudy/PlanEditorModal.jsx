@@ -14,13 +14,20 @@ import {
 // today and the case study's due date when no plan exists yet. Steps are
 // sorted by start date on save, so row order never needs managing.
 //
-// Steps are DRAGGABLE by the grip handle: while a card is dragged over its
-// neighbors the list reorders live and the schedule re-flows automatically -
-// the plan keeps its overall start date, every step keeps its own length in
-// days, and each step starts on the day the previous one ends (the same
-// contiguous shape the starter template uses). Manual date edits are only
-// re-flowed by a drag, never on their own. Pointer listeners live on window
-// so releasing outside the modal never freezes the drag.
+// Steps are DRAGGABLE by the grip handle: grabbing it collapses every card
+// into a compact one-line row (number, title, category, dates) so the whole
+// order fits under the pointer, the held row is tinted accent, and the list
+// reorders live - one slot per ~compact-row-height of vertical movement,
+// measured from where the drag started (never from absolute midpoints: the
+// collapse shifts the layout, and full-size cards made the first drag feel
+// dead because their midpoints sit hundreds of px away). The schedule
+// re-flows automatically on every swap - the plan keeps its overall start
+// date, every step keeps its own length in days, and each step starts on the
+// day the previous one ends (the starter template's contiguous shape).
+// Manual date edits are only re-flowed by a drag, never on their own. The
+// full cards are hidden with CSS, not unmounted, so a touch drag keeps its
+// event target; pointer listeners live on window so releasing outside the
+// modal never freezes the drag.
 
 // Calendar-day date math on 'YYYY-MM-DD' strings (no DST/ms drift).
 function addDays(input, n) {
@@ -44,6 +51,12 @@ function reflowRows(rs, anchor) {
     start = out.due
     return out
   })
+}
+
+function miniDate(input) {
+  if (!input) return '?'
+  const [y, m, d] = String(input).split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
 export default function PlanEditorModal({ cs, plan, onSave, onClose }) {
@@ -72,20 +85,18 @@ export default function PlanEditorModal({ cs, plan, onSave, onClose }) {
     if (e.button != null && e.button !== 0) return
     e.preventDefault()
     const anchor = rowsRef.current[0]?.start || tsToDateInput(Date.now())
+    const draggedId = rowsRef.current[i]?.id
+    const startY = e.clientY
+    const from = i
     let cur = i
     setDragIdx(i)
     const move = ev => {
       const order = rowsRef.current
-      let to = cur
-      for (let j = 0; j < order.length; j++) {
-        if (j === cur) continue
-        const el = rowElsRef.current[order[j].id]
-        if (!el) continue
-        const r = el.getBoundingClientRect()
-        const mid = r.top + r.height / 2
-        if (j < cur && ev.clientY < mid) to = Math.min(to, j)
-        if (j > cur && ev.clientY > mid) to = Math.max(to, j)
-      }
+      // One slot per compact-row-height of movement since the grab. Measured
+      // live (the cards collapse right after the grab), 10px list gap included.
+      const el = rowElsRef.current[draggedId]
+      const slot = Math.max(34, (el ? el.getBoundingClientRect().height : 44) + 10)
+      const to = Math.max(0, Math.min(order.length - 1, from + Math.round((ev.clientY - startY) / slot)))
       if (to !== cur) {
         setRows(rs => {
           const next = rs.slice()
@@ -186,13 +197,20 @@ export default function PlanEditorModal({ cs, plan, onSave, onClose }) {
         </div>
       )}
 
-      <div className="csp-ed-list">
+      <div className={`csp-ed-list${dragIdx >= 0 ? ' reordering' : ''}`}>
         {rows.map((r, i) => (
           <div
             key={r.id}
             ref={el => { rowElsRef.current[r.id] = el }}
             className={`csp-ed-row${dragIdx === i ? ' dragging' : ''}`}
           >
+            <div className="csp-ed-mini" aria-hidden="true">
+              <GripVertical size={13} />
+              <span className="csp-ed-mini-n">{i + 1}</span>
+              <span className="csp-ed-mini-t">{r.title.trim() || `Step ${i + 1}`}</span>
+              {r.category.trim() ? <span className="csp-ed-mini-cat">{r.category.trim()}</span> : null}
+              <span className="csp-ed-mini-d">{miniDate(r.start)} to {miniDate(r.due)}</span>
+            </div>
             <div className="csp-ed-grid">
               <div>
                 <label className="label">Step {i + 1}</label>
