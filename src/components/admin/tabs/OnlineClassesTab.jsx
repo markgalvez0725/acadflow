@@ -227,7 +227,7 @@ export default function OnlineClassesTab() {
       const lines = await transcribeSession({
         segments,
         speakers: meta?.speakers || [],
-        onProgress: ({ stage, pct }) => setGenText(stage === 'model' ? `Model ${pct}% (one time)` : `Transcribing ${pct}%`),
+        onProgress: ({ stage, pct }) => setGenText(stage === 'model' ? `Speech model ${pct}% (one time)` : `Transcribing ${pct}%`),
       })
       if (!lines.length) { toast('Whisper heard no clear speech in this class audio.', 'error'); return }
       setGenText('Building study notes…')

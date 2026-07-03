@@ -1,9 +1,12 @@
 // ── On-device Whisper over the captured class audio ────────────────────────
-// No key, no server, nothing leaves the machine: transformers.js v3 runs the
-// multilingual whisper-base (~75 MB weights, handles English + Tagalog
-// code-switching) on WebGPU where available, WASM otherwise. The model comes
-// from the Hugging Face CDN - the SAME hosts the deployed CSP already allows
-// for the Smart features - and is cached by the browser after the first run.
+// No key, no server, nothing leaves the machine: transformers.js v3 walks a
+// MODEL LADDER for the best accuracy this device can afford - multilingual
+// whisper-large-v3-turbo (~1.5 GB one time, the tier the user picked for the
+// old live engine; strongest on Taglish) on WebGPU machines with 8+ GB RAM,
+// then whisper-small (~560 MB), then whisper-base, then base on WASM as the
+// last resort. Batch-after-class means the big model costs minutes, not lag.
+// Models come from the Hugging Face CDN - the SAME hosts the deployed CSP
+// already allows for the Smart features - and are cached after the first run.
 //
 // Inference lives in a Blob module worker so an hour-long class never blocks
 // the UI; audio is decoded on the MAIN thread (workers have no
@@ -25,6 +28,8 @@ const T_URLS = [
   'https://esm.sh/@huggingface/transformers@3.3.3',
   'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.3.3/+esm',
 ]
+const TURBO = 'onnx-community/whisper-large-v3-turbo'
+const SMALL = 'onnx-community/whisper-small'
 const MODEL = 'onnx-community/whisper-base'
 
 const WORKER_SRC = `
@@ -36,18 +41,22 @@ async function load(progress, forceWasm) {
   }
   if (!mod) throw err || new Error('transformers.js failed to load')
   const prog = { progress_callback: progress }
+  const mem = navigator.deviceMemory || 8
+  const tries = []
   if (!forceWasm) {
-    try {
-      pipe = await mod.pipeline('automatic-speech-recognition', '${MODEL}', {
-        ...prog,
-        device: 'webgpu',
-        dtype: { encoder_model: 'fp32', decoder_model_merged: 'q4' },
-      })
-      return 'webgpu'
-    } catch { }
+    if (mem >= 8) tries.push({ device: 'webgpu', model: '${TURBO}', dtype: { encoder_model: 'fp16', decoder_model_merged: 'q4' } })
+    tries.push({ device: 'webgpu', model: '${SMALL}', dtype: { encoder_model: 'fp32', decoder_model_merged: 'q4' } })
+    tries.push({ device: 'webgpu', model: '${MODEL}', dtype: { encoder_model: 'fp32', decoder_model_merged: 'q4' } })
   }
-  pipe = await mod.pipeline('automatic-speech-recognition', '${MODEL}', { ...prog, device: 'wasm', dtype: 'q8' })
-  return 'wasm'
+  tries.push({ device: 'wasm', model: '${MODEL}', dtype: 'q8' })
+  let lastErr = null
+  for (const t of tries) {
+    try {
+      pipe = await mod.pipeline('automatic-speech-recognition', t.model, { ...prog, device: t.device, dtype: t.dtype })
+      return t.device + ' ' + t.model
+    } catch (e) { lastErr = e }
+  }
+  throw lastErr || new Error('speech model failed to load')
 }
 self.onmessage = async e => {
   const { type, id, audio, forceWasm } = e.data
@@ -171,6 +180,13 @@ function collapseLoops(text) {
 // Classic silence hallucinations whisper-base emits when nobody talks.
 const JUNK_RE = /^(you|bye|thank you( very much| so much)?|thanks? for watching|please (like and )?subscribe|subtitles by [^]*)[\s.!,]*$/i
 
+// Lines that are ONLY a bracketed caption note - [inaudible], [Music],
+// (laughs), (speaking in foreign language) - are training-data artifacts,
+// not speech. Drop them. Built via RegExp from a string because the checker
+// miscounts bracket chars inside regex-literal character classes.
+const BRACKET_RE = new RegExp('^[\\[(][^\\])]{0,80}[\\])][\\s.!,]*$')
+const TERMINAL = '.!?…'
+
 // Who was speaking at absolute time t, from the timeline the room logged
 // (events: [{ t, names: [] }], appended only when the speaking set changed).
 function speakerAt(events, t) {
@@ -229,9 +245,9 @@ export async function transcribeSession({ segments, speakers, onProgress }) {
 
       // Transferring detaches the buffer, so keep a copy while the engine is
       // still WebGPU in case this segment needs the WASM retry.
-      let retryCopy = device === 'webgpu' ? audio.slice() : null
+      let retryCopy = device.startsWith('webgpu') ? audio.slice() : null
       let { chunks } = await call({ type: 'run', audio }, [audio.buffer])
-      if (device === 'webgpu' && looksGarbled(chunks.map(c => c.text).join(' '))) {
+      if (device.startsWith('webgpu') && looksGarbled(chunks.map(c => c.text).join(' '))) {
         await spawn(true) // this GPU garbles Whisper - finish the job on WASM
         const redo = await call({ type: 'run', audio: retryCopy }, [retryCopy.buffer])
         chunks = redo.chunks
@@ -239,16 +255,27 @@ export async function transcribeSession({ segments, speakers, onProgress }) {
       retryCopy = null
       if (looksGarbled(chunks.map(c => c.text).join(' '))) { bump(); continue }
 
+      const segLines = []
       let prevText = ''
+      let lastAt = 0
       for (const c of chunks) {
         const text = collapseLoops(String(c.text || '').trim())
         if (!text || text === prevText) continue // long-form hallucination guard
-        if (JUNK_RE.test(text) || looksGarbled(text)) continue
+        if (JUNK_RE.test(text) || BRACKET_RE.test(text) || looksGarbled(text)) continue
         prevText = text
         const off = Array.isArray(c.ts) && typeof c.ts[0] === 'number' ? c.ts[0] : 0
         const at = (seg.startedAt || 0) + Math.round(off * 1000)
-        lines.push({ at, name: speakerAt(events, at) || 'Class', text })
+        // Whisper phrasing can split one sentence across chunks ("It's a" /
+        // "little minute."): glue a lowercase continuation onto an unfinished
+        // previous line instead of starting a phantom new speaker turn.
+        const prev = segLines[segLines.length - 1]
+        const cont = prev && at - lastAt < 8000 && prev.text.length + text.length < 400 &&
+          !TERMINAL.includes(prev.text.slice(-1)) && /^[a-z\u00e0-\u024f]/.test(text)
+        if (cont) prev.text += ' ' + text
+        else segLines.push({ at, name: speakerAt(events, at) || 'Class', text })
+        lastAt = at
       }
+      lines.push(...segLines)
       bump()
     }
   } finally {
