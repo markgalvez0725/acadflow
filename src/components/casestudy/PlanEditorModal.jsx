@@ -1,7 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import Modal from '@/components/primitives/Modal'
 import SuggestInput from '@/components/primitives/SuggestInput'
-import { Plus, Trash2, CalendarDays, Loader2 } from 'lucide-react'
+import { Plus, Trash2, CalendarDays, Loader2, GripVertical } from 'lucide-react'
 import {
   seedMilestones, planId, tsToDateInput, dateInputToStart, dateInputToDue,
   DEFAULT_CATEGORIES,
@@ -13,6 +13,38 @@ import {
 // for the groups. Opens pre-seeded with a starter template spread between
 // today and the case study's due date when no plan exists yet. Steps are
 // sorted by start date on save, so row order never needs managing.
+//
+// Steps are DRAGGABLE by the grip handle: while a card is dragged over its
+// neighbors the list reorders live and the schedule re-flows automatically -
+// the plan keeps its overall start date, every step keeps its own length in
+// days, and each step starts on the day the previous one ends (the same
+// contiguous shape the starter template uses). Manual date edits are only
+// re-flowed by a drag, never on their own. Pointer listeners live on window
+// so releasing outside the modal never freezes the drag.
+
+// Calendar-day date math on 'YYYY-MM-DD' strings (no DST/ms drift).
+function addDays(input, n) {
+  const [y, m, d] = String(input).split('-').map(Number)
+  const dt = new Date(y, m - 1, d + n)
+  const pad = v => String(v).padStart(2, '0')
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`
+}
+
+function lenDays(start, due) {
+  if (!start || !due) return 0
+  const [y1, m1, d1] = start.split('-').map(Number)
+  const [y2, m2, d2] = due.split('-').map(Number)
+  return Math.max(0, Math.round((new Date(y2, m2 - 1, d2) - new Date(y1, m1 - 1, d1)) / 86400000))
+}
+
+function reflowRows(rs, anchor) {
+  let start = anchor
+  return rs.map(r => {
+    const out = { ...r, start, due: addDays(start, lenDays(r.start, r.due)) }
+    start = out.due
+    return out
+  })
+}
 
 export default function PlanEditorModal({ cs, plan, onSave, onClose }) {
   const [rows, setRows] = useState(() => {
@@ -28,6 +60,53 @@ export default function PlanEditorModal({ cs, plan, onSave, onClose }) {
   })
   const [saving, setSaving] = useState(false)
   const seeded = !plan?.milestones?.length
+
+  // Drag-to-reorder: index of the card in hand, live row order, row elements.
+  const [dragIdx, setDragIdx] = useState(-1)
+  const rowsRef = useRef(rows)
+  rowsRef.current = rows
+  const rowElsRef = useRef({})
+
+  function startRowDrag(e, i) {
+    if (rows.length < 2) return
+    if (e.button != null && e.button !== 0) return
+    e.preventDefault()
+    const anchor = rowsRef.current[0]?.start || tsToDateInput(Date.now())
+    let cur = i
+    setDragIdx(i)
+    const move = ev => {
+      const order = rowsRef.current
+      let to = cur
+      for (let j = 0; j < order.length; j++) {
+        if (j === cur) continue
+        const el = rowElsRef.current[order[j].id]
+        if (!el) continue
+        const r = el.getBoundingClientRect()
+        const mid = r.top + r.height / 2
+        if (j < cur && ev.clientY < mid) to = Math.min(to, j)
+        if (j > cur && ev.clientY > mid) to = Math.max(to, j)
+      }
+      if (to !== cur) {
+        setRows(rs => {
+          const next = rs.slice()
+          const [moved] = next.splice(cur, 1)
+          next.splice(to, 0, moved)
+          return reflowRows(next, anchor)
+        })
+        cur = to
+        setDragIdx(to)
+      }
+    }
+    const end = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', end)
+      window.removeEventListener('pointercancel', end)
+      setDragIdx(-1)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', end)
+    window.addEventListener('pointercancel', end)
+  }
 
   function update(i, patch) {
     setRows(rs => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)))
@@ -109,7 +188,11 @@ export default function PlanEditorModal({ cs, plan, onSave, onClose }) {
 
       <div className="csp-ed-list">
         {rows.map((r, i) => (
-          <div key={r.id} className="csp-ed-row">
+          <div
+            key={r.id}
+            ref={el => { rowElsRef.current[r.id] = el }}
+            className={`csp-ed-row${dragIdx === i ? ' dragging' : ''}`}
+          >
             <div className="csp-ed-grid">
               <div>
                 <label className="label">Step {i + 1}</label>
@@ -161,6 +244,17 @@ export default function PlanEditorModal({ cs, plan, onSave, onClose }) {
                 onChange={e => update(i, { note: e.target.value })}
               />
             </div>
+            {rows.length > 1 && (
+              <button
+                type="button"
+                className="csp-ed-grip"
+                aria-label={`Reorder step ${i + 1}`}
+                title="Drag to reorder - the schedule re-flows to keep steps in sequence"
+                onPointerDown={e => startRowDrag(e, i)}
+              >
+                <GripVertical size={14} />
+              </button>
+            )}
             <button
               type="button"
               className="csp-ed-del"
@@ -178,7 +272,7 @@ export default function PlanEditorModal({ cs, plan, onSave, onClose }) {
         <Plus size={14} style={{ marginRight: 4 }} /> Add step
       </button>
       <div className="csp-ed-hint">
-        Steps are shown to every group as a Gantt timeline. Categories get a consistent color, dates drive the behind/on-track status, and members check steps off as they finish them.
+        Steps are shown to every group as a Gantt timeline. Categories get a consistent color, dates drive the behind/on-track status, and members check steps off as they finish them. Drag the grip on a step to reorder it - the schedule re-flows on its own: each step keeps its length and starts where the previous one ends.
       </div>
     </Modal>
   )
