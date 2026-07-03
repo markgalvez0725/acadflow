@@ -14,6 +14,10 @@ export default defineConfig({
     // errors caught by ErrorBoundary map back to readable stack traces without
     // shipping map URLs to clients.
     sourcemap: 'hidden',
+    // The firebase/vendor chunks legitimately exceed Vite's 500 kB advisory
+    // line (the Firestore+Auth SDK alone is that big); they're content-hashed,
+    // long-cached, and SW-cached, so the warning is noise - raise the bar.
+    chunkSizeWarningLimit: 900,
     rollupOptions: {
       output: {
         // Split heavy/stable vendor code into long-lived cacheable chunks so an
