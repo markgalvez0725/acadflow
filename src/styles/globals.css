@@ -8123,3 +8123,21 @@ html[data-glass="on"][data-theme="dark"] body::before {
     box-shadow: var(--shadow); pointer-events: none;
   }
 }
+
+/* ── Suggestion popover (SuggestInput) - replaces native datalist pickers ── */
+@layer components {
+  .sug-wrap { position: relative; display: block; min-width: 0; }
+  .sug-pop {
+    position: absolute; top: calc(100% + 4px); left: 0; z-index: 40;
+    min-width: 150px; max-width: 240px; max-height: 190px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 1px; padding: 4px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; box-shadow: var(--shadow);
+  }
+  .sug-opt {
+    text-align: left; font-size: 0.7188rem; color: var(--ink);
+    background: none; border: none; border-radius: 7px; padding: 6px 9px;
+    cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sug-opt:hover, .sug-opt.hi { background: var(--surface2); }
+}

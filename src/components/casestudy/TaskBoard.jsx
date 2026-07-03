@@ -1,6 +1,7 @@
-import React, { useState, useId } from 'react'
+import React, { useState } from 'react'
 import { Check, Plus, X } from 'lucide-react'
 import Avatar from '@/components/primitives/Avatar'
+import SuggestInput from '@/components/primitives/SuggestInput'
 import { sortByLastName } from '@/utils/format'
 import {
   groupTasks, memberTaskStats, categoryTaskStats, categoryColorMap, catColor,
@@ -33,8 +34,6 @@ export default function TaskBoard({
   const canAssign = isAdmin || viewerIsLead
   const canManage = isAdmin || viewerIsLead
 
-  const roleListId = useId()
-  const catListId = useId()
   const [roleDraft, setRoleDraft] = useState({})   // sid -> in-progress text
   const [addingFor, setAddingFor] = useState('')   // sid with the inline form open
   const [draft, setDraft] = useState({ title: '', category: '' })
@@ -59,10 +58,10 @@ export default function TaskBoard({
     return out
   })()
 
-  function commitRole(sid) {
+  function commitRole(sid, next) {
     if (!isAdmin || !onRoleChange) return
-    const next = (roleDraft[sid] ?? roles[sid] ?? '').trim()
-    if (next !== (roles[sid] || '')) onRoleChange(sid, next)
+    const v = String(next ?? '').trim()
+    if (v !== (roles[sid] || '')) onRoleChange(sid, v)
     setRoleDraft(d => { const n = { ...d }; delete n[sid]; return n })
   }
 
@@ -86,17 +85,6 @@ export default function TaskBoard({
         ))}
       </div>
 
-      {isAdmin && (
-        <datalist id={roleListId}>
-          {ROLE_SUGGESTIONS.map(r => <option key={r} value={r} />)}
-        </datalist>
-      )}
-      {canAssign && (
-        <datalist id={catListId}>
-          {catSuggestions.map(c => <option key={c.toLowerCase()} value={c} />)}
-        </datalist>
-      )}
-
       <div className="csp-board">
         {ordered.map(m => {
           const isYou = m.id === viewerId
@@ -110,15 +98,14 @@ export default function TaskBoard({
                 <div className="csp-mmeta">
                   <b>{isYou ? 'Your tasks' : m.name}</b>
                   {isAdmin ? (
-                    <input
+                    <SuggestInput
                       className="csp-role-in"
-                      list={roleListId}
+                      options={ROLE_SUGGESTIONS}
                       placeholder="Set a role"
-                      aria-label={`Role for ${m.name}`}
+                      ariaLabel={`Role for ${m.name}`}
                       value={roleDraft[m.id] ?? role}
-                      onChange={e => setRoleDraft(d => ({ ...d, [m.id]: e.target.value }))}
-                      onBlur={() => commitRole(m.id)}
-                      onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
+                      onChange={v => setRoleDraft(d => ({ ...d, [m.id]: v }))}
+                      onCommit={v => commitRole(m.id, v)}
                     />
                   ) : (
                     <span className={`csp-mrole${isLeadRole(role) ? ' lead' : ''}`}>
@@ -180,13 +167,13 @@ export default function TaskBoard({
                       onChange={e => setDraft(d => ({ ...d, title: e.target.value }))}
                       onKeyDown={e => { if (e.key === 'Enter') submitTask(m.id) }}
                     />
-                    <input
+                    <SuggestInput
                       className="csp-add-in csp-add-cat"
                       placeholder="Category"
-                      list={catListId}
+                      options={catSuggestions}
                       value={draft.category}
-                      onChange={e => setDraft(d => ({ ...d, category: e.target.value }))}
-                      onKeyDown={e => { if (e.key === 'Enter') submitTask(m.id) }}
+                      onChange={v => setDraft(d => ({ ...d, category: v }))}
+                      onEnterEmpty={() => submitTask(m.id)}
                     />
                     <div className="csp-add-row">
                       <button type="button" className="btn btn-primary btn-sm" disabled={!draft.title.trim()} onClick={() => submitTask(m.id)}>

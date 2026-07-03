@@ -1,5 +1,6 @@
-import React, { useState, useId } from 'react'
+import React, { useState } from 'react'
 import Modal from '@/components/primitives/Modal'
+import SuggestInput from '@/components/primitives/SuggestInput'
 import { Plus, Trash2, CalendarDays, Loader2 } from 'lucide-react'
 import {
   seedMilestones, planId, tsToDateInput, dateInputToStart, dateInputToDue,
@@ -26,7 +27,6 @@ export default function PlanEditorModal({ cs, plan, onSave, onClose }) {
     }))
   })
   const [saving, setSaving] = useState(false)
-  const catListId = useId()
   const seeded = !plan?.milestones?.length
 
   function update(i, patch) {
@@ -107,10 +107,6 @@ export default function PlanEditorModal({ cs, plan, onSave, onClose }) {
         </div>
       )}
 
-      <datalist id={catListId}>
-        {catSuggestions.map(c => <option key={c.toLowerCase()} value={c} />)}
-      </datalist>
-
       <div className="csp-ed-list">
         {rows.map((r, i) => (
           <div key={r.id} className="csp-ed-row">
@@ -126,12 +122,12 @@ export default function PlanEditorModal({ cs, plan, onSave, onClose }) {
               </div>
               <div>
                 <label className="label">Category</label>
-                <input
+                <SuggestInput
                   className="input"
                   placeholder="Documentation"
-                  list={catListId}
+                  options={catSuggestions}
                   value={r.category}
-                  onChange={e => update(i, { category: e.target.value })}
+                  onChange={v => update(i, { category: v })}
                 />
               </div>
             </div>
