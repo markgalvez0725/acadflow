@@ -4,6 +4,7 @@ import Modal from '@/components/primitives/Modal'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { getInitials, sortByLastName } from '@/utils/format'
+import { getLateThreshold, setLateThreshold, LATE_THR_OPTIONS } from '@/utils/attendance'
 
 const CYCLE = { present: 'late', late: 'absent', absent: 'present' }
 const LABEL = { present: 'Present', late: 'Late', absent: 'Absent' }
@@ -22,7 +23,12 @@ const LABEL = { present: 'Present', late: 'Late', absent: 'Absent' }
 export default function ClassAttendanceModal({ meeting, onClose }) {
   const { students, saveStudents, patchMeeting } = useData()
   const { toast } = useUI()
-  const [thr, setThr] = useState(10)
+  // Threshold priority: what the professor picked during THIS class (stamped
+  // on the meeting doc by the in-room viewer) > their remembered preference
+  // > the 15-minute default - so the sheet always prefills exactly what the
+  // live panel showed.
+  const [thr, setThrState] = useState(() => meeting?.lateThr || getLateThreshold())
+  const setThr = v => { setThrState(v); setLateThreshold(v) }
   const [over, setOver] = useState({}) // studentId -> manual status override
   const [saving, setSaving] = useState(false)
 
@@ -120,7 +126,7 @@ export default function ClassAttendanceModal({ meeting, onClose }) {
           <span className="catt-thr">
             <Clock size={12} /> Late after
             <span className="catt-seg">
-              {[5, 10, 15].map(v => (
+              {LATE_THR_OPTIONS.map(v => (
                 <button key={v} type="button" className={thr === v ? 'on' : ''} onClick={() => setThr(v)}>{v}m</button>
               ))}
             </span>

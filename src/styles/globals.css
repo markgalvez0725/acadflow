@@ -7236,6 +7236,88 @@ html[data-glass="on"][data-theme="dark"] body::before {
     text-align: center;
     margin-top: 16px;
   }
+  /* Live attendance strip (professor only): counts vs the ENROLLED list +
+     the shared late threshold. Meet-light palette, matching the panel. */
+  .mr-people-att {
+    margin: 2px 12px 4px;
+    background: #f8f9fa;
+    border: 1px solid #e8eaed;
+    border-radius: 12px;
+    padding: 9px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .mr-people-att-chips {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+  }
+  .mr-att-pill {
+    font-size: 10.5px;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 3px 9px;
+    white-space: nowrap;
+    flex: none;
+  }
+  .mr-att-pill.ok { background: #e6f4ea; color: #188038; }
+  .mr-att-pill.la { background: #fef7e0; color: #b06000; }
+  .mr-att-pill.ab { background: #fce8e6; color: #c5221f; }
+  .mr-people-thr {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #5f6368;
+    white-space: nowrap;
+  }
+  .mr-people-seg {
+    display: inline-flex;
+    background: #f1f3f4;
+    border-radius: 999px;
+    padding: 2px;
+  }
+  .mr-people-seg button {
+    border: none;
+    background: transparent;
+    color: #5f6368;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: inherit;
+    border-radius: 999px;
+    padding: 2px 9px;
+    cursor: pointer;
+  }
+  .mr-people-seg button.on { background: #5046e4; color: #fff; }
+  .mr-people-gh {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #5f6368;
+    padding: 9px 8px 3px;
+  }
+  .mr-people-ghbtn {
+    width: 100%;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    border-radius: 8px;
+  }
+  .mr-people-ghbtn:hover { color: #202124; }
+  .mr-people-row.dim { opacity: 0.75; }
+  .mr-people-note {
+    font-size: 10.5px;
+    color: #5f6368;
+    background: #f8f9fa;
+    border-top: 1px solid #e8eaed;
+    padding: 8px 14px 9px;
+    line-height: 1.5;
+  }
   /* Phones: the panel becomes a bottom sheet, exactly like the chat. */
   @media (max-width: 760px) {
     .mr-people {

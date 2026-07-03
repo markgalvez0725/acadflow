@@ -33,6 +33,25 @@ export function serializeStudents(arr) {
   });
 }
 
+// Late threshold for live-class attendance (minutes after the scheduled
+// start). The in-meeting viewer and the end-of-class sheet SHARE this
+// preference so what the professor watches during class is exactly what the
+// sheet prefills. 15 minutes is the default late cap.
+export const LATE_THR_OPTIONS = [5, 10, 15]
+export const LATE_THR_DEFAULT = 15
+
+export function getLateThreshold() {
+  try {
+    const v = parseInt(localStorage.getItem('acadflow_late_thr'), 10)
+    if (LATE_THR_OPTIONS.includes(v)) return v
+  } catch { /* default */ }
+  return LATE_THR_DEFAULT
+}
+
+export function setLateThreshold(v) {
+  try { localStorage.setItem('acadflow_late_thr', String(v)) } catch { /* session only */ }
+}
+
 export function deserializeStudents(arr) {
   return arr.map(s => {
     const attendance = {}, excuse = {}, late = {};

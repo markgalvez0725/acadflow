@@ -18,6 +18,7 @@ import { playMeetingSound, preloadMeetingSounds } from '@/utils/meetingSounds'
 import MeetingChat from '@/components/meeting/MeetingChat'
 import MeetingPeople from '@/components/meeting/MeetingPeople'
 import EmojiIcon from '@/components/primitives/EmojiIcon'
+import { getLateThreshold, setLateThreshold, LATE_THR_DEFAULT } from '@/utils/attendance'
 
 // Full-screen in-app classroom shared by the professor and student tabs,
 // laid out Google Meet style: a stage the tile grid FILLS edge to edge
@@ -241,14 +242,14 @@ function MiniVideo({ stream, onClick }) {
 }
 
 export default function MeetingRoom({ meeting, self, minimized, onMinimize, onClose, onEndClass }) {
-  const { db: dbRef, saveMeetingRecording, students, admin } = useData()
+  const { db: dbRef, saveMeetingRecording, patchMeeting, students, admin } = useData()
   const { toast } = useUI()
   const db = dbRef?.current || null
   const {
     phase, errorMsg, peers, localStream, micOn, camOn, sharing, canShare,
     screenStream, setRecordingFlag, setHand, lowerHand, sendReaction, setChatLock,
     toggleMic, toggleCam, startShare, stopShare, leave, retry,
-    netDown, selfQuality, forcedMuteAt,
+    netDown, selfQuality, forcedMuteAt, joinLogLive,
     muteStudent, muteAllStudents, removeStudent, getJoinLog,
   } = useMeetingRoom({ db, roomId: meeting?.id, self })
 
@@ -303,6 +304,25 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     const byId = new Map((students || []).map(s => [s.id, s.photo || null]))
     return p => (p ? (p.role === 'admin' ? admin?.photo || null : byId.get(p.uid) || null) : null)
   }, [students, admin?.photo])
+
+  // Enrolled roster of this class, for the People panel's live attendance
+  // (Present/Late/Not joined count against ENROLLMENT, not just the room).
+  const classRoster = useMemo(() => (
+    (students || [])
+      .filter(s => s.classId === meeting?.classId || s.classIds?.includes(meeting?.classId))
+      .slice()
+      .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+  ), [students, meeting?.classId])
+
+  // Late threshold: the meeting doc is the live source (the professor's
+  // change reaches every device through the meetings listener, so a student's
+  // own status pill always agrees with the professor's view); the local
+  // preference only seeds the professor's first pick. Default: 15 minutes.
+  const lateThr = meeting?.lateThr || (isAdmin ? getLateThreshold() : LATE_THR_DEFAULT)
+  function changeThr(v) {
+    setLateThreshold(v)
+    if (meeting) patchMeeting(meeting, { lateThr: v }).catch(() => { /* local view already updated */ })
+  }
 
   // Own camera frame shape, read off the capture track (the self-view element
   // unmounts across minimize/share, so the element itself can't be watched).
@@ -1150,6 +1170,11 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
           micOn={micOn}
           isAdmin={isAdmin}
           photoOf={photoFor}
+          roster={classRoster}
+          joinLog={joinLogLive}
+          scheduledAt={meeting?.scheduledAt || 0}
+          lateThr={lateThr}
+          onThrChange={isAdmin ? changeThr : undefined}
           onMute={p => muteStudent(p.peerId)}
           onMuteAll={() => { muteAllStudents(); toast('Muted all students. They can unmute when they need to speak.', 'success') }}
           onRemove={p => setConfirmRemove(p)}

@@ -135,6 +135,9 @@ export default function useMeetingRoom({ db, roomId, self }) {
   const [selfQuality, setSelfQuality] = useState('good')
   // Bumped when the professor force-mutes this device (the room toasts it).
   const [forcedMuteAt, setForcedMuteAt] = useState(0)
+  // Reactive copy of the join log for the in-meeting attendance viewer
+  // (updates only when someone new joins, rejoins earlier, or leaves).
+  const [joinLogLive, setJoinLogLive] = useState([])
   const apiRef = useRef({})
   const selfRef = useRef(self)
   selfRef.current = self
@@ -153,6 +156,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
     setNetDown(false)
     setSelfQuality('good')
     setForcedMuteAt(0)
+    setJoinLogLive([])
     let dead = false
     const myId = uuidv4()
     const pcs = new Map()          // peerId -> RTCPeerConnection
@@ -685,14 +689,27 @@ export default function useMeetingRoom({ db, roomId, self }) {
       // Attendance trail: remember every STUDENT ever sighted in the room and
       // their earliest join time (their doc disappears when they leave, so
       // this is accumulated live, not read at the end). The professor stamps
-      // it onto the meeting doc at End class.
+      // it onto the meeting doc at End class; the in-meeting viewer reads the
+      // reactive copy. leftAt marks who joined then left (cleared on rejoin).
+      let jlChanged = false
       for (const p of list) {
         if (p.role === 'admin' || !p.uid) continue
         const cur = joinLog.get(p.uid)
         if (!cur || (p.joinedAt || 0) < cur.joinedAt) {
-          joinLog.set(p.uid, { uid: p.uid, name: p.name || '', joinedAt: p.joinedAt || Date.now() })
+          joinLog.set(p.uid, { uid: p.uid, name: p.name || '', joinedAt: p.joinedAt || Date.now(), leftAt: 0 })
+          jlChanged = true
         }
       }
+      const liveUids = new Set(list.filter(p => p.role !== 'admin' && p.uid).map(p => p.uid))
+      for (const [uid, e] of joinLog) {
+        if (liveUids.has(uid)) {
+          if (e.leftAt) { joinLog.set(uid, { ...e, leftAt: 0 }); jlChanged = true }
+        } else if (!e.leftAt) {
+          joinLog.set(uid, { ...e, leftAt: Date.now() })
+          jlChanged = true
+        }
+      }
+      if (jlChanged) setJoinLogLive([...joinLog.values()])
       if (myJoinedAt && !leaving && !list.some(p => p.peerId === myId)) { rejoin(); return }
       // A peer that REJOINED (fresh joinedAt, e.g. after being swept) needs
       // fresh connections: drop the dead pc so the initiator rule re-runs
@@ -968,7 +985,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
 
   return {
     phase, errorMsg, peers, localStream, micOn, camOn, sharing, screenStream,
-    netDown, selfQuality, forcedMuteAt,
+    netDown, selfQuality, forcedMuteAt, joinLogLive,
     toggleMic: () => apiRef.current.toggleMic?.(),
     toggleCam: () => apiRef.current.toggleCam?.(),
     startShare: () => apiRef.current.startShare?.(),
