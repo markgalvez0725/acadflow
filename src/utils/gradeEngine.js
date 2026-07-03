@@ -111,6 +111,13 @@ export function deriveActivities(s, sub, activities = [], enrolledIds = enrolled
 // `floor` enables the "minimum component grade" policy: every quiz that exists
 // for the subject counts, a not-taken quiz scores the floor, and a taken quiz
 // is lifted to the floor if below.
+//
+// QUIZ_FLOOR: a TAKEN quiz never grades below 50, regardless of settings -
+// the raw score stays truthful everywhere it is shown (8/20 is still 8/20),
+// but the percentage that enters the grade is max(50, %). Applied here, at
+// computation time, so every past quiz below 50 regrades automatically on
+// every screen and export - no stored score is rewritten.
+const QUIZ_FLOOR = 50
 export function deriveQuizzes(s, sub, quizzes = [], enrolledIds = enrolledIdsOf(s), floor = 0) {
   const comp = s.gradeComponents?.[sub] || {}
   // Drafts are not live quizzes - they never count toward a grade or show up as
@@ -121,7 +128,8 @@ export function deriveQuizzes(s, sub, quizzes = [], enrolledIds = enrolledIdsOf(
   const hadResults = (s.quizResults?.[sub] || []).length > 0
   const hadScores = !!(comp.quizScores && Object.keys(comp.quizScores).length)
   const fl = floor > 0 ? floor : 0
-  const withFloor = p => r2(fl ? Math.max(fl, p) : p)
+  const qFl = Math.max(QUIZ_FLOOR, fl)
+  const withFloor = p => r2(Math.max(qFl, p))
   const resultPct = e => e == null ? null : (e.pct ?? (e.score != null && e.total ? Math.round((e.score / e.total) * 100) : null))
 
   let items = []
@@ -258,7 +266,7 @@ function buildTrace({ act, qz, att, attitude, midtermExam, finalsExam, live, mid
     formula: `average of each activity %${floorNote}` })
   steps.push({ key: 'quizzes', label: 'Quizzes', value: qz.pct,
     detail: qz.items.map(i => ({ title: i.title, pct: i.pct, missing: i.missing })),
-    formula: `average of each quiz %${floorNote}` })
+    formula: `average of each quiz %, minimum ${Math.max(50, floor || 0)}` })
   steps.push({ key: 'attendance', label: 'Attendance', value: att.pct,
     detail: { present: att.present, held: att.held },
     formula: 'present ÷ sessions held × 100' })
