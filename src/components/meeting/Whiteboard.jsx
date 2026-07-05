@@ -27,6 +27,12 @@ import {
 // shared/encoded stream has a stable frame size, and PNG exports are crisp.
 const W = 1600
 const H = 900
+// Broadcast size: the mesh encodes the presented board once PER STUDENT, so
+// the stream comes from a downscaled mirror of the canvas - the downscale is
+// paid once, every peer encoder gets 720p frames, and end-to-end delay stays
+// low even in full rooms. Drawing and PNG export keep the full 1600x900.
+const BW = 1280
+const BH = 720
 
 const COLORS = ['#111827', '#dc2626', '#2563eb', '#16a34a', '#f59e0b', '#9333ea']
 const SIZES = [3, 5, 9, 14]
@@ -129,6 +135,7 @@ export default function Whiteboard({ store, presenting, onPresent, onStopPresent
   const canvasRef = useRef(null)
   const frameRef = useRef(null)
   const baseRef = useRef(null)   // offscreen canvas holding committed ops
+  const bcastRef = useRef(null)  // downscaled mirror the class actually streams
   const gestureRef = useRef(null) // in-flight stroke/shape
   const cursorRef = useRef(null) // brush-size ring following the pointer
   const curDiaRef = useRef(0)
@@ -137,7 +144,8 @@ export default function Whiteboard({ store, presenting, onPresent, onStopPresent
 
   function baseCtx() { return baseRef.current.getContext('2d') }
 
-  // Visible (and captured) canvas = white fill + committed ops (+ preview).
+  // Visible canvas = white fill + committed ops (+ preview). While presenting,
+  // the broadcast mirror is refreshed from it in the same pass.
   function blit(previewOp) {
     const c = canvasRef.current
     if (!c || !baseRef.current) return
@@ -147,6 +155,8 @@ export default function Whiteboard({ store, presenting, onPresent, onStopPresent
     ctx.fillRect(0, 0, W, H)
     ctx.drawImage(baseRef.current, 0, 0)
     if (previewOp) drawOp(ctx, previewOp)
+    const b = bcastRef.current
+    if (b) b.getContext('2d').drawImage(c, 0, 0, BW, BH)
   }
 
   // Pointer events can fire far faster than frames are worth painting -
@@ -387,13 +397,24 @@ export default function Whiteboard({ store, presenting, onPresent, onStopPresent
       toast('This browser cannot broadcast the board. You can still draw and save it as an image.', 'error')
       return
     }
-    blit() // guarantee a first frame exists before capture starts
-    const stream = c.captureStream(15)
+    const b = document.createElement('canvas')
+    b.width = BW
+    b.height = BH
+    bcastRef.current = b
+    blit() // fills the mirror too - a first frame exists before capture starts
+    const stream = b.captureStream(15)
     if (!onPresent(stream)) {
+      bcastRef.current = null
       stream.getTracks().forEach(t => { try { t.stop() } catch { /* noop */ } })
       toast('Could not start presenting the board - try again.', 'error')
     }
   }
+
+  // Presenting ended (from here, the room bar, or teardown): drop the mirror
+  // so ordinary drawing stops paying for it.
+  useEffect(() => {
+    if (!presenting) bcastRef.current = null
+  }, [presenting])
 
   function download() {
     try {
