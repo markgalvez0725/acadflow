@@ -4,7 +4,7 @@ import {
   Mic, MicOff, Video, VideoOff, MonitorUp, PhoneOff, Radio,
   Users, AlertTriangle, Loader2, CheckCircle, Minimize2, Maximize2,
   PictureInPicture2, CircleDot, Square, Hand, Pin, PinOff, Volume2,
-  MessageSquare, Smile, LogIn, LogOut, UserX, MoreHorizontal,
+  MessageSquare, Smile, LogIn, LogOut, UserX, MoreHorizontal, Pencil,
 } from 'lucide-react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -18,6 +18,7 @@ import { playMeetingSound, preloadMeetingSounds } from '@/utils/meetingSounds'
 import MeetingChat from '@/components/meeting/MeetingChat'
 import MeetingPeople from '@/components/meeting/MeetingPeople'
 import PreJoinPanel from '@/components/meeting/PreJoinPanel'
+import Whiteboard from '@/components/meeting/Whiteboard'
 import EmojiIcon from '@/components/primitives/EmojiIcon'
 import { getLateThreshold, setLateThreshold, LATE_THR_DEFAULT } from '@/utils/attendance'
 import { createTranscriptRecorder, transcriptCaptureSupported } from '@/utils/transcriptRecorder'
@@ -250,9 +251,9 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   const { toast } = useUI()
   const db = dbRef?.current || null
   const {
-    phase, errorMsg, peers, localStream, micOn, camOn, sharing, canShare,
+    phase, errorMsg, peers, localStream, micOn, camOn, sharing, boardSharing, canShare,
     screenStream, setRecordingFlag, setHand, lowerHand, sendReaction, setChatLock,
-    toggleMic, toggleCam, startShare, stopShare, leave, retry, confirmJoin,
+    toggleMic, toggleCam, startShare, startBoardShare, stopShare, leave, retry, confirmJoin,
     netDown, selfQuality, forcedMuteAt, joinLogLive,
     muteStudent, muteAllStudents, removeStudent, getJoinLog,
   } = useMeetingRoom({ db, roomId: meeting?.id, self })
@@ -267,6 +268,12 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   // Phone control bar: only mic, camera, More, End fit; everything else
   // lives in the More sheet (CSS decides - desktop never sees the button).
   const [moreOpen, setMoreOpen] = useState(false)
+
+  // Professor whiteboard. Content ({ ops, redo }) lives in a ref so closing
+  // and reopening the board keeps the drawing for the whole session.
+  const [boardOpen, setBoardOpen] = useState(false)
+  const wbStore = useRef(null)
+  if (!wbStore.current) wbStore.current = { ops: [], redo: [] }
 
   // The joining spinner must never be a dead end on weak mobile data: past
   // 20s of 'connecting' we own up to the stall and offer Retry / Close (the
@@ -916,6 +923,23 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     return { stripPeers: shown, stripHidden: others.slice(STRIP_MAX - 1) }
   }, [peers, featuredPeer])
 
+  // ── Whiteboard (professor only) ─────────────────────────────────────────
+  // Portaled separately from the room body so minimizing the meeting hides
+  // the board with CSS instead of unmounting it: the canvas (and therefore a
+  // live board share) survives, students keep seeing the last state.
+  const boardEl = isAdmin && boardOpen ? createPortal(
+    <Whiteboard
+      store={wbStore.current}
+      presenting={boardSharing}
+      onPresent={startBoardShare}
+      onStopPresent={stopShare}
+      onClose={() => { if (boardSharing) stopShare(); setBoardOpen(false) }}
+      hidden={!!minimized}
+      toast={toast}
+    />,
+    document.body,
+  ) : null
+
   // ── Mini player (minimized) ─────────────────────────────────────────────
   if (minimized) {
     const statusText = ended ? 'Class ended'
@@ -968,7 +992,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
         </div>
       </div>
     )
-    return createPortal(mini, document.body)
+    return <>{createPortal(mini, document.body)}{boardEl}</>
   }
 
   // ── Green room (pre-join) ────────────────────────────────────────────────
@@ -1334,6 +1358,12 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
               <span className={`mr-ctl${sharing ? ' mr-ctl-on' : ''}${canShare ? '' : ' mr-ctl-dim'}`}><MonitorUp size={18} /></span>
               <span>{sharing ? 'Stop present' : 'Present'}</span>
             </button>
+            {isAdmin && (
+              <button className="mr-more-item" onClick={() => { setMoreOpen(false); setBoardOpen(true) }}>
+                <span className={`mr-ctl${boardOpen ? ' mr-ctl-accent' : ''}`}><Pencil size={18} /></span>
+                <span>Whiteboard</span>
+              </button>
+            )}
             {isAdmin && recordingSupported() && (
               <button
                 className="mr-more-item"
@@ -1407,6 +1437,15 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
               >
                 <MonitorUp size={18} />
               </button>
+              {isAdmin && (
+                <button
+                  className={`mr-ctl mr-ctl-x${boardOpen ? ' mr-ctl-accent' : ''}`}
+                  onClick={() => setBoardOpen(true)}
+                  title="Open the whiteboard - draw and present it to the class"
+                >
+                  <Pencil size={18} />
+                </button>
+              )}
               {isAdmin && recordingSupported() && (
                 <button
                   className={`mr-ctl mr-ctl-x${recState === 'on' ? ' mr-ctl-rec' : ''}`}
@@ -1486,5 +1525,5 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     </div>
   )
 
-  return createPortal(body, document.body)
+  return <>{createPortal(body, document.body)}{boardEl}</>
 }

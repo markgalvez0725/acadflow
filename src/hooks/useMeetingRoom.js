@@ -134,6 +134,9 @@ export default function useMeetingRoom({ db, roomId, self }) {
   const [micOn, setMicOn] = useState(true)
   const [camOn, setCamOn] = useState(true)
   const [sharing, setSharing] = useState(false)
+  // True while the active share is the whiteboard's canvas capture (a normal
+  // display share and the board share are mutually exclusive on this device).
+  const [boardSharing, setBoardSharing] = useState(false)
   // Screen share as a stream, for the meeting recorder's compositor.
   const [screenStream, setScreenStream] = useState(null)
   // Bumping this remounts the whole engine - used by Try again after a
@@ -206,6 +209,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
     let myJoinedAt = 0
     let local = null
     let screenTrack = null
+    let boardShare = false // current screenTrack is a whiteboard canvas capture
     let preferH264 = false // set once at start(): this device has a hardware H.264 encoder
     let iceConfig = RTC_CONFIG // upgraded to dedicated TURN at start() when configured
     let shareCapW = 0      // capture width bucket currently applied to the share track
@@ -589,7 +593,9 @@ export default function useMeetingRoom({ db, roomId, self }) {
       // all N encoders resize 1080p frames separately. Smaller frames also
       // mean smaller keyframes - what keeps low-bitrate links from stalling
       // for seconds whenever one is needed.
-      if (screenTrack) {
+      // Canvas capture tracks (whiteboard) keep their native size - width
+      // constraints on them are meaningless and some engines reject them.
+      if (screenTrack && !boardShare) {
         const w = n > 16 ? 1280 : 1920
         if (w !== shareCapW && screenTrack.applyConstraints) {
           shareCapW = w
@@ -1115,16 +1121,38 @@ export default function useMeetingRoom({ db, roomId, self }) {
         // share at once (Meet behavior).
         rtcUpdateParticipant(db, roomId, myId, { sharing: true, sharedAt: Date.now() })
       },
+      // Whiteboard: publish a caller-provided canvas-capture stream through
+      // the SAME pipeline as a screen share. No getDisplayMedia involved (so
+      // it works from phones and tablets), every student features it exactly
+      // like a presentation, and the recorder composites it automatically.
+      startBoardShare(stream) {
+        const t = stream && stream.getVideoTracks && stream.getVideoTracks()[0]
+        if (!t) return false
+        if (screenTrack) apiRef.current.stopShare() // board replaces an active display share
+        screenTrack = t
+        boardShare = true
+        try { t.contentHint = 'detail' } catch { /* advisory */ }
+        for (const sender of videoSenders.values()) sender.replaceTrack(t).catch(() => {})
+        applyMediaBudget()
+        t.onended = () => apiRef.current.stopShare()
+        setScreenStream(new MediaStream([t]))
+        setSharing(true)
+        setBoardSharing(true)
+        rtcUpdateParticipant(db, roomId, myId, { sharing: true, sharedAt: Date.now() })
+        return true
+      },
       stopShare() {
         if (!screenTrack) return
         try { screenTrack.stop() } catch { /* noop */ }
         screenTrack = null
+        boardShare = false
         shareCapW = 0
         const cam = local && local.getVideoTracks()[0]
         for (const sender of videoSenders.values()) sender.replaceTrack(cam || null).catch(() => {})
         applyMediaBudget()
         setScreenStream(null)
         setSharing(false)
+        setBoardSharing(false)
         rtcUpdateParticipant(db, roomId, myId, { sharing: false })
       },
       setRecordingFlag(on) {
@@ -1180,11 +1208,12 @@ export default function useMeetingRoom({ db, roomId, self }) {
   }, [db, roomId, attempt, joinEpoch])
 
   return {
-    phase, errorMsg, peers, localStream, micOn, camOn, sharing, screenStream,
+    phase, errorMsg, peers, localStream, micOn, camOn, sharing, boardSharing, screenStream,
     netDown, selfQuality, forcedMuteAt, joinLogLive,
     toggleMic: () => apiRef.current.toggleMic?.(),
     toggleCam: () => apiRef.current.toggleCam?.(),
     startShare: () => apiRef.current.startShare?.(),
+    startBoardShare: stream => !!apiRef.current.startBoardShare?.(stream),
     stopShare: () => apiRef.current.stopShare?.(),
     leave: () => apiRef.current.leave?.(),
     retry: () => setAttempt(a => a + 1),
