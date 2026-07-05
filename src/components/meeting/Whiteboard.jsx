@@ -65,7 +65,12 @@ function drawOp(ctx, op) {
     ctx.moveTo(pts[0][0], pts[0][1])
     // A tap with no movement still leaves a dot (round caps need length > 0).
     if (pts.length === 1) ctx.lineTo(pts[0][0] + 0.01, pts[0][1])
-    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1])
+    // Quadratic curves through segment midpoints, with each recorded point as
+    // the control: fast strokes replay as smooth ink, not straight jags.
+    for (let i = 1; i < pts.length - 1; i++) {
+      ctx.quadraticCurveTo(pts[i][0], pts[i][1], (pts[i][0] + pts[i + 1][0]) / 2, (pts[i][1] + pts[i + 1][1]) / 2)
+    }
+    if (pts.length > 1) ctx.lineTo(pts[pts.length - 1][0], pts[pts.length - 1][1])
     ctx.stroke()
   } else if (op.t === 'line' || op.t === 'arrow') {
     ctx.beginPath()
@@ -125,6 +130,10 @@ export default function Whiteboard({ store, presenting, onPresent, onStopPresent
   const frameRef = useRef(null)
   const baseRef = useRef(null)   // offscreen canvas holding committed ops
   const gestureRef = useRef(null) // in-flight stroke/shape
+  const cursorRef = useRef(null) // brush-size ring following the pointer
+  const curDiaRef = useRef(0)
+  const rafRef = useRef(0)       // one blit per animation frame while drawing
+  const previewRef = useRef(null)
 
   function baseCtx() { return baseRef.current.getContext('2d') }
 
@@ -139,6 +148,26 @@ export default function Whiteboard({ store, presenting, onPresent, onStopPresent
     ctx.drawImage(baseRef.current, 0, 0)
     if (previewOp) drawOp(ctx, previewOp)
   }
+
+  // Pointer events can fire far faster than frames are worth painting -
+  // coalesce all of a frame's updates into ONE full blit via rAF.
+  function scheduleBlit(previewOp) {
+    previewRef.current = previewOp || null
+    if (rafRef.current) return
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = 0
+      blit(previewRef.current)
+    })
+  }
+  function flushBlit() {
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = 0
+    }
+    previewRef.current = null
+    blit()
+  }
+  useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }, [])
 
   // Rebuild everything from the op list (undo/redo/clear all land here).
   function repaint() {
@@ -203,8 +232,66 @@ export default function Whiteboard({ store, presenting, onPresent, onStopPresent
     ]
   }
 
+  // ── Brush indicator ───────────────────────────────────────────────────────
+  // A ring that previews the EXACT on-screen footprint of the pen/eraser at
+  // the pointer. Driven by direct style writes (never state) so it costs
+  // nothing per move; hidden for shape/text tools and when the pointer leaves.
+  const brushable = tool === 'pen' || tool === 'erase'
+
+  function moveCursor(e) {
+    const el = cursorRef.current
+    const c = canvasRef.current
+    if (!el || !c) return
+    if (!brushable) { el.style.opacity = '0'; return }
+    const r = c.getBoundingClientRect()
+    const dia = Math.max(6, (tool === 'erase' ? size * 3 : size) * (r.width / W))
+    if (curDiaRef.current !== dia) {
+      curDiaRef.current = dia
+      el.style.width = dia + 'px'
+      el.style.height = dia + 'px'
+    }
+    el.style.left = (e.clientX - r.left) + 'px'
+    el.style.top = (e.clientY - r.top) + 'px'
+    el.style.opacity = '1'
+  }
+  function hideCursor() {
+    if (cursorRef.current) cursorRef.current.style.opacity = '0'
+  }
+  useEffect(() => { if (!brushable) hideCursor() }, [brushable])
+
+  // Append one point to the in-flight stroke and paint just the newest piece
+  // as a midpoint quadratic (matches the drawOp replay).
+  function extendFree(g, x, y) {
+    const pts = g.op.pts
+    const last = pts[pts.length - 1]
+    if (Math.abs(x - last[0]) + Math.abs(y - last[1]) < 1.2) return false
+    pts.push([x, y])
+    const n = pts.length
+    const ctx = baseCtx()
+    ctx.save()
+    if (g.op.t === 'erase') ctx.globalCompositeOperation = 'destination-out'
+    ctx.strokeStyle = g.op.c
+    ctx.lineWidth = g.op.w
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.beginPath()
+    if (n >= 3) {
+      const p0 = pts[n - 3]
+      const p1 = pts[n - 2]
+      ctx.moveTo((p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2)
+      ctx.quadraticCurveTo(p1[0], p1[1], (p1[0] + x) / 2, (p1[1] + y) / 2)
+    } else {
+      ctx.moveTo(last[0], last[1])
+      ctx.lineTo(x, y)
+    }
+    ctx.stroke()
+    ctx.restore()
+    return true
+  }
+
   function onPointerDown(e) {
     if (e.button != null && e.button !== 0) return
+    moveCursor(e)
     if (textDraft) { commitText(); return }
     const [x, y] = toXY(e)
     if (tool === 'text') {
@@ -225,44 +312,59 @@ export default function Whiteboard({ store, presenting, onPresent, onStopPresent
   }
 
   function onPointerMove(e) {
+    moveCursor(e)
     const g = gestureRef.current
     if (!g) return
     e.preventDefault()
-    const [x, y] = toXY(e)
     if (g.free) {
-      const pts = g.op.pts
-      const last = pts[pts.length - 1]
-      if (Math.abs(x - last[0]) + Math.abs(y - last[1]) < 1.2) return
-      pts.push([x, y])
-      // Draw only the newest segment - never a full replay per move.
-      const ctx = baseCtx()
-      ctx.save()
-      if (g.op.t === 'erase') ctx.globalCompositeOperation = 'destination-out'
-      ctx.strokeStyle = g.op.c
-      ctx.lineWidth = g.op.w
-      ctx.lineCap = 'round'
-      ctx.beginPath()
-      ctx.moveTo(last[0], last[1])
-      ctx.lineTo(x, y)
-      ctx.stroke()
-      ctx.restore()
-      blit()
+      // Browsers coalesce fast pointer samples into one event per frame;
+      // pulling them back out is what keeps quick handwriting smooth
+      // instead of polygonal (a 120Hz stylus delivers 2-4 samples a frame).
+      const coalesced = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : null
+      const events = coalesced && coalesced.length ? coalesced : [e]
+      let changed = false
+      for (const ev of events) {
+        const [x, y] = toXY(ev)
+        if (extendFree(g, x, y)) changed = true
+      }
+      if (changed) scheduleBlit()
     } else {
+      const [x, y] = toXY(e)
       g.op.b = [x, y]
-      blit(g.op) // committed content + live shape preview
+      scheduleBlit(g.op) // committed content + live shape preview
     }
   }
 
-  function onPointerUp() {
+  function onPointerUp(e) {
+    if (e && e.pointerType === 'touch') hideCursor()
     const g = gestureRef.current
     if (!g) return
     gestureRef.current = null
     if (g.free) {
+      // Close the smoothed stroke: the last half-segment (final midpoint to
+      // the final point) hasn't been painted yet.
+      const pts = g.op.pts
+      if (pts.length >= 2) {
+        const p0 = pts[pts.length - 2]
+        const p1 = pts[pts.length - 1]
+        const ctx = baseCtx()
+        ctx.save()
+        if (g.op.t === 'erase') ctx.globalCompositeOperation = 'destination-out'
+        ctx.strokeStyle = g.op.c
+        ctx.lineWidth = g.op.w
+        ctx.lineCap = 'round'
+        ctx.beginPath()
+        ctx.moveTo((p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2)
+        ctx.lineTo(p1[0], p1[1])
+        ctx.stroke()
+        ctx.restore()
+      }
       commitOp(g.op) // already painted incrementally
+      flushBlit()
     } else {
       drawOp(baseCtx(), g.op)
       commitOp(g.op)
-      blit()
+      flushBlit()
     }
   }
 
@@ -375,12 +477,14 @@ export default function Whiteboard({ store, presenting, onPresent, onStopPresent
             ref={canvasRef}
             width={W}
             height={H}
-            className="wb-canvas"
+            className={`wb-canvas${brushable ? ' wb-canvas-brush' : tool === 'text' ? ' wb-canvas-text' : ''}`}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerUp}
+            onPointerLeave={hideCursor}
           />
+          <span ref={cursorRef} className={`wb-cursor${tool === 'erase' ? ' wb-cursor-erase' : ''}`} aria-hidden="true" />
           {textDraft && (
             <input
               className="wb-text-in"

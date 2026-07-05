@@ -8360,6 +8360,25 @@ html[data-glass="on"][data-theme="dark"] body::before {
     touch-action: none;
     cursor: crosshair;
   }
+  /* Pen/eraser hide the native cursor - the .wb-cursor ring IS the cursor. */
+  .wb-canvas-brush { cursor: none; }
+  .wb-canvas-text { cursor: text; }
+  .wb-cursor {
+    position: absolute;
+    left: -100px;
+    top: -100px;
+    border: 1.5px solid rgba(17, 24, 39, 0.9);
+    box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.85);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    opacity: 0;
+    z-index: 3;
+  }
+  .wb-cursor-erase {
+    border-style: dashed;
+    background: rgba(255, 255, 255, 0.35);
+  }
   .wb-text-in {
     position: absolute;
     min-width: 180px;
