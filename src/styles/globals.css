@@ -9069,3 +9069,96 @@ html[data-glass="on"][data-theme="dark"] body::before {
   }
   .mr-qq-anon input { accent-color: #5046e4; }
 }
+
+/* ── Meeting bar: grouped clusters + Class tools popup + sheet sections ── */
+@layer components {
+  .mr-grp {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.07);
+    border-radius: 999px;
+    padding: 4px;
+  }
+  .mr-grp-rel { position: relative; }
+  /* Inside a pill the circles sit on the pill's tint, so their idle
+     background darkens a touch for contrast. */
+  .mr-grp .mr-ctl { flex: none; }
+
+  .mr-tools-dot {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #81c995;
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35);
+  }
+  .mr-tools-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 44;
+  }
+  .mr-tools-pop {
+    position: absolute;
+    bottom: calc(100% + 12px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 45;
+    background: #202124;
+    border: 1px solid #3c4043;
+    border-radius: 12px;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 196px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  }
+  .mr-tools-pop button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: none;
+    border: none;
+    color: #e8eaed;
+    font-size: 13px;
+    font-family: inherit;
+    padding: 9px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+    white-space: nowrap;
+  }
+  .mr-tools-pop button:hover { background: #2d2f33; }
+  .mr-tools-pop button:disabled { opacity: 0.5; cursor: default; }
+  .mr-tools-pop svg { color: #9aa0a6; flex: none; }
+  .mr-tools-live {
+    margin-left: auto;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #81c995;
+  }
+  .mr-tools-live-rec { background: #ea4335; }
+
+  /* Phone More sheet section labels (the sheet is a 4-col grid). */
+  .mr-more-sec {
+    grid-column: 1 / -1;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #9aa0a6;
+    padding: 4px 6px 0;
+  }
+  .mr-more-sec:first-child { padding-top: 0; }
+
+  @media (max-width: 560px) {
+    /* Phones: the clustered pills collapse into the More sheet (same rule
+       the old per-button mr-ctl-x class applied); mic/cam pill stays. */
+    .mr-grp-x { display: none; }
+    .mr-grp { padding: 3px; gap: 3px; }
+  }
+}

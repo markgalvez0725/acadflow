@@ -5,7 +5,7 @@ import {
   Users, AlertTriangle, Loader2, CheckCircle, Minimize2, Maximize2,
   PictureInPicture2, CircleDot, Square, Hand, Pin, PinOff, Volume2,
   MessageSquare, Smile, LogIn, LogOut, UserX, MoreHorizontal, Pencil,
-  List, Zap, Activity, X, BarChart2, Shuffle, Clock, HelpCircle, Star,
+  List, Zap, Activity, X, BarChart2, Shuffle, Clock, HelpCircle, Star, Layers,
 } from 'lucide-react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -285,6 +285,9 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   const [timerOpen, setTimerOpen] = useState(false)
   const [timerMin, setTimerMin] = useState('')
   const [timerLabel, setTimerLabel] = useState('')
+  // Class tools popup: one bar button holding the professor's teaching tools
+  // (whiteboard, poll, timer, picker, record) so the bar stays scannable.
+  const [toolsOpen, setToolsOpen] = useState(false)
   // Phone control bar: only mic, camera, More, End fit; everything else
   // lives in the More sheet (CSS decides - desktop never sees the button).
   const [moreOpen, setMoreOpen] = useState(false)
@@ -1633,6 +1636,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
       {moreOpen && ready && !ended && (
         <div className="mr-more-scrim" onClick={() => setMoreOpen(false)}>
           <div className="mr-more-sheet" role="menu" aria-label="More controls" onClick={e => e.stopPropagation()}>
+            <span className="mr-more-sec">Teach</span>
             <button
               className="mr-more-item"
               onClick={() => { setMoreOpen(false); if (sharing) stopShare(); else if (canShare) startShare(); else toast('Phones and tablets cannot share their screen from the browser - no mobile browser allows it. To present, join the class from a computer using Chrome, Edge, or Safari.', 'error', 6000) }}
@@ -1674,14 +1678,26 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
                 <span>{recState === 'on' ? 'Stop record' : 'Record'}</span>
               </button>
             )}
-            <button className="mr-more-item" onClick={() => { setMoreOpen(false); toggleHand() }}>
-              <span className={`mr-ctl${myHand ? ' mr-ctl-hand' : ''}`}><Hand size={18} /></span>
-              <span>{myHand ? 'Lower hand' : 'Raise hand'}</span>
-            </button>
+            <span className="mr-more-sec">Engage</span>
+            {!isAdmin && (
+              <button className="mr-more-item" onClick={() => { setMoreOpen(false); toggleHand() }}>
+                <span className={`mr-ctl${myHand ? ' mr-ctl-hand' : ''}`}><Hand size={18} /></span>
+                <span>{myHand ? 'Lower hand' : 'Raise hand'}</span>
+              </button>
+            )}
             <button className="mr-more-item" onClick={() => { setMoreOpen(false); setReactOpen(true) }}>
               <span className="mr-ctl"><Smile size={18} /></span>
               <span>React</span>
             </button>
+            <button className="mr-more-item" onClick={() => { setMoreOpen(false); setDataSaver(!dataSaver) }}>
+              <span className={`mr-ctl${dataSaver ? ' mr-ctl-on' : ''}`}><Zap size={18} /></span>
+              <span>{dataSaver ? 'Saver off' : 'Data saver'}</span>
+            </button>
+            <button className="mr-more-item" onClick={() => { setMoreOpen(false); setDiagOpen(true) }}>
+              <span className="mr-ctl"><Activity size={18} /></span>
+              <span>Connection</span>
+            </button>
+            <span className="mr-more-sec">Panels and room</span>
             <button className="mr-more-item" onClick={() => { setMoreOpen(false); setPeopleOpen(false); setOutlineOpen(false); setQqOpen(false); setChatOpen(true) }}>
               <span className="mr-ctl"><MessageSquare size={18} />{unread > 0 && <span className="mr-ctl-badge">{unread > 9 ? '9+' : unread}</span>}</span>
               <span>Chat</span>
@@ -1697,14 +1713,6 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
             <button className="mr-more-item" onClick={() => { setMoreOpen(false); setChatOpen(false); setPeopleOpen(false); setOutlineOpen(false); setQqOpen(true) }}>
               <span className="mr-ctl"><HelpCircle size={18} />{openQCount > 0 && <span className="mr-ctl-badge">{openQCount > 9 ? '9+' : openQCount}</span>}</span>
               <span>Questions</span>
-            </button>
-            <button className="mr-more-item" onClick={() => { setMoreOpen(false); setDataSaver(!dataSaver) }}>
-              <span className={`mr-ctl${dataSaver ? ' mr-ctl-on' : ''}`}><Zap size={18} /></span>
-              <span>{dataSaver ? 'Saver off' : 'Data saver'}</span>
-            </button>
-            <button className="mr-more-item" onClick={() => { setMoreOpen(false); setDiagOpen(true) }}>
-              <span className="mr-ctl"><Activity size={18} /></span>
-              <span>Connection</span>
             </button>
             {canPip && (
               <button className="mr-more-item" onClick={() => { setMoreOpen(false); popOut() }}>
@@ -1735,108 +1743,115 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
         <div className="mr-bar-ctls">
           {ready && (
             <>
-              <button className={`mr-ctl${micOn ? '' : ' mr-ctl-off'}`} onClick={toggleMic} title={micOn ? 'Mute microphone' : 'Unmute microphone'}>
-                {micOn ? <Mic size={18} /> : <MicOff size={18} />}
-              </button>
-              <button className={`mr-ctl${camOn ? '' : ' mr-ctl-off'}`} onClick={toggleCam} title={camOn ? 'Turn camera off' : 'Turn camera on'}>
-                {camOn ? <Video size={18} /> : <VideoOff size={18} />}
-              </button>
-              {/* Present is ALWAYS visible (students share too). NO phone or
-                  tablet browser can capture the screen (Chrome intentionally
-                  hides getDisplayMedia on Android, iOS never had it - only
-                  native apps can), so phones get a dimmed button with an
-                  explanation instead of a mysteriously missing one. */}
-              <button
-                className={`mr-ctl mr-ctl-x${sharing ? ' mr-ctl-on' : ''}${canShare ? '' : ' mr-ctl-dim'}`}
-                onClick={sharing ? stopShare : canShare ? startShare : () => toast('Phones and tablets cannot share their screen from the browser - no mobile browser allows it. To present, join the class from a computer using Chrome, Edge, or Safari.', 'error', 6000)}
-                title={sharing ? 'Stop presenting' : canShare ? 'Present your screen' : 'Presenting needs a computer - phone browsers cannot capture the screen'}
-              >
-                <MonitorUp size={18} />
-              </button>
-              {isAdmin && (
-                <button
-                  className={`mr-ctl mr-ctl-x${boardOpen ? ' mr-ctl-accent' : ''}`}
-                  onClick={() => setBoardOpen(true)}
-                  title="Open the whiteboard - draw and present it to the class"
-                >
-                  <Pencil size={18} />
+              {/* Device cluster: always visible, leftmost where muscle memory
+                  expects the red pair. */}
+              <div className="mr-grp">
+                <button className={`mr-ctl${micOn ? '' : ' mr-ctl-off'}`} onClick={toggleMic} title={micOn ? 'Mute microphone' : 'Unmute microphone'}>
+                  {micOn ? <Mic size={18} /> : <MicOff size={18} />}
                 </button>
-              )}
-              {isAdmin && (
-                <button
-                  className={`mr-ctl mr-ctl-x${pollComposer ? ' mr-ctl-accent' : ''}`}
-                  onClick={() => { setTimerOpen(false); setPollComposer(o => !o) }}
-                  title="Ask the class a quick poll"
-                >
-                  <BarChart2 size={18} />
+                <button className={`mr-ctl${camOn ? '' : ' mr-ctl-off'}`} onClick={toggleCam} title={camOn ? 'Turn camera off' : 'Turn camera on'}>
+                  {camOn ? <Video size={18} /> : <VideoOff size={18} />}
                 </button>
-              )}
-              {isAdmin && (
+              </div>
+              {/* Teach cluster. Present is ALWAYS visible (students share
+                  too); no phone or tablet browser can capture the screen, so
+                  phones get a dimmed button with an explanation instead of a
+                  mysteriously missing one. The Class tools button folds the
+                  professor's five tools into one labeled popup; a green dot
+                  on it means something inside is running. */}
+              <div className="mr-grp mr-grp-x mr-grp-rel">
                 <button
-                  className={`mr-ctl mr-ctl-x${timerOpen || timerLive ? ' mr-ctl-accent' : ''}`}
-                  onClick={() => { setPollComposer(false); setTimerOpen(o => !o) }}
-                  title="Start a shared class timer"
+                  className={`mr-ctl${sharing ? ' mr-ctl-on' : ''}${canShare ? '' : ' mr-ctl-dim'}`}
+                  onClick={sharing ? stopShare : canShare ? startShare : () => toast('Phones and tablets cannot share their screen from the browser - no mobile browser allows it. To present, join the class from a computer using Chrome, Edge, or Safari.', 'error', 6000)}
+                  title={sharing ? 'Stop presenting' : canShare ? 'Present your screen' : 'Presenting needs a computer - phone browsers cannot capture the screen'}
                 >
-                  <Clock size={18} />
+                  <MonitorUp size={18} />
                 </button>
-              )}
-              {isAdmin && (
+                {isAdmin && (
+                  <button
+                    className={`mr-ctl${toolsOpen ? ' mr-ctl-accent' : ''}`}
+                    onClick={() => setToolsOpen(o => !o)}
+                    title="Class tools: whiteboard, poll, timer, pick a student, record"
+                  >
+                    <Layers size={18} />
+                    {(boardOpen || recState === 'on' || timerLive) && !toolsOpen && <span className="mr-tools-dot" aria-hidden="true" />}
+                  </button>
+                )}
+                {isAdmin && toolsOpen && (
+                  <>
+                    <div className="mr-tools-scrim" onClick={() => setToolsOpen(false)} />
+                    <div className="mr-tools-pop" role="menu" aria-label="Class tools">
+                      <button onClick={() => { setToolsOpen(false); setBoardOpen(true) }}>
+                        <Pencil size={16} /> Whiteboard{boardOpen && <i className="mr-tools-live" />}
+                      </button>
+                      <button onClick={() => { setToolsOpen(false); setTimerOpen(false); setPollComposer(true) }}>
+                        <BarChart2 size={16} /> Poll
+                      </button>
+                      <button onClick={() => { setToolsOpen(false); setPollComposer(false); setTimerOpen(true) }}>
+                        <Clock size={16} /> Timer{timerLive && <i className="mr-tools-live" />}
+                      </button>
+                      <button onClick={() => { setToolsOpen(false); pickStudent() }}>
+                        <Shuffle size={16} /> Pick a student
+                      </button>
+                      {recordingSupported() && (
+                        <button
+                          disabled={recState === 'starting' || recState === 'saving'}
+                          onClick={() => { setToolsOpen(false); if (recState === 'on') stopRecording(false); else startRecording() }}
+                        >
+                          {recState === 'on' ? <Square size={15} /> : <CircleDot size={16} />}
+                          {recState === 'on' ? 'Stop recording' : recState === 'saving' ? 'Saving recording…' : 'Record'}
+                          {recState === 'on' && <i className="mr-tools-live mr-tools-live-rec" />}
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+              {/* Engage cluster: the professor never raises a hand (the
+                  raised-hands counter on the right covers watching them). */}
+              <div className="mr-grp mr-grp-x">
+                {!isAdmin && (
+                  <button className={`mr-ctl${myHand ? ' mr-ctl-hand' : ''}`} onClick={toggleHand} title={myHand ? 'Lower your hand' : 'Raise your hand'}>
+                    <Hand size={18} />
+                  </button>
+                )}
+                <button className={`mr-ctl${reactOpen ? ' mr-ctl-accent' : ''}`} onClick={() => setReactOpen(o => !o)} title="Send a reaction">
+                  <Smile size={18} />
+                </button>
+              </div>
+              {/* Panels cluster: badges stay visible at all times. */}
+              <div className="mr-grp mr-grp-x">
                 <button
-                  className="mr-ctl mr-ctl-x"
-                  onClick={pickStudent}
-                  title="Pick a random student (fair - no repeats until everyone has a turn)"
+                  className={`mr-ctl${chatOpen ? ' mr-ctl-accent' : ''}`}
+                  onClick={() => setChatOpen(o => { const n = !o; if (n) { setPeopleOpen(false); setOutlineOpen(false); setQqOpen(false) } return n })}
+                  title="In-call messages"
                 >
-                  <Shuffle size={18} />
+                  <MessageSquare size={18} />
+                  {unread > 0 && <span className="mr-ctl-badge">{unread > 9 ? '9+' : unread}</span>}
                 </button>
-              )}
-              {isAdmin && recordingSupported() && (
                 <button
-                  className={`mr-ctl mr-ctl-x${recState === 'on' ? ' mr-ctl-rec' : ''}`}
-                  disabled={recState === 'starting' || recState === 'saving'}
-                  onClick={recState === 'on' ? () => stopRecording(false) : startRecording}
-                  title={recState === 'on' ? 'Stop recording' : recState === 'saving' ? 'Saving the recording to Drive…' : 'Record the class to your Google Drive (720p)'}
+                  className={`mr-ctl${peopleOpen ? ' mr-ctl-accent' : ''}`}
+                  onClick={() => setPeopleOpen(o => { const n = !o; if (n) { setChatOpen(false); setOutlineOpen(false); setQqOpen(false) } return n })}
+                  title="People in this class"
                 >
-                  {recState === 'saving' || recState === 'starting'
-                    ? <Loader2 size={17} className="animate-spin" />
-                    : recState === 'on' ? <Square size={16} /> : <CircleDot size={18} />}
+                  <Users size={18} />
                 </button>
-              )}
-              <button className={`mr-ctl mr-ctl-x${myHand ? ' mr-ctl-hand' : ''}`} onClick={toggleHand} title={myHand ? 'Lower your hand' : 'Raise your hand'}>
-                <Hand size={18} />
-              </button>
-              <button className={`mr-ctl mr-ctl-x${reactOpen ? ' mr-ctl-accent' : ''}`} onClick={() => setReactOpen(o => !o)} title="Send a reaction">
-                <Smile size={18} />
-              </button>
-              <button
-                className={`mr-ctl mr-ctl-x${chatOpen ? ' mr-ctl-accent' : ''}`}
-                onClick={() => setChatOpen(o => { const n = !o; if (n) { setPeopleOpen(false); setOutlineOpen(false); setQqOpen(false) } return n })}
-                title="In-call messages"
-              >
-                <MessageSquare size={18} />
-                {unread > 0 && <span className="mr-ctl-badge">{unread > 9 ? '9+' : unread}</span>}
-              </button>
-              <button
-                className={`mr-ctl mr-ctl-x${peopleOpen ? ' mr-ctl-accent' : ''}`}
-                onClick={() => setPeopleOpen(o => { const n = !o; if (n) { setChatOpen(false); setOutlineOpen(false); setQqOpen(false) } return n })}
-                title="People in this class"
-              >
-                <Users size={18} />
-              </button>
-              <button
-                className={`mr-ctl mr-ctl-x${outlineOpen ? ' mr-ctl-accent' : ''}`}
-                onClick={() => setOutlineOpen(o => { const n = !o; if (n) { setChatOpen(false); setPeopleOpen(false); setQqOpen(false) } return n })}
-                title="Class outline"
-              >
-                <List size={18} />
-              </button>
-              <button
-                className={`mr-ctl mr-ctl-x${qqOpen ? ' mr-ctl-accent' : ''}`}
-                onClick={() => setQqOpen(o => { const n = !o; if (n) { setChatOpen(false); setPeopleOpen(false); setOutlineOpen(false) } return n })}
-                title="Class questions - ask without interrupting"
-              >
-                <HelpCircle size={18} />
-                {openQCount > 0 && <span className="mr-ctl-badge">{openQCount > 9 ? '9+' : openQCount}</span>}
-              </button>
+                <button
+                  className={`mr-ctl${outlineOpen ? ' mr-ctl-accent' : ''}`}
+                  onClick={() => setOutlineOpen(o => { const n = !o; if (n) { setChatOpen(false); setPeopleOpen(false); setQqOpen(false) } return n })}
+                  title="Class outline"
+                >
+                  <List size={18} />
+                </button>
+                <button
+                  className={`mr-ctl${qqOpen ? ' mr-ctl-accent' : ''}`}
+                  onClick={() => setQqOpen(o => { const n = !o; if (n) { setChatOpen(false); setPeopleOpen(false); setOutlineOpen(false) } return n })}
+                  title="Class questions - ask without interrupting"
+                >
+                  <HelpCircle size={18} />
+                  {openQCount > 0 && <span className="mr-ctl-badge">{openQCount > 9 ? '9+' : openQCount}</span>}
+                </button>
+              </div>
               <button
                 className={`mr-ctl mr-more-btn${moreOpen ? ' mr-ctl-accent' : ''}`}
                 onClick={() => setMoreOpen(o => !o)}
