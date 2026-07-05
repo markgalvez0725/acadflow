@@ -5,12 +5,15 @@ import {
   Users, AlertTriangle, Loader2, CheckCircle, Minimize2, Maximize2,
   PictureInPicture2, CircleDot, Square, Hand, Pin, PinOff, Volume2,
   MessageSquare, Smile, LogIn, LogOut, UserX, MoreHorizontal, Pencil,
-  List, Zap, Activity, X, BarChart2,
+  List, Zap, Activity, X, BarChart2, Shuffle, Clock, HelpCircle, Star,
 } from 'lucide-react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import useMeetingRoom from '@/hooks/useMeetingRoom'
-import { ROOM_CAP, rtcListenChat, rtcSendChat } from '@/firebase/rtc'
+import {
+  ROOM_CAP, rtcListenChat, rtcSendChat,
+  rtcListenQuestions, rtcAskQuestion, rtcPlusQuestion, rtcAnswerQuestion, rtcDeleteQuestion,
+} from '@/firebase/rtc'
 import { recordingSupported, createMeetingRecorder } from '@/utils/meetingRecorder'
 import { isConfigured as driveConfigured, getConnection as driveConnection, connect as driveConnect, startResumableUpload } from '@/utils/googleDrive'
 import { detectAudioShield } from '@/utils/audioShield'
@@ -20,6 +23,7 @@ import MeetingChat from '@/components/meeting/MeetingChat'
 import MeetingPeople from '@/components/meeting/MeetingPeople'
 import MeetingOutline from '@/components/meeting/MeetingOutline'
 import MeetingPoll from '@/components/meeting/MeetingPoll'
+import MeetingQuestions from '@/components/meeting/MeetingQuestions'
 import PreJoinPanel from '@/components/meeting/PreJoinPanel'
 import Whiteboard from '@/components/meeting/Whiteboard'
 import EmojiIcon from '@/components/primitives/EmojiIcon'
@@ -275,6 +279,12 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   const [diagOpen, setDiagOpen] = useState(false)
   const [diag, setDiag] = useState(null)
   const [pollComposer, setPollComposer] = useState(false)
+  // Question queue panel + shared class timer composer.
+  const [qqOpen, setQqOpen] = useState(false)
+  const [questions, setQuestions] = useState([])
+  const [timerOpen, setTimerOpen] = useState(false)
+  const [timerMin, setTimerMin] = useState('')
+  const [timerLabel, setTimerLabel] = useState('')
   // Phone control bar: only mic, camera, More, End fit; everything else
   // lives in the More sheet (CSS decides - desktop never sees the button).
   const [moreOpen, setMoreOpen] = useState(false)
@@ -305,6 +315,60 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     const t = setInterval(check, 30000)
     return () => clearInterval(t)
   }, [isAdmin, phase, ended, meeting]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Shared class timer + random student picker (both live on the meeting
+  // doc - professor-only writes, everyone reads through the meetings
+  // listener; no new Firestore channel). A 1s tick runs ONLY while a
+  // countdown or a fresh pick banner is actually on screen.
+  const timer = meeting?.timer || null
+  const picker = meeting?.picker || null
+  const [, setSecTick] = useState(0)
+  const timerLive = !!timer && timer.endsAt + 10000 > Date.now()
+  const pickLive = !!picker && (picker.at || 0) + 15000 > Date.now()
+  useEffect(() => {
+    if (!timerLive && !pickLive) return undefined
+    const t = setInterval(() => setSecTick(x => x + 1), 1000)
+    return () => clearInterval(t)
+  }, [timerLive, pickLive])
+  // One chime per timer for EVERYONE when it hits zero; one chime for the
+  // PICKED student when their name comes up.
+  const timerChimedRef = useRef(new Set())
+  useEffect(() => {
+    if (!timer || !timer.at) return
+    if (Date.now() < timer.endsAt || timerChimedRef.current.has(timer.at)) return
+    timerChimedRef.current.add(timer.at)
+    playMeetingSound('hand')
+  })
+  const pickChimedRef = useRef(new Set())
+  useEffect(() => {
+    if (!picker || !picker.at || pickChimedRef.current.has(picker.at)) return
+    if (picker.uid !== self?.uid || !pickLive) return
+    pickChimedRef.current.add(picker.at)
+    playMeetingSound('hand')
+  }, [picker, pickLive]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function startTimer(mins) {
+    const m = Math.min(180, Math.max(1, mins))
+    patchMeeting(meeting, { timer: { at: Date.now(), endsAt: Date.now() + m * 60000, label: timerLabel.trim().slice(0, 60) } })
+      .catch(() => toast('Could not start the timer. Check your connection.', 'error'))
+    setTimerOpen(false)
+    setTimerMin('')
+    setTimerLabel('')
+  }
+
+  // Fair cold-call: draw from students PRESENT right now, skipping anyone
+  // already picked this class; once everyone has had a turn the cycle resets.
+  function pickStudent() {
+    const present = peers.filter(p => p.role !== 'admin' && p.uid)
+    if (!present.length) { toast('No students are in the room yet.', 'error'); return }
+    const history = picker?.history || []
+    let pool = present.filter(p => !history.includes(p.uid))
+    let nextHistory = history
+    if (!pool.length) { pool = present; nextHistory = [] }
+    const p = pool[Math.floor(Math.random() * pool.length)]
+    patchMeeting(meeting, { picker: { uid: p.uid, name: p.name || 'Student', at: Date.now(), history: [...nextHistory, p.uid].slice(-120) } })
+      .catch(() => toast('Could not pick - check your connection.', 'error'))
+  }
 
   // Refresh the connection-details card only while it is open (its numbers
   // come from the stats the engine already polls - no extra network work).
@@ -662,8 +726,21 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     if (pinnedId && !peers.some(p => p.peerId === pinnedId)) setPinnedId('')
   }, [peers, pinnedId])
   const pinnedPeer = peers.find(p => p.peerId === pinnedId) || null
-  const featuredPeer = pinnedPeer || sharerPeer
+  // Professor spotlight: the meeting doc names one peer as the WHOLE class's
+  // featured tile (recitations, student reports). Students cannot override
+  // it with a local pin; the professor's own pin still can (they set the
+  // spotlight, so their pin is a deliberate look-away). A spotlighted peer
+  // who left simply falls out of the lookup - no cleanup write needed.
+  const spotPeer = meeting?.spot?.peerId ? peers.find(p => p.peerId === meeting.spot.peerId) || null : null
+  const featuredPeer = isAdmin
+    ? (pinnedPeer || spotPeer || sharerPeer)
+    : (spotPeer || pinnedPeer || sharerPeer)
   const togglePin = p => setPinnedId(cur => (cur === p.peerId ? '' : p.peerId))
+  function toggleSpot(p) {
+    const on = meeting?.spot?.peerId === p.peerId
+    patchMeeting(meeting, { spot: on ? null : { peerId: p.peerId, name: p.name || '', at: Date.now() } })
+      .catch(() => toast('Could not update the spotlight. Check your connection.', 'error'))
+  }
 
   // ── Raise hand ───────────────────────────────────────────────────────────
   const [myHand, setMyHand] = useState(false)
@@ -900,6 +977,16 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   }, [chatOpen, chatMsgs.length])
   const chatLocked = isAdmin ? myLock : !!peers.find(p => p.role === 'admin')?.chatLock
   const unread = chatOpen ? 0 : chatMsgs.filter(m => (m.at || 0) > lastReadRef.current && m.uid !== self?.uid).length
+
+  // ── Question queue (same lifecycle as the chat listener) ─────────────────
+  useEffect(() => {
+    if (!db || !meeting?.id) return
+    const startGuard = (meeting?.scheduledAt || 0) - 20 * 60000
+    const unsub = rtcListenQuestions(db, meeting.id, qs =>
+      setQuestions(startGuard > 0 ? qs.filter(q2 => (q2.at || 0) >= startGuard) : qs))
+    return () => { unsub(); setQuestions([]) }
+  }, [db, meeting?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  const openQCount = questions.filter(q => !q.answered).length
   function sendChat(text) {
     rtcSendChat(db, meeting.id, { uid: self?.uid, name: self?.name, role: self?.role, text })
       .catch(() => toast('Message failed to send.', 'error'))
@@ -1123,6 +1210,67 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
               <span>Data saver on · camera video paused · tap to turn off</span>
             </button>
           )}
+          {timerLive && !ended && phase === 'ready' && (() => {
+            const left = timer.endsAt - Date.now()
+            const up = left <= 0
+            const mm = Math.max(0, Math.floor(left / 60000))
+            const ss = Math.max(0, Math.floor((left % 60000) / 1000))
+            return (
+              <div className={`mr-timer-chip${up ? ' up' : ''}`} role="timer" aria-label="Class timer">
+                <Clock size={13} aria-hidden="true" />
+                <b>{up ? "Time's up" : `${mm}:${String(ss).padStart(2, '0')}`}</b>
+                {timer.label && <span>{timer.label}</span>}
+                {isAdmin && (
+                  <button onClick={() => patchMeeting(meeting, { timer: null }).catch(() => {})} aria-label="Stop the timer"><X size={13} /></button>
+                )}
+              </div>
+            )
+          })()}
+          {pickLive && !ended && phase === 'ready' && (
+            <div className={`mr-pick-banner${picker.uid === self?.uid ? ' me' : ''}`} role="status">
+              <Shuffle size={13} aria-hidden="true" />
+              {picker.uid === self?.uid
+                ? <span><b>{picker.name}</b> - you're up! Unmute when ready.</span>
+                : <span><b>{picker.name}</b>, you're up!</span>}
+            </div>
+          )}
+          {isAdmin && timerOpen && !ended && phase === 'ready' && (
+            <div className="mr-poll mr-poll-compose" role="dialog" aria-label="Start a class timer">
+              <div className="mr-poll-head">
+                <Clock size={15} aria-hidden="true" />
+                <b>Class timer</b>
+                <button className="mr-diag-x" onClick={() => setTimerOpen(false)} aria-label="Close the timer menu"><X size={15} /></button>
+              </div>
+              <input
+                className="mr-poll-q"
+                value={timerLabel}
+                onChange={e => setTimerLabel(e.target.value)}
+                placeholder="What for? e.g. Solve problems 1-3"
+                maxLength={60}
+                aria-label="Timer label"
+              />
+              <div className="mr-poll-presets">
+                {[1, 5, 10, 15].map(m => (
+                  <button key={m} onClick={() => startTimer(m)}>{m} min</button>
+                ))}
+              </div>
+              <div className="mr-otl-add">
+                <input
+                  className="mr-poll-q"
+                  value={timerMin}
+                  onChange={e => setTimerMin(e.target.value.replace(/[^0-9]/g, '').slice(0, 3))}
+                  placeholder="Custom minutes"
+                  inputMode="numeric"
+                  aria-label="Custom minutes"
+                  style={{ flex: 1 }}
+                />
+                <button className="mr-poll-go" style={{ flex: 'none', padding: '9px 16px' }} disabled={!parseInt(timerMin, 10)} onClick={() => startTimer(parseInt(timerMin, 10))}>
+                  Start
+                </button>
+              </div>
+              <p className="mr-diag-tip">Everyone sees the countdown; one soft chime for the class when it ends.</p>
+            </div>
+          )}
           {diagOpen && !ended && phase === 'ready' && (
             <div className="mr-diag" role="dialog" aria-label="Connection details">
               <div className="mr-diag-head">
@@ -1244,7 +1392,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
                 <VideoTile
                   key={`present-${featuredPeer.peerId}`}
                   {...tileProps(featuredPeer)}
-                  presentLabel={featuredPeer.sharing ? `${featuredPeer.name} is presenting` : undefined}
+                  presentLabel={featuredPeer.sharing ? `${featuredPeer.name} is presenting` : featuredPeer === spotPeer ? `${featuredPeer.name} · spotlight` : undefined}
                   camOn={featuredPeer.sharing ? true : featuredPeer.camOn}
                 />
               </div>
@@ -1334,6 +1482,10 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
                 <button onClick={() => { togglePin(sheetPeer); setSheetPeer(null) }}>
                   {pinnedId === sheetPeer.peerId ? <PinOff size={16} /> : <Pin size={16} />}
                   {pinnedId === sheetPeer.peerId ? 'Unpin' : 'Pin to your screen'}
+                </button>
+                <button onClick={() => { toggleSpot(sheetPeer); setSheetPeer(null) }}>
+                  <Star size={16} />
+                  {meeting?.spot?.peerId === sheetPeer.peerId ? 'Remove spotlight' : 'Spotlight for the class'}
                 </button>
                 <button className="mr-sheet-cancel" onClick={() => setSheetPeer(null)}>Cancel</button>
               </div>
@@ -1460,6 +1612,18 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
           onPatch={fields => Promise.resolve(patchMeeting(meeting, fields)).catch(() => toast('Could not save the outline. Check your connection and try again.', 'error'))}
           onClose={() => setOutlineOpen(false)}
         />
+        <MeetingQuestions
+          open={qqOpen && !ended && ready}
+          questions={questions}
+          self={self}
+          isAdmin={isAdmin}
+          onAsk={(text, anon) => rtcAskQuestion(db, meeting.id, { uid: self?.uid, name: self?.name, text, anon })
+            .catch(() => toast('Your question did not send. Try again.', 'error'))}
+          onPlus={q => rtcPlusQuestion(db, meeting.id, q.id, self?.uid).catch(() => {})}
+          onAnswer={q => rtcAnswerQuestion(db, meeting.id, q.id).catch(() => {})}
+          onDelete={q => rtcDeleteQuestion(db, meeting.id, q.id).catch(() => {})}
+          onClose={() => setQqOpen(false)}
+        />
       </div>
 
       {/* Phone More sheet: every control the compact bar hides, with labels.
@@ -1481,9 +1645,21 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
               </button>
             )}
             {isAdmin && (
-              <button className="mr-more-item" onClick={() => { setMoreOpen(false); setPollComposer(true) }}>
+              <button className="mr-more-item" onClick={() => { setMoreOpen(false); setTimerOpen(false); setPollComposer(true) }}>
                 <span className="mr-ctl"><BarChart2 size={18} /></span>
                 <span>Poll</span>
+              </button>
+            )}
+            {isAdmin && (
+              <button className="mr-more-item" onClick={() => { setMoreOpen(false); setPollComposer(false); setTimerOpen(true) }}>
+                <span className={`mr-ctl${timerLive ? ' mr-ctl-accent' : ''}`}><Clock size={18} /></span>
+                <span>Timer</span>
+              </button>
+            )}
+            {isAdmin && (
+              <button className="mr-more-item" onClick={() => { setMoreOpen(false); pickStudent() }}>
+                <span className="mr-ctl"><Shuffle size={18} /></span>
+                <span>Pick student</span>
               </button>
             )}
             {isAdmin && recordingSupported() && (
@@ -1504,17 +1680,21 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
               <span className="mr-ctl"><Smile size={18} /></span>
               <span>React</span>
             </button>
-            <button className="mr-more-item" onClick={() => { setMoreOpen(false); setPeopleOpen(false); setOutlineOpen(false); setChatOpen(true) }}>
+            <button className="mr-more-item" onClick={() => { setMoreOpen(false); setPeopleOpen(false); setOutlineOpen(false); setQqOpen(false); setChatOpen(true) }}>
               <span className="mr-ctl"><MessageSquare size={18} />{unread > 0 && <span className="mr-ctl-badge">{unread > 9 ? '9+' : unread}</span>}</span>
               <span>Chat</span>
             </button>
-            <button className="mr-more-item" onClick={() => { setMoreOpen(false); setChatOpen(false); setOutlineOpen(false); setPeopleOpen(true) }}>
+            <button className="mr-more-item" onClick={() => { setMoreOpen(false); setChatOpen(false); setOutlineOpen(false); setQqOpen(false); setPeopleOpen(true) }}>
               <span className="mr-ctl"><Users size={18} /></span>
               <span>People</span>
             </button>
-            <button className="mr-more-item" onClick={() => { setMoreOpen(false); setChatOpen(false); setPeopleOpen(false); setOutlineOpen(true) }}>
+            <button className="mr-more-item" onClick={() => { setMoreOpen(false); setChatOpen(false); setPeopleOpen(false); setQqOpen(false); setOutlineOpen(true) }}>
               <span className={`mr-ctl${outlineOpen ? ' mr-ctl-accent' : ''}`}><List size={18} /></span>
               <span>Outline</span>
+            </button>
+            <button className="mr-more-item" onClick={() => { setMoreOpen(false); setChatOpen(false); setPeopleOpen(false); setOutlineOpen(false); setQqOpen(true) }}>
+              <span className="mr-ctl"><HelpCircle size={18} />{openQCount > 0 && <span className="mr-ctl-badge">{openQCount > 9 ? '9+' : openQCount}</span>}</span>
+              <span>Questions</span>
             </button>
             <button className="mr-more-item" onClick={() => { setMoreOpen(false); setDataSaver(!dataSaver) }}>
               <span className={`mr-ctl${dataSaver ? ' mr-ctl-on' : ''}`}><Zap size={18} /></span>
@@ -1583,10 +1763,28 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
               {isAdmin && (
                 <button
                   className={`mr-ctl mr-ctl-x${pollComposer ? ' mr-ctl-accent' : ''}`}
-                  onClick={() => setPollComposer(o => !o)}
+                  onClick={() => { setTimerOpen(false); setPollComposer(o => !o) }}
                   title="Ask the class a quick poll"
                 >
                   <BarChart2 size={18} />
+                </button>
+              )}
+              {isAdmin && (
+                <button
+                  className={`mr-ctl mr-ctl-x${timerOpen || timerLive ? ' mr-ctl-accent' : ''}`}
+                  onClick={() => { setPollComposer(false); setTimerOpen(o => !o) }}
+                  title="Start a shared class timer"
+                >
+                  <Clock size={18} />
+                </button>
+              )}
+              {isAdmin && (
+                <button
+                  className="mr-ctl mr-ctl-x"
+                  onClick={pickStudent}
+                  title="Pick a random student (fair - no repeats until everyone has a turn)"
+                >
+                  <Shuffle size={18} />
                 </button>
               )}
               {isAdmin && recordingSupported() && (
@@ -1609,7 +1807,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
               </button>
               <button
                 className={`mr-ctl mr-ctl-x${chatOpen ? ' mr-ctl-accent' : ''}`}
-                onClick={() => setChatOpen(o => { const n = !o; if (n) { setPeopleOpen(false); setOutlineOpen(false) } return n })}
+                onClick={() => setChatOpen(o => { const n = !o; if (n) { setPeopleOpen(false); setOutlineOpen(false); setQqOpen(false) } return n })}
                 title="In-call messages"
               >
                 <MessageSquare size={18} />
@@ -1617,17 +1815,25 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
               </button>
               <button
                 className={`mr-ctl mr-ctl-x${peopleOpen ? ' mr-ctl-accent' : ''}`}
-                onClick={() => setPeopleOpen(o => { const n = !o; if (n) { setChatOpen(false); setOutlineOpen(false) } return n })}
+                onClick={() => setPeopleOpen(o => { const n = !o; if (n) { setChatOpen(false); setOutlineOpen(false); setQqOpen(false) } return n })}
                 title="People in this class"
               >
                 <Users size={18} />
               </button>
               <button
                 className={`mr-ctl mr-ctl-x${outlineOpen ? ' mr-ctl-accent' : ''}`}
-                onClick={() => setOutlineOpen(o => { const n = !o; if (n) { setChatOpen(false); setPeopleOpen(false) } return n })}
+                onClick={() => setOutlineOpen(o => { const n = !o; if (n) { setChatOpen(false); setPeopleOpen(false); setQqOpen(false) } return n })}
                 title="Class outline"
               >
                 <List size={18} />
+              </button>
+              <button
+                className={`mr-ctl mr-ctl-x${qqOpen ? ' mr-ctl-accent' : ''}`}
+                onClick={() => setQqOpen(o => { const n = !o; if (n) { setChatOpen(false); setPeopleOpen(false); setOutlineOpen(false) } return n })}
+                title="Class questions - ask without interrupting"
+              >
+                <HelpCircle size={18} />
+                {openQCount > 0 && <span className="mr-ctl-badge">{openQCount > 9 ? '9+' : openQCount}</span>}
               </button>
               <button
                 className={`mr-ctl mr-more-btn${moreOpen ? ' mr-ctl-accent' : ''}`}
@@ -1660,7 +1866,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
           <button
             type="button"
             className="mr-count"
-            onClick={() => setPeopleOpen(o => { const n = !o; if (n) { setChatOpen(false); setOutlineOpen(false) } return n })}
+            onClick={() => setPeopleOpen(o => { const n = !o; if (n) { setChatOpen(false); setOutlineOpen(false); setQqOpen(false) } return n })}
             title="People in this class"
           >
             <Users size={14} /> {count}/{ROOM_CAP}

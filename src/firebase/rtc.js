@@ -330,6 +330,46 @@ export function rtcListenPoll(db, roomId, cb) {
   )
 }
 
+// ── Question queue ───────────────────────────────────────────────────────────
+// Silent questions during class: rtcRooms/{id}/questions, one doc each.
+// Students add their own; anyone +1s a question they share (one slot per uid,
+// write-once); the professor marks answered or deletes. Anonymous questions
+// still carry the uid (so +1 self-exclusion works) but the name is never
+// rendered. Transient like chat - purged with the room at End class.
+export async function rtcAskQuestion(db, roomId, { uid, name, text, anon }) {
+  await fbWithTimeout(addDoc(roomCol(db, roomId, 'questions'), {
+    at: Date.now(),
+    uid: uid || '',
+    name: anon ? '' : (name || 'Student'),
+    anon: !!anon,
+    text: String(text || '').slice(0, 200),
+    answered: false,
+    plus: {},
+  }))
+}
+
+export async function rtcPlusQuestion(db, roomId, qId, uid) {
+  if (!uid) return
+  await fbWithTimeout(updateDoc(doc(db, 'rtcRooms', roomId, 'questions', qId), {
+    ['plus.' + uid]: 1,
+  }))
+}
+
+export async function rtcAnswerQuestion(db, roomId, qId) {
+  await fbWithTimeout(updateDoc(doc(db, 'rtcRooms', roomId, 'questions', qId), { answered: true }))
+}
+
+export async function rtcDeleteQuestion(db, roomId, qId) {
+  await fbWithTimeout(deleteDoc(doc(db, 'rtcRooms', roomId, 'questions', qId)))
+}
+
+export function rtcListenQuestions(db, roomId, cb) {
+  return resilientSnapshot(
+    () => roomCol(db, roomId, 'questions'),
+    snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+  )
+}
+
 // ── Meeting transcript (LEGACY READ) ────────────────────────────────────────
 // Live in-meeting transcription was removed (2026-07-02); classes recorded
 // before that still have `rtcRooms/{id}/transcript` docs, and this fetch is
@@ -368,13 +408,14 @@ export async function rtcSaveTranscript(db, roomId, lines) {
 export async function rtcCleanupRoom(db, roomId) {
   if (!db || !roomId) return
   try {
-    const [parts, signals, chat, polls] = await Promise.all([
+    const [parts, signals, chat, polls, questions] = await Promise.all([
       getDocs(roomCol(db, roomId, 'participants')),
       getDocs(roomCol(db, roomId, 'signals')),
       getDocs(roomCol(db, roomId, 'chat')),
       getDocs(roomCol(db, roomId, 'polls')),
+      getDocs(roomCol(db, roomId, 'questions')),
     ])
-    const refs = [...parts.docs, ...signals.docs, ...chat.docs, ...polls.docs].map(d => d.ref)
+    const refs = [...parts.docs, ...signals.docs, ...chat.docs, ...polls.docs, ...questions.docs].map(d => d.ref)
     for (let i = 0; i < refs.length; i += 400) {
       const batch = writeBatch(db)
       refs.slice(i, i + 400).forEach(r => batch.delete(r))
