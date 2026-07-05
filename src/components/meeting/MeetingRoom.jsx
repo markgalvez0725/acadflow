@@ -777,9 +777,10 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   // spotlight, so their pin is a deliberate look-away). A spotlighted peer
   // who left simply falls out of the lookup - no cleanup write needed.
   const spotPeer = meeting?.spot?.peerId ? peers.find(p => p.peerId === meeting.spot.peerId) || null : null
-  const featuredPeer = isAdmin
-    ? (pinnedPeer || spotPeer || sharerPeer)
-    : (spotPeer || pinnedPeer || sharerPeer)
+  // A PRESENTER always takes the stage: an active share or whiteboard is
+  // the class content, so neither a local pin nor the spotlight can knock
+  // it off. Pin and spotlight decide the stage only when nobody presents.
+  const featuredPeer = sharerPeer || (isAdmin ? (pinnedPeer || spotPeer) : (spotPeer || pinnedPeer))
   const togglePin = p => setPinnedId(cur => (cur === p.peerId ? '' : p.peerId))
   function toggleSpot(p) {
     const on = meeting?.spot?.peerId === p.peerId
