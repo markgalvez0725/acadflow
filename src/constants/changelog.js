@@ -4,9 +4,22 @@
 // features ships, so the "What's new" modal always reflects the current build.
 // User-facing copy: keep it plain, no em-dashes.
 
-export const APP_VERSION = '2.6.0'
+export const APP_VERSION = '2.7.0'
 
 export const CHANGELOG = [
+  {
+    version: '2.7.0',
+    date: 'July 2026',
+    title: 'The classroom toolkit: whiteboard, polls, questions, and data saver',
+    changes: [
+      'Professors got a whiteboard: draw with pen, shapes, and text, then present the board to the class in one tap, from any device including phones and tablets. Smooth ink, undo and redo, an eraser, colors and sizes, and a one-tap PNG download of the board.',
+      'New tools inside the class: quick polls with live results (answers anonymous to classmates), a silent question queue where students ask without interrupting and +1 the questions they share, a class outline with resource links and timed agenda items, a shared countdown timer with a chime for everyone, a fair random student picker that never repeats until the whole class has a turn, and spotlight to feature one student on every screen.',
+      'Data saver for mobile data: one toggle joins audio-first and stops incoming camera video entirely, while the presented screen or whiteboard keeps flowing. It is suggested automatically when your signal is weak and remembered on your device.',
+      'Tap your connection dot for plain-language details: round trip, packet loss, route, and live data rates, with one practical tip. The dots themselves are now measurement-backed: no dot until there is a real reading, and a recovered connection turns green in seconds instead of staying red.',
+      'Connection recovery got faster: switching between wifi and mobile data heals the class immediately instead of waiting out timers, and the Connection lost banner gained a Reconnect now button.',
+      'Presenting and the whiteboard reach students with less delay in full rooms, and professor buttons like Go live, Start, and End class can no longer fire twice on a fast double tap.',
+    ],
+  },
   {
     version: '2.6.0',
     date: 'July 2026',

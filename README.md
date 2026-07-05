@@ -2,7 +2,7 @@
 
 **Academic Management System** for admins (teachers/staff) and students - built with React, Vite, and Firebase Firestore.
 
-**Version 2.1.1**
+**Version 2.7.0**
 
 ---
 
@@ -23,7 +23,7 @@ AcadFlow is a web-based school portal that provides a unified platform to manage
 - **Quiz** - create and manage quizzes; AI-generated questions; answer-key manager with fuzzy text auto-scoring and partial credit; quiz→gradebook auto-post; suspicious-submission flagging; distractor-quality auditor; clone quiz
 - **Stream** - Instagram-style feed (announcements, grades, activities, quizzes, attendance) that auto-loads on scroll (no pagination) with a reveal animation. Rich-text announcements with media, inline comments, replies, and @mentions; optional Google Drive attachments (photos/files) uploaded browser-side and previewed in-feed
 - **Calendar** - monthly calendar view of activities, quizzes, and announcements
-- **Online Classes** - schedule and manage Google Meet sessions; start/end/cancel meetings
+- **Online Classes** - schedule and run live classes in an in-app video room (self-owned WebRTC mesh, up to 60 people, TURN relay fallback) or via Google Meet links. In-room professor tools: whiteboard (draw and present it to the class), screen share, recording straight to Google Drive, quick polls with live anonymous results, a silent question queue, a class outline with resource links and timed agenda items, a shared countdown timer, a fair random student picker, spotlight (feature one student on every screen), host controls (mute/mute all/remove), in-call chat, and a People panel with live present/late/not-joined attendance that prefills the attendance sheet at End class
 - **Resources** - share lesson files and links per class
 - **Messages** - one-on-one and broadcast messaging with @mentions, smart-lock for sensitive messages, and screenshot logging
 - **Feedback Hub** - collect and review student feedback submissions
@@ -39,7 +39,7 @@ AcadFlow is a web-based school portal that provides a unified platform to manage
 - **Quiz** - take quizzes with auto-grading
 - **Stream** - Instagram-style feed that auto-loads on scroll (no pagination); like and save posts, full-screen media lightbox, inline announcement comments, replies, and @mentions
 - **Calendar** - personal calendar view of upcoming events; export to `.ics`
-- **Online Classes** - view and join scheduled Google Meet sessions
+- **Online Classes** - join live classes right inside the app: a green-room setup screen (camera/mic preview, connection check), data saver mode for mobile data (audio-first, pauses incoming camera video while shares and the whiteboard keep flowing), a tappable connection-details card, polls, the question queue, and the class outline; Google Meet link sessions still work when scheduled that way
 - **Resources** - browse class lesson files and links
 - **Enrollment** - manage class enrollment
 - **Messages** - direct messaging with admin/teacher (smart-lock + screenshot guard)
@@ -48,6 +48,7 @@ AcadFlow is a web-based school portal that provides a unified platform to manage
 
 ### General
 - Real-time sync via Firebase Firestore
+- Built for weak networks (Smart/Globe mobile data): failed screen loads retry themselves with a Try again fallback, joins have timeouts instead of infinite spinners, meeting links self-heal with backoff (including instant healing on wifi/mobile-data switches), connection quality dots are measurement-backed, and writes (quiz submissions, uploads, comments) survive flaky signal without duplicating
 - Push notifications (Firebase Cloud Messaging) on grade posts, activity grading, announcements, and deadline reminders - fired both client-side (while open) and via a Vercel Cron job (while closed)
 - On-device AI ($0, no data leaves the browser): grade-import verification, distractor auditing, excuse triage, identity/impersonation checks, and answer-key improvement, with optional Gemini-backed server endpoints that degrade gracefully when unconfigured
 - Biometric quick sign-in (Face ID / fingerprint via WebAuthn) as an opt-in convenience layer; password always remains the fallback
@@ -196,7 +197,8 @@ Two storage patterns coexist:
 | `quizzes` | Quiz definitions and student submissions |
 | `announcements` | Stream announcements with optional meeting and module links |
 | `messages` | In-app messaging threads |
-| `onlineMeetings` | Scheduled Google Meet sessions |
+| `onlineMeetings` | Scheduled class sessions (in-app rooms or Meet links); also carries the class outline, shared timer, picker, and spotlight fields |
+| `rtcRooms/{id}/*` | Transient WebRTC signaling for in-app rooms (participants, signals, chat, polls, questions) - purged at End class |
 | `attendanceSessions` | Per-session attendance records |
 | `excuseRequests` | Student excuse submissions for attendance |
 | `resources` | Shared class lesson files and links |
