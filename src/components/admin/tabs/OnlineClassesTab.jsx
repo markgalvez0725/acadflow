@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio, MonitorPlay, Sparkles, Play, Share2, FileText, Loader2, Users, MessageSquare, CircleDot, MonitorUp, Zap, Info, AlertTriangle, Check, Copy, CalendarCheck } from 'lucide-react'
@@ -48,6 +48,12 @@ export default function OnlineClassesTab() {
   const { toast, openMeetingRoom, openDialog } = useUI()
   const [panel, setPanel] = useState('links')
   const [goingLive, setGoingLive] = useState('') // key of the link currently going live
+  // Single-flight for meeting lifecycle actions (go live / start / end /
+  // cancel). The disabled= state alone cannot stop two taps landing in the
+  // same frame, and each duplicate write pushes a class-wide notification -
+  // this ref is checked synchronously so the second tap is a no-op.
+  const meetActRef = useRef(false)
+  const [working, setWorking] = useState('') // meeting id being started/ended
   // Recap/transcript panel: stores { id, tab } so the modal always shows the
   // fresh doc and lands on the tab the row button asked for.
   const [recapView, setRecapView] = useState(null)
@@ -87,6 +93,8 @@ export default function OnlineClassesTab() {
   async function handleGoLive(cls, subject, link) {
     const url = (link || '').trim()
     if (!url) { toast('Add a Meet link first.', 'error'); return }
+    if (meetActRef.current) return
+    meetActRef.current = true
     const key = linkKey(cls.id, subject)
     setGoingLive(key)
     try {
@@ -104,6 +112,7 @@ export default function OnlineClassesTab() {
     } catch (e) {
       toast('Failed to go live.', 'error')
     } finally {
+      meetActRef.current = false
       setGoingLive('')
     }
   }
@@ -116,6 +125,8 @@ export default function OnlineClassesTab() {
   // One-click "Go live in app": create + start an in-app WebRTC meeting (no
   // Meet link involved) and drop the professor straight into the room.
   async function handleGoLiveInApp(cls, subject) {
+    if (meetActRef.current) return
+    meetActRef.current = true
     const key = linkKey(cls.id, subject) + '::app'
     setGoingLive(key)
     try {
@@ -142,6 +153,7 @@ export default function OnlineClassesTab() {
     } catch (e) {
       toast('Failed to go live.', 'error')
     } finally {
+      meetActRef.current = false
       setGoingLive('')
     }
   }
@@ -278,44 +290,58 @@ export default function OnlineClassesTab() {
   const scheduledOnly = useMemo(() => upcoming.filter(m => m.status === 'scheduled'), [upcoming])
 
   async function handleStart(m) {
-    if (m.provider === 'inapp') {
-      try {
+    if (meetActRef.current) return
+    meetActRef.current = true
+    setWorking(m.id)
+    try {
+      if (m.provider === 'inapp') {
         await startMeeting(m)
         openMeetingRoom(m.id)
         toast('Meeting is now live. Students have been notified.', 'success')
-      } catch (e) {
-        toast('Failed to start meeting.', 'error')
+        return
       }
-      return
-    }
-    if (!m.meetLink?.trim()) {
-      toast('No Meet link set for this class. Add one in the Meet Links panel first.', 'error')
-      return
-    }
-    try {
+      if (!m.meetLink?.trim()) {
+        toast('No Meet link set for this class. Add one in the Meet Links panel first.', 'error')
+        return
+      }
       await startMeeting(m)
       window.open(m.meetLink, '_blank', 'noopener,noreferrer')
       toast('Meeting is now live. Students have been notified.', 'success')
     } catch (e) {
       toast('Failed to start meeting.', 'error')
+    } finally {
+      meetActRef.current = false
+      setWorking('')
     }
   }
 
   async function handleEnd(m) {
+    if (meetActRef.current) return
+    meetActRef.current = true
+    setWorking(m.id)
     try {
       await endMeeting(m)
       toast('Meeting ended.', 'success')
     } catch (e) {
       toast('Failed to end meeting.', 'error')
+    } finally {
+      meetActRef.current = false
+      setWorking('')
     }
   }
 
   async function handleCancel(m) {
+    if (meetActRef.current) return
+    meetActRef.current = true
+    setWorking(m.id)
     try {
       await cancelMeeting(m)
       toast('Meeting cancelled. Students have been notified.', 'success')
     } catch (e) {
       toast('Failed to cancel meeting.', 'error')
+    } finally {
+      meetActRef.current = false
+      setWorking('')
     }
   }
 
@@ -463,8 +489,8 @@ export default function OnlineClassesTab() {
                 <ExternalLink size={14} style={{ marginRight: 4 }} /> Open Meet
               </button>
             )}
-            <button className="btn btn-sm" style={{ background: 'var(--red)', color: '#fff' }} onClick={() => handleEnd(m)} title="End the class for everyone">
-              <VideoOff size={14} style={{ marginRight: 4 }} /> End class
+            <button className="btn btn-sm" style={{ background: 'var(--red)', color: '#fff' }} onClick={() => handleEnd(m)} disabled={working === m.id} title="End the class for everyone">
+              <VideoOff size={14} style={{ marginRight: 4 }} /> {working === m.id ? 'Ending…' : 'End class'}
             </button>
           </div>
         </div>
@@ -740,7 +766,7 @@ export default function OnlineClassesTab() {
                 ? <EmptyState Icon={CalendarPlus} title="No other upcoming meetings" text="Your live class is pinned above." tone="muted" compact />
                 : <EmptyState Icon={CalendarPlus} title="No upcoming meetings" text="Schedule one, or go live straight from Meet Links." />)
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-                {scheduledOnly.map(m => <MeetingRow key={m.id} m={m} now={now} onStart={handleStart} onCancel={handleCancel} highlight={highlightId === m.id} />)}
+                {scheduledOnly.map(m => <MeetingRow key={m.id} m={m} now={now} onStart={handleStart} onCancel={handleCancel} highlight={highlightId === m.id} busy={working === m.id} />)}
               </div>
         )}
 
@@ -767,7 +793,7 @@ function classLabel(cls) {
 
 // One meeting as a date-chip row: calendar chip, title + meta, a countdown pill
 // (amber inside 3 hours) or a green Ended chip, and Start/Cancel actions.
-function MeetingRow({ m, now, onStart, onCancel, onRecap, onTranscript, recapBusy, onShareRecording, onCheckRecording, onWatch, onAttendance, onGenTranscript, genBusy, genText, genLocked, checking, highlight }) {
+function MeetingRow({ m, now, onStart, onCancel, onRecap, onTranscript, recapBusy, onShareRecording, onCheckRecording, onWatch, onAttendance, onGenTranscript, genBusy, genText, genLocked, checking, highlight, busy }) {
   const { toast } = useUI()
   const dt = new Date(m.scheduledAt)
   const ended = m.status === 'ended'
@@ -806,11 +832,11 @@ function MeetingRow({ m, now, onStart, onCancel, onRecap, onTranscript, recapBus
         : <span className={`olc-cd${soon ? ' olc-cd-soon' : ''}`}>{fmtCountdown(m.scheduledAt, now)}</span>}
       {!ended && onStart && (
         <div className="olc-row-actions">
-          <button className="btn btn-primary btn-sm" onClick={() => onStart(m)} title="Start meeting">
-            <ExternalLink size={14} style={{ marginRight: 4 }} /> Start
+          <button className="btn btn-primary btn-sm" onClick={() => onStart(m)} disabled={busy} title="Start meeting">
+            <ExternalLink size={14} style={{ marginRight: 4 }} /> {busy ? 'Starting…' : 'Start'}
           </button>
           {onCancel && (
-            <button className="btn btn-ghost btn-sm" onClick={() => onCancel(m)} title="Cancel meeting">
+            <button className="btn btn-ghost btn-sm" onClick={() => onCancel(m)} disabled={busy} title="Cancel meeting">
               <Trash2 size={14} />
             </button>
           )}
