@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { v4 as uuidv4 } from 'uuid'
 import {
   Mic, MicOff, Video, VideoOff, MonitorUp, PhoneOff, Radio,
   Users, AlertTriangle, Loader2, CheckCircle, Minimize2, Maximize2,
@@ -648,6 +649,45 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     const t = setInterval(check, 30000)
     return () => clearInterval(t)
   }, [isAdmin, phase, ended, meeting]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto agenda: when the professor starts presenting (screen or whiteboard)
+  // and the outline has NO open item, log it as the current outline entry so
+  // late joiners see what is happening; it checks itself off when presenting
+  // stops. If a manual agenda item is already open, the presentation is part
+  // of it - adding a second entry would just be noise, so nothing is written.
+  const autoItemRef = useRef('')
+  useEffect(() => {
+    if (!isAdmin || !ready || ended || !meeting) return
+    const o = meeting.outline || {}
+    const items = Array.isArray(o.items) ? o.items : []
+    const links = Array.isArray(o.links) ? o.links : []
+    const prevNow = (items.find(i => !i.done) || {}).id
+    let next = null
+    if (sharing) {
+      const label = boardSharing ? 'Whiteboard' : 'Screen presentation'
+      const open = items.find(i => !i.done)
+      if (open) {
+        // Our own auto entry switching kind (share <-> board): rename it.
+        if (open.auto && open.text !== label) next = items.map(i => i.id === open.id ? { ...i, text: label } : i)
+        else { if (open.auto) autoItemRef.current = open.id; return }
+        autoItemRef.current = open.id
+      } else {
+        if (items.length >= 20) return
+        const id = uuidv4()
+        autoItemRef.current = id
+        next = [...items, { id, text: label, done: false, auto: true }]
+      }
+    } else {
+      const id = autoItemRef.current
+      autoItemRef.current = ''
+      if (!id || !items.some(i => i.id === id && i.auto && !i.done)) return
+      next = items.map(i => i.id === id ? { ...i, done: true } : i)
+    }
+    const newNow = (next.find(i => !i.done) || {}).id
+    patchMeeting(meeting, {
+      outline: { items: next, links, nowAt: newNow !== prevNow ? Date.now() : (o.nowAt || 0) },
+    }).catch(() => { /* best-effort log, never interrupts presenting */ })
+  }, [sharing, boardSharing]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const canPip = typeof document !== 'undefined' && !!document.pictureInPictureEnabled
 
