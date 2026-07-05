@@ -460,15 +460,43 @@ export default function useMeetingRoom({ db, roomId, self }) {
       if (selfQ !== 'bad') { selfQ = 'bad'; if (!dead) setSelfQuality('bad') }
       updateNetDown()
     }
-    function onNetOnline() {
-      offline = false
+    // One shared kick for every "the pipe just changed" moment: the online
+    // event, a wifi<->mobile-data switch, and the banner's Reconnect button.
+    // Clears backoff memory, heals every downed link right away, refreshes
+    // presence and the quality dots.
+    let lastKick = 0
+    function kickLinks() {
+      // Throttled: a rapid tap streak or a chattering connection change
+      // event collapses into one kick.
+      const now = Date.now()
+      if (dead || now - lastKick < 2000) return
+      lastKick = now
       retries.clear() // fresh pipe, fresh patience
       for (const [peerId, pc] of pcs) {
         const s = pc.connectionState
-        if (s === 'failed' || s === 'disconnected') scheduleHeal(peerId, 800)
+        if (s === 'failed' || s === 'disconnected' || s === 'closed') scheduleHeal(peerId, 300)
       }
+      beat()
       updateNetDown()
       pollStats() // re-grade from real numbers right away, not in up to 5s
+    }
+    function onNetOnline() {
+      offline = false
+      kickLinks()
+    }
+    // Switching networks (wifi to mobile data and back) usually keeps
+    // navigator.onLine true the whole time while every link's addresses
+    // silently died - the Network Information change event is the only
+    // early signal. Guarded by a signature so browsers that also fire it
+    // for rtt/downlink jitter do not cause kick spam.
+    const netInfo = typeof navigator !== 'undefined' ? navigator.connection : null
+    let netSig = netInfo ? (netInfo.type || '') + '/' + (netInfo.effectiveType || '') : ''
+    function onConnChange() {
+      if (dead || !netInfo) return
+      const sig = (netInfo.type || '') + '/' + (netInfo.effectiveType || '')
+      if (sig === netSig) return
+      netSig = sig
+      kickLinks()
     }
 
     // ── Background-proof presence ─────────────────────────────────────────
@@ -988,6 +1016,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
       healTimers.clear()
       window.removeEventListener('offline', onNetOffline)
       window.removeEventListener('online', onNetOnline)
+      if (netInfo?.removeEventListener) netInfo.removeEventListener('change', onConnChange)
       unsubs.splice(0).forEach(u => { try { u() } catch { /* noop */ } })
       for (const peerId of [...pcs.keys()]) closePeer(peerId)
       if (screenTrack) { try { screenTrack.stop() } catch { /* noop */ } screenTrack = null }
@@ -1113,6 +1142,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
       window.addEventListener('pagehide', onPageHide)
       window.addEventListener('offline', onNetOffline)
       window.addEventListener('online', onNetOnline)
+      if (netInfo?.addEventListener) netInfo.addEventListener('change', onConnChange)
       document.addEventListener('visibilitychange', onVisible)
       updateNetDown()
       setPhase('ready')
@@ -1252,6 +1282,9 @@ export default function useMeetingRoom({ db, roomId, self }) {
       getJoinLog() {
         return [...joinLog.values()]
       },
+      reconnectNow() {
+        kickLinks()
+      },
       leave() {
         teardown()
         setPhase('left')
@@ -1283,6 +1316,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
     muteAllStudents: () => apiRef.current.muteAllStudents?.(),
     removeStudent: peerId => apiRef.current.removeStudent?.(peerId),
     getJoinLog: () => apiRef.current.getJoinLog?.() || [],
+    reconnectNow: () => apiRef.current.reconnectNow?.(),
     canShare: typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia,
   }
 }

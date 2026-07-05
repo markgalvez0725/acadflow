@@ -254,7 +254,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     phase, errorMsg, peers, localStream, micOn, camOn, sharing, boardSharing, canShare,
     screenStream, setRecordingFlag, setHand, lowerHand, sendReaction, setChatLock,
     toggleMic, toggleCam, startShare, startBoardShare, stopShare, leave, retry, confirmJoin,
-    netDown, selfQuality, forcedMuteAt, joinLogLive,
+    netDown, selfQuality, forcedMuteAt, joinLogLive, reconnectNow,
     muteStudent, muteAllStudents, removeStudent, getJoinLog,
   } = useMeetingRoom({ db, roomId: meeting?.id, self })
 
@@ -1070,6 +1070,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
             <div className="mr-net-banner" role="alert">
               <Loader2 size={14} className="animate-spin" />
               <span>Connection lost · rejoining the class, hang tight. No need to refresh.</span>
+              <button className="mr-net-retry" onClick={reconnectNow}>Reconnect now</button>
             </div>
           )}
           {shieldWarn && !ended && (
