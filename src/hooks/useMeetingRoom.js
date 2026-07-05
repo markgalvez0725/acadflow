@@ -153,8 +153,8 @@ export default function useMeetingRoom({ db, roomId, self }) {
   // MY network dropped (offline event, or every link down at once) - the room
   // shows one amber banner instead of blaming each peer's tile.
   const [netDown, setNetDown] = useState(false)
-  // Aggregate health of my own links: the median across peers, so one student
-  // on hotel wifi never turns MY dot red.
+  // My own network's grade, measured from MY side of every link (see
+  // pollStats): one student on hotel wifi never turns MY dot red.
   const [selfQuality, setSelfQuality] = useState('good')
   // Bumped when the professor force-mutes this device (the room toasts it).
   const [forcedMuteAt, setForcedMuteAt] = useState(0)
@@ -217,6 +217,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
     let hbWorker = null    // background-proof heartbeat timer (see startHeartbeat)
     let hbUrl = ''
     let selfQ = 'good'     // my own uplink grade; drives the adaptive send budget
+    let selfPend = ''      // candidate self grade awaiting a confirming poll
     let presence = null
     let statsTimer = null
     let offline = typeof navigator !== 'undefined' && navigator.onLine === false
@@ -273,7 +274,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
         + ':' + p.micOn + ':' + p.camOn + ':' + (p.sharing ? 1 : 0) + ':' + (p.sharedAt || 0)
         + ':' + (p.hand || 0) + ':' + (p.react?.at || 0) + (p.react?.e || '')
         + ':' + (p.recording ? 1 : 0) + ':' + (p.chatLock ? 1 : 0)
-        + ':' + (connState.get(p.peerId) || 'new') + ':' + (qual.get(p.peerId) || 'good')
+        + ':' + (connState.get(p.peerId) || 'new') + ':' + (qual.get(p.peerId) || 'na')
         + ':' + (retries.get(p.peerId) || 0) + ':' + (streams.get(p.peerId)?.id || '')
       ).join('|')
       if (sig === lastPub) return
@@ -282,7 +283,9 @@ export default function useMeetingRoom({ db, roomId, self }) {
         ...p,
         stream: streams.get(p.peerId) || null,
         connState: connState.get(p.peerId) || 'new',
-        quality: qual.get(p.peerId) || 'good',
+        // Empty until the stats poll has a real measurement for this link -
+        // the tile hides the dot instead of showing a guess.
+        quality: qual.get(p.peerId) || '',
         retry: retries.get(p.peerId) || 0,
       })))
     }
@@ -449,7 +452,14 @@ export default function useMeetingRoom({ db, roomId, self }) {
       if (down !== netFlag) { netFlag = down; if (!dead) setNetDown(down) }
     }
 
-    function onNetOffline() { offline = true; updateNetDown() }
+    function onNetOffline() {
+      offline = true
+      // My dot goes red the moment the browser knows the pipe is gone -
+      // waiting for the next stats poll left it green through an outage.
+      selfPend = ''
+      if (selfQ !== 'bad') { selfQ = 'bad'; if (!dead) setSelfQuality('bad') }
+      updateNetDown()
+    }
     function onNetOnline() {
       offline = false
       retries.clear() // fresh pipe, fresh patience
@@ -458,6 +468,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
         if (s === 'failed' || s === 'disconnected') scheduleHeal(peerId, 800)
       }
       updateNetDown()
+      pollStats() // re-grade from real numbers right away, not in up to 5s
     }
 
     // ── Background-proof presence ─────────────────────────────────────────
@@ -513,54 +524,98 @@ export default function useMeetingRoom({ db, roomId, self }) {
       // after returning refreshes everything.
       if (dead || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return
       let changed = false
+      const rank = { good: 0, weak: 1, bad: 2 }
+      let liveLinks = 0
+      let downBest = 3 // BEST measured inbound grade across links (my downlink floor)
+      let upBest = 3   // BEST receiver-reported grade across links (my uplink floor)
+      const grade = (loss, r) => (loss > 8 || r > 0.5) ? 'bad' : (loss > 2.5 || r > 0.25) ? 'weak' : 'good'
       for (const [peerId, pc] of [...pcs]) {
-        if (pc.connectionState !== 'connected') {
-          if (qual.get(peerId) !== 'bad') { qual.set(peerId, 'bad'); qualPend.delete(peerId); changed = true }
+        const cs = pc.connectionState
+        if (cs !== 'connected') {
+          // Only a link that actually DROPPED goes red right away. A link
+          // still being built ('new'/'connecting') has produced no numbers
+          // yet; grading it 'bad' painted false red dots at every join and
+          // renegotiation, so it keeps whatever was last measured.
+          if (cs === 'failed' || cs === 'disconnected' || cs === 'closed') {
+            if (qual.get(peerId) !== 'bad') { qual.set(peerId, 'bad'); qualPend.delete(peerId); changed = true }
+          }
+          // Either way the loss window restarts: billing an outage's packet
+          // backlog to the first 5s after reconnect kept dots red long after
+          // the network had recovered.
+          statPrev.delete(peerId)
           continue
         }
+        liveLinks++
         try {
           const report = await pc.getStats()
           if (dead) return
-          let lost = 0, recv = 0, rtt = -1, selId = ''
+          let lost = 0, recv = 0, rtt = -1, selId = '', upLoss = -1, upRtt = -1
           const pairs = new Map()
           report.forEach(s => {
             if (s.type === 'inbound-rtp') { lost += s.packetsLost || 0; recv += s.packetsReceived || 0 }
+            else if (s.type === 'remote-inbound-rtp') {
+              // The receiver's own RTCP report on what I sent THEM: the
+              // ground truth for my uplink, free of their-wifi-is-bad noise.
+              if (typeof s.fractionLost === 'number') upLoss = Math.max(upLoss, s.fractionLost * 100)
+              if (typeof s.roundTripTime === 'number') upRtt = Math.max(upRtt, s.roundTripTime)
+            }
             else if (s.type === 'candidate-pair') pairs.set(s.id, s)
             else if (s.type === 'transport' && s.selectedCandidatePairId) selId = s.selectedCandidatePairId
           })
           const sel = pairs.get(selId) || [...pairs.values()].find(x => x.nominated && x.state === 'succeeded')
           if (sel && typeof sel.currentRoundTripTime === 'number') rtt = sel.currentRoundTripTime
-          const prev = statPrev.get(peerId) || { lost, recv }
+          if (upLoss >= 0 || upRtt >= 0) upBest = Math.min(upBest, rank[grade(Math.max(0, upLoss), upRtt)])
+          const prev = statPrev.get(peerId)
           statPrev.set(peerId, { lost, recv })
+          // First poll of a fresh window only seeds the counters - there is
+          // no interval to judge yet, and the dot stays unmeasured (hidden)
+          // rather than showing a guess.
+          if (!prev) continue
           const dLost = Math.max(0, lost - prev.lost)
           const dRecv = Math.max(0, recv - prev.recv)
           const lossPct = dLost + dRecv > 0 ? (dLost / (dLost + dRecv)) * 100 : 0
-          const q = (lossPct > 8 || rtt > 0.5) ? 'bad'
-            : (lossPct > 2.5 || rtt > 0.25) ? 'weak'
-            : 'good'
+          const q = grade(lossPct, rtt)
+          downBest = Math.min(downBest, rank[q])
           // Hysteresis: a dot only flips after TWO consecutive polls agree,
           // so a link sitting at a threshold boundary does not strobe the
-          // dot (and re-render the room) every 5 seconds.
-          const cur = qual.get(peerId) || 'good'
+          // dot (and re-render the room) every 5 seconds. Two exceptions:
+          // the first real measurement lands immediately, and clearly clean
+          // numbers clear a red dot in a single poll - a recovered link must
+          // not stay red for another 10 seconds.
+          const cur = qual.get(peerId)
+          const cleanNow = q === 'good' && lossPct < 1 && rtt < 0.2
           if (q === cur) qualPend.delete(peerId)
-          else if (qualPend.get(peerId) === q) { qual.set(peerId, q); qualPend.delete(peerId); changed = true }
+          else if (!cur || qualPend.get(peerId) === q || (cur === 'bad' && cleanNow)) {
+            qual.set(peerId, q); qualPend.delete(peerId); changed = true
+          }
           else qualPend.set(peerId, q)
         } catch { /* stats unavailable this tick */ }
       }
       for (const id of [...qual.keys()]) {
         if (!pcs.has(id)) { qual.delete(id); qualPend.delete(id); statPrev.delete(id); changed = true }
       }
-      const rank = { good: 0, weak: 1, bad: 2 }
-      const vals = [...qual.values()].sort((a, b) => rank[a] - rank[b])
-      const q2 = offline ? 'bad' : vals.length ? vals[Math.floor(vals.length / 2)] : 'good'
-      if (q2 !== selfQ) {
-        // My own uplink changed grade: re-run the budget immediately so a
+      // MY dot is graded from MY network only. Trouble on my side shows on
+      // EVERY link at once (all of them share this radio), so the BEST link
+      // in each direction is the honest floor: one student on hotel wifi
+      // never turns my dot red, while a genuinely struggling uplink does.
+      const names = ['good', 'weak', 'bad']
+      const hardDown = offline || (pcs.size > 0 && liveLinks === 0)
+      const q2 = hardDown ? 'bad'
+        : names[Math.max(downBest === 3 ? 0 : downBest, upBest === 3 ? 0 : upBest)]
+      // The same two-poll confirmation before my dot changes, except a hard
+      // outage (offline / every link down) is red immediately and a fully
+      // clean read clears a red dot in one poll.
+      if (q2 === selfQ) selfPend = ''
+      else if (hardDown || selfPend === q2 || (selfQ === 'bad' && q2 === 'good')) {
+        selfPend = ''
+        // My own grade changed: re-run the budget immediately so a
         // struggling link sends smaller, lighter video (and a recovered one
         // gets its quality back) without waiting for a room-size change.
         selfQ = q2
         applyMediaBudget()
       }
-      setSelfQuality(prevQ => (prevQ === q2 ? prevQ : q2))
+      else selfPend = q2
+      setSelfQuality(prevQ => (prevQ === selfQ ? prevQ : selfQ))
       if (changed) publish()
     }
 

@@ -1036,7 +1036,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
       failed: false,
       reconnecting: linkDown || (p.retry || 0) > 0,
       retryN: p.retry || 0,
-      quality: p.quality || 'good',
+      quality: p.quality || '',
       speaking: speaking.has(p.peerId),
       hand: !!p.hand,
       onHandClick: isAdmin ? () => lowerHand(p.peerId) : undefined,

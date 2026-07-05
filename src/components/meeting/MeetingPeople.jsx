@@ -159,7 +159,7 @@ export default function MeetingPeople({
                 <div className="mr-people-name">
                   <b>{p.name}</b>
                   {p.role === 'admin' && <span className="mr-chat-prof">PROF</span>}
-                  <span className={`mr-qdot mr-qdot-${p.quality || 'good'}`} aria-hidden="true" />
+                  {p.quality && <span className={`mr-qdot mr-qdot-${p.quality}`} aria-hidden="true" />}
                 </div>
                 <div className={`mr-people-sub${p.hand ? ' hand' : ''}`}>
                   {p.hand
