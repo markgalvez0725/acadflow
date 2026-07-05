@@ -1202,6 +1202,39 @@ export function DataProvider({ children }) {
       && m.classId === meetingData.classId
       && (m.subject || null) === (meetingData.subject || null))
     if (already) return already
+    // A scheduled session for this class+subject that is due (or starts within
+    // the hour) IS this class - bring that doc live instead of spawning a
+    // duplicate. Otherwise the scheduled entry never starts, never ends, and
+    // sits in Upcoming forever after the real class is over.
+    const due = meetings
+      .filter(m => m.status === 'scheduled'
+        && m.classId === meetingData.classId
+        && (m.subject || null) === (meetingData.subject || null)
+        && (m.scheduledAt || 0) <= Date.now() + 60 * 60000)
+      .sort((a, b) => (a.scheduledAt || 0) - (b.scheduledAt || 0))[0]
+    if (due) {
+      // The professor may go live in a different mode than they scheduled
+      // (e.g. scheduled a Meet link but pressed "Go live in app") - the way
+      // they actually start the class wins.
+      const wantProvider = meetingData.provider === 'inapp' ? 'inapp' : 'link'
+      const patch = {}
+      if ((due.provider || 'link') !== wantProvider) {
+        patch.provider = wantProvider
+        patch.meetLink = wantProvider === 'inapp' ? '' : (meetingData.meetLink || due.meetLink || '')
+      } else if (wantProvider === 'link' && meetingData.meetLink && due.meetLink !== meetingData.meetLink) {
+        patch.meetLink = meetingData.meetLink
+      }
+      if (Object.keys(patch).length) {
+        try { await fbPatchMeeting(dbRef.current, due.id, patch) } catch { /* keep scheduled fields */ }
+      }
+      const adopted = { ...due, ...patch }
+      if (adopted.provider === 'inapp') { try { await rtcCleanupRoom(dbRef.current, adopted.id) } catch { /* best-effort */ } }
+      await fbStartMeeting(dbRef.current, adopted.id)
+      const live = { ...adopted, status: 'live' }
+      setMeetings(prev => prev.map(m => (m.id === live.id ? live : m)))
+      await fbPushMeetingNotifs(dbRef.current, live, students, 'meeting_live')
+      return live
+    }
     const meeting = await fbScheduleMeeting(dbRef.current, { ...meetingData, scheduledAt: Date.now() })
     if (!meeting) return null
     // New uuid = clean room, but purge anyway: belt and braces against any
@@ -1225,6 +1258,21 @@ export function DataProvider({ children }) {
     // In-app rooms leave ephemeral signaling docs behind (rtcRooms/*) - purge
     // them best-effort; anyone still connected also self-deletes on leave.
     for (const m of targets) if (m.provider === 'inapp') rtcCleanupRoom(dbRef.current, m.id)
+    // A scheduled sibling whose time has already passed was THIS class (the
+    // professor went live without pressing its Start button). Remove it
+    // quietly - no cancelled notification, it is a duplicate, not a class
+    // being called off - so it never lingers in Upcoming after the class ends.
+    const staleScheduled = meetings.filter(m => m.status === 'scheduled'
+      && m.classId === meeting.classId
+      && (m.subject || null) === (meeting.subject || null)
+      && (m.scheduledAt || 0) <= Date.now())
+    for (const m of staleScheduled) {
+      try { await fbCancelMeeting(dbRef.current, m.id) } catch { /* best-effort */ }
+    }
+    if (staleScheduled.length) {
+      const gone = new Set(staleScheduled.map(m => m.id))
+      setMeetings(prev => prev.filter(m => !gone.has(m.id)))
+    }
     await fbPushMeetingNotifs(dbRef.current, meeting, students, 'meeting_ended')
   }, [students, meetings])
 
@@ -1232,6 +1280,21 @@ export function DataProvider({ children }) {
     await fbCancelMeeting(dbRef.current, meeting.id)
     await fbPushMeetingNotifs(dbRef.current, meeting, students, 'meeting_cancelled')
   }, [students])
+
+  // Lazy janitor, called from the professor's Online Classes tab (admin-only
+  // writes): a scheduled meeting more than 12 hours overdue was never started
+  // and never will be - remove it quietly so Upcoming reflects reality.
+  const sweepStaleMeetings = useCallback(async () => {
+    const cutoff = Date.now() - 12 * 3600000
+    const stale = meetings.filter(m => m.status === 'scheduled' && (m.scheduledAt || 0) < cutoff)
+    if (!stale.length) return 0
+    for (const m of stale) {
+      try { await fbCancelMeeting(dbRef.current, m.id) } catch { /* best-effort */ }
+    }
+    const gone = new Set(stale.map(m => m.id))
+    setMeetings(prev => prev.filter(m => !gone.has(m.id)))
+    return stale.length
+  }, [meetings])
 
   // ── Smart Recap of an in-app class ─────────────────────────────────────
   // Assembles the silent per-speaker transcript (rtcRooms/{id}/transcript)
@@ -1769,7 +1832,7 @@ export function DataProvider({ children }) {
       bulkDemoteAndNudge,
       meetings, setMeetings,
       liveMeetings: meetings.filter(m => m.status === 'live'),
-      saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting,
+      saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting, sweepStaleMeetings,
       generateMeetingRecap, fetchMeetingTranscript, saveMeetingRecording, markMeetingRecordingReady,
       patchMeeting, saveClassTranscript,
       caseStudies, saveCaseStudy, deleteCaseStudy,

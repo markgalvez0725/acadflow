@@ -42,11 +42,20 @@ function fmtElapsed(ms) {
 }
 
 export default function OnlineClassesTab() {
-  const { classes, meetings, saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting, generateMeetingRecap, markMeetingRecordingReady, saveMeetingRecording, saveAnnouncement, pushAnnouncementNotifs, saveClassTranscript } = useData()
+  const { classes, meetings, saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting, sweepStaleMeetings, generateMeetingRecap, markMeetingRecordingReady, saveMeetingRecording, saveAnnouncement, pushAnnouncementNotifs, saveClassTranscript } = useData()
   // The room itself is hosted at the layout level (MeetingHost) so the call
   // survives tab navigation - this tab only opens it by id.
   const { toast, openMeetingRoom, openDialog } = useUI()
   const [panel, setPanel] = useState('links')
+
+  // One quiet janitor pass per visit: forgotten scheduled meetings (12h+
+  // overdue, never started) are removed so Upcoming reflects reality.
+  const sweptRef = useRef(false)
+  useEffect(() => {
+    if (sweptRef.current || !meetings.length) return
+    sweptRef.current = true
+    sweepStaleMeetings?.().catch(() => { /* best-effort */ })
+  }, [meetings.length]) // eslint-disable-line react-hooks/exhaustive-deps
   const [goingLive, setGoingLive] = useState('') // key of the link currently going live
   // Single-flight for meeting lifecycle actions (go live / start / end /
   // cancel). The disabled= state alone cannot stop two taps landing in the
