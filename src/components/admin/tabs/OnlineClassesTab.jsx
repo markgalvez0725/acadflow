@@ -563,7 +563,7 @@ export default function OnlineClassesTab() {
                               style={{ flex: 1 }}
                               disabled={goingLive === linkKey(cls.id, sub) + '::app'}
                               onClick={() => handleGoLiveInApp(cls, sub)}
-                              title="Run the class inside AcadFlow - no Meet link needed (up to 60 people)"
+                              title="Run the class inside AcadFlow - no Meet link needed (up to 50 people)"
                             >
                               <MonitorPlay size={13} style={{ marginRight: 5 }} />
                               {goingLive === linkKey(cls.id, sub) + '::app' ? 'Going live…' : 'Go live in app'}
