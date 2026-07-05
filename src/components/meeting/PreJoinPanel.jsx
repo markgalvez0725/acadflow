@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 // NOTE: this lucide build has WifiOff/Activity but NOT the Wifi/WifiLow
 // variants - Activity stands in for the healthy-connection icon.
-import { Mic, MicOff, Video, VideoOff, ChevronDown, AlertTriangle, X, Loader2, Activity, WifiOff } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, ChevronDown, AlertTriangle, X, Loader2, Activity, WifiOff, Zap } from 'lucide-react'
 import { rtcFetchParticipants, STALE_MS } from '@/firebase/rtc'
 
 // Green room shown before entering the in-app classroom: a mirrored camera
@@ -53,10 +53,14 @@ export default function PreJoinPanel({ db, roomId, self, isAdmin, photo, label, 
   // null = checking | 'good' | 'weak' | 'offline'
   const [net, setNet] = useState(null)
   const [autoOffNote, setAutoOffNote] = useState(false)
+  // Data saver: audio-first join - peers pause camera video toward this
+  // device. Remembered per device, auto-suggested once on a weak signal.
+  const [saver, setSaver] = useState(saved.saver === true)
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const camTouched = useRef(false)
   const autoCamOff = useRef(false)
+  const saverTouched = useRef(false)
 
   // ── Preview stream (re-acquired when a picker changes) ───────────────────
   useEffect(() => {
@@ -216,6 +220,7 @@ export default function PreJoinPanel({ db, roomId, self, isAdmin, photo, label, 
       setCamOn(false)
       setAutoOffNote(true)
     }
+    if (!saverTouched.current) setSaver(true)
   }, [net]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── One-shot peek at who is already in the room ───────────────────────────
@@ -236,15 +241,15 @@ export default function PreJoinPanel({ db, roomId, self, isAdmin, photo, label, 
     if (going) return
     setGoing(true)
     try {
-      localStorage.setItem(PREF_KEY, JSON.stringify({ mic: micOn, cam: camOn, micId, camId }))
+      localStorage.setItem(PREF_KEY, JSON.stringify({ mic: micOn, cam: camOn, micId, camId, saver }))
     } catch { /* prefs are a nicety */ }
     // Free the devices BEFORE the engine grabs them (phones cannot hold the
     // camera twice); the engine re-acquires with the same device ids.
     const s = streamRef.current
     if (s) { s.getTracks().forEach(t => { try { t.stop() } catch { /* noop */ } }); streamRef.current = null }
     onJoin(blocked === 'all'
-      ? { micOn: false, camOn: false, noMedia: true }
-      : { micOn, camOn, audioId: micId || undefined, videoId: camId || undefined })
+      ? { micOn: false, camOn: false, noMedia: true, dataSaver: saver }
+      : { micOn, camOn: saver ? false : camOn, audioId: micId || undefined, videoId: camId || undefined, dataSaver: saver })
   }
 
   const camLive = !!stream && !!stream.getVideoTracks()[0] && camOn
@@ -358,6 +363,30 @@ export default function PreJoinPanel({ db, roomId, self, isAdmin, photo, label, 
                     : 'Weak connection - joining with the camera off is smoother.')
                 : 'No internet connection. You can join once you are back online.'}
             </span>
+          </div>
+          <div className="mr-pre-saver">
+            <Zap size={15} aria-hidden="true" />
+            <div className="mr-pre-saver-t">
+              <b>Data saver</b>
+              <span>Audio-first: pauses incoming camera video. The class share and whiteboard still show. Uses far less mobile data.</span>
+            </div>
+            <button
+              type="button"
+              className={`mr-pre-swi${saver ? ' on' : ''}`}
+              role="switch"
+              aria-checked={saver}
+              aria-label="Data saver"
+              onClick={() => {
+                saverTouched.current = true
+                setSaver(v => {
+                  const n = !v
+                  if (n && camOn) setCamOn(false)
+                  return n
+                })
+              }}
+            >
+              <i aria-hidden="true" />
+            </button>
           </div>
           <div className="mr-pre-who">
             {who.slice(0, 3).map(p => <span key={p.peerId} className="mr-pre-who-ava">{initials(p.name)}</span>)}

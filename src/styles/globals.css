@@ -6917,6 +6917,20 @@ html[data-glass="on"][data-theme="dark"] body::before {
     z-index: 4;
     box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35);
   }
+  /* The self dot is a button now (opens Connection details): same spot as
+     .mr-qdot-tile, padded out to a phone-friendly tap target. */
+  .mr-qdot-btn {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 4;
+    padding: 7px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+  }
+  .mr-qdot-btn .mr-qdot { box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35); }
 
   /* Self-healing link state: replaces the old terminal "could not connect"
      while the engine still has retries left. */
@@ -8428,4 +8442,306 @@ html[data-glass="on"][data-theme="dark"] body::before {
     .wb-btn { font-size: 12px; padding: 8px 11px; }
     /* Portrait phones: the 16:9 board letterboxes to width; controls wrap. */
   }
+}
+
+/* ── Meeting: data saver, connection details, class outline ──────────────
+   Fixed Meet-dark palette on purpose, matching the rest of the room. */
+@layer components {
+  /* Green-room Data saver row + the shared little switch. */
+  .mr-pre-saver {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: #202124;
+    border-radius: 10px;
+    padding: 10px 12px;
+    color: #81c995;
+  }
+  .mr-pre-saver-t {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .mr-pre-saver-t b { color: #e8eaed; font-size: 13px; }
+  .mr-pre-saver-t span { color: #9aa0a6; font-size: 11.5px; line-height: 1.5; }
+  .mr-pre-swi {
+    flex: none;
+    width: 36px;
+    height: 20px;
+    border-radius: 999px;
+    border: none;
+    background: #5f6368;
+    position: relative;
+    cursor: pointer;
+    padding: 0;
+    transition: background 0.15s ease;
+  }
+  .mr-pre-swi i {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #17181b;
+    transition: left 0.15s ease;
+  }
+  .mr-pre-swi.on { background: #81c995; }
+  .mr-pre-swi.on i { left: 18px; }
+
+  /* Stage chip while data saver is on (below the top banner spot). */
+  .mr-saver-chip {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 29;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: rgba(10, 35, 20, 0.92);
+    border: 1px solid rgba(129, 201, 149, 0.45);
+    color: #81c995;
+    border-radius: 999px;
+    padding: 7px 13px;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    max-width: calc(100% - 20px);
+  }
+  .mr-saver-chip span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Connection details card: floats above the control bar like .mr-confirm. */
+  .mr-diag {
+    position: absolute;
+    left: 50%;
+    bottom: 14px;
+    transform: translateX(-50%);
+    z-index: 40;
+    width: min(320px, calc(100% - 24px));
+    background: #202124;
+    border: 1px solid #3c4043;
+    border-radius: 12px;
+    padding: 12px 14px;
+    color: #e8eaed;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+  .mr-diag-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+  }
+  .mr-diag-head b { flex: 1; font-weight: 600; }
+  .mr-diag-good { color: #81c995; }
+  .mr-diag-weak { color: #fdd663; }
+  .mr-diag-bad { color: #f28b82; }
+  .mr-diag-x {
+    flex: none;
+    background: none;
+    border: none;
+    color: #9aa0a6;
+    cursor: pointer;
+    padding: 4px;
+    display: inline-flex;
+    border-radius: 50%;
+  }
+  .mr-diag-x:hover { background: #3c4043; color: #e8eaed; }
+  .mr-diag-rows {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px 12px;
+    font-size: 12.5px;
+  }
+  .mr-diag-rows span { color: #9aa0a6; }
+  .mr-diag-rows b { font-weight: 600; text-align: right; }
+  .mr-diag-saver {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    border-top: 1px solid #3c4043;
+    padding-top: 9px;
+    color: #e8eaed;
+  }
+  .mr-diag-saver span { flex: 1; }
+  .mr-diag-tip {
+    margin: 0;
+    font-size: 11.5px;
+    line-height: 1.55;
+    color: #9aa0a6;
+  }
+
+  /* Class outline panel: rides the .mr-people shell (light card, bottom
+     sheet under 760px); only its inner rows are styled here. */
+  .mr-otl-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 14px 10px;
+  }
+  .mr-otl-empty {
+    margin: 6px 0;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: #5f6368;
+  }
+  .mr-otl-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #202124;
+  }
+  .mr-otl-item.done { color: #9aa0a6; }
+  .mr-otl-item.done .mr-otl-text { text-decoration: line-through; }
+  .mr-otl-item.now {
+    background: #eeedfe;
+    color: #3c3489;
+    font-weight: 600;
+  }
+  .mr-otl-tick {
+    flex: none;
+    background: none;
+    border: none;
+    padding: 2px;
+    cursor: pointer;
+    color: inherit;
+    display: inline-flex;
+  }
+  .mr-otl-item.done .mr-otl-tick { color: #1d9e75; }
+  .mr-otl-tick:disabled { cursor: default; }
+  .mr-otl-text {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .mr-otl-now {
+    flex: none;
+    font-style: normal;
+    font-size: 10px;
+    font-weight: 700;
+    background: #5046e4;
+    color: #fff;
+    border-radius: 999px;
+    padding: 2px 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .mr-otl-del {
+    flex: none;
+    background: none;
+    border: none;
+    color: #b4b2a9;
+    cursor: pointer;
+    padding: 3px;
+    display: inline-flex;
+    border-radius: 6px;
+  }
+  .mr-otl-del:hover { color: #a32d2d; background: #fcebeb; }
+  .mr-otl-sub {
+    margin: 10px 0 4px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #5f6368;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .mr-otl-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .mr-otl-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    background: #fff;
+    border: 1px solid #dadce0;
+    border-radius: 999px;
+    padding: 3px 6px 3px 10px;
+    font-size: 12px;
+  }
+  .mr-otl-chip a {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: #185fa5;
+    text-decoration: none;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mr-otl-chip a:hover { text-decoration: underline; }
+  .mr-otl-chip button {
+    background: none;
+    border: none;
+    color: #9aa0a6;
+    cursor: pointer;
+    padding: 2px;
+    display: inline-flex;
+    border-radius: 50%;
+  }
+  .mr-otl-chip button:hover { color: #a32d2d; }
+  .mr-otl-foot {
+    border-top: 1px solid #e8eaed;
+    padding: 10px 14px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .mr-otl-add {
+    display: flex;
+    gap: 6px;
+  }
+  .mr-otl-add input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid #dadce0;
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    background: #fff;
+    color: #202124;
+  }
+  .mr-otl-add input:focus { outline: 2px solid #5046e4; outline-offset: -1px; }
+  .mr-otl-add button {
+    flex: none;
+    width: 34px;
+    border: none;
+    border-radius: 8px;
+    background: #5046e4;
+    color: #fff;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .mr-otl-add button:disabled { opacity: 0.45; cursor: default; }
+  .mr-otl-linkbtn {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    color: #5046e4;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 2px 0;
+    font-family: inherit;
+  }
+  .mr-otl-linkbtn:hover { text-decoration: underline; }
 }

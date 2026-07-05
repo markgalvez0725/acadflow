@@ -5,6 +5,7 @@ import {
   Users, AlertTriangle, Loader2, CheckCircle, Minimize2, Maximize2,
   PictureInPicture2, CircleDot, Square, Hand, Pin, PinOff, Volume2,
   MessageSquare, Smile, LogIn, LogOut, UserX, MoreHorizontal, Pencil,
+  List, Zap, Activity, X,
 } from 'lucide-react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -17,6 +18,7 @@ import { createPipSource } from '@/utils/meetingPip'
 import { playMeetingSound, preloadMeetingSounds } from '@/utils/meetingSounds'
 import MeetingChat from '@/components/meeting/MeetingChat'
 import MeetingPeople from '@/components/meeting/MeetingPeople'
+import MeetingOutline from '@/components/meeting/MeetingOutline'
 import PreJoinPanel from '@/components/meeting/PreJoinPanel'
 import Whiteboard from '@/components/meeting/Whiteboard'
 import EmojiIcon from '@/components/primitives/EmojiIcon'
@@ -255,6 +257,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
     screenStream, setRecordingFlag, setHand, lowerHand, sendReaction, setChatLock,
     toggleMic, toggleCam, startShare, startBoardShare, stopShare, leave, retry, confirmJoin,
     netDown, selfQuality, forcedMuteAt, joinLogLive, reconnectNow,
+    dataSaver, setDataSaver, getDiagnostics,
     muteStudent, muteAllStudents, removeStudent, getJoinLog,
   } = useMeetingRoom({ db, roomId: meeting?.id, self })
 
@@ -265,6 +268,11 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   const [peopleOpen, setPeopleOpen] = useState(false)
   const [sheetPeer, setSheetPeer] = useState(null)
   const [confirmRemove, setConfirmRemove] = useState(null)
+  // Class outline panel (mutually exclusive with chat/people, like they are
+  // with each other) and the connection-details card behind the self dot.
+  const [outlineOpen, setOutlineOpen] = useState(false)
+  const [diagOpen, setDiagOpen] = useState(false)
+  const [diag, setDiag] = useState(null)
   // Phone control bar: only mic, camera, More, End fit; everything else
   // lives in the More sheet (CSS decides - desktop never sees the button).
   const [moreOpen, setMoreOpen] = useState(false)
@@ -274,6 +282,16 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   const [boardOpen, setBoardOpen] = useState(false)
   const wbStore = useRef(null)
   if (!wbStore.current) wbStore.current = { ops: [], redo: [] }
+
+  // Refresh the connection-details card only while it is open (its numbers
+  // come from the stats the engine already polls - no extra network work).
+  useEffect(() => {
+    if (!diagOpen) return
+    const read = () => setDiag(getDiagnostics())
+    read()
+    const t = setInterval(read, 2500)
+    return () => clearInterval(t)
+  }, [diagOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // The joining spinner must never be a dead end on weak mobile data: past
   // 20s of 'connecting' we own up to the stall and offer Retry / Close (the
@@ -1031,7 +1049,10 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
       role: p.role,
       photo: photoFor(p),
       micOn: p.micOn,
-      camOn: p.camOn,
+      // Data saver: their camera packets are paused toward this device (the
+      // sender side stops them), so show the photo instead of a dead frame.
+      // A presenting peer's video is the class content and stays visible.
+      camOn: dataSaver && !p.sharing ? false : p.camOn,
       muted: false,
       failed: false,
       reconnecting: linkDown || (p.retry || 0) > 0,
@@ -1071,6 +1092,52 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
               <Loader2 size={14} className="animate-spin" />
               <span>Connection lost · rejoining the class, hang tight. No need to refresh.</span>
               <button className="mr-net-retry" onClick={reconnectNow}>Reconnect now</button>
+            </div>
+          )}
+          {dataSaver && !netDown && !ended && phase === 'ready' && (
+            <button className="mr-saver-chip" onClick={() => setDataSaver(false)} title="Turn data saver off">
+              <Zap size={12} aria-hidden="true" />
+              <span>Data saver on · camera video paused · tap to turn off</span>
+            </button>
+          )}
+          {diagOpen && !ended && phase === 'ready' && (
+            <div className="mr-diag" role="dialog" aria-label="Connection details">
+              <div className="mr-diag-head">
+                <Activity size={15} aria-hidden="true" />
+                <b>Your connection: <span className={`mr-diag-${selfQuality}`}>{selfQuality === 'good' ? 'good' : selfQuality === 'weak' ? 'a little weak' : 'struggling'}</span></b>
+                <button className="mr-diag-x" onClick={() => setDiagOpen(false)} aria-label="Close connection details"><X size={15} /></button>
+              </div>
+              {diag && diag.links > 0 ? (
+                <div className="mr-diag-rows">
+                  <span>Round trip</span><b>{diag.rtt >= 0 ? `${Math.round(diag.rtt * 1000)} ms` : '…'}</b>
+                  <span>Packet loss</span><b>{typeof diag.loss === 'number' ? `${diag.loss.toFixed(1)}%` : '…'}</b>
+                  <span>Route</span><b>{diag.relay === 0 ? 'Direct' : diag.relay >= diag.links ? 'Relay' : 'Mixed'}</b>
+                  <span>Sending</span><b>{diag.sendKbps} kbps</b>
+                  <span>Receiving</span><b>{diag.recvKbps} kbps</b>
+                </div>
+              ) : (
+                <p className="mr-diag-tip">No one else is connected yet, so there is nothing to measure.</p>
+              )}
+              <label className="mr-diag-saver">
+                <Zap size={14} aria-hidden="true" />
+                <span>Data saver</span>
+                <button
+                  type="button"
+                  className={`mr-pre-swi${dataSaver ? ' on' : ''}`}
+                  role="switch"
+                  aria-checked={dataSaver}
+                  aria-label="Data saver"
+                  onClick={() => setDataSaver(!dataSaver)}
+                >
+                  <i aria-hidden="true" />
+                </button>
+              </label>
+              <p className="mr-diag-tip">
+                {diag?.offline ? 'You are offline. Voices will resume when the connection returns.'
+                  : selfQuality === 'bad' ? 'Struggling: move closer to a window or your router, or turn on Data saver to keep the audio smooth.'
+                  : diag && diag.relay > 0 ? 'Connected through a relay - normal on mobile data, with slightly higher delay.'
+                  : 'Everything looks steady.'}
+              </p>
             </div>
           )}
           {shieldWarn && !ended && (
@@ -1309,7 +1376,14 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
                 </>
               )}
               {myHand && <span className="mr-hand-badge mr-hand-badge-self"><Hand size={12} /></span>}
-              <span className={`mr-qdot mr-qdot-${selfQuality} mr-qdot-tile`} title={selfQuality === 'good' ? 'Your connection is good' : selfQuality === 'weak' ? 'Your connection is a little weak' : 'Your connection is struggling'} />
+              <button
+                className="mr-qdot-btn"
+                onClick={() => setDiagOpen(o => !o)}
+                title={`${selfQuality === 'good' ? 'Your connection is good' : selfQuality === 'weak' ? 'Your connection is a little weak' : 'Your connection is struggling'} - tap for details`}
+                aria-label="Connection details"
+              >
+                <span className={`mr-qdot mr-qdot-${selfQuality}`} />
+              </button>
               <span className="mr-pip-label">You</span>
               {!micOn && <span className="mr-mic-off"><MicOff size={12} /></span>}
             </div>
@@ -1344,6 +1418,13 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
           onRemove={p => setConfirmRemove(p)}
           onLowerHand={p => lowerHand(p.peerId)}
           onClose={() => setPeopleOpen(false)}
+        />
+        <MeetingOutline
+          open={outlineOpen && !ended && ready}
+          meeting={meeting}
+          isAdmin={isAdmin}
+          onPatch={fields => Promise.resolve(patchMeeting(meeting, fields)).catch(() => toast('Could not save the outline. Check your connection and try again.', 'error'))}
+          onClose={() => setOutlineOpen(false)}
         />
       </div>
 
@@ -1383,13 +1464,25 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
               <span className="mr-ctl"><Smile size={18} /></span>
               <span>React</span>
             </button>
-            <button className="mr-more-item" onClick={() => { setMoreOpen(false); setPeopleOpen(false); setChatOpen(true) }}>
+            <button className="mr-more-item" onClick={() => { setMoreOpen(false); setPeopleOpen(false); setOutlineOpen(false); setChatOpen(true) }}>
               <span className="mr-ctl"><MessageSquare size={18} />{unread > 0 && <span className="mr-ctl-badge">{unread > 9 ? '9+' : unread}</span>}</span>
               <span>Chat</span>
             </button>
-            <button className="mr-more-item" onClick={() => { setMoreOpen(false); setChatOpen(false); setPeopleOpen(true) }}>
+            <button className="mr-more-item" onClick={() => { setMoreOpen(false); setChatOpen(false); setOutlineOpen(false); setPeopleOpen(true) }}>
               <span className="mr-ctl"><Users size={18} /></span>
               <span>People</span>
+            </button>
+            <button className="mr-more-item" onClick={() => { setMoreOpen(false); setChatOpen(false); setPeopleOpen(false); setOutlineOpen(true) }}>
+              <span className={`mr-ctl${outlineOpen ? ' mr-ctl-accent' : ''}`}><List size={18} /></span>
+              <span>Outline</span>
+            </button>
+            <button className="mr-more-item" onClick={() => { setMoreOpen(false); setDataSaver(!dataSaver) }}>
+              <span className={`mr-ctl${dataSaver ? ' mr-ctl-on' : ''}`}><Zap size={18} /></span>
+              <span>{dataSaver ? 'Saver off' : 'Data saver'}</span>
+            </button>
+            <button className="mr-more-item" onClick={() => { setMoreOpen(false); setDiagOpen(true) }}>
+              <span className="mr-ctl"><Activity size={18} /></span>
+              <span>Connection</span>
             </button>
             {canPip && (
               <button className="mr-more-item" onClick={() => { setMoreOpen(false); popOut() }}>
@@ -1467,7 +1560,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
               </button>
               <button
                 className={`mr-ctl mr-ctl-x${chatOpen ? ' mr-ctl-accent' : ''}`}
-                onClick={() => setChatOpen(o => { const n = !o; if (n) setPeopleOpen(false); return n })}
+                onClick={() => setChatOpen(o => { const n = !o; if (n) { setPeopleOpen(false); setOutlineOpen(false) } return n })}
                 title="In-call messages"
               >
                 <MessageSquare size={18} />
@@ -1475,10 +1568,17 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
               </button>
               <button
                 className={`mr-ctl mr-ctl-x${peopleOpen ? ' mr-ctl-accent' : ''}`}
-                onClick={() => setPeopleOpen(o => { const n = !o; if (n) setChatOpen(false); return n })}
+                onClick={() => setPeopleOpen(o => { const n = !o; if (n) { setChatOpen(false); setOutlineOpen(false) } return n })}
                 title="People in this class"
               >
                 <Users size={18} />
+              </button>
+              <button
+                className={`mr-ctl mr-ctl-x${outlineOpen ? ' mr-ctl-accent' : ''}`}
+                onClick={() => setOutlineOpen(o => { const n = !o; if (n) { setChatOpen(false); setPeopleOpen(false) } return n })}
+                title="Class outline"
+              >
+                <List size={18} />
               </button>
               <button
                 className={`mr-ctl mr-more-btn${moreOpen ? ' mr-ctl-accent' : ''}`}
@@ -1511,7 +1611,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
           <button
             type="button"
             className="mr-count"
-            onClick={() => setPeopleOpen(o => { const n = !o; if (n) setChatOpen(false); return n })}
+            onClick={() => setPeopleOpen(o => { const n = !o; if (n) { setChatOpen(false); setOutlineOpen(false) } return n })}
             title="People in this class"
           >
             <Users size={14} /> {count}/{ROOM_CAP}

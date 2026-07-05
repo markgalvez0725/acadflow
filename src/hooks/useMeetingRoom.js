@@ -156,6 +156,8 @@ export default function useMeetingRoom({ db, roomId, self }) {
   // My own network's grade, measured from MY side of every link (see
   // pollStats): one student on hotel wifi never turns MY dot red.
   const [selfQuality, setSelfQuality] = useState('good')
+  // Data saver (audio-first): peers pause camera video toward this device.
+  const [dataSaver, setDataSaverState] = useState(false)
   // Bumped when the professor force-mutes this device (the room toasts it).
   const [forcedMuteAt, setForcedMuteAt] = useState(0)
   // Reactive copy of the join log for the in-meeting attendance viewer
@@ -188,6 +190,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
     setScreenStream(null)
     setNetDown(false)
     setSelfQuality('good')
+    setDataSaverState(false)
     setForcedMuteAt(0)
     setJoinLogLive([])
     let dead = false
@@ -218,6 +221,9 @@ export default function useMeetingRoom({ db, roomId, self }) {
     let hbUrl = ''
     let selfQ = 'good'     // my own uplink grade; drives the adaptive send budget
     let selfPend = ''      // candidate self grade awaiting a confirming poll
+    let saver = false      // data saver on: peers pause camera video toward me
+    let lowSig = ''        // roster signature of who has data saver on
+    let diag = null        // latest measured numbers for the details card
     let presence = null
     let statsTimer = null
     let offline = typeof navigator !== 'undefined' && navigator.onLine === false
@@ -336,8 +342,10 @@ export default function useMeetingRoom({ db, roomId, self }) {
         // Left while the rejoin write was in flight: take the doc back out
         // so the re-insert does not become the very ghost this fixes.
         if (dead || leaving) { rtcLeaveRoom(db, roomId, myId); return }
-        // A rejoining presenter keeps presenting (the fresh doc reset it).
+        // A rejoining presenter keeps presenting (the fresh doc reset it),
+        // and data saver survives the fresh doc for the same reason.
         if (screenTrack) rtcUpdateParticipant(db, roomId, myId, { sharing: true, sharedAt: Date.now() })
+        if (saver) rtcUpdateParticipant(db, roomId, myId, { lowData: true })
       } catch { /* the next presence tick retries */ }
       rejoining = false
     }
@@ -556,6 +564,8 @@ export default function useMeetingRoom({ db, roomId, self }) {
       let liveLinks = 0
       let downBest = 3 // BEST measured inbound grade across links (my downlink floor)
       let upBest = 3   // BEST receiver-reported grade across links (my uplink floor)
+      // For the connection-details card: totals + floors across links.
+      let sumIn = 0, sumOut = 0, relayN = 0, bestRtt = -1, bestLoss = -1
       const grade = (loss, r) => (loss > 8 || r > 0.5) ? 'bad' : (loss > 2.5 || r > 0.25) ? 'weak' : 'good'
       for (const [peerId, pc] of [...pcs]) {
         const cs = pc.connectionState
@@ -578,9 +588,12 @@ export default function useMeetingRoom({ db, roomId, self }) {
           const report = await pc.getStats()
           if (dead) return
           let lost = 0, recv = 0, rtt = -1, selId = '', upLoss = -1, upRtt = -1
+          let bIn = 0, bOut = 0
           const pairs = new Map()
+          const locals = new Map()
           report.forEach(s => {
-            if (s.type === 'inbound-rtp') { lost += s.packetsLost || 0; recv += s.packetsReceived || 0 }
+            if (s.type === 'inbound-rtp') { lost += s.packetsLost || 0; recv += s.packetsReceived || 0; bIn += s.bytesReceived || 0 }
+            else if (s.type === 'outbound-rtp') { bOut += s.bytesSent || 0 }
             else if (s.type === 'remote-inbound-rtp') {
               // The receiver's own RTCP report on what I sent THEM: the
               // ground truth for my uplink, free of their-wifi-is-bad noise.
@@ -588,13 +601,17 @@ export default function useMeetingRoom({ db, roomId, self }) {
               if (typeof s.roundTripTime === 'number') upRtt = Math.max(upRtt, s.roundTripTime)
             }
             else if (s.type === 'candidate-pair') pairs.set(s.id, s)
+            else if (s.type === 'local-candidate') locals.set(s.id, s)
             else if (s.type === 'transport' && s.selectedCandidatePairId) selId = s.selectedCandidatePairId
           })
           const sel = pairs.get(selId) || [...pairs.values()].find(x => x.nominated && x.state === 'succeeded')
           if (sel && typeof sel.currentRoundTripTime === 'number') rtt = sel.currentRoundTripTime
+          if (sel && locals.get(sel.localCandidateId)?.candidateType === 'relay') relayN++
+          if (rtt >= 0) bestRtt = bestRtt < 0 ? rtt : Math.min(bestRtt, rtt)
           if (upLoss >= 0 || upRtt >= 0) upBest = Math.min(upBest, rank[grade(Math.max(0, upLoss), upRtt)])
           const prev = statPrev.get(peerId)
-          statPrev.set(peerId, { lost, recv })
+          const nowMs = Date.now()
+          statPrev.set(peerId, { lost, recv, bIn, bOut, at: nowMs })
           // First poll of a fresh window only seeds the counters - there is
           // no interval to judge yet, and the dot stays unmeasured (hidden)
           // rather than showing a guess.
@@ -602,6 +619,13 @@ export default function useMeetingRoom({ db, roomId, self }) {
           const dLost = Math.max(0, lost - prev.lost)
           const dRecv = Math.max(0, recv - prev.recv)
           const lossPct = dLost + dRecv > 0 ? (dLost / (dLost + dRecv)) * 100 : 0
+          bestLoss = bestLoss < 0 ? lossPct : Math.min(bestLoss, lossPct)
+          const dtMs = nowMs - (prev.at || nowMs)
+          if (dtMs > 0) {
+            // bytes*8/ms happens to equal kbit/s exactly.
+            sumIn += Math.max(0, bIn - (prev.bIn || bIn)) * 8 / dtMs
+            sumOut += Math.max(0, bOut - (prev.bOut || bOut)) * 8 / dtMs
+          }
           const q = grade(lossPct, rtt)
           downBest = Math.min(downBest, rank[q])
           // Hysteresis: a dot only flips after TWO consecutive polls agree,
@@ -644,6 +668,15 @@ export default function useMeetingRoom({ db, roomId, self }) {
       }
       else selfPend = q2
       setSelfQuality(prevQ => (prevQ === selfQ ? prevQ : selfQ))
+      diag = {
+        at: Date.now(),
+        rtt: bestRtt,
+        loss: bestLoss < 0 ? 0 : bestLoss,
+        relay: relayN,
+        links: liveLinks,
+        sendKbps: Math.round(sumOut),
+        recvKbps: Math.round(sumIn),
+      }
       if (changed) publish()
     }
 
@@ -688,7 +721,8 @@ export default function useMeetingRoom({ db, roomId, self }) {
           }).catch(() => { /* capture keeps its current size */ })
         }
       }
-      for (const sender of videoSenders.values()) {
+      const lowSet = new Set(roster.filter(p => p.lowData && p.peerId !== myId).map(p => p.peerId))
+      for (const [peerId, sender] of videoSenders) {
         try {
           const p = sender.getParameters()
           if (!p.encodings || !p.encodings.length) continue // pre-negotiation
@@ -696,6 +730,10 @@ export default function useMeetingRoom({ db, roomId, self }) {
           p.encodings[0].scaleResolutionDownBy = scale
           if (screenTrack) p.encodings[0].maxFramerate = shareFps
           else delete p.encodings[0].maxFramerate
+          // Data saver peers asked for audio-first: pause CAMERA frames
+          // toward them entirely (zero video bytes, no renegotiation). A
+          // share or whiteboard is the class content, so it keeps flowing.
+          p.encodings[0].active = !(lowSet.has(peerId) && !screenTrack)
           // Spec-recommended pairing with the content hints: under CPU or
           // bandwidth pressure the share ('detail') drops FRAMES and never
           // blurs text; the camera ('motion') gives up resolution first so
@@ -712,6 +750,10 @@ export default function useMeetingRoom({ db, roomId, self }) {
             if (!p.encodings || !p.encodings.length) continue
             p.encodings[0].priority = 'high'
             p.encodings[0].networkPriority = 'high'
+            // My own data saver also lightens what I send: 32k Opus is
+            // still clear speech at a fraction of the default bitrate.
+            if (saver) p.encodings[0].maxBitrate = 32_000
+            else delete p.encodings[0].maxBitrate
             s.setParameters(p).catch(() => {})
           } catch { /* renegotiating */ }
         }
@@ -917,6 +959,10 @@ export default function useMeetingRoom({ db, roomId, self }) {
       for (const id of [...seenLocal.keys()]) {
         if (!list.some(p => p.peerId === id)) seenLocal.delete(id)
       }
+      // Someone toggled Data saver: re-run the budget so camera encodings
+      // toward them pause or resume without waiting for a room-size change.
+      const ls = list.filter(p => p.lowData).map(p => p.peerId).sort().join(',')
+      if (ls !== lowSig) { lowSig = ls; applyMediaBudget() }
       // Same account in the room twice (rejoined after a killed tab whose doc
       // lingered, or opened a second device): only the NEWEST doc per uid is
       // real. Older ones are hidden instantly (isGone), their pcs closed, and
@@ -1146,6 +1192,9 @@ export default function useMeetingRoom({ db, roomId, self }) {
       document.addEventListener('visibilitychange', onVisible)
       updateNetDown()
       setPhase('ready')
+      // Green-room choice: announce data saver once the join doc exists so
+      // peers pause camera video toward this device from the first frames.
+      if (joinPrefsRef.current?.dataSaver) apiRef.current.setDataSaver?.(true)
     }
 
     apiRef.current = {
@@ -1285,6 +1334,27 @@ export default function useMeetingRoom({ db, roomId, self }) {
       reconnectNow() {
         kickLinks()
       },
+      setDataSaver(on) {
+        const v = !!on
+        if (saver === v) return
+        saver = v
+        setDataSaverState(v)
+        // The roster flag is what tells every peer to pause/resume camera
+        // video toward this device (their onRoster re-runs their budget).
+        rtcUpdateParticipant(db, roomId, myId, { lowData: v })
+        if (v && local) {
+          const t = local.getVideoTracks()[0]
+          if (t && t.enabled) {
+            t.enabled = false
+            setCamOn(false)
+            rtcUpdateParticipant(db, roomId, myId, { camOn: false })
+          }
+        }
+        applyMediaBudget()
+      },
+      getDiagnostics() {
+        return { ...(diag || {}), quality: selfQ, offline, saver, peers: pcs.size }
+      },
       leave() {
         teardown()
         setPhase('left')
@@ -1297,7 +1367,7 @@ export default function useMeetingRoom({ db, roomId, self }) {
 
   return {
     phase, errorMsg, peers, localStream, micOn, camOn, sharing, boardSharing, screenStream,
-    netDown, selfQuality, forcedMuteAt, joinLogLive,
+    netDown, selfQuality, dataSaver, forcedMuteAt, joinLogLive,
     toggleMic: () => apiRef.current.toggleMic?.(),
     toggleCam: () => apiRef.current.toggleCam?.(),
     startShare: () => apiRef.current.startShare?.(),
@@ -1317,6 +1387,8 @@ export default function useMeetingRoom({ db, roomId, self }) {
     removeStudent: peerId => apiRef.current.removeStudent?.(peerId),
     getJoinLog: () => apiRef.current.getJoinLog?.() || [],
     reconnectNow: () => apiRef.current.reconnectNow?.(),
+    setDataSaver: on => apiRef.current.setDataSaver?.(on),
+    getDiagnostics: () => apiRef.current.getDiagnostics?.() || null,
     canShare: typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia,
   }
 }
