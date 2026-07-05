@@ -295,27 +295,6 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   const wbStore = useRef(null)
   if (!wbStore.current) wbStore.current = { ops: [], redo: [] }
 
-  // Timed agenda: when the outline's current item runs past its minutes, the
-  // PROFESSOR gets one soft chime + toast per item. Students never see or
-  // hear pacing pressure.
-  const chimedRef = useRef(new Set())
-  useEffect(() => {
-    if (!isAdmin || phase !== 'ready' || ended) return undefined
-    const check = () => {
-      const o = meeting?.outline
-      const nowIt = (o?.items || []).find(i => !i.done)
-      if (!nowIt || !nowIt.min || !o?.nowAt || chimedRef.current.has(nowIt.id)) return
-      if (Date.now() - o.nowAt > nowIt.min * 60000) {
-        chimedRef.current.add(nowIt.id)
-        playMeetingSound('hand')
-        toast(`Outline: "${nowIt.text}" is past its ${nowIt.min} min.`)
-      }
-    }
-    check()
-    const t = setInterval(check, 30000)
-    return () => clearInterval(t)
-  }, [isAdmin, phase, ended, meeting]) // eslint-disable-line react-hooks/exhaustive-deps
-
   // ── Shared class timer + random student picker (both live on the meeting
   // doc - professor-only writes, everyone reads through the meetings
   // listener; no new Firestore channel). A 1s tick runs ONLY while a
@@ -644,6 +623,29 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   }, [ended]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const ready = phase === 'ready' && !ended
+
+  // Timed agenda: when the outline's current item runs past its minutes, the
+  // PROFESSOR gets one soft chime + toast per item. Students never see or
+  // hear pacing pressure. (Placed after isAdmin/ended above - the deps array
+  // is read at render time, so it must not reference consts declared later.)
+  const chimedRef = useRef(new Set())
+  useEffect(() => {
+    if (!isAdmin || phase !== 'ready' || ended) return undefined
+    const check = () => {
+      const o = meeting?.outline
+      const nowIt = (o?.items || []).find(i => !i.done)
+      if (!nowIt || !nowIt.min || !o?.nowAt || chimedRef.current.has(nowIt.id)) return
+      if (Date.now() - o.nowAt > nowIt.min * 60000) {
+        chimedRef.current.add(nowIt.id)
+        playMeetingSound('hand')
+        toast(`Outline: "${nowIt.text}" is past its ${nowIt.min} min.`)
+      }
+    }
+    check()
+    const t = setInterval(check, 30000)
+    return () => clearInterval(t)
+  }, [isAdmin, phase, ended, meeting]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const canPip = typeof document !== 'undefined' && !!document.pictureInPictureEnabled
 
   function popOut() {
