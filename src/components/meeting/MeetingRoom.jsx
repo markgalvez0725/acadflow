@@ -5,7 +5,7 @@ import {
   Users, AlertTriangle, Loader2, CheckCircle, Minimize2, Maximize2,
   PictureInPicture2, CircleDot, Square, Hand, Pin, PinOff, Volume2,
   MessageSquare, Smile, LogIn, LogOut, UserX, MoreHorizontal, Pencil,
-  List, Zap, Activity, X,
+  List, Zap, Activity, X, BarChart2,
 } from 'lucide-react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
@@ -19,6 +19,7 @@ import { playMeetingSound, preloadMeetingSounds } from '@/utils/meetingSounds'
 import MeetingChat from '@/components/meeting/MeetingChat'
 import MeetingPeople from '@/components/meeting/MeetingPeople'
 import MeetingOutline from '@/components/meeting/MeetingOutline'
+import MeetingPoll from '@/components/meeting/MeetingPoll'
 import PreJoinPanel from '@/components/meeting/PreJoinPanel'
 import Whiteboard from '@/components/meeting/Whiteboard'
 import EmojiIcon from '@/components/primitives/EmojiIcon'
@@ -273,6 +274,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   const [outlineOpen, setOutlineOpen] = useState(false)
   const [diagOpen, setDiagOpen] = useState(false)
   const [diag, setDiag] = useState(null)
+  const [pollComposer, setPollComposer] = useState(false)
   // Phone control bar: only mic, camera, More, End fit; everything else
   // lives in the More sheet (CSS decides - desktop never sees the button).
   const [moreOpen, setMoreOpen] = useState(false)
@@ -282,6 +284,27 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   const [boardOpen, setBoardOpen] = useState(false)
   const wbStore = useRef(null)
   if (!wbStore.current) wbStore.current = { ops: [], redo: [] }
+
+  // Timed agenda: when the outline's current item runs past its minutes, the
+  // PROFESSOR gets one soft chime + toast per item. Students never see or
+  // hear pacing pressure.
+  const chimedRef = useRef(new Set())
+  useEffect(() => {
+    if (!isAdmin || phase !== 'ready' || ended) return undefined
+    const check = () => {
+      const o = meeting?.outline
+      const nowIt = (o?.items || []).find(i => !i.done)
+      if (!nowIt || !nowIt.min || !o?.nowAt || chimedRef.current.has(nowIt.id)) return
+      if (Date.now() - o.nowAt > nowIt.min * 60000) {
+        chimedRef.current.add(nowIt.id)
+        playMeetingSound('hand')
+        toast(`Outline: "${nowIt.text}" is past its ${nowIt.min} min.`)
+      }
+    }
+    check()
+    const t = setInterval(check, 30000)
+    return () => clearInterval(t)
+  }, [isAdmin, phase, ended, meeting]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Refresh the connection-details card only while it is open (its numbers
   // come from the stats the engine already polls - no extra network work).
@@ -1140,6 +1163,17 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
               </p>
             </div>
           )}
+          {ready && !ended && (
+            <MeetingPoll
+              db={db}
+              roomId={meeting?.id}
+              self={self}
+              isAdmin={isAdmin}
+              composerOpen={pollComposer}
+              onCloseComposer={() => setPollComposer(false)}
+              toast={toast}
+            />
+          )}
           {shieldWarn && !ended && (
             <div className="mr-shield-warn" role="alert">
               <AlertTriangle size={15} />
@@ -1446,6 +1480,12 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
                 <span>Whiteboard</span>
               </button>
             )}
+            {isAdmin && (
+              <button className="mr-more-item" onClick={() => { setMoreOpen(false); setPollComposer(true) }}>
+                <span className="mr-ctl"><BarChart2 size={18} /></span>
+                <span>Poll</span>
+              </button>
+            )}
             {isAdmin && recordingSupported() && (
               <button
                 className="mr-more-item"
@@ -1538,6 +1578,15 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
                   title="Open the whiteboard - draw and present it to the class"
                 >
                   <Pencil size={18} />
+                </button>
+              )}
+              {isAdmin && (
+                <button
+                  className={`mr-ctl mr-ctl-x${pollComposer ? ' mr-ctl-accent' : ''}`}
+                  onClick={() => setPollComposer(o => !o)}
+                  title="Ask the class a quick poll"
+                >
+                  <BarChart2 size={18} />
                 </button>
               )}
               {isAdmin && recordingSupported() && (

@@ -294,6 +294,42 @@ export function rtcListenChat(db, roomId, cb) {
   )
 }
 
+// ── Quick poll ───────────────────────────────────────────────────────────────
+// One live poll per room at rtcRooms/{id}/polls/current: the professor
+// overwrites it to ask, students write only their own votes.{uid} slot, and
+// everyone renders the same doc. Votes are keyed by uid but never shown with
+// names - anonymous to the class by design. The doc is transient like chat
+// (purged by rtcCleanupRoom at End class).
+export async function rtcSetPoll(db, roomId, poll) {
+  await fbWithTimeout(setDoc(doc(db, 'rtcRooms', roomId, 'polls', 'current'), {
+    id: poll.id,
+    q: String(poll.q || '').slice(0, 140),
+    opts: (poll.opts || []).slice(0, 4).map(o => String(o).slice(0, 40)),
+    at: Date.now(),
+    endsAt: poll.endsAt || 0,
+    closed: false,
+    votes: {},
+  }))
+}
+
+export async function rtcVotePoll(db, roomId, uid, idx) {
+  if (!uid) return
+  await fbWithTimeout(updateDoc(doc(db, 'rtcRooms', roomId, 'polls', 'current'), {
+    ['votes.' + uid]: idx,
+  }))
+}
+
+export async function rtcClosePoll(db, roomId) {
+  await fbWithTimeout(updateDoc(doc(db, 'rtcRooms', roomId, 'polls', 'current'), { closed: true }))
+}
+
+export function rtcListenPoll(db, roomId, cb) {
+  return resilientSnapshot(
+    () => doc(db, 'rtcRooms', roomId, 'polls', 'current'),
+    snap => cb(snap.exists() ? snap.data() : null),
+  )
+}
+
 // ── Meeting transcript (LEGACY READ) ────────────────────────────────────────
 // Live in-meeting transcription was removed (2026-07-02); classes recorded
 // before that still have `rtcRooms/{id}/transcript` docs, and this fetch is
@@ -332,12 +368,13 @@ export async function rtcSaveTranscript(db, roomId, lines) {
 export async function rtcCleanupRoom(db, roomId) {
   if (!db || !roomId) return
   try {
-    const [parts, signals, chat] = await Promise.all([
+    const [parts, signals, chat, polls] = await Promise.all([
       getDocs(roomCol(db, roomId, 'participants')),
       getDocs(roomCol(db, roomId, 'signals')),
       getDocs(roomCol(db, roomId, 'chat')),
+      getDocs(roomCol(db, roomId, 'polls')),
     ])
-    const refs = [...parts.docs, ...signals.docs, ...chat.docs].map(d => d.ref)
+    const refs = [...parts.docs, ...signals.docs, ...chat.docs, ...polls.docs].map(d => d.ref)
     for (let i = 0; i < refs.length; i += 400) {
       const batch = writeBatch(db)
       refs.slice(i, i + 400).forEach(r => batch.delete(r))

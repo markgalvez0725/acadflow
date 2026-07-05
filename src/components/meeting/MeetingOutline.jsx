@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { X, List, Plus, Trash2, ExternalLink, CheckCircle, Circle } from 'lucide-react'
 
@@ -17,9 +17,18 @@ function hostLabel(url) {
 
 export default function MeetingOutline({ open, meeting, isAdmin, onPatch, onClose }) {
   const [draft, setDraft] = useState('')
+  const [minDraft, setMinDraft] = useState('')
   const [linkLabel, setLinkLabel] = useState('')
   const [linkUrl, setLinkUrl] = useState('')
   const [addLinkOpen, setAddLinkOpen] = useState(false)
+  // 30s heartbeat so the "N min left" pill on the current item stays honest
+  // without re-rendering the room (only ticks while the panel is open).
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    if (!open) return undefined
+    const t = setInterval(() => setTick(x => x + 1), 30000)
+    return () => clearInterval(t)
+  }, [open])
   if (!open) return null
 
   const outline = meeting?.outline || {}
@@ -27,14 +36,31 @@ export default function MeetingOutline({ open, meeting, isAdmin, onPatch, onClos
   const links = Array.isArray(outline.links) ? outline.links : []
   const nowId = (items.find(i => !i.done) || {}).id
 
-  const save = next => onPatch({ outline: { items, links, ...next } })
+  // Stamp nowAt whenever the CURRENT item changes (an item was checked off,
+  // added first, or removed) - it anchors the per-item countdown.
+  const save = next => {
+    const nextItems = next.items || items
+    const newNow = (nextItems.find(i => !i.done) || {}).id
+    const stamp = newNow !== nowId ? { nowAt: Date.now() } : {}
+    onPatch({ outline: { items, links, nowAt: outline.nowAt || 0, ...stamp, ...next } })
+  }
 
   function addItem(e) {
     e.preventDefault()
     const text = draft.trim().slice(0, 120)
     if (!text || items.length >= MAX_ITEMS) return
-    save({ items: [...items, { id: uuidv4(), text, done: false }] })
+    const min = Math.min(120, Math.max(0, parseInt(minDraft, 10) || 0))
+    save({ items: [...items, { id: uuidv4(), text, done: false, ...(min ? { min } : {}) }] })
     setDraft('')
+    setMinDraft('')
+  }
+
+  function minPill(it) {
+    if (!it.min) return null
+    if (it.id !== nowId || !outline.nowAt) return <span className="mr-otl-min">{it.min} min</span>
+    const left = Math.round((it.min * 60000 - (Date.now() - outline.nowAt)) / 60000)
+    if (left >= 0) return <span className="mr-otl-min live">{left} min left</span>
+    return <span className="mr-otl-min over">{-left} min over</span>
   }
 
   function addLink(e) {
@@ -73,6 +99,7 @@ export default function MeetingOutline({ open, meeting, isAdmin, onPatch, onClos
               {it.done ? <CheckCircle size={16} /> : <Circle size={16} />}
             </button>
             <span className="mr-otl-text">{it.text}</span>
+            {minPill(it)}
             {it.id === nowId && <em className="mr-otl-now">now</em>}
             {isAdmin && (
               <button
@@ -113,6 +140,14 @@ export default function MeetingOutline({ open, meeting, isAdmin, onPatch, onClos
               placeholder="Add an agenda item…"
               maxLength={120}
               aria-label="New agenda item"
+            />
+            <input
+              value={minDraft}
+              onChange={e => setMinDraft(e.target.value.replace(/[^0-9]/g, '').slice(0, 3))}
+              placeholder="min"
+              inputMode="numeric"
+              aria-label="Minutes for this item (optional)"
+              style={{ flex: '0 0 52px', textAlign: 'center' }}
             />
             <button type="submit" disabled={!draft.trim()} aria-label="Add item"><Plus size={15} /></button>
           </form>
