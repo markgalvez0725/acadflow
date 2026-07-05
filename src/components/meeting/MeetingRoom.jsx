@@ -78,6 +78,18 @@ function loadSelfView() {
     return { hidden: false, corner: 'br' }
   }
 }
+// Mini player position: which viewport corner the minimized card docks to.
+// Per device, survives across classes and reloads.
+const MINI_POS_KEY = 'acadflow_minipos'
+function loadMiniCorner() {
+  try {
+    const v = localStorage.getItem(MINI_POS_KEY)
+    return ['tl', 'tr', 'bl', 'br'].includes(v) ? v : 'br'
+  } catch {
+    return 'br'
+  }
+}
+
 const MEET_REACTIONS = ['❤️', '👍', '🎉', '👏', '😂', '😮', '😢']
 
 // Meet-style fill: pick the column count whose stretched cells give the
@@ -352,6 +364,54 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
       + (b.left - m.left + b.width / 2 < m.width / 2 ? 'l' : 'r')
     box.style.left = box.style.top = box.style.right = box.style.bottom = ''
     setPipView(v => ({ ...v, corner }))
+  }
+
+  // Minimized mini player: same drag mechanics as the self-view, but bounded
+  // by the whole viewport (the card is fixed on document.body, floating over
+  // whatever page is behind it). Releases snap to the nearest corner.
+  const [miniCorner, setMiniCorner] = useState(loadMiniCorner)
+  const miniBoxRef = useRef(null)
+  const miniDragRef = useRef(null)
+  const miniMovedRef = useRef(false)
+  useEffect(() => {
+    try { localStorage.setItem(MINI_POS_KEY, miniCorner) } catch { /* nicety */ }
+  }, [miniCorner])
+  function onMiniDown(e) {
+    if (e.target.closest('button')) return
+    const box = miniBoxRef.current
+    if (!box) return
+    const b = box.getBoundingClientRect()
+    miniDragRef.current = { dx: e.clientX - b.left, dy: e.clientY - b.top, x0: e.clientX, y0: e.clientY, moved: false }
+    try { box.setPointerCapture(e.pointerId) } catch { /* older engines */ }
+  }
+  function onMiniMove(e) {
+    const d = miniDragRef.current
+    const box = miniBoxRef.current
+    if (!d || !box) return
+    if (!d.moved && Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < 6) return
+    d.moved = true
+    const b = box.getBoundingClientRect()
+    const x = Math.max(4, Math.min(window.innerWidth - b.width - 4, e.clientX - d.dx))
+    const y = Math.max(4, Math.min(window.innerHeight - b.height - 4, e.clientY - d.dy))
+    box.style.left = `${Math.round(x)}px`
+    box.style.top = `${Math.round(y)}px`
+    box.style.right = 'auto'
+    box.style.bottom = 'auto'
+  }
+  function onMiniUp() {
+    const d = miniDragRef.current
+    miniDragRef.current = null
+    const box = miniBoxRef.current
+    if (!d || !d.moved || !box) return
+    // Suppress only the click synthesized by THIS gesture (it fires before
+    // the timeout runs), so the video's tap-to-expand never triggers on a drop.
+    miniMovedRef.current = true
+    setTimeout(() => { miniMovedRef.current = false }, 0)
+    const b = box.getBoundingClientRect()
+    const corner = (b.top + b.height / 2 < window.innerHeight / 2 ? 't' : 'b')
+      + (b.left + b.width / 2 < window.innerWidth / 2 ? 'l' : 'r')
+    box.style.left = box.style.top = box.style.right = box.style.bottom = ''
+    setMiniCorner(corner)
   }
   // Phone control bar: only mic, camera, More, End fit; everything else
   // lives in the More sheet (CSS decides - desktop never sees the button).
@@ -1188,9 +1248,21 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
       : phase === 'removed' ? 'Removed from class'
       : phase === 'replaced' ? 'Joined somewhere else'
       : null
-    const expand = () => onMinimize?.(false)
+    const expand = () => {
+      if (miniMovedRef.current) return // that click was the end of a drag
+      onMinimize?.(false)
+    }
     const mini = (
-      <div className="mr-mini" ref={rootRef} role="dialog" aria-label="Live class mini player">
+      <div
+        className={`mr-mini mr-mpos-${miniCorner}`}
+        ref={el => { rootRef.current = el; miniBoxRef.current = el }}
+        onPointerDown={onMiniDown}
+        onPointerMove={onMiniMove}
+        onPointerUp={onMiniUp}
+        onPointerCancel={onMiniUp}
+        role="dialog"
+        aria-label="Live class mini player"
+      >
         <div className="mr-mini-video" onClick={expand} title="Expand the class">
           {ready && focusPeer?.stream ? (
             <MiniVideo stream={focusPeer.stream} />

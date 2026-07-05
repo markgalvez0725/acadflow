@@ -7453,7 +7453,15 @@ html[data-glass="on"][data-theme="dark"] body::before {
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    touch-action: none; /* the whole card is draggable */
+    cursor: grab;
   }
+  .mr-mini:active { cursor: grabbing; }
+  /* Corner docks: drags snap to the nearest viewport corner. */
+  .mr-mini.mr-mpos-tl { top: 14px; left: 14px; right: auto; bottom: auto; }
+  .mr-mini.mr-mpos-tr { top: 14px; right: 14px; left: auto; bottom: auto; }
+  .mr-mini.mr-mpos-bl { bottom: 14px; left: 14px; right: auto; top: auto; }
+  .mr-mini.mr-mpos-br { bottom: 14px; right: 14px; left: auto; top: auto; }
   .mr-mini-video {
     position: relative;
     aspect-ratio: 16 / 9;
@@ -7556,6 +7564,16 @@ html[data-glass="on"][data-theme="dark"] body::before {
       /* clear the student mobile bottom nav */
       bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
     }
+    .mr-mini.mr-mpos-tl,
+    .mr-mini.mr-mpos-bl { left: 10px; }
+    .mr-mini.mr-mpos-tr,
+    .mr-mini.mr-mpos-br { right: 10px; }
+    /* top corners clear the notch / status bar */
+    .mr-mini.mr-mpos-tl,
+    .mr-mini.mr-mpos-tr { top: calc(env(safe-area-inset-top, 0px) + 10px); }
+    /* bottom corners keep clearing the student mobile bottom nav */
+    .mr-mini.mr-mpos-bl,
+    .mr-mini.mr-mpos-br { bottom: calc(env(safe-area-inset-bottom, 0px) + 72px); }
   }
 }
 
