@@ -63,6 +63,21 @@ function fmtElapsed(ms) {
 
 const TILE_GAP = 8
 const TILE_MIN_W = 110
+
+// Floating self-view preferences: which corner it sits in and whether it is
+// folded into the little reopen handle. Per device, survives across classes.
+const SELF_VIEW_KEY = 'acadflow_selfview'
+function loadSelfView() {
+  try {
+    const v = JSON.parse(localStorage.getItem(SELF_VIEW_KEY) || '{}')
+    return {
+      hidden: v.hidden === true,
+      corner: ['tl', 'tr', 'bl', 'br'].includes(v.corner) ? v.corner : 'br',
+    }
+  } catch {
+    return { hidden: false, corner: 'br' }
+  }
+}
 const MEET_REACTIONS = ['❤️', '👍', '🎉', '👏', '😂', '😮', '😢']
 
 // Meet-style fill: pick the column count whose stretched cells give the
@@ -289,6 +304,55 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   // Class tools popup: one bar button holding the professor's teaching tools
   // (whiteboard, poll, timer, picker, record) so the bar stays scannable.
   const [toolsOpen, setToolsOpen] = useState(false)
+
+  // Floating self-view: draggable to any corner and foldable into a small
+  // reopen handle; both remembered per device. Dragging writes left/top on
+  // the element DIRECTLY (React never sets those keys, so its style diffing
+  // leaves them alone mid-drag even when the room re-renders); on release
+  // the inline position is cleared and a corner class takes over.
+  const [pipView, setPipView] = useState(loadSelfView)
+  const pipBoxRef = useRef(null)
+  const pipDragRef = useRef(null)
+  useEffect(() => {
+    try { localStorage.setItem(SELF_VIEW_KEY, JSON.stringify(pipView)) } catch { /* nicety */ }
+  }, [pipView])
+  function onPipDown(e) {
+    if (e.target.closest('button')) return
+    const box = pipBoxRef.current
+    if (!box) return
+    const b = box.getBoundingClientRect()
+    pipDragRef.current = { dx: e.clientX - b.left, dy: e.clientY - b.top, x0: e.clientX, y0: e.clientY, moved: false }
+    try { box.setPointerCapture(e.pointerId) } catch { /* older engines */ }
+  }
+  function onPipMove(e) {
+    const d = pipDragRef.current
+    const box = pipBoxRef.current
+    const main = mainRef.current
+    if (!d || !box || !main) return
+    if (!d.moved && Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < 6) return
+    d.moved = true
+    const m = main.getBoundingClientRect()
+    const b = box.getBoundingClientRect()
+    const x = Math.max(4, Math.min(m.width - b.width - 4, e.clientX - m.left - d.dx))
+    const y = Math.max(4, Math.min(m.height - b.height - 4, e.clientY - m.top - d.dy))
+    box.style.left = `${Math.round(x)}px`
+    box.style.top = `${Math.round(y)}px`
+    box.style.right = 'auto'
+    box.style.bottom = 'auto'
+  }
+  function onPipUp() {
+    const d = pipDragRef.current
+    pipDragRef.current = null
+    const box = pipBoxRef.current
+    const main = mainRef.current
+    if (!d || !d.moved || !box || !main) return
+    const m = main.getBoundingClientRect()
+    const b = box.getBoundingClientRect()
+    const corner = (b.top - m.top + b.height / 2 < m.height / 2 ? 't' : 'b')
+      + (b.left - m.left + b.width / 2 < m.width / 2 ? 'l' : 'r')
+    box.style.left = box.style.top = box.style.right = box.style.bottom = ''
+    setPipView(v => ({ ...v, corner }))
+  }
   // Phone control bar: only mic, camera, More, End fit; everything else
   // lives in the More sheet (CSS decides - desktop never sees the button).
   const [moreOpen, setMoreOpen] = useState(false)
@@ -1574,14 +1638,34 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
           )}
 
           {/* Floating self-view: your camera never occupies a stage tile. On a
-              phone the card itself goes portrait to match the camera frame. */}
-          {ready && (
+              phone the card itself goes portrait to match the camera frame.
+              Draggable to any corner; the arrows button folds it into a small
+              handle that reopens it in one tap. Hidden or not, the camera
+              keeps sending - only this preview is tucked away. */}
+          {ready && pipView.hidden && (
+            <button
+              className={`mr-pip-handle mr-pos-${pipView.corner}`}
+              onClick={() => setPipView(v => ({ ...v, hidden: false }))}
+              aria-label="Show your self-view"
+              title="Show your self-view"
+            >
+              <span className="mr-pip-handle-you">You</span>
+              {!micOn && <MicOff size={12} aria-hidden="true" />}
+              <b aria-hidden="true">&lsaquo;&thinsp;&rsaquo;</b>
+            </button>
+          )}
+          {ready && !pipView.hidden && (
             <div
-              className={`mr-pip${speaking.has('self') ? ' mr-tile-speaking' : ''}`}
+              ref={pipBoxRef}
+              className={`mr-pip mr-pos-${pipView.corner}${isAdmin ? ' mr-pip-lg' : ''}${speaking.has('self') ? ' mr-tile-speaking' : ''}`}
               data-peer="self"
+              onPointerDown={onPipDown}
+              onPointerMove={onPipMove}
+              onPointerUp={onPipUp}
+              onPointerCancel={onPipUp}
               style={!sharing && camOn && localStream && selfRatio > 0
                 ? (selfRatio < 1
-                  ? { width: 'auto', height: 150, aspectRatio: String(Math.max(selfRatio, 9 / 16)) }
+                  ? { width: 'auto', height: isAdmin ? 220 : 150, aspectRatio: String(Math.max(selfRatio, 9 / 16)) }
                   : { aspectRatio: String(Math.min(selfRatio, 16 / 9)) })
                 : undefined}
             >
@@ -1615,6 +1699,14 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
                 aria-label="Connection details"
               >
                 <span className={`mr-qdot mr-qdot-${selfQuality}`} />
+              </button>
+              <button
+                className="mr-pip-hide"
+                onClick={() => setPipView(v => ({ ...v, hidden: true }))}
+                aria-label="Hide your self-view"
+                title="Hide your self-view"
+              >
+                &rsaquo;&thinsp;&lsaquo;
               </button>
               <span className="mr-pip-label">You</span>
               {!micOn && <span className="mr-mic-off"><MicOff size={12} /></span>}

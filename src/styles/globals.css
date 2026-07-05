@@ -9166,3 +9166,71 @@ html[data-glass="on"][data-theme="dark"] body::before {
     .mr-grp { padding: 3px; gap: 3px; }
   }
 }
+
+/* ── Meeting: draggable, hidable self-view ──────────────────────────────── */
+@layer components {
+  /* Corner slots shared by the self-view frame and its reopen handle. Top
+     corners clear the banner/chip strip. */
+  .mr-pos-tl { left: 8px; top: 56px; right: auto; bottom: auto; }
+  .mr-pos-tr { right: 8px; top: 56px; left: auto; bottom: auto; }
+  .mr-pos-bl { left: 8px; bottom: 8px; right: auto; top: auto; }
+  .mr-pos-br { right: 8px; bottom: 8px; left: auto; top: auto; }
+
+  .mr-pip {
+    touch-action: none;
+    cursor: grab;
+  }
+  .mr-pip:active { cursor: grabbing; }
+  /* Professor: a real monitor, not a thumbnail. */
+  .mr-pip-lg { width: 280px; }
+
+  .mr-pip-hide {
+    position: absolute;
+    right: 6px;
+    top: 6px;
+    z-index: 5;
+    background: rgba(0, 0, 0, 0.45);
+    border: none;
+    border-radius: 999px;
+    color: #e8eaed;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    line-height: 1;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-family: inherit;
+    opacity: 0.8;
+  }
+  .mr-pip-hide:hover { opacity: 1; background: rgba(0, 0, 0, 0.65); }
+
+  .mr-pip-handle {
+    position: absolute;
+    z-index: 25;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: #31363f;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 999px;
+    color: #e8eaed;
+    font-size: 12px;
+    font-family: inherit;
+    padding: 7px 12px;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  }
+  .mr-pip-handle:hover { background: #3c4043; }
+  .mr-pip-handle b {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    line-height: 1;
+  }
+  .mr-pip-handle svg { color: #f28b82; }
+
+  @media (max-width: 560px) {
+    .mr-pip-lg { width: 150px; }
+    .mr-pos-tl, .mr-pos-tr { top: 50px; }
+  }
+}
