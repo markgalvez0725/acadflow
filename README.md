@@ -2,7 +2,7 @@
 
 **Academic Management System** for admins (teachers/staff) and students - built with React, Vite, and Firebase Firestore.
 
-**Version 2.7.0**
+**Version 2.8.0**
 
 ---
 
@@ -28,6 +28,7 @@ AcadFlow is a web-based school portal that provides a unified platform to manage
 - **Messages** - one-on-one and broadcast messaging with @mentions, smart-lock for sensitive messages, and screenshot logging
 - **Feedback Hub** - collect and review student feedback submissions
 - **Audit Log** - chronological record of sensitive admin/account actions
+- **System Reports** - on-device usage telemetry (page loads, errors, meeting quality, save failures) with PDF/Excel reports, plus a Who's online card showing who is in the portal right now, with a hover popover of each person's recent activity trail
 - **Notifications** - system-wide alerts and activity updates
 - **Settings** - admin credentials + recovery PIN, equivalence scale, semester, late-penalty policy, notifications, backup/restore, Firebase config
 
@@ -47,7 +48,7 @@ AcadFlow is a web-based school portal that provides a unified platform to manage
 - **Notifications** - personal notification feed with badge for unread items
 
 ### General
-- Real-time sync via Firebase Firestore
+- Real-time sync via Firebase Firestore; live class signaling (presence, WebRTC handshakes, in-call chat, polls, questions) rides the Firebase Realtime Database, which is bandwidth-metered instead of per-operation, so a full class hour never eats the daily Firestore quota - with an automatic per-meeting fallback to Firestore when RTDB is unreachable
 - Built for weak networks (Smart/Globe mobile data): failed screen loads retry themselves with a Try again fallback, joins have timeouts instead of infinite spinners, meeting links self-heal with backoff (including instant healing on wifi/mobile-data switches), connection quality dots are measurement-backed, and writes (quiz submissions, uploads, comments) survive flaky signal without duplicating
 - Push notifications (Firebase Cloud Messaging) on grade posts, activity grading, announcements, and deadline reminders - fired both client-side (while open) and via a Vercel Cron job (while closed)
 - On-device AI ($0, no data leaves the browser): grade-import verification, distractor auditing, excuse triage, identity/impersonation checks, and answer-key improvement, with optional Gemini-backed server endpoints that degrade gracefully when unconfigured
@@ -66,7 +67,7 @@ AcadFlow is a web-based school portal that provides a unified platform to manage
 | Framework | React 19 + Vite 6 |
 | Routing | Role-based state routing (no URL router - tab state in `UIContext`) |
 | Styling | Tailwind CSS v4 |
-| Data | Firebase Firestore (modular SDK v10, long-poll) |
+| Data | Firebase Firestore (modular SDK v10, long-poll) + Firebase Realtime Database (live class signaling) |
 | Server | Vercel serverless functions in `api/` (Node built-ins only) - AI, web push, password reset, cron reminders |
 | Exports | SheetJS + ExcelJS (Excel), jsPDF + AutoTable (PDF) via CDN |
 

@@ -4,9 +4,21 @@
 // features ships, so the "What's new" modal always reflects the current build.
 // User-facing copy: keep it plain, no em-dashes.
 
-export const APP_VERSION = '2.7.0'
+export const APP_VERSION = '2.8.0'
 
 export const CHANGELOG = [
+  {
+    version: '2.8.0',
+    date: 'July 2026',
+    title: 'Quota-proof classes and a live pulse of the portal',
+    changes: [
+      'Live classes moved their real-time chatter (joins, presence heartbeats, connection handshakes, in-call chat, polls, and the question queue) onto the Firebase Realtime Database, which is free for exactly this kind of traffic. A full class hour no longer eats into the daily database quota, so mid-class "quota exceeded" freezes are gone.',
+      'The switch is automatic and safe: when a class goes live the app quietly tests the new database first and every student locks to the same path. If it is ever unreachable, the class runs the old way instead, and older meetings are untouched.',
+      'Big background savings across the whole app: meeting presence updates are six times lighter, student devices no longer live-stream the entire roster (they keep a live line only on their own record and refresh the class list at most once a day), and telemetry writes are batched further apart.',
+      'System Reports gained a Who\'s online card: see who is in the portal right now with profile avatars, and hover a person to see their recent activity trail - sign-ins, tab visits, submissions, quiz takes, class joins and leaves, messages. It refreshes on its own while the tab is open.',
+      'Class rooms heal harder: room listeners re-attach themselves after a network drop instead of going silent, and the student roster fetch retries automatically when the connection comes back.',
+    ],
+  },
   {
     version: '2.7.0',
     date: 'July 2026',
