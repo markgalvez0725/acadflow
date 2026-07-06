@@ -1215,7 +1215,10 @@ export function DataProvider({ children }) {
     // students can join. The End-class purge is best-effort; this catches
     // whatever it missed, so old chat can never greet a new class.
     if (meeting.provider === 'inapp') { try { await rtcCleanupRoom(dbRef.current, meeting.id) } catch { /* best-effort */ } }
-    await fbStartMeeting(dbRef.current, meeting.id)
+    const sig = await fbStartMeeting(dbRef.current, meeting.id, meeting.provider)
+    // Mirror status + signaling mode locally: the professor opens the room
+    // right away, before the snapshot echo delivers the stamped doc.
+    setMeetings(prev => prev.map(m => (m.id === meeting.id ? { ...m, status: 'live', ...(sig ? { sig } : {}) } : m)))
     await fbPushMeetingNotifs(dbRef.current, meeting, students, 'meeting_live')
   }, [students])
 
@@ -1258,8 +1261,8 @@ export function DataProvider({ children }) {
       }
       const adopted = { ...due, ...patch }
       if (adopted.provider === 'inapp') { try { await rtcCleanupRoom(dbRef.current, adopted.id) } catch { /* best-effort */ } }
-      await fbStartMeeting(dbRef.current, adopted.id)
-      const live = { ...adopted, status: 'live' }
+      const sig = await fbStartMeeting(dbRef.current, adopted.id, adopted.provider)
+      const live = { ...adopted, status: 'live', ...(sig ? { sig } : {}) }
       setMeetings(prev => prev.map(m => (m.id === live.id ? live : m)))
       await fbPushMeetingNotifs(dbRef.current, live, students, 'meeting_live')
       return live
@@ -1269,8 +1272,8 @@ export function DataProvider({ children }) {
     // New uuid = clean room, but purge anyway: belt and braces against any
     // future id-reuse path (same guarantee startMeeting gives scheduled docs).
     if (meeting.provider === 'inapp') { try { await rtcCleanupRoom(dbRef.current, meeting.id) } catch { /* best-effort */ } }
-    await fbStartMeeting(dbRef.current, meeting.id)
-    const live = { ...meeting, status: 'live' }
+    const sig = await fbStartMeeting(dbRef.current, meeting.id, meeting.provider)
+    const live = { ...meeting, status: 'live', ...(sig ? { sig } : {}) }
     setMeetings(prev => [live, ...prev])
     await fbPushMeetingNotifs(dbRef.current, live, students, 'meeting_live')
     return live

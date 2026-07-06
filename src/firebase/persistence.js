@@ -820,12 +820,28 @@ export async function fbScheduleMeeting(db, meetingData) {
   return meeting;
 }
 
-export async function fbStartMeeting(db, meetingId) {
-  if (!db || !meetingId) return;
+// Bringing a meeting live also decides its signaling backend when it runs
+// in-app: probe the Realtime Database with a real write (cached per session,
+// ~5s worst case) and stamp the winner as `sig` on the meeting doc, so every
+// joiner uses the same backend. No RTDB instance / unpublished rules /
+// blocked network all downgrade to 'fs' - the original Firestore signaling.
+// Returns the sig value so callers can mirror it into optimistic local state
+// (the professor enters the room before the snapshot echo arrives).
+export async function fbStartMeeting(db, meetingId, provider) {
+  if (!db || !meetingId) return null;
+  let sig = null;
+  if (provider === 'inapp') {
+    try {
+      const { rtcProbe } = await import('./rtcRtdb');
+      sig = (await rtcProbe()) ? 'rtdb' : 'fs';
+    } catch { sig = 'fs'; }
+  }
   const { doc: fbDoc, updateDoc } = await import('firebase/firestore');
   await fbWithTimeout(updateDoc(fbDoc(db, 'onlineMeetings', meetingId), {
     status: 'live',
+    ...(sig ? { sig } : {}),
   }));
+  return sig;
 }
 
 export async function fbEndMeeting(db, meetingId) {

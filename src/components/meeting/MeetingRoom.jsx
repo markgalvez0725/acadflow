@@ -14,7 +14,7 @@ import { presEvent } from '@/utils/presence'
 import { useUI } from '@/context/UIContext'
 import useMeetingRoom from '@/hooks/useMeetingRoom'
 import {
-  ROOM_CAP, rtcListenChat, rtcSendChat,
+  ROOM_CAP, rtcListenChat, rtcSendChat, rtcSetMode, rtcRelease,
   rtcListenQuestions, rtcAskQuestion, rtcPlusQuestion, rtcAnswerQuestion, rtcDeleteQuestion,
 } from '@/firebase/rtc'
 import { recordingSupported, createMeetingRecorder } from '@/utils/meetingRecorder'
@@ -287,6 +287,17 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   const { db: dbRef, saveMeetingRecording, patchMeeting, students, classes, admin } = useData()
   const { toast } = useUI()
   const db = dbRef?.current || null
+  // Latch the room's signaling backend ONCE, from the live meeting doc's
+  // `sig` stamp, before any rtc call runs (render happens before child and
+  // hook effects). Latching - not live-deriving - means a late snapshot echo
+  // can never flip the backend mid-join. Meetings without the stamp (started
+  // before the RTDB hybrid shipped, or the professor's probe failed) run on
+  // the original Firestore path.
+  const sigModeRef = useRef('')
+  if (!sigModeRef.current && meeting?.status === 'live') {
+    sigModeRef.current = meeting.sig === 'rtdb' ? 'rtdb' : 'fs'
+  }
+  rtcSetMode(sigModeRef.current || (meeting?.sig === 'rtdb' ? 'rtdb' : 'fs'))
   const {
     phase, errorMsg, peers, localStream, micOn, camOn, sharing, boardSharing, canShare,
     screenStream, setRecordingFlag, setHand, lowerHand, sendReaction, setChatLock,
@@ -798,6 +809,8 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
       const durMin = Math.round((Date.now() - t.at) / 60000)
       presEvent('leave', `Left class "${t.ttl || 'Online class'}" (${durMin} min)`)
       teleMeet({ id: t.mid, dur: durMin, rec: t.recon, q: t.q, relay, peers: t.peers })
+      // Free the RTDB socket (100-connection free cap) once the room closes.
+      try { rtcRelease() } catch { /* not configured */ }
     }
   }, [])
 

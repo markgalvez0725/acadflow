@@ -32,6 +32,7 @@ let _initializing = false;
 
 export function getDb() { return _db; }
 export function getFbAuth() { return _auth; }
+export function getFbApp() { return _app; }
 
 /**
  * Re-verify the signed-in user's password via Firebase Auth reauthentication,

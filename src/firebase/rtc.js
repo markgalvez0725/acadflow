@@ -23,6 +23,20 @@ import {
   collection, query, where, onSnapshot, writeBatch,
 } from 'firebase/firestore'
 import { fbWithTimeout } from './firebaseInit'
+import * as rtdb from './rtcRtdb'
+
+// ── Signaling backend dispatch ──────────────────────────────────────────────
+// A room runs on ONE of two backends and every participant must agree:
+//   'fs'   - the original Firestore rtcRooms layer below (default)
+//   'rtdb' - the Realtime Database twin in rtcRtdb.js (free-metered ops)
+// The professor's client probes RTDB at go-live and stamps the winner on the
+// meeting doc as `sig`; MeetingRoom latches that value into rtcSetMode()
+// before any signaling call, so mixed-backend rooms cannot happen. Meetings
+// without the field (started before this shipped, or probe failed) stay 'fs'.
+let _sigMode = 'fs'
+export function rtcSetMode(mode) { _sigMode = mode === 'rtdb' ? 'rtdb' : 'fs' }
+export const rtcProbe = rtdb.rtcProbe
+export const rtcRelease = rtdb.rtdbRelease
 
 // Mesh topology: every participant uploads their stream to every other one,
 // so bandwidth grows with the head count. The room holds a full class (50,
@@ -142,11 +156,13 @@ const roomCol = (db, roomId, sub) => collection(db, 'rtcRooms', roomId, sub)
 // One-shot roster read used for the join-time cap check and the initiator
 // decision (who was already in the room when I arrived).
 export async function rtcFetchParticipants(db, roomId) {
+  if (_sigMode === 'rtdb') return rtdb.rtcFetchParticipants(roomId)
   const snap = await fbWithTimeout(getDocs(roomCol(db, roomId, 'participants')))
   return snap.docs.map(d => d.data())
 }
 
 export async function rtcJoinRoom(db, roomId, peer) {
+  if (_sigMode === 'rtdb') return rtdb.rtcJoinRoom(roomId, peer)
   const data = {
     peerId: peer.peerId,
     uid: peer.uid || '',
@@ -167,6 +183,7 @@ export async function rtcJoinRoom(db, roomId, peer) {
 // Returns true on success so callers that CARE (the heartbeat) can retry;
 // state-badge callers ignore the result as before.
 export async function rtcUpdateParticipant(db, roomId, peerId, patch) {
+  if (_sigMode === 'rtdb') return rtdb.rtcUpdateParticipant(roomId, peerId, patch)
   try {
     await updateDoc(doc(db, 'rtcRooms', roomId, 'participants', peerId), {
       lastSeen: Date.now(),
@@ -177,6 +194,7 @@ export async function rtcUpdateParticipant(db, roomId, peerId, patch) {
 }
 
 export async function rtcLeaveRoom(db, roomId, peerId) {
+  if (_sigMode === 'rtdb') return rtdb.rtcLeaveRoom(roomId, peerId)
   try { await deleteDoc(doc(db, 'rtcRooms', roomId, 'participants', peerId)) } catch { /* best-effort */ }
   // Drop any signals still addressed to me so the room stays clean.
   try {
@@ -192,6 +210,7 @@ export async function rtcLeaveRoom(db, roomId, peerId) {
 // everyone sees the person leave immediately instead of waiting out the
 // stale window. Best-effort on top of rtcLeaveRoom, never instead of it.
 export function rtcLeaveBeacon(db, roomId, peerId, idToken) {
+  if (_sigMode === 'rtdb') return rtdb.rtcLeaveBeacon(roomId, peerId, idToken)
   try {
     const pid = db?.app?.options?.projectId
     if (!pid || typeof fetch === 'undefined') return
@@ -207,6 +226,7 @@ export function rtcLeaveBeacon(db, roomId, peerId, idToken) {
 }
 
 export async function rtcSendSignal(db, roomId, { to, from, type, data }) {
+  if (_sigMode === 'rtdb') return rtdb.rtcSendSignal(roomId, { to, from, type, data })
   const payload = { to, from, type, data: JSON.stringify(data), createdAt: Date.now() }
   // A dropped offer/answer/ICE stalls that link until the next heal cycle,
   // and network flaps are exactly when these messages matter - worth three
@@ -248,6 +268,7 @@ function resilientSnapshot(makeQuery, onData) {
 }
 
 export function rtcListenParticipants(db, roomId, cb) {
+  if (_sigMode === 'rtdb') return rtdb.rtcListenParticipants(roomId, cb)
   return resilientSnapshot(
     () => roomCol(db, roomId, 'participants'),
     snap => cb(snap.docs.map(d => d.data())),
@@ -259,6 +280,7 @@ export function rtcListenParticipants(db, roomId, cb) {
 // re-attach after a listener error, unconsumed signals re-deliver as 'added'
 // - consumed ones were already deleted, so nothing double-processes.
 export function rtcListenSignals(db, roomId, peerId, handler) {
+  if (_sigMode === 'rtdb') return rtdb.rtcListenSignals(roomId, peerId, handler)
   let chain = Promise.resolve()
   return resilientSnapshot(
     () => query(roomCol(db, roomId, 'signals'), where('to', '==', peerId)),
@@ -285,6 +307,7 @@ export function rtcListenSignals(db, roomId, peerId, handler) {
 // professor's send-lock rides their PARTICIPANT doc (chatLock), like the
 // recording flag, so it needs no extra document.
 export async function rtcSendChat(db, roomId, msg) {
+  if (_sigMode === 'rtdb') return rtdb.rtcSendChat(roomId, msg)
   await fbWithTimeout(addDoc(roomCol(db, roomId, 'chat'), {
     at: Date.now(),
     uid: msg.uid || '',
@@ -295,6 +318,7 @@ export async function rtcSendChat(db, roomId, msg) {
 }
 
 export function rtcListenChat(db, roomId, cb) {
+  if (_sigMode === 'rtdb') return rtdb.rtcListenChat(roomId, cb)
   return resilientSnapshot(
     () => roomCol(db, roomId, 'chat'),
     snap => cb(snap.docs
@@ -310,6 +334,7 @@ export function rtcListenChat(db, roomId, cb) {
 // names - anonymous to the class by design. The doc is transient like chat
 // (purged by rtcCleanupRoom at End class).
 export async function rtcSetPoll(db, roomId, poll) {
+  if (_sigMode === 'rtdb') return rtdb.rtcSetPoll(roomId, poll)
   await fbWithTimeout(setDoc(doc(db, 'rtcRooms', roomId, 'polls', 'current'), {
     id: poll.id,
     q: String(poll.q || '').slice(0, 140),
@@ -322,6 +347,7 @@ export async function rtcSetPoll(db, roomId, poll) {
 }
 
 export async function rtcVotePoll(db, roomId, uid, idx) {
+  if (_sigMode === 'rtdb') return rtdb.rtcVotePoll(roomId, uid, idx)
   if (!uid) return
   await fbWithTimeout(updateDoc(doc(db, 'rtcRooms', roomId, 'polls', 'current'), {
     ['votes.' + uid]: idx,
@@ -329,10 +355,12 @@ export async function rtcVotePoll(db, roomId, uid, idx) {
 }
 
 export async function rtcClosePoll(db, roomId) {
+  if (_sigMode === 'rtdb') return rtdb.rtcClosePoll(roomId)
   await fbWithTimeout(updateDoc(doc(db, 'rtcRooms', roomId, 'polls', 'current'), { closed: true }))
 }
 
 export function rtcListenPoll(db, roomId, cb) {
+  if (_sigMode === 'rtdb') return rtdb.rtcListenPoll(roomId, cb)
   return resilientSnapshot(
     () => doc(db, 'rtcRooms', roomId, 'polls', 'current'),
     snap => cb(snap.exists() ? snap.data() : null),
@@ -346,6 +374,7 @@ export function rtcListenPoll(db, roomId, cb) {
 // still carry the uid (so +1 self-exclusion works) but the name is never
 // rendered. Transient like chat - purged with the room at End class.
 export async function rtcAskQuestion(db, roomId, { uid, name, text, anon }) {
+  if (_sigMode === 'rtdb') return rtdb.rtcAskQuestion(roomId, { uid, name, text, anon })
   await fbWithTimeout(addDoc(roomCol(db, roomId, 'questions'), {
     at: Date.now(),
     uid: uid || '',
@@ -358,6 +387,7 @@ export async function rtcAskQuestion(db, roomId, { uid, name, text, anon }) {
 }
 
 export async function rtcPlusQuestion(db, roomId, qId, uid) {
+  if (_sigMode === 'rtdb') return rtdb.rtcPlusQuestion(roomId, qId, uid)
   if (!uid) return
   await fbWithTimeout(updateDoc(doc(db, 'rtcRooms', roomId, 'questions', qId), {
     ['plus.' + uid]: 1,
@@ -365,14 +395,17 @@ export async function rtcPlusQuestion(db, roomId, qId, uid) {
 }
 
 export async function rtcAnswerQuestion(db, roomId, qId) {
+  if (_sigMode === 'rtdb') return rtdb.rtcAnswerQuestion(roomId, qId)
   await fbWithTimeout(updateDoc(doc(db, 'rtcRooms', roomId, 'questions', qId), { answered: true }))
 }
 
 export async function rtcDeleteQuestion(db, roomId, qId) {
+  if (_sigMode === 'rtdb') return rtdb.rtcDeleteQuestion(roomId, qId)
   await fbWithTimeout(deleteDoc(doc(db, 'rtcRooms', roomId, 'questions', qId)))
 }
 
 export function rtcListenQuestions(db, roomId, cb) {
+  if (_sigMode === 'rtdb') return rtdb.rtcListenQuestions(roomId, cb)
   return resilientSnapshot(
     () => roomCol(db, roomId, 'questions'),
     snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
@@ -414,8 +447,13 @@ export async function rtcSaveTranscript(db, roomId, lines) {
 // Best-effort purge of everything under rtcRooms/{roomId}. Called when the
 // professor ends the class; anyone still connected also deletes their own
 // docs on leave, so this only needs to catch stragglers.
+// Purges BOTH backends unconditionally: the callers (start/end class in
+// DataContext) run outside a room, where the latched mode may not reflect
+// the room being cleaned - and a room's leftovers live in exactly one place,
+// so the other side's purge is a cheap no-op.
 export async function rtcCleanupRoom(db, roomId) {
   if (!db || !roomId) return
+  try { await rtdb.rtcCleanupRoom(roomId) } catch { /* not configured - fine */ }
   try {
     const [parts, signals, chat, polls, questions] = await Promise.all([
       getDocs(roomCol(db, roomId, 'participants')),
