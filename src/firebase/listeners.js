@@ -144,7 +144,11 @@ export function fbStartListening(db, callbacks, opts = {}) {
       const merged = mine ? [...roster.filter(s => s && s.id !== mine.id), mine] : roster;
       onStudentsUpdate(deserializeStudents(merged));
     };
-    (async () => {
+    // One-shot with retries: a failed fetch (offline boot, captive portal)
+    // must not leave the session with no classmates - retry with backoff and
+    // once more the moment the network comes back.
+    let rosterTries = 0;
+    const loadRoster = async () => {
       try {
         let snap = null;
         try {
@@ -162,8 +166,12 @@ export function fbStartListening(db, callbacks, opts = {}) {
         emit();
       } catch (e) {
         console.error('[Firebase] roster fetch error:', e.message);
+        rosterTries += 1;
+        if (rosterTries <= 5) setTimeout(loadRoster, 15000 * rosterTries);
+        try { window.addEventListener('online', loadRoster, { once: true }); } catch (e2) { /* non-browser */ }
       }
-    })();
+    };
+    loadRoster();
     const u2 = onSnapshot(
       doc(db, 'students', studentId),
       snap => {

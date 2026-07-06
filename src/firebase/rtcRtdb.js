@@ -89,7 +89,39 @@ export function rtcProbe() {
 
 const pRef = (roomId, peerId) => ref(db(), `rooms/${roomId}/participants/${peerId}`)
 
+// The SDK retries transport drops on its own, but a listener hit by a
+// rules/auth DENIAL (e.g. a token refresh that failed during an outage,
+// then a reconnect racing the new token) is cancelled PERMANENTLY - the
+// same silent zombie-room hazard resilientSnapshot cures on the Firestore
+// path. Same cure here: re-attach with backoff until truly unsubscribed.
+function resilientOn(attach) {
+  let off = null
+  let timer = null
+  let stopped = false
+  let delay = 1000
+  const go = () => {
+    if (stopped) return
+    off = attach(
+      () => { delay = 1000 }, // data arrived - healthy again
+      () => {                  // cancelled - re-attach with backoff
+        try { if (off) off() } catch { /* already down */ }
+        off = null
+        if (stopped) return
+        timer = setTimeout(go, delay)
+        delay = Math.min(15000, delay * 2)
+      },
+    )
+  }
+  go()
+  return () => {
+    stopped = true
+    if (timer) clearTimeout(timer)
+    try { if (off) off() } catch { /* already down */ }
+  }
+}
+
 export async function rtcFetchParticipants(roomId) {
+  _active = true // a room UI is alive - hold the socket (green room fetch)
   const snap = await withTimeout(get(ref(db(), `rooms/${roomId}/participants`)))
   const val = snap.val() || {}
   return Object.values(val)
@@ -114,6 +146,13 @@ export async function rtcJoinRoom(roomId, peer) {
 
 export async function rtcUpdateParticipant(roomId, peerId, patch) {
   try {
+    // Plain update, like the Firestore layer. RTDB's update() re-creates a
+    // deleted node, so a swept ghost's queued heartbeat CAN briefly leave a
+    // half-empty {lastSeen} doc - accepted: the engine's presence tick sees
+    // its own doc lacks peerId and runs rejoin() (full set) within ~5s, and
+    // a guard read here would be worse (an unbounded get() on the hottest
+    // path can hang mid-reconnect and swallow heartbeats, getting a LIVE
+    // student swept).
     await update(pRef(roomId, peerId), { lastSeen: Date.now(), ...patch })
     return true
   } catch { return false /* best-effort - may already be gone at teardown */ }
@@ -151,11 +190,12 @@ export async function rtcSendSignal(roomId, { to, from, type, data }) {
 export function rtcListenParticipants(roomId, cb) {
   const d = db()
   if (!d) return () => {}
-  return onValue(
+  _active = true
+  return resilientOn((onData, onErr) => onValue(
     ref(d, `rooms/${roomId}/participants`),
-    snap => cb(Object.values(snap.val() || {})),
-    () => { /* SDK reconnects on its own; a denied read just stays silent */ },
-  )
+    snap => { onData(); cb(Object.values(snap.val() || {})) },
+    onErr,
+  ))
 }
 
 // Signals addressed to me: children arrive in push-key (chronological) order,
@@ -164,10 +204,14 @@ export function rtcListenParticipants(roomId, cb) {
 export function rtcListenSignals(roomId, peerId, handler) {
   const d = db()
   if (!d) return () => {}
+  _active = true
+  // The chain outlives re-attaches; consumed signals were deleted, so a
+  // re-attach re-delivers only unconsumed ones - nothing double-processes.
   let chain = Promise.resolve()
-  return onChildAdded(
+  return resilientOn((onData, onErr) => onChildAdded(
     ref(d, `rooms/${roomId}/signals/${peerId}`),
     snap => {
+      onData()
       const msg = snap.val()
       if (!msg) return
       chain = chain
@@ -176,8 +220,8 @@ export function rtcListenSignals(roomId, peerId, handler) {
         .then(() => remove(snap.ref))
         .catch(() => {})
     },
-    () => { /* silent - see participants listener */ },
-  )
+    onErr,
+  ))
 }
 
 // ── In-call chat ────────────────────────────────────────────────────────────
@@ -194,12 +238,14 @@ export async function rtcSendChat(roomId, msg) {
 export function rtcListenChat(roomId, cb) {
   const d = db()
   if (!d) return () => {}
-  return onValue(ref(d, `rooms/${roomId}/chat`), snap => {
+  _active = true
+  return resilientOn((onData, onErr) => onValue(ref(d, `rooms/${roomId}/chat`), snap => {
+    onData()
     const val = snap.val() || {}
     cb(Object.keys(val)
       .map(k => ({ id: k, ...val[k] }))
       .sort((a, b) => (a.at || 0) - (b.at || 0)))
-  }, () => {})
+  }, onErr))
 }
 
 // ── Quick poll ───────────────────────────────────────────────────────────────
@@ -218,6 +264,10 @@ export async function rtcSetPoll(roomId, poll) {
 
 export async function rtcVotePoll(roomId, uid, idx) {
   if (!uid) return
+  // Only vote on a poll that still exists - a bare vote write would
+  // re-create an orphan poll node with no question (RTDB update-creates).
+  const cur = await withTimeout(get(ref(db(), `rooms/${roomId}/polls/current`)))
+  if (!cur.exists()) return
   await withTimeout(set(ref(db(), `rooms/${roomId}/polls/current/votes/${uid}`), idx))
 }
 
@@ -228,10 +278,13 @@ export async function rtcClosePoll(roomId) {
 export function rtcListenPoll(roomId, cb) {
   const d = db()
   if (!d) return () => {}
-  return onValue(ref(d, `rooms/${roomId}/polls/current`), snap => {
+  _active = true
+  return resilientOn((onData, onErr) => onValue(ref(d, `rooms/${roomId}/polls/current`), snap => {
+    onData()
     const v = snap.val()
-    cb(v ? { ...v, opts: v.opts || [], votes: v.votes || {} } : null)
-  }, () => {})
+    // Require an id: an orphan node (votes-only leftovers) renders as no poll.
+    cb(v && v.id ? { ...v, opts: v.opts || [], votes: v.votes || {} } : null)
+  }, onErr))
 }
 
 // ── Question queue ───────────────────────────────────────────────────────────
@@ -248,6 +301,9 @@ export async function rtcAskQuestion(roomId, { uid, name, text, anon }) {
 
 export async function rtcPlusQuestion(roomId, qId, uid) {
   if (!uid) return
+  // Same orphan guard: +1 only lands on a question that still exists.
+  const q = await withTimeout(get(ref(db(), `rooms/${roomId}/questions/${qId}`)))
+  if (!q.exists()) return
   await withTimeout(set(ref(db(), `rooms/${roomId}/questions/${qId}/plus/${uid}`), 1))
 }
 
@@ -262,10 +318,14 @@ export async function rtcDeleteQuestion(roomId, qId) {
 export function rtcListenQuestions(roomId, cb) {
   const d = db()
   if (!d) return () => {}
-  return onValue(ref(d, `rooms/${roomId}/questions`), snap => {
+  _active = true
+  return resilientOn((onData, onErr) => onValue(ref(d, `rooms/${roomId}/questions`), snap => {
+    onData()
     const val = snap.val() || {}
-    cb(Object.keys(val).map(k => ({ id: k, plus: {}, ...val[k] })))
-  }, () => {})
+    cb(Object.keys(val)
+      .map(k => ({ id: k, plus: {}, ...val[k] }))
+      .filter(q => q.text)) // drop orphan leftovers (answered/plus-only nodes)
+  }, onErr))
 }
 
 // One call removes the whole room subtree (participants, signals, chat,
