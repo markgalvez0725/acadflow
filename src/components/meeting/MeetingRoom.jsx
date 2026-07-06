@@ -304,6 +304,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   // Class outline panel (mutually exclusive with chat/people, like they are
   // with each other) and the connection-details card behind the self dot.
   const [outlineOpen, setOutlineOpen] = useState(false)
+  const [otlSeen, setOtlSeen] = useState(false)
   const [diagOpen, setDiagOpen] = useState(false)
   const [diag, setDiag] = useState(null)
   const [pollComposer, setPollComposer] = useState(false)
@@ -751,6 +752,22 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   }, [ended]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const ready = phase === 'ready' && !ended
+
+  // Late-join snapshot for the companion panel: how many minutes into a live
+  // class this device joined, frozen at the first ready so mid-call
+  // auto-reconnects never re-flag the student as "late" again. Instant
+  // meetings stamp scheduledAt at go-live, so it is the true class start.
+  const lateMinRef = useRef(-1)
+  if (ready && lateMinRef.current < 0) {
+    lateMinRef.current = !isAdmin && meeting?.status === 'live' && meeting?.scheduledAt
+      ? Math.max(0, Math.round((Date.now() - meeting.scheduledAt) / 60000))
+      : 0
+  }
+  const lateMin = Math.max(0, lateMinRef.current)
+  // One quiet nudge toward the catch-up summary: the companion button gets a
+  // badge until the late joiner opens it once (or was not late at all).
+  const otlHas = !!(((meeting?.outline || {}).items || []).length || ((meeting?.outline || {}).notes || []).length)
+  const otlBadge = ready && !otlSeen && !outlineOpen && lateMin >= 5 && otlHas
 
   // Timed agenda: when the outline's current item runs past its minutes, the
   // PROFESSOR gets one soft chime + toast per item. Students never see or
@@ -1320,6 +1337,7 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
           isAdmin={isAdmin}
           photo={photoFor(self)}
           label={barLabel}
+          meeting={meeting}
           onJoin={confirmJoin}
           onCancel={onClose}
         />
@@ -1819,7 +1837,14 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
           open={outlineOpen && !ended && ready}
           meeting={meeting}
           isAdmin={isAdmin}
-          onPatch={fields => Promise.resolve(patchMeeting(meeting, fields)).catch(() => toast('Could not save the outline. Check your connection and try again.', 'error'))}
+          selfQuality={selfQuality}
+          netDown={netDown}
+          onOpenDiag={() => setDiagOpen(true)}
+          onRetry={reconnectNow}
+          lateMin={lateMin}
+          onPatch={fields => Promise.resolve(patchMeeting(meeting, fields))
+            .then(() => true)
+            .catch(() => { toast('Could not save. Check your connection and try again.', 'error'); return false })}
           onClose={() => setOutlineOpen(false)}
         />
         <MeetingQuestions
@@ -1911,9 +1936,9 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
               <span className="mr-ctl"><Users size={18} /></span>
               <span>People</span>
             </button>
-            <button className="mr-more-item" onClick={() => { setMoreOpen(false); setChatOpen(false); setPeopleOpen(false); setQqOpen(false); setOutlineOpen(true) }}>
-              <span className={`mr-ctl${outlineOpen ? ' mr-ctl-accent' : ''}`}><List size={18} /></span>
-              <span>Outline</span>
+            <button className="mr-more-item" onClick={() => { setMoreOpen(false); setOtlSeen(true); setChatOpen(false); setPeopleOpen(false); setQqOpen(false); setOutlineOpen(true) }}>
+              <span className={`mr-ctl${outlineOpen ? ' mr-ctl-accent' : ''}`}><List size={18} />{otlBadge && <span className="mr-ctl-badge">!</span>}</span>
+              <span>Companion</span>
             </button>
             <button className="mr-more-item" onClick={() => { setMoreOpen(false); setChatOpen(false); setPeopleOpen(false); setOutlineOpen(false); setQqOpen(true) }}>
               <span className="mr-ctl"><HelpCircle size={18} />{openQCount > 0 && <span className="mr-ctl-badge">{openQCount > 9 ? '9+' : openQCount}</span>}</span>
@@ -2043,10 +2068,11 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
                 </button>
                 <button
                   className={`mr-ctl${outlineOpen ? ' mr-ctl-accent' : ''}`}
-                  onClick={() => setOutlineOpen(o => { const n = !o; if (n) { setChatOpen(false); setPeopleOpen(false); setQqOpen(false) } return n })}
-                  title="Class outline"
+                  onClick={() => setOutlineOpen(o => { const n = !o; if (n) { setOtlSeen(true); setChatOpen(false); setPeopleOpen(false); setQqOpen(false) } return n })}
+                  title="Class companion - agenda, notes, resources"
                 >
                   <List size={18} />
+                  {otlBadge && <span className="mr-ctl-badge">!</span>}
                 </button>
                 <button
                   className={`mr-ctl${qqOpen ? ' mr-ctl-accent' : ''}`}

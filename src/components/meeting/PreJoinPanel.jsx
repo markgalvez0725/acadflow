@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 // NOTE: this lucide build has WifiOff/Activity but NOT the Wifi/WifiLow
 // variants - Activity stands in for the healthy-connection icon.
-import { Mic, MicOff, Video, VideoOff, ChevronDown, AlertTriangle, X, Loader2, Activity, WifiOff, Zap } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, ChevronDown, AlertTriangle, X, Loader2, Activity, WifiOff, Zap, Pin } from 'lucide-react'
 import { rtcFetchParticipants, STALE_MS } from '@/firebase/rtc'
 
 // Green room shown before entering the in-app classroom: a mirrored camera
@@ -35,7 +35,7 @@ function firstName(name) {
   return String(name || '').trim().split(/\s+/)[0] || ''
 }
 
-export default function PreJoinPanel({ db, roomId, self, isAdmin, photo, label, onJoin, onCancel }) {
+export default function PreJoinPanel({ db, roomId, self, isAdmin, photo, label, meeting, onJoin, onCancel }) {
   const saved = useMemo(loadPrefs, [])
   const [micOn, setMicOn] = useState(saved.mic !== false)
   const [camOn, setCamOn] = useState(saved.cam !== false)
@@ -253,6 +253,12 @@ export default function PreJoinPanel({ db, roomId, self, isAdmin, photo, label, 
   }
 
   const camLive = !!stream && !!stream.getVideoTracks()[0] && camOn
+  // "Today" peek: the professor's agenda and first pinned note (the meeting
+  // doc's outline field, already in memory via the meetings listener), so
+  // students see what the class is about BEFORE committing to the join.
+  const preOutline = meeting?.outline || {}
+  const preItems = Array.isArray(preOutline.items) ? preOutline.items : []
+  const prePin = (Array.isArray(preOutline.notes) ? preOutline.notes : []).find(n => n.pinned) || null
   const who = already || []
   const names = who.slice(0, 2).map(p => firstName(p.name)).filter(Boolean)
   const whoText = already === null
@@ -314,6 +320,17 @@ export default function PreJoinPanel({ db, roomId, self, isAdmin, photo, label, 
         <div className="mr-pre-side">
           <div className="mr-pre-title">{isAdmin ? 'Ready to start?' : 'Ready to join?'}</div>
           <div className="mr-pre-meta">{label || 'Live class'}</div>
+          {(preItems.length > 0 || prePin) && (
+            <div className="mr-pre-today">
+              <span className="mr-pre-today-lab">Today</span>
+              {preItems.length > 0 && (
+                <span className="mr-pre-today-items">
+                  {preItems.slice(0, 4).map(i => i.text).join(' · ')}{preItems.length > 4 ? ` · +${preItems.length - 4} more` : ''}
+                </span>
+              )}
+              {prePin && <span className="mr-pre-today-pin"><Pin size={12} aria-hidden="true" /> {prePin.text}</span>}
+            </div>
+          )}
           {blocked === 'all' ? (
             <div className="mr-pre-blocked">
               <AlertTriangle size={16} />

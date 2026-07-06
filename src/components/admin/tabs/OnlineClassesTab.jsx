@@ -1,7 +1,9 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
-import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio, MonitorPlay, Sparkles, Play, Share2, FileText, Loader2, Users, MessageSquare, CircleDot, MonitorUp, Zap, Info, AlertTriangle, Check, Copy, CalendarCheck } from 'lucide-react'
+import { Video, CalendarPlus, Clock, ExternalLink, VideoOff, Trash2, CheckCircle, Save, Radio, MonitorPlay, Sparkles, Play, Share2, FileText, Loader2, Users, MessageSquare, CircleDot, MonitorUp, Zap, Info, AlertTriangle, Check, Copy, CalendarCheck, List } from 'lucide-react'
+import Modal from '@/components/primitives/Modal'
+import MeetingOutline from '@/components/meeting/MeetingOutline'
 import RecapModal from '@/components/meeting/RecapModal'
 import RecordingPlayerModal from '@/components/meeting/RecordingPlayerModal'
 import ClassAttendanceModal from '@/components/meeting/ClassAttendanceModal'
@@ -42,11 +44,16 @@ function fmtElapsed(ms) {
 }
 
 export default function OnlineClassesTab() {
-  const { classes, meetings, saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting, sweepStaleMeetings, generateMeetingRecap, markMeetingRecordingReady, saveMeetingRecording, saveAnnouncement, pushAnnouncementNotifs, saveClassTranscript } = useData()
+  const { classes, meetings, saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting, sweepStaleMeetings, patchMeeting, generateMeetingRecap, markMeetingRecordingReady, saveMeetingRecording, saveAnnouncement, pushAnnouncementNotifs, saveClassTranscript } = useData()
   // The room itself is hosted at the layout level (MeetingHost) so the call
   // survives tab navigation - this tab only opens it by id.
   const { toast, openMeetingRoom, openDialog } = useUI()
   const [panel, setPanel] = useState('links')
+  // Pre-class agenda planning: the same companion panel the room shows,
+  // embedded in a modal against a scheduled meeting's doc. Derived from the
+  // live meetings list so listener echoes keep the modal current.
+  const [planId, setPlanId] = useState(null)
+  const planMeeting = planId ? meetings.find(x => x.id === planId && x.status !== 'ended') : null
 
   // One quiet janitor pass per visit: forgotten scheduled meetings (12h+
   // overdue, never started) are removed so Upcoming reflects reality.
@@ -775,7 +782,7 @@ export default function OnlineClassesTab() {
                 ? <EmptyState Icon={CalendarPlus} title="No other upcoming meetings" text="Your live class is pinned above." tone="muted" compact />
                 : <EmptyState Icon={CalendarPlus} title="No upcoming meetings" text="Schedule one, or go live straight from Meet Links." />)
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-                {scheduledOnly.map(m => <MeetingRow key={m.id} m={m} now={now} onStart={handleStart} onCancel={handleCancel} highlight={highlightId === m.id} busy={working === m.id} />)}
+                {scheduledOnly.map(m => <MeetingRow key={m.id} m={m} now={now} onStart={handleStart} onCancel={handleCancel} onPlan={m2 => setPlanId(m2.id)} highlight={highlightId === m.id} busy={working === m.id} />)}
               </div>
         )}
 
@@ -789,6 +796,23 @@ export default function OnlineClassesTab() {
       </section>}
     </div>
 
+    {planMeeting && (
+      <Modal
+        title="Plan the class agenda"
+        subtitle={`${planMeeting.title} · students see this in the green room and in the Class companion`}
+        icon={<List size={18} />}
+        onClose={() => setPlanId(null)}
+      >
+        <MeetingOutline
+          embedded
+          meeting={planMeeting}
+          isAdmin
+          onPatch={fields => Promise.resolve(patchMeeting(planMeeting, fields))
+            .then(() => true)
+            .catch(() => { toast('Could not save. Check your connection and try again.', 'error'); return false })}
+        />
+      </Modal>
+    )}
     {recapMeeting && <RecapModal meeting={recapMeeting} canManage initialTab={recapView.tab} onClose={() => setRecapView(null)} />}
     {watchMeeting && <RecordingPlayerModal meeting={watchMeeting} onClose={() => setWatchMeeting(null)} />}
     {attnMeeting && <ClassAttendanceModal meeting={attnMeeting} onClose={() => setAttnMeeting(null)} />}
@@ -802,7 +826,7 @@ function classLabel(cls) {
 
 // One meeting as a date-chip row: calendar chip, title + meta, a countdown pill
 // (amber inside 3 hours) or a green Ended chip, and Start/Cancel actions.
-function MeetingRow({ m, now, onStart, onCancel, onRecap, onTranscript, recapBusy, onShareRecording, onCheckRecording, onWatch, onAttendance, onGenTranscript, genBusy, genText, genLocked, checking, highlight, busy }) {
+function MeetingRow({ m, now, onStart, onCancel, onPlan, onRecap, onTranscript, recapBusy, onShareRecording, onCheckRecording, onWatch, onAttendance, onGenTranscript, genBusy, genText, genLocked, checking, highlight, busy }) {
   const { toast } = useUI()
   const dt = new Date(m.scheduledAt)
   const ended = m.status === 'ended'
@@ -844,6 +868,17 @@ function MeetingRow({ m, now, onStart, onCancel, onRecap, onTranscript, recapBus
           <button className="btn btn-primary btn-sm" onClick={() => onStart(m)} disabled={busy} title="Start meeting">
             <ExternalLink size={14} style={{ marginRight: 4 }} /> {busy ? 'Starting…' : 'Start'}
           </button>
+          {onPlan && m.provider === 'inapp' && (
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => onPlan(m)}
+              disabled={busy}
+              title="Plan the agenda, notes, and resource links before class - students see them in the green room"
+            >
+              <FileText size={14} style={{ marginRight: 4 }} />
+              {(m.outline?.items || []).length ? 'Agenda ✓' : 'Agenda'}
+            </button>
+          )}
           {onCancel && (
             <button className="btn btn-ghost btn-sm" onClick={() => onCancel(m)} disabled={busy} title="Cancel meeting">
               <Trash2 size={14} />
