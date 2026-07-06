@@ -124,12 +124,14 @@ function PersonPop({ x }) {
 function PersonRow({ x, open, onOpen, onClose, chip = false }) {
   const t = useRef(0)
   useEffect(() => () => clearTimeout(t.current), [])
+  // The delayed close passes this row's id so a stale timer from the row the
+  // pointer just LEFT can never close the popover of the row it moved TO.
   return (
     <div
       className={`${chip ? 'sysr-who-chip' : 'sysr-who-row'}${x.online ? '' : ' off'}`}
       onMouseEnter={() => { clearTimeout(t.current); onOpen(x.id) }}
-      onMouseLeave={() => { t.current = setTimeout(onClose, 160) }}
-      onClick={() => (open ? onClose() : onOpen(x.id))}
+      onMouseLeave={() => { t.current = setTimeout(() => onClose(x.id), 160) }}
+      onClick={e => { e.stopPropagation(); if (open) onClose(x.id); else onOpen(x.id) }}
     >
       <WhoAvatar x={x} size={chip ? 24 : 36} />
       <div className="sysr-who-id">
@@ -363,6 +365,17 @@ export default function SystemReportsTab() {
     return () => clearInterval(t)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Close the person popover by id (stale hover timers pass the id they were
+  // armed for), and close it outright on any click outside a row - rows and
+  // the popover stop propagation, so this only sees true outside clicks.
+  const closePop = useCallback(id => setPopId(p => (!id || p === id ? '' : p)), [])
+  useEffect(() => {
+    if (!popId) return undefined
+    const onDoc = () => setPopId('')
+    document.addEventListener('click', onDoc)
+    return () => document.removeEventListener('click', onDoc)
+  }, [popId])
+
   // Join presence heartbeats with the roster (names, photos, course chips).
   const who = useMemo(() => {
     const now = Date.now()
@@ -593,7 +606,7 @@ export default function SystemReportsTab() {
             {who.online.length > 0 && (
               <div className="sysr-who-grid">
                 {who.online.map(x => (
-                  <PersonRow key={x.id} x={x} open={popId === x.id} onOpen={setPopId} onClose={() => setPopId('')} />
+                  <PersonRow key={x.id} x={x} open={popId === x.id} onOpen={setPopId} onClose={closePop} />
                 ))}
               </div>
             )}
@@ -602,7 +615,7 @@ export default function SystemReportsTab() {
                 <p className="sysr-pop-lab">Offline</p>
                 <div className="sysr-who-offwrap">
                   {(offAll ? who.offline : who.offline.slice(0, OFF_SHOWN)).map(x => (
-                    <PersonRow key={x.id} x={x} chip open={popId === x.id} onOpen={setPopId} onClose={() => setPopId('')} />
+                    <PersonRow key={x.id} x={x} chip open={popId === x.id} onOpen={setPopId} onClose={closePop} />
                   ))}
                   {who.offline.length > OFF_SHOWN && (
                     <button className="sysr-who-more" onClick={() => setOffAll(v => !v)}>
