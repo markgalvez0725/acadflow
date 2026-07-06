@@ -19,9 +19,12 @@ import { aggregateTelemetry, telemetryDaySeries, buildSystemPdf, buildSystemXlsx
 const VERDICT_LABEL = { ok: 'Healthy', warn: 'Watch', bad: 'Needs attention', none: 'No data yet' }
 
 // ── Tiny charts (shared tooltip mechanics) ─────────────────────────────────
-// viewBox is 260x56: plot area x 8..252, y 8..40, labels at y 52. Hover snaps
-// to the nearest index with data and shows a floating chip with the metrics;
-// the same text feeds the SVG aria-label so screen readers get it too.
+// Each chart measures its card slot (ResizeObserver) and draws in TRUE pixel
+// coordinates - viewBox width equals the element width, so text, dots, and
+// bars never stretch on wide cards. Plot area: x 8..w-8, y 14..40, labels at
+// y 54. Hover snaps to the nearest index with data and shows a floating chip
+// with the metrics; the same text feeds the SVG aria-label so screen readers
+// get it too.
 
 function useHover(count) {
   const [hov, setHov] = useState(-1)
@@ -34,19 +37,40 @@ function useHover(count) {
   return [hov, move, () => setHov(-1)]
 }
 
-function ChartShell({ caption, aria, hovText, hovX, children, onMove, onLeave }) {
+function useSize() {
+  const ref = useRef(null)
+  const [w, setW] = useState(320)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return undefined
+    const measure = () => {
+      const px = Math.round(el.clientWidth || 0)
+      if (px > 0) setW(Math.max(200, px))
+    }
+    measure()
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(measure)
+      ro.observe(el)
+      return () => ro.disconnect()
+    }
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [])
+  return [ref, w]
+}
+
+function ChartShell({ boxRef, w, caption, aria, hovText, hovX, children, onMove, onLeave }) {
   return (
-    <div className="sysr-chart">
+    <div className="sysr-chart" ref={boxRef}>
       <svg
-        viewBox="0 0 260 56"
-        preserveAspectRatio="none"
+        viewBox={`0 0 ${w} 56`}
         role="img"
         aria-label={aria}
         onPointerMove={onMove}
         onPointerDown={onMove}
         onPointerLeave={onLeave}
       >
-        <text x="8" y="9" className="sysr-ax">{caption}</text>
+        <text x="8" y="10" className="sysr-ax">{caption}</text>
         {children}
       </svg>
       {hovText && (
@@ -59,33 +83,37 @@ function ChartShell({ caption, aria, hovText, hovX, children, onMove, onLeave })
 function MiniLine({ series, getV, tip, caption, aria, tone = 'accent' }) {
   const n = series.length
   const [hov, onMove, onLeave] = useHover(n)
+  const [boxRef, w] = useSize()
+  const span = w - 16
   const pts = series.map((s, i) => ({ i, v: getV(s) })).filter(p => p.v !== null && p.v !== undefined)
-  const X = i => 8 + (n <= 1 ? 122 : i * (244 / (n - 1)))
+  const X = i => 8 + (n <= 1 ? span / 2 : i * (span / (n - 1)))
   if (!pts.length) {
     return (
-      <ChartShell caption={caption} aria={`${aria}. No data yet.`}>
-        <line x1="8" y1="40" x2="252" y2="40" className="sysr-base" />
+      <ChartShell boxRef={boxRef} w={w} caption={caption} aria={`${aria}. No data yet.`}>
+        <line x1="8" y1="40" x2={w - 8} y2="40" className="sysr-base" />
       </ChartShell>
     )
   }
   let min = Math.min(...pts.map(p => p.v))
   let max = Math.max(...pts.map(p => p.v))
   if (min === max) { min -= 1; max += 1 }
-  const Y = v => 40 - ((v - min) / (max - min)) * 28
+  const Y = v => 40 - ((v - min) / (max - min)) * 26
   const poly = pts.map(p => `${X(p.i)},${Y(p.v)}`).join(' ')
   // Snap the hover to the nearest index that actually has data.
   const snap = hov < 0 ? null : pts.reduce((b, p) => (Math.abs(p.i - hov) < Math.abs(b.i - hov) ? p : b), pts[0])
   const last = pts[pts.length - 1]
   return (
     <ChartShell
+      boxRef={boxRef}
+      w={w}
       caption={caption}
       aria={`${aria}. ${tip(series[last.i])}`}
       hovText={snap ? tip(series[snap.i]) : ''}
-      hovX={snap ? (X(snap.i) / 260) * 100 : 0}
+      hovX={snap ? (X(snap.i) / w) * 100 : 0}
       onMove={onMove}
       onLeave={onLeave}
     >
-      <line x1="8" y1="40" x2="252" y2="40" className="sysr-base" />
+      <line x1="8" y1="40" x2={w - 8} y2="40" className="sysr-base" />
       {pts.length > 1 && <polyline points={poly} className={`sysr-line sysr-${tone}`} />}
       {pts.map(p => (
         <circle
@@ -96,8 +124,8 @@ function MiniLine({ series, getV, tip, caption, aria, tone = 'accent' }) {
           className={`sysr-dot sysr-${tone}`}
         />
       ))}
-      <text x="8" y="53" className="sysr-ax">{series[0].label}</text>
-      <text x="252" y="53" textAnchor="end" className="sysr-ax">{series[n - 1].label}</text>
+      <text x="8" y="54" className="sysr-ax">{series[0].label}</text>
+      <text x={w - 8} y="54" textAnchor="end" className="sysr-ax">{series[n - 1].label}</text>
     </ChartShell>
   )
 }
@@ -105,32 +133,37 @@ function MiniLine({ series, getV, tip, caption, aria, tone = 'accent' }) {
 function MiniBars({ bars, tip, caption, aria, warnOn }) {
   const n = bars.length
   const [hov, onMove, onLeave] = useHover(n)
+  const [boxRef, w] = useSize()
+  const span = w - 16
   const vals = bars.map(b => b.v === null || b.v === undefined ? null : b.v)
   const has = vals.some(v => v !== null)
   const max = Math.max(1, ...vals.filter(v => v !== null))
-  const bw = Math.min(24, 244 / Math.max(1, n) - 3)
-  const X = i => 8 + (n <= 1 ? 0 : i * (244 / n)) + (244 / Math.max(1, n) - bw) / 2
+  const slot = span / Math.max(1, n)
+  const bw = Math.min(26, Math.max(6, slot - 4))
+  const X = i => 8 + (n <= 1 ? 0 : i * slot) + (slot - bw) / 2
   if (!has) {
     return (
-      <ChartShell caption={caption} aria={`${aria}. No data yet.`}>
-        <line x1="8" y1="40" x2="252" y2="40" className="sysr-base" />
+      <ChartShell boxRef={boxRef} w={w} caption={caption} aria={`${aria}. No data yet.`}>
+        <line x1="8" y1="40" x2={w - 8} y2="40" className="sysr-base" />
       </ChartShell>
     )
   }
   const hovOk = hov >= 0 && vals[hov] !== null
   return (
     <ChartShell
+      boxRef={boxRef}
+      w={w}
       caption={caption}
       aria={`${aria}. ${tip(bars[n - 1])}`}
       hovText={hovOk ? tip(bars[hov]) : ''}
-      hovX={hovOk ? ((X(hov) + bw / 2) / 260) * 100 : 0}
+      hovX={hovOk ? ((X(hov) + bw / 2) / w) * 100 : 0}
       onMove={onMove}
       onLeave={onLeave}
     >
-      <line x1="8" y1="40" x2="252" y2="40" className="sysr-base" />
+      <line x1="8" y1="40" x2={w - 8} y2="40" className="sysr-base" />
       {bars.map((b, i) => {
         if (vals[i] === null) return null
-        const h = vals[i] === 0 ? 2 : 4 + (vals[i] / max) * 26
+        const h = vals[i] === 0 ? 2 : 4 + (vals[i] / max) * 24
         return (
           <rect
             key={i}
@@ -138,13 +171,13 @@ function MiniBars({ bars, tip, caption, aria, warnOn }) {
             y={40 - h}
             width={bw}
             height={h}
-            rx="1.5"
+            rx="2"
             className={`sysr-bar${warnOn && warnOn(b) ? ' warn' : ''}${hov === i ? ' hov' : ''}`}
           />
         )
       })}
-      <text x="8" y="53" className="sysr-ax">{bars[0].label}</text>
-      <text x="252" y="53" textAnchor="end" className="sysr-ax">{bars[n - 1].label}</text>
+      <text x="8" y="54" className="sysr-ax">{bars[0].label}</text>
+      <text x={w - 8} y="54" textAnchor="end" className="sysr-ax">{bars[n - 1].label}</text>
     </ChartShell>
   )
 }
