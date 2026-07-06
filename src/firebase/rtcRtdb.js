@@ -26,7 +26,7 @@ import {
   getDatabase, ref, get, set, update, remove, push, onValue, onChildAdded,
   goOnline, goOffline,
 } from 'firebase/database'
-import { getFbApp } from './firebaseInit'
+import { getFbApp, getIdToken } from './firebaseInit'
 
 let _rtdb = null
 let _active = false
@@ -121,10 +121,27 @@ function resilientOn(attach) {
 }
 
 export async function rtcFetchParticipants(roomId) {
-  _active = true // a room UI is alive - hold the socket (green room fetch)
-  const snap = await withTimeout(get(ref(db(), `rooms/${roomId}/participants`)))
-  const val = snap.val() || {}
-  return Object.values(val)
+  // One-shot REST read, NOT the SDK: the green room calls this while people
+  // are still deciding whether to join, and REST requests don't count against
+  // the 100-simultaneous-connection cap - the socket now opens only when
+  // someone actually joins (rtcJoinRoom / the live listeners set _active).
+  // Throws on failure like the SDK version did: the join-time cap check must
+  // never mistake "fetch failed" for "room is empty".
+  const base = rtdbUrl()
+  if (!base) throw new Error('RTDB unavailable')
+  const token = await getIdToken()
+  const url = base + '/rooms/' + encodeURIComponent(roomId) + '/participants.json'
+    + (token ? '?auth=' + encodeURIComponent(token) : '')
+  const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null
+  const t = ctl ? setTimeout(() => ctl.abort(), 10000) : 0
+  try {
+    const res = await fetch(url, ctl ? { signal: ctl.signal } : undefined)
+    if (!res.ok) throw new Error('participants fetch ' + res.status)
+    const val = await res.json()
+    return val && typeof val === 'object' ? Object.values(val) : []
+  } finally {
+    clearTimeout(t)
+  }
 }
 
 export async function rtcJoinRoom(roomId, peer) {

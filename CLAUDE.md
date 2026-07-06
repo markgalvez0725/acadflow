@@ -35,6 +35,12 @@ Do not add URL routes or `<Route>` components. Navigation between tabs is handle
 - All writes go through helpers in `src/firebase/persistence.js`, `src/firebase/settings.js`, and `src/firebase/attendanceExtras.js`, each wrapped with `fbWithTimeout()` (20 s hard timeout).
 - Real-time listeners are registered in `src/firebase/listeners.js`. That module owns a module-level `_fbWriting` flag (`setFbWriting()`) that suppresses `onSnapshot` echoes during in-flight local writes - do not replace it with React state.
 
+### Realtime Database (RTDB) - meetings only, connection discipline
+
+- In-app meeting signaling is hybrid: rooms run on the Realtime Database when the meeting doc carries `sig: 'rtdb'` (stamped at go-live by `fbStartMeeting` after a real write probe), with automatic Firestore fallback when the probe fails. `src/firebase/rtc.js` is the dispatcher; `src/firebase/rtcRtdb.js` is the RTDB twin.
+- **The RTDB free tier allows 100 simultaneous connections, and only in-meeting devices may hold one.** `src/firebase/rtcRtdb.js` is the ONLY module allowed to import `firebase/database` (it opens the socket at join and releases it on room teardown). Every other RTDB access - Who's online presence (`src/firebase/presence.js`), the green-room participant peek, leave beacons - MUST use the REST API (`{rtdbUrl}/path.json?auth={idToken}`), which does not count as a connection. Never add an app-wide RTDB listener.
+- RTDB rules live in `database.rules.json` at the repo root, but only take effect when pasted and PUBLISHED in the Firebase console (same manual step as `firestore.rules`).
+
 ### Data shape (mixed model)
 
 Two distinct storage patterns coexist; know which one you're touching:
@@ -116,6 +122,7 @@ Announcement and comment management now includes:
 ## Common Mistakes to Avoid
 
 - Do not read Firebase directly from components - go through `DataContext` helpers.
+- Do not import `firebase/database` outside `src/firebase/rtcRtdb.js` - any RTDB access elsewhere must use the REST API (`.json?auth=`) so app-wide features never consume the 100-connection cap (see "Realtime Database" above).
 - Do not add URL navigation (`useNavigate`, `<Link>`) - AcadFlow uses tab-state navigation only.
 - Do not import SheetJS or jsPDF via npm - they are CDN globals.
 - Do not use `next/*` imports or APIs - this is not a Next.js project.
