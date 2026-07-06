@@ -28,7 +28,9 @@ const VERDICT_LABEL = { ok: 'Healthy', warn: 'Watch', bad: 'Needs attention', no
 // tapping) a person opens their session popover: current tab, device, and
 // the short breadcrumb trail their device reported.
 
-const ONLINE_MS = 5 * 60 * 1000
+// Matched to the 10-minute presence heartbeat (quota discipline: heartbeats
+// only write for ACTIVE devices, so the window must outlast one beat).
+const ONLINE_MS = 12 * 60 * 1000
 const OFF_SHOWN = 10
 
 const TAB_LABELS = {
@@ -354,14 +356,15 @@ export default function SystemReportsTab() {
     return () => document.removeEventListener('visibilitychange', onVis)
   }, [days]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Who's online refreshes itself every minute while this tab is open and
-  // visible. Presence docs are tiny (one per user), so this stays cheap;
-  // telemetry keeps its manual-refresh-only rule.
+  // Who's online refreshes itself every FIVE minutes while this tab is open
+  // and visible (each refresh reads one doc per user, so a tighter loop was
+  // eating the free-tier read quota the live class mesh depends on).
+  // Telemetry keeps its manual-refresh-only rule.
   useEffect(() => {
     const t = setInterval(() => {
       if (document.visibilityState !== 'visible') return
       fetchPresence().then(p => setPres(p)).catch(() => { /* keep last snapshot */ })
-    }, 60000)
+    }, 300000)
     return () => clearInterval(t)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -596,7 +599,7 @@ export default function SystemReportsTab() {
                 <span className="sysr-who-pill">{who.offline.length} offline</span>
               </div>
             </div>
-            <p className="sysr-who-sub">Seen in the last 5 minutes · hover a person for their session trail · refreshes every minute</p>
+            <p className="sysr-who-sub">Active in the last few minutes · hover a person for their session trail · refreshes every few minutes</p>
             {!who.any && (
               <p className="sysr-who-none">
                 No presence heartbeats yet. Devices start reporting after they load this update

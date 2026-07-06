@@ -16,7 +16,12 @@ import { fbSavePresence } from '@/firebase/presence'
 
 const BUF_KEY = 'acadflow_pres'
 const TRAIL_CAP = 12
-const HEARTBEAT_MS = 240000
+// Quota discipline: the free Firestore tier is shared with the live class
+// mesh, so presence stays cheap - one write per ACTIVE device per 10 minutes
+// at most (idle-but-open tabs stop writing entirely and simply drop to
+// offline, which is the honest reading anyway). Being in a live class counts
+// as active even without input.
+const HEARTBEAT_MS = 600000
 
 let _getDb = null
 let _uid = null
@@ -25,6 +30,8 @@ let _dirty = false
 let _flushTimer = 0
 let _beatTimer = 0
 let _listenersOn = false
+let _lastAct = Date.now()
+let _lastFlushAt = 0
 
 function loadBuf() {
   try {
@@ -66,6 +73,7 @@ async function flush() {
     buf.call = !!window.__acadflowInCall
     await fbSavePresence(db, _uid, buf)
     _dirty = false
+    _lastFlushAt = Date.now()
   } catch { /* offline or rules not published yet - keep buffering */ }
 }
 
@@ -103,17 +111,27 @@ export function presStart(role, uid, { fresh = false, since = 0 } = {}) {
     if (!_beatTimer) {
       _beatTimer = setInterval(() => {
         if (document.visibilityState !== 'visible') return
+        const active = window.__acadflowInCall || Date.now() - _lastAct <= HEARTBEAT_MS
+        if (!active) return
         mutate(() => { /* refresh `at` */ })
         flush()
       }, HEARTBEAT_MS)
     }
     if (!_listenersOn) {
       _listenersOn = true
+      const bump = () => { _lastAct = Date.now() }
+      window.addEventListener('pointerdown', bump, { passive: true })
+      window.addEventListener('keydown', bump, { passive: true })
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') flush()
-        else { mutate(() => { /* back - refresh `at` */ }); scheduleFlush(4000) }
+        if (document.visibilityState === 'hidden') { if (_dirty) flush() }
+        else if (_dirty || Date.now() - _lastFlushAt > HEARTBEAT_MS) {
+          // Coming back after a while refreshes the dot; quick app-switch
+          // hops on mobile no longer cost a write each.
+          mutate(() => { /* back - refresh `at` */ })
+          scheduleFlush(8000)
+        }
       })
-      window.addEventListener('pagehide', () => flush())
+      window.addEventListener('pagehide', () => { if (_dirty) flush() })
     }
   } catch { /* presence never breaks the app */ }
 }
@@ -130,7 +148,7 @@ export function presTab(side, tabKey) {
       const last = (b.trail || [])[b.trail?.length - 1]
       if (!last || last.k !== 'tab' || last.t !== b.tab) pushTrail(b, 'tab', b.tab)
     })
-    scheduleFlush(10000)
+    scheduleFlush(60000) // coalesce tab-hopping into one write
   } catch { /* nicety */ }
 }
 
@@ -140,7 +158,7 @@ export function presEvent(kind, text) {
   try {
     if (!_uid) return
     mutate(buf => pushTrail(buf, kind, text))
-    scheduleFlush(4000)
+    scheduleFlush(20000) // batch a burst of events into one write
   } catch { /* nicety */ }
 }
 

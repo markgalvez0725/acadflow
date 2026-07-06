@@ -108,7 +108,7 @@ function recordError(msg, src) {
       buf.errors.push({ m, src: String(src || '').slice(0, 120), n: 1, t: Date.now() })
     }
   })
-  scheduleFlush(5000)
+  scheduleFlush(30000) // batch error bursts into one write (quota discipline)
 }
 
 /** Bump a simple counter: 'saveFail' | 'chunkFail' | 'offline' | 'slow'. */
@@ -116,7 +116,7 @@ export function teleCount(key) {
   try {
     if (!['saveFail', 'chunkFail', 'offline', 'slow'].includes(key)) return
     mutate(buf => { buf[key] = (buf[key] || 0) + 1 })
-    scheduleFlush(15000)
+    scheduleFlush(60000)
   } catch { /* telemetry never breaks the app */ }
 }
 
@@ -136,7 +136,7 @@ export function teleMeet(summary) {
         t: Date.now(),
       })
     })
-    scheduleFlush(4000)
+    scheduleFlush(10000)
   } catch { /* nicety */ }
 }
 
@@ -235,10 +235,10 @@ export function teleInit() {
       }
     } catch { /* noop */ }
 
-    // Flush when the tab hides or unloads, and every 5 minutes while dirty.
+    // Flush when the tab hides or unloads, and every 15 minutes while dirty.
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush() })
     window.addEventListener('pagehide', () => flush())
-    setInterval(() => { if (_dirty) flush() }, 300000)
+    setInterval(() => { if (_dirty) flush() }, 900000)
   } catch { /* telemetry never breaks the app */ }
 }
 
