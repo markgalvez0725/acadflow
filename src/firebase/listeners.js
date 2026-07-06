@@ -2,7 +2,7 @@
 // This module owns the _fbWriting flag so it can suppress onSnapshot echoes
 // during in-flight writes. It never imports React.
 import {
-  collection, doc, onSnapshot, getDoc, query, where, orderBy, limit,
+  collection, doc, onSnapshot, getDoc, getDocs, getDocsFromCache, query, where, orderBy, limit,
 } from 'firebase/firestore'
 import { deserializeStudents } from '@/utils/attendance'
 import { decryptEJS, encryptEJS } from '@/utils/crypto'
@@ -111,21 +111,74 @@ export function fbStartListening(db, callbacks, opts = {}) {
   _unsub.push(u1);
 
   // ── students collection ───────────────────────────────────────────────
-  const u2 = onSnapshot(
-    collection(db, 'students'),
-    snap => {
-      if (_fbWriting) {
-        console.log('[Firebase] ⏸ onSnapshot skipped - local write in progress.');
-        return;
+  // The professor needs the live roster. A STUDENT device does not: keeping
+  // every student subscribed to the whole collection was the app's biggest
+  // read amplifier - every write to ANY student doc (attendance check-ins,
+  // quiz result caches, saved posts, goals) billed one read on EVERY open
+  // device, which is how class days burned the free tier. A student needs
+  // classmates only for names/photos/sections (group chats, mentions,
+  // groups), which barely change: those now come from the local Firestore
+  // cache with at most ONE server read of the roster per device per day.
+  // Only the student's OWN doc stays real-time, so grades, verification
+  // steps, and professor edits still land instantly.
+  if (isAdmin || !studentId) {
+    const u2 = onSnapshot(
+      collection(db, 'students'),
+      snap => {
+        if (_fbWriting) {
+          console.log('[Firebase] ⏸ onSnapshot skipped - local write in progress.');
+          return;
+        }
+        const incoming = [];
+        snap.forEach(d => incoming.push(d.data()));
+        const deserialized = deserializeStudents(incoming);
+        onStudentsUpdate(deserialized);
+      },
+      e => console.error('[Firebase] students listener error:', e.message)
+    );
+    _unsub.push(u2);
+  } else {
+    let roster = [];
+    let mine = null;
+    const emit = () => {
+      const merged = mine ? [...roster.filter(s => s && s.id !== mine.id), mine] : roster;
+      onStudentsUpdate(deserializeStudents(merged));
+    };
+    (async () => {
+      try {
+        let snap = null;
+        try {
+          const cached = await getDocsFromCache(collection(db, 'students'));
+          if (cached.size > 0) snap = cached;
+        } catch (e) { /* no persistent cache (private mode / first run) */ }
+        let lastSync = 0;
+        try { lastSync = Number(localStorage.getItem('acadflow_roster_at') || 0); } catch (e) {}
+        if (!snap || Date.now() - lastSync > 86400000) {
+          snap = await getDocs(collection(db, 'students'));
+          try { localStorage.setItem('acadflow_roster_at', String(Date.now())); } catch (e) {}
+        }
+        roster = [];
+        snap.forEach(d => roster.push(d.data()));
+        emit();
+      } catch (e) {
+        console.error('[Firebase] roster fetch error:', e.message);
       }
-      const incoming = [];
-      snap.forEach(d => incoming.push(d.data()));
-      const deserialized = deserializeStudents(incoming);
-      onStudentsUpdate(deserialized);
-    },
-    e => console.error('[Firebase] students listener error:', e.message)
-  );
-  _unsub.push(u2);
+    })();
+    const u2 = onSnapshot(
+      doc(db, 'students', studentId),
+      snap => {
+        if (_fbWriting) {
+          console.log('[Firebase] ⏸ onSnapshot skipped - local write in progress.');
+          return;
+        }
+        if (!snap.exists()) return;
+        mine = snap.data();
+        emit();
+      },
+      e => console.error('[Firebase] own-doc listener error:', e.message)
+    );
+    _unsub.push(u2);
+  }
 
   // ── messages collection ───────────────────────────────────────────────
   // Students load the whole collection (filtered to their own threads client-

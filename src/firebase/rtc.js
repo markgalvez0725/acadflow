@@ -124,9 +124,18 @@ export function rtcIceConfig(idToken) {
 // (when did *I* last see their heartbeat value change), never by comparing
 // Date.now() against their lastSeen - device clock skew made crashed peers
 // look alive forever ("left but still in the meeting" ghosts).
-export const HEARTBEAT_MS = 20000
-export const STALE_MS = 50000
-export const STALE_FAST_MS = 35000
+//
+// QUOTA: every heartbeat write bills one Firestore read on EVERY other
+// participant's roster listener, so a room costs beats x N^2 reads per hour.
+// The old 20s beat put a 10-person class hour at ~18K reads - a third of
+// the free tier's whole day. 120s keeps the same window RATIOS (stale =
+// 2.5 beats, fast = 1.75 beats) at 6x less cost; normal leaves are instant
+// anyway (leave cleanup + the pagehide beacon delete the doc), so the wider
+// window only delays evicting a HARD-crashed tab, and only when the beacon
+// did not get through.
+export const HEARTBEAT_MS = 120000
+export const STALE_MS = 300000
+export const STALE_FAST_MS = 210000
 
 const roomCol = (db, roomId, sub) => collection(db, 'rtcRooms', roomId, sub)
 
