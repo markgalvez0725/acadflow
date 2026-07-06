@@ -15,6 +15,13 @@
         ".read": "auth != null",
         ".write": "auth != null"
       }
+    },
+
+    "presence": {
+      ".read": "auth != null && (auth.token.admin === true || auth.token.email === 'markgalvez@ucc-caloocan.edu.ph')",
+      "$uid": {
+        ".write": "auth != null"
+      }
     }
   }
 }
