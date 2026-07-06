@@ -329,4 +329,42 @@ export function buildSystemXlsx(kind, agg, rangeLabel) {
   XLSX.writeFile(wb, `AcadFlow_${kind}_report_${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
+/** Calendar-day series over the selected range for the card graphs: one
+ *  entry per day (oldest first), null values where no device reported. */
+export function telemetryDaySeries(rows, days) {
+  const byDay = new Map()
+  for (const r of rows || []) {
+    const hit = byDay.get(r.day) || { ses: 0, errSes: 0, errors: 0, boots: [], saveFail: 0, offline: 0, slow: 0, chunkFail: 0 }
+    hit.ses += r.ses || 0
+    hit.errSes += r.errSes || 0
+    hit.errors += (r.errors || []).reduce((n, e) => n + (e.n || 1), 0)
+    for (const b of r.boot || []) hit.boots.push(b)
+    hit.saveFail += r.saveFail || 0
+    hit.offline += r.offline || 0
+    hit.slow += r.slow || 0
+    hit.chunkFail += r.chunkFail || 0
+    byDay.set(r.day, hit)
+  }
+  const out = []
+  const p = n => String(n).padStart(2, '0')
+  for (let i = Math.max(1, days) - 1; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000)
+    const key = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}`
+    const h = byDay.get(key)
+    out.push({
+      day: key,
+      label: i === 0 ? 'Today' : d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }),
+      sessions: h ? h.ses : 0,
+      crashFree: h && h.ses ? Math.max(0, 1 - h.errSes / h.ses) : null,
+      errors: h ? h.errors : null,
+      boot: h ? median(h.boots) : null,
+      events: h ? h.saveFail + h.offline + h.slow : null,
+      saveFail: h ? h.saveFail : 0,
+      offline: h ? h.offline : 0,
+      slow: h ? h.slow : 0,
+    })
+  }
+  return out
+}
+
 export { pct as sysPct, ms as sysMs, fmtDay as sysDay }

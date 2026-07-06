@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import {
@@ -7,21 +7,149 @@ import {
 import PageHeader from '@/components/ds/PageHeader'
 import EmptyState from '@/components/ds/EmptyState'
 import ErrorState from '@/components/ds/ErrorState'
-import { aggregateTelemetry, buildSystemPdf, buildSystemXlsx, sysPct, sysMs } from '@/utils/systemReports'
+import { aggregateTelemetry, telemetryDaySeries, buildSystemPdf, buildSystemXlsx, sysPct, sysMs } from '@/utils/systemReports'
 
 // System reports: how AcadFlow ITSELF is behaving across every device that
-// signs in - stability, performance, class reliability, errors, robustness.
-// Data comes from the on-device telemetry collector (src/utils/telemetry.js,
-// one small Firestore doc per device per day) fetched ONCE per visit/range;
-// aggregation and PDF/Excel generation all happen on this device.
+// signs in. Each report card carries a live day-by-day graph (hand-rolled
+// SVG, no chart library) with pointer tooltips showing the exact metrics,
+// a deterministic health pill, and a live report sentence - all recomputed
+// from the one-shot telemetry fetch. Refresh is manual (button) plus a
+// re-fetch when the tab becomes visible again; never a background poll.
 
-const REPORTS = [
-  { kind: 'stability', Icon: ShieldCheck, title: 'Stability report', text: 'Crash-free rate, JS errors, and failed chunk loads across every device.' },
-  { kind: 'performance', Icon: Zap, title: 'Performance report', text: 'App start time, first paint, long tasks, memory, and browser mix.' },
-  { kind: 'reliability', Icon: Radio, title: 'Class reliability report', text: 'Per online class: joins, reconnects, relay share, and weak-connection share.' },
-  { kind: 'errors', Icon: Bug, title: 'Bugs and errors report', text: 'Every captured error grouped by message with counts, devices, and last seen.' },
-  { kind: 'robustness', Icon: RefreshCw, title: 'Robustness report', text: 'Failed saves, offline spells, and slow-connection events - and how often.' },
-]
+const VERDICT_LABEL = { ok: 'Healthy', warn: 'Watch', bad: 'Needs attention', none: 'No data yet' }
+
+// ── Tiny charts (shared tooltip mechanics) ─────────────────────────────────
+// viewBox is 260x56: plot area x 8..252, y 8..40, labels at y 52. Hover snaps
+// to the nearest index with data and shows a floating chip with the metrics;
+// the same text feeds the SVG aria-label so screen readers get it too.
+
+function useHover(count) {
+  const [hov, setHov] = useState(-1)
+  const move = e => {
+    if (!count) return
+    const r = e.currentTarget.getBoundingClientRect()
+    const frac = Math.min(1, Math.max(0, (e.clientX - r.left) / (r.width || 1)))
+    setHov(Math.round(frac * (count - 1)))
+  }
+  return [hov, move, () => setHov(-1)]
+}
+
+function ChartShell({ caption, aria, hovText, hovX, children, onMove, onLeave }) {
+  return (
+    <div className="sysr-chart">
+      <svg
+        viewBox="0 0 260 56"
+        preserveAspectRatio="none"
+        role="img"
+        aria-label={aria}
+        onPointerMove={onMove}
+        onPointerDown={onMove}
+        onPointerLeave={onLeave}
+      >
+        <text x="8" y="9" className="sysr-ax">{caption}</text>
+        {children}
+      </svg>
+      {hovText && (
+        <span className="sysr-tip" style={{ left: `${Math.min(78, Math.max(22, hovX))}%` }}>{hovText}</span>
+      )}
+    </div>
+  )
+}
+
+function MiniLine({ series, getV, tip, caption, aria, tone = 'accent' }) {
+  const n = series.length
+  const [hov, onMove, onLeave] = useHover(n)
+  const pts = series.map((s, i) => ({ i, v: getV(s) })).filter(p => p.v !== null && p.v !== undefined)
+  const X = i => 8 + (n <= 1 ? 122 : i * (244 / (n - 1)))
+  if (!pts.length) {
+    return (
+      <ChartShell caption={caption} aria={`${aria}. No data yet.`}>
+        <line x1="8" y1="40" x2="252" y2="40" className="sysr-base" />
+      </ChartShell>
+    )
+  }
+  let min = Math.min(...pts.map(p => p.v))
+  let max = Math.max(...pts.map(p => p.v))
+  if (min === max) { min -= 1; max += 1 }
+  const Y = v => 40 - ((v - min) / (max - min)) * 28
+  const poly = pts.map(p => `${X(p.i)},${Y(p.v)}`).join(' ')
+  // Snap the hover to the nearest index that actually has data.
+  const snap = hov < 0 ? null : pts.reduce((b, p) => (Math.abs(p.i - hov) < Math.abs(b.i - hov) ? p : b), pts[0])
+  const last = pts[pts.length - 1]
+  return (
+    <ChartShell
+      caption={caption}
+      aria={`${aria}. ${tip(series[last.i])}`}
+      hovText={snap ? tip(series[snap.i]) : ''}
+      hovX={snap ? (X(snap.i) / 260) * 100 : 0}
+      onMove={onMove}
+      onLeave={onLeave}
+    >
+      <line x1="8" y1="40" x2="252" y2="40" className="sysr-base" />
+      {pts.length > 1 && <polyline points={poly} className={`sysr-line sysr-${tone}`} />}
+      {pts.map(p => (
+        <circle
+          key={p.i}
+          cx={X(p.i)}
+          cy={Y(p.v)}
+          r={snap && snap.i === p.i ? 3.4 : p.i === last.i ? 3 : 1.8}
+          className={`sysr-dot sysr-${tone}`}
+        />
+      ))}
+      <text x="8" y="53" className="sysr-ax">{series[0].label}</text>
+      <text x="252" y="53" textAnchor="end" className="sysr-ax">{series[n - 1].label}</text>
+    </ChartShell>
+  )
+}
+
+function MiniBars({ bars, tip, caption, aria, warnOn }) {
+  const n = bars.length
+  const [hov, onMove, onLeave] = useHover(n)
+  const vals = bars.map(b => b.v === null || b.v === undefined ? null : b.v)
+  const has = vals.some(v => v !== null)
+  const max = Math.max(1, ...vals.filter(v => v !== null))
+  const bw = Math.min(24, 244 / Math.max(1, n) - 3)
+  const X = i => 8 + (n <= 1 ? 0 : i * (244 / n)) + (244 / Math.max(1, n) - bw) / 2
+  if (!has) {
+    return (
+      <ChartShell caption={caption} aria={`${aria}. No data yet.`}>
+        <line x1="8" y1="40" x2="252" y2="40" className="sysr-base" />
+      </ChartShell>
+    )
+  }
+  const hovOk = hov >= 0 && vals[hov] !== null
+  return (
+    <ChartShell
+      caption={caption}
+      aria={`${aria}. ${tip(bars[n - 1])}`}
+      hovText={hovOk ? tip(bars[hov]) : ''}
+      hovX={hovOk ? ((X(hov) + bw / 2) / 260) * 100 : 0}
+      onMove={onMove}
+      onLeave={onLeave}
+    >
+      <line x1="8" y1="40" x2="252" y2="40" className="sysr-base" />
+      {bars.map((b, i) => {
+        if (vals[i] === null) return null
+        const h = vals[i] === 0 ? 2 : 4 + (vals[i] / max) * 26
+        return (
+          <rect
+            key={i}
+            x={X(i)}
+            y={40 - h}
+            width={bw}
+            height={h}
+            rx="1.5"
+            className={`sysr-bar${warnOn && warnOn(b) ? ' warn' : ''}${hov === i ? ' hov' : ''}`}
+          />
+        )
+      })}
+      <text x="8" y="53" className="sysr-ax">{bars[0].label}</text>
+      <text x="252" y="53" textAnchor="end" className="sysr-ax">{bars[n - 1].label}</text>
+    </ChartShell>
+  )
+}
+
+// ── The tab ────────────────────────────────────────────────────────────────
 
 export default function SystemReportsTab() {
   const { fetchTelemetry, meetings } = useData()
@@ -30,22 +158,132 @@ export default function SystemReportsTab() {
   const [rows, setRows] = useState(null) // null = loading
   const [failed, setFailed] = useState(false)
   const [busy, setBusy] = useState('') // `${kind}-${fmt}` while generating
+  const [updatedAt, setUpdatedAt] = useState(0)
+  const loadingRef = useRef(false)
 
-  useEffect(() => {
-    let dead = false
-    setRows(null)
+  const load = useCallback((d = days, quiet = false) => {
+    if (loadingRef.current) return
+    loadingRef.current = true
+    if (!quiet) setRows(null)
     setFailed(false)
-    fetchTelemetry(days)
-      .then(r => { if (!dead) setRows(r) })
-      .catch(() => { if (!dead) { setRows([]); setFailed(true) } })
-    return () => { dead = true }
+    fetchTelemetry(d)
+      .then(r => { setRows(r); setUpdatedAt(Date.now()) })
+      .catch(() => { setRows(prev => prev || []); setFailed(true) })
+      .finally(() => { loadingRef.current = false })
+  }, [days]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { load(days) }, [days]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Coming back to the tab after it was hidden re-fetches quietly (the data
+  // on screen stays put while the new snapshot loads). No background polling.
+  useEffect(() => {
+    const onVis = () => { if (document.visibilityState === 'visible') load(days, true) }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
   }, [days]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const sinceTs = Date.now() - days * 86400000
   const agg = useMemo(() => aggregateTelemetry(rows || [], meetings, sinceTs), [rows, meetings]) // eslint-disable-line react-hooks/exhaustive-deps
+  const series = useMemo(() => telemetryDaySeries(rows || [], days), [rows, days])
   const rangeLabel = days === 7 ? 'Last 7 days' : 'Last 30 days'
   const loading = rows === null
   const noData = !loading && !failed && (rows || []).length === 0
+  const today = series[series.length - 1]
+
+  // Per-card live verdict + narrative, all deterministic thresholds.
+  const cards = useMemo(() => {
+    const hasTele = (rows || []).length > 0
+    const classBars = agg.meets.slice(0, 7).reverse().map(m => ({
+      label: m.when ? new Date(m.when).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }) : '',
+      v: m.reconnects === null ? 0 : m.reconnects,
+      m,
+    }))
+    const latest = agg.meets[0]
+
+    const stabV = !hasTele ? 'none' : agg.crashFree === null ? 'none' : agg.crashFree < 0.9 ? 'bad' : (agg.crashFree < 0.98 || agg.chunkFail > 0) ? 'warn' : 'ok'
+    const perfV = !hasTele || agg.bootMed === null ? 'none' : agg.bootMed > 6000 ? 'bad' : agg.bootMed > 3000 ? 'warn' : 'ok'
+    const relV = !agg.meets.length ? 'none' : (latest && (latest.reconnects || 0) > 5) || agg.meets.some(m => (m.weakShare || 0) > 0.25) ? 'warn' : 'ok'
+    const errV = !hasTele ? 'none' : agg.errors.some(e => Date.now() - e.last < 86400000) ? 'warn' : agg.errorsTotal > 0 ? 'ok' : 'ok'
+    const robV = !hasTele ? 'none' : (agg.saveFail > 3 || agg.offline > 5) ? 'warn' : 'ok'
+
+    return [
+      {
+        kind: 'stability', Icon: ShieldCheck, title: 'Stability', verdict: stabV,
+        text: stabV === 'none' ? 'Waiting for devices to report - the graph fills in day by day.'
+          : `${today && today.crashFree !== null ? sysPct(today.crashFree) : sysPct(agg.crashFree)} crash-free today across ${agg.devices} device${agg.devices !== 1 ? 's' : ''}. ${agg.errorsTotal} error${agg.errorsTotal !== 1 ? 's' : ''} and ${agg.chunkFail} chunk failure${agg.chunkFail !== 1 ? 's' : ''} this range.${stabV === 'ok' ? ' Nothing to optimize.' : ' Check the Bugs report for the messages.'}`,
+        chart: (
+          <MiniLine
+            series={series}
+            getV={s => (s.crashFree === null ? null : Math.round(s.crashFree * 100))}
+            tip={s => `${s.label} · ${s.crashFree === null ? 'no data' : `${Math.round(s.crashFree * 100)}% crash-free`} · ${s.sessions} session${s.sessions !== 1 ? 's' : ''}`}
+            caption="crash-free % per day"
+            aria="Crash-free percentage per day"
+            tone="green"
+          />
+        ),
+      },
+      {
+        kind: 'performance', Icon: Zap, title: 'Performance', verdict: perfV,
+        text: perfV === 'none' ? 'Waiting for devices to report app start timings.'
+          : `Median start ${sysMs(agg.bootMed)}, first paint ${sysMs(agg.lcpMed)}${agg.memMax ? `, peak memory ${agg.memMax} MB` : ''}. ${perfV === 'ok' ? 'Start under 3s - no action needed.' : 'Slow starts detected - a stale cache or weak devices; suggest a hard refresh.'}`,
+        chart: (
+          <MiniLine
+            series={series}
+            getV={s => s.boot}
+            tip={s => `${s.label} · ${s.boot === null ? 'no data' : `${sysMs(s.boot)} median start`} · ${s.sessions} session${s.sessions !== 1 ? 's' : ''}`}
+            caption="median app start per day"
+            aria="Median app start time per day"
+            tone="accent"
+          />
+        ),
+      },
+      {
+        kind: 'reliability', Icon: Radio, title: 'Class reliability', verdict: relV,
+        text: relV === 'none' ? 'No online classes in this range yet.'
+          : latest && latest.reconnects !== null
+            ? `Latest class had ${latest.reconnects} reconnect${latest.reconnects !== 1 ? 's' : ''}${latest.relayShare !== null ? ` and ${sysPct(latest.relayShare)} of devices on a relay` : ''}. ${relV === 'ok' ? 'Connections held steady.' : 'Above normal - suggest Data saver to students on mobile data.'}`
+            : `${agg.meets.length} class${agg.meets.length !== 1 ? 'es' : ''} in range. Quality metrics appear once devices report from a class on this update.`,
+        chart: (
+          <MiniBars
+            bars={classBars}
+            tip={b => `${b.m.title} · ${b.label} · ${b.m.reconnects === null ? 'no quality data' : `${b.m.reconnects} reconnect${b.m.reconnects !== 1 ? 's' : ''}`} · ${b.m.joins} joined`}
+            caption="reconnects per class (latest right)"
+            aria="Reconnects per online class"
+            warnOn={b => (b.m.reconnects || 0) > 5}
+          />
+        ),
+      },
+      {
+        kind: 'errors', Icon: Bug, title: 'Bugs and errors', verdict: errV,
+        text: errV === 'none' ? 'No devices reporting yet - errors will chart per day here.'
+          : agg.errorsTotal === 0 ? 'No errors captured this range. Clean.'
+          : `${agg.errorsTotal} error${agg.errorsTotal !== 1 ? 's' : ''} across ${agg.errors.length} distinct message${agg.errors.length !== 1 ? 's' : ''}. Top: "${agg.errors[0].m.slice(0, 60)}" (${agg.errors[0].n}x on ${agg.errors[0].devs} device${agg.errors[0].devs !== 1 ? 's' : ''}).`,
+        chart: (
+          <MiniBars
+            bars={series.map(s => ({ label: s.label, v: s.errors, s }))}
+            tip={b => `${b.label} · ${b.v === null ? 'no data' : `${b.v} error${b.v !== 1 ? 's' : ''}`} · ${b.s.sessions} session${b.s.sessions !== 1 ? 's' : ''}`}
+            caption="errors per day"
+            aria="Errors per day"
+            warnOn={b => (b.v || 0) > 0}
+          />
+        ),
+      },
+      {
+        kind: 'robustness', Icon: RefreshCw, title: 'Robustness', verdict: robV,
+        text: robV === 'none' ? 'Waiting for devices to report save and network events.'
+          : `${agg.saveFail} failed save${agg.saveFail !== 1 ? 's' : ''}, ${agg.offline} offline spell${agg.offline !== 1 ? 's' : ''}, ${agg.slow} slow-connection event${agg.slow !== 1 ? 's' : ''}. ${robV === 'ok' ? 'Writes are landing reliably.' : 'Watch for a pattern - the Excel export lists them per day.'}`,
+        chart: (
+          <MiniBars
+            bars={series.map(s => ({ label: s.label, v: s.events, s }))}
+            tip={b => `${b.label} · ${b.v === null ? 'no data' : `${b.s.saveFail} failed save${b.s.saveFail !== 1 ? 's' : ''} · ${b.s.offline} offline · ${b.s.slow} slow`}`}
+            caption="save + network events per day"
+            aria="Failed saves and network events per day"
+            warnOn={b => (b.v || 0) > 2}
+          />
+        ),
+      },
+    ]
+  }, [agg, series, rows]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function generate(kind, fmt) {
     const key = `${kind}-${fmt}`
@@ -70,10 +308,18 @@ export default function SystemReportsTab() {
         title="System reports"
         subtitle="How AcadFlow itself is behaving across your students' devices"
         actions={(
-          <select className="sysr-range" value={days} onChange={e => setDays(Number(e.target.value))} aria-label="Report range">
-            <option value={7}>Last 7 days</option>
-            <option value={30}>Last 30 days</option>
-          </select>
+          <div className="sysr-head-a">
+            {updatedAt > 0 && (
+              <span className="sysr-upd">Updated {new Date(updatedAt).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })}</span>
+            )}
+            <button className="btn btn-ghost btn-sm" onClick={() => load(days, true)} title="Fetch the latest telemetry">
+              <RefreshCw size={14} /> Refresh
+            </button>
+            <select className="sysr-range" value={days} onChange={e => setDays(Number(e.target.value))} aria-label="Report range">
+              <option value={7}>Last 7 days</option>
+              <option value={30}>Last 30 days</option>
+            </select>
+          </div>
         )}
       />
 
@@ -122,16 +368,20 @@ export default function SystemReportsTab() {
           </div>
 
           <div className="sysr-grid">
-            {REPORTS.map(r => (
-              <div key={r.kind} className="card sysr-card">
-                <p className="sysr-card-t"><r.Icon size={16} aria-hidden="true" /> {r.title}</p>
-                <p className="sysr-card-x">{r.text}</p>
+            {cards.map(c => (
+              <div key={c.kind} className="card sysr-card">
+                <p className="sysr-card-t">
+                  <c.Icon size={16} aria-hidden="true" /> {c.title}
+                  <span className={`sysr-pill ${c.verdict}`}>{VERDICT_LABEL[c.verdict]}</span>
+                </p>
+                {c.chart}
+                <p className={`sysr-live${c.verdict === 'warn' || c.verdict === 'bad' ? ' warn' : ''}`}>{c.text}</p>
                 <div className="sysr-card-a">
-                  <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => generate(r.kind, 'pdf')}>
-                    {busy === `${r.kind}-pdf` ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />} PDF
+                  <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => generate(c.kind, 'pdf')}>
+                    {busy === `${c.kind}-pdf` ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />} PDF
                   </button>
-                  <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => generate(r.kind, 'xlsx')}>
-                    {busy === `${r.kind}-xlsx` ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />} Excel
+                  <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => generate(c.kind, 'xlsx')}>
+                    {busy === `${c.kind}-xlsx` ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />} Excel
                   </button>
                 </div>
               </div>

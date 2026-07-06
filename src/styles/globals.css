@@ -9511,3 +9511,89 @@ html[data-glass="on"][data-theme="dark"] body::before {
     .sysr-grid { grid-template-columns: 1fr; }
   }
 }
+
+/* ── System reports: card graphs + hover tooltips + live text ───────────── */
+@layer components {
+  .sysr-head-a {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sysr-head-a .btn { display: inline-flex; align-items: center; gap: 6px; }
+  .sysr-upd {
+    font-size: 0.75rem;
+    color: var(--ink3);
+    white-space: nowrap;
+  }
+  .sysr-chart {
+    position: relative;
+    margin: 2px 0;
+  }
+  .sysr-chart svg {
+    display: block;
+    width: 100%;
+    height: 64px;
+    touch-action: none;
+    cursor: crosshair;
+  }
+  .sysr-ax {
+    fill: var(--ink3);
+    font-size: 8px;
+    font-family: inherit;
+  }
+  .sysr-base {
+    stroke: var(--border2);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+  }
+  .sysr-line {
+    fill: none;
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke;
+  }
+  .sysr-line.sysr-green { stroke: var(--green); }
+  .sysr-line.sysr-accent { stroke: var(--accent); }
+  .sysr-dot.sysr-green { fill: var(--green); }
+  .sysr-dot.sysr-accent { fill: var(--accent); }
+  .sysr-bar {
+    fill: var(--accent);
+    opacity: 0.4;
+  }
+  .sysr-bar.warn { fill: var(--yellow); opacity: 0.75; }
+  .sysr-bar.hov { opacity: 1; }
+  .sysr-tip {
+    position: absolute;
+    top: -6px;
+    transform: translateX(-50%);
+    background: var(--ink);
+    color: var(--surface);
+    border-radius: 7px;
+    padding: 3px 9px;
+    font-size: 0.7188rem;
+    line-height: 1.4;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 5;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.22);
+  }
+  .sysr-pill {
+    margin-left: auto;
+    border-radius: 999px;
+    padding: 2px 9px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .sysr-pill.ok { background: var(--green-l); color: var(--green); }
+  .sysr-pill.warn { background: var(--yellow-l); color: var(--yellow); }
+  .sysr-pill.bad { background: var(--red-l); color: var(--red); }
+  .sysr-pill.none { background: var(--surface3); color: var(--ink3); }
+  .sysr-live {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.55;
+    color: var(--ink2);
+    flex: 1;
+  }
+  .sysr-live.warn { color: var(--yellow); }
+}
