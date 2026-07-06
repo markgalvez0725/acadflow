@@ -352,6 +352,17 @@ export default function SystemReportsTab() {
     return () => document.removeEventListener('visibilitychange', onVis)
   }, [days]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Who's online refreshes itself every minute while this tab is open and
+  // visible. Presence docs are tiny (one per user), so this stays cheap;
+  // telemetry keeps its manual-refresh-only rule.
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+      fetchPresence().then(p => setPres(p)).catch(() => { /* keep last snapshot */ })
+    }, 60000)
+    return () => clearInterval(t)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Join presence heartbeats with the roster (names, photos, course chips).
   const who = useMemo(() => {
     const now = Date.now()
@@ -572,7 +583,7 @@ export default function SystemReportsTab() {
                 <span className="sysr-who-pill">{who.offline.length} offline</span>
               </div>
             </div>
-            <p className="sysr-who-sub">Seen in the last 5 minutes · hover a person for their session trail · updates with Refresh</p>
+            <p className="sysr-who-sub">Seen in the last 5 minutes · hover a person for their session trail · refreshes every minute</p>
             {!who.any && (
               <p className="sysr-who-none">
                 No presence heartbeats yet. Devices start reporting after they load this update

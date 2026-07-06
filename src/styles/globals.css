@@ -9601,6 +9601,11 @@ html[data-glass="on"][data-theme="dark"] body::before {
 /* ── System reports: Who's online (presence + session trail popover) ─────── */
 @layer components {
   .sysr-who {
+    /* Sibling report cards create their own stacking contexts (blur/glass
+       themes), so the whole card must sit above them or the hover popover
+       paints underneath the grid below. */
+    position: relative;
+    z-index: 30;
     padding: 14px 16px;
     margin-bottom: 14px;
   }
@@ -9721,7 +9726,7 @@ html[data-glass="on"][data-theme="dark"] body::before {
     position: absolute;
     top: calc(100% + 6px);
     left: 0;
-    z-index: 40;
+    z-index: 60;
     width: min(320px, 86vw);
     background: var(--surface);
     border: 1px solid var(--border2);
