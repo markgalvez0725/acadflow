@@ -828,7 +828,7 @@ export default function MessagesTab({ student: s, messages }) {
                               {entry.secure
                                 ? (isSelf
                                     ? <><span className="msg-own-private"><Lock size={10} /> Private</span><div style={{ whiteSpace: 'pre-wrap' }}>{entry.body}</div></>
-                                    : <SecureBubble text={entry.body} />)
+                                    : <SecureBubble text={entry.body} restricted={!!showGroup && entry.from !== 'admin'} />)
                                 : <MessageText text={entry.body} mentions={entry.mentions} />}
                               {entry.editedAt && !entry.secure && <span className="msg-edited">edited</span>}
                             </div>
@@ -926,7 +926,7 @@ export default function MessagesTab({ student: s, messages }) {
                       type="button"
                       className={`msg-lock-btn${secureOn ? ' on' : ''}`}
                       onClick={() => { setSecureTouched(true); setSecureOn(v => !v) }}
-                      title={secureOn ? 'Private message - tap to turn off' : 'Send as private (blurred until tapped)'}
+                      title={secureOn ? 'Private message - tap to turn off' : (showGroup ? 'Send as private (only the professor can reveal it)' : 'Send as private (blurred until tapped)')}
                       aria-pressed={secureOn}
                       aria-label="Send as private message"
                     >

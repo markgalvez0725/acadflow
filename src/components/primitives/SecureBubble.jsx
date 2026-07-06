@@ -6,8 +6,21 @@ import { Lock } from 'lucide-react'
 // re-hides it. This keeps sensitive content off the screen unless the reader
 // deliberately looks, shrinking the window a screenshot or shoulder-surfer can
 // capture. Copy / long-press callout are disabled.
-export default function SecureBubble({ text }) {
+//
+// `restricted` = a classmate's private note to the professor inside a group
+// chat: the bubble acknowledges a message exists, but there is NO reveal and
+// the real body is never mounted in this DOM (a fixed placeholder renders
+// instead, so length doesn't leak either).
+export default function SecureBubble({ text, restricted = false }) {
   const [shown, setShown] = useState(false)
+  if (restricted) {
+    return (
+      <div className="msg-secure restricted" aria-label="Private message - only the professor can read this">
+        <span className="msg-secure-text">{'• • • • • •'}</span>
+        <span className="msg-secure-hint"><Lock size={11} /> Only the professor can see this</span>
+      </div>
+    )
+  }
   const reveal = () => setShown(true)
   const hide = () => setShown(false)
   return (
