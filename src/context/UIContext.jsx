@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react'
+import { presTab } from '@/utils/presence'
 
 const UIContext = createContext(null)
 
@@ -40,8 +41,10 @@ export function UIProvider({ children }) {
   const [viewStudentId, setViewStudentId] = useState(null)
 
   // Persist the selected tab so a browser refresh returns to the same panel.
-  useEffect(() => { try { localStorage.setItem('acadflow_admin_tab', adminTab) } catch (e) {} }, [adminTab])
-  useEffect(() => { try { localStorage.setItem('acadflow_student_tab', studentTab) } catch (e) {} }, [studentTab])
+  // presTab feeds the Who's online trail; it ignores calls for the wrong role
+  // (or when no one is signed in), so both effects can report unconditionally.
+  useEffect(() => { try { localStorage.setItem('acadflow_admin_tab', adminTab) } catch (e) {}; presTab('admin', adminTab) }, [adminTab])
+  useEffect(() => { try { localStorage.setItem('acadflow_student_tab', studentTab) } catch (e) {}; presTab('student', studentTab) }, [studentTab])
 
   // ── In-app meeting room (persistent across tab navigation) ───────────────
   // The live classroom is hosted at the LAYOUT level (MeetingHost), not inside

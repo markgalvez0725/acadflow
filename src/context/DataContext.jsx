@@ -22,6 +22,8 @@ import { fbPushReminderNotif } from '@/firebase/reminders'
 import { rtcCleanupRoom, rtcFetchTranscript, rtcSaveTranscript } from '@/firebase/rtc'
 import { fbFetchTelemetry } from '@/firebase/telemetry'
 import { teleAttach } from '@/utils/telemetry'
+import { presAttach, presEvent } from '@/utils/presence'
+import { fbFetchPresence } from '@/firebase/presence'
 import { buildRecap, transcriptToText } from '@/utils/meetingRecap'
 import { serializeStudents } from '@/utils/attendance'
 import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase, saveSemesterToFirebase, saveLatePolicyToFirebase, saveGradeFloorToFirebase, saveBrandingToFirebase } from '@/firebase/settings'
@@ -318,6 +320,7 @@ export function DataProvider({ children }) {
   useEffect(() => {
     if (!fbReady) return
     teleAttach(() => dbRef.current)
+    presAttach(() => dbRef.current)
   }, [fbReady])
 
   const fetchTelemetry = useCallback(async (days = 7) => {
@@ -327,6 +330,13 @@ export function DataProvider({ children }) {
     const p = n => String(n).padStart(2, '0')
     const sinceDay = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}`
     return fbFetchTelemetry(db, sinceDay)
+  }, [])
+
+  // Who's online: admin-side one-shot fetch of every presence heartbeat doc.
+  const fetchPresence = useCallback(async () => {
+    const db = dbRef.current
+    if (!db) return []
+    return fbFetchPresence(db)
   }, [])
 
   // ── Persistence helpers exposed to components ──────────────────────────
@@ -1432,6 +1442,7 @@ export function DataProvider({ children }) {
         : a
     ))
     await fbAddAnnouncementComment(dbRef.current, announcementId, comment)
+    presEvent('comment', 'Commented on the Stream')
   }, [])
 
   // Like a post (Instagram-style). Optimistic; reverts the local entry if the
@@ -1851,7 +1862,7 @@ export function DataProvider({ children }) {
       bulkDemoteAndNudge,
       meetings, setMeetings,
       liveMeetings: meetings.filter(m => m.status === 'live'),
-      saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting, sweepStaleMeetings, fetchTelemetry,
+      saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting, sweepStaleMeetings, fetchTelemetry, fetchPresence,
       generateMeetingRecap, fetchMeetingTranscript, saveMeetingRecording, markMeetingRecordingReady,
       patchMeeting, saveClassTranscript,
       caseStudies, saveCaseStudy, deleteCaseStudy,

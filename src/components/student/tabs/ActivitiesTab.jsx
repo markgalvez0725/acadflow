@@ -18,6 +18,7 @@ import { uploadSubmission } from '@/utils/googleDrive'
 import { extractSubmissionText } from '@/utils/submissionExtract'
 import { activeClassIds } from '@/utils/active'
 import { isValidUrl } from '@/utils/validators'
+import { presEvent } from '@/utils/presence'
 
 const PER_PAGE = 10
 const SOON_MS = 48 * 3600000 // "due soon" window
@@ -243,6 +244,7 @@ export default function ActivitiesTab({ student: s, activities }) {
         [`${sidPath}.returned`]: null,
       })
       delete uploadedRef.current[actId]
+      presEvent('submit', `Submitted "${act?.title || 'an activity'}" in Activities`)
       setLinkInputs(prev => ({ ...prev, [actId]: '' }))
       setPendingFiles(prev => ({ ...prev, [actId]: null }))
       setEditing(prev => ({ ...prev, [actId]: false }))
@@ -310,6 +312,7 @@ export default function ActivitiesTab({ student: s, activities }) {
         })
       })
       setPendingFiles(prev => ({ ...prev, [actId]: null }))
+      presEvent('submit', `Submitted group work "${act?.title || 'an activity'}" in Activities`)
       // Best-effort: the group submission is already locked in at this point.
       await pushAdminNotif(db.current, s, `Group submitted: ${act?.title || actId} (${group.name})`, 'act_sub', 'act:' + actId).catch(() => {})
       toast('Group submission locked in!', 'success')

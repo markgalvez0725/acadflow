@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { useData } from '@/context/DataContext'
 import { teleMeet } from '@/utils/telemetry'
+import { presEvent } from '@/utils/presence'
 import { useUI } from '@/context/UIContext'
 import useMeetingRoom from '@/hooks/useMeetingRoom'
 import {
@@ -772,11 +773,15 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
   // summary (reconnects, last self quality, relay, peak peers) for the
   // System reports tab. Scalars are stamped at render time so the unmount
   // closure never reads stale values.
-  const teleRef = useRef({ mid: '', at: 0, recon: 0, peers: 0, q: '', diag: null })
+  const teleRef = useRef({ mid: '', ttl: '', at: 0, recon: 0, peers: 0, q: '', diag: null })
   teleRef.current.mid = meeting?.id || teleRef.current.mid
+  teleRef.current.ttl = meeting?.title || teleRef.current.ttl
   teleRef.current.q = selfQuality || teleRef.current.q
   teleRef.current.diag = getDiagnostics
-  if (ready && !teleRef.current.at) teleRef.current.at = Date.now()
+  if (ready && !teleRef.current.at) {
+    teleRef.current.at = Date.now()
+    presEvent('join', `Joined class "${teleRef.current.ttl || 'Online class'}"`)
+  }
   useEffect(() => { if (netDown) teleRef.current.recon += 1 }, [netDown])
   useEffect(() => { teleRef.current.peers = Math.max(teleRef.current.peers, peers.length) }, [peers.length])
   useEffect(() => {
@@ -790,7 +795,9 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
         const d = t.diag && t.diag()
         relay = !!(d && d.relay > 0)
       } catch { /* engine already gone */ }
-      teleMeet({ id: t.mid, dur: Math.round((Date.now() - t.at) / 60000), rec: t.recon, q: t.q, relay, peers: t.peers })
+      const durMin = Math.round((Date.now() - t.at) / 60000)
+      presEvent('leave', `Left class "${t.ttl || 'Online class'}" (${durMin} min)`)
+      teleMeet({ id: t.mid, dur: durMin, rec: t.recon, q: t.q, relay, peers: t.peers })
     }
   }, [])
 

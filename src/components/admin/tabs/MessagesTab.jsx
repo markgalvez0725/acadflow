@@ -29,6 +29,7 @@ import SwipeReply from '@/components/primitives/SwipeReply'
 import { classifySensitivity, sensitivityLabel } from '@/utils/sensitiveContent'
 import { Reply } from 'lucide-react'
 import useInfiniteFeed from '@/hooks/useInfiniteFeed'
+import { presEvent } from '@/utils/presence'
 
 // Human-readable recipient label for a message's `to` field.
 function recipientDisplay(to, students) {
@@ -325,6 +326,7 @@ function ComposeModal({ onClose, replyToStudentId = null }) {
       } else {
         notifyStudentMessage(db.current, to, body.trim(), undefined, { secure: secureOn })
       }
+      presEvent('msg', 'Sent a message')
       toast('Message sent!', 'green')
       onClose()
     } catch (e) {
@@ -681,7 +683,7 @@ function ReplyBox({ onSend, onType, onStop, replyingTo, onCancelReply, candidate
     // off the next message without waiting on the Firestore round-trip (group
     // sends felt slow because the input stayed disabled until the write landed).
     setText(''); setSecureOn(false); setSecureTouched(false)
-    try { await onSend(t, secure) }
+    try { await onSend(t, secure); presEvent('msg', 'Sent a message') }
     catch (e) { setText(t) } // restore the draft if the send threw
   }
 

@@ -152,6 +152,11 @@ service cloud.firestore {
     // content). Only the teacher reads them back.
     match /telemetry/{docId}          { allow read: if isAdmin(); allow write: if signedIn(); }
 
+    // Who's online presence: each signed-in user keeps ONE heartbeat doc
+    // (last-seen timestamp, current tab, short trail of action names - no
+    // content). Only the teacher reads them back on the System reports tab.
+    match /presence/{docId}           { allow read: if isAdmin(); allow write: if signedIn(); }
+
     // Case studies: professor-only grading tool (students receive the result
     // as normal exam grades on their own student doc).
     match /caseStudies/{docId}        { allow read, write: if isAdmin(); }

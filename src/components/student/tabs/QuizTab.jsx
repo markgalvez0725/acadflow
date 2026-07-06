@@ -15,6 +15,7 @@ import PageHeader from '@/components/ds/PageHeader'
 import { activeClassIds } from '@/utils/active'
 import { subjectColor } from '@/utils/subjectColor'
 import { computeQuizScore } from '@/utils/quizScore'
+import { presEvent } from '@/utils/presence'
 
 const HOUR = 3600000
 
@@ -310,6 +311,7 @@ function QuizTakingModal({ quiz, student, onClose, onSubmitted }) {
       }
       if (lastErr) throw lastErr
 
+      presEvent('quiz', `Submitted quiz "${quiz.title}"`)
       try { localStorage.removeItem(draftKey) } catch (e) { /* ignore */ }
       exitFullscreen() // leave focus mode; show the result card normally
       setFinalScore({ score, total, pct, rawPct, penaltyPct })

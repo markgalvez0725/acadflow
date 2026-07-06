@@ -95,6 +95,7 @@ export async function fbPurgeStudentData(db, id) {
     await step('excuseRequests', deleteWhere('excuseRequests', 'studentId'));
     await step('studentFeedback', deleteWhere('studentFeedback', 'studentId'));
     await step('pushTokens', deleteWhere('pushTokens', 'ownerId'));
+    await step('presence', async () => { await deleteDoc(doc(db, 'presence', id)); });
 
     // Messages: delete direct threads to/from the student outright; for group
     // chats, pull them out of read/readAt/hiddenFor and drop their replies.

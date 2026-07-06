@@ -3,10 +3,13 @@ import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import {
   Activity, ShieldCheck, Zap, Radio, Bug, RefreshCw, FileText, FileSpreadsheet, Loader2,
+  Users, LogIn, Video, FileUp, ClipboardList, MessageSquare,
 } from 'lucide-react'
 import PageHeader from '@/components/ds/PageHeader'
 import EmptyState from '@/components/ds/EmptyState'
 import ErrorState from '@/components/ds/ErrorState'
+import { getInitials, relativeTime } from '@/utils/format'
+import { courseShort } from '@/constants/courses'
 import { aggregateTelemetry, telemetryDaySeries, buildSystemPdf, buildSystemXlsx, sysPct, sysMs } from '@/utils/systemReports'
 
 // System reports: how AcadFlow ITSELF is behaving across every device that
@@ -17,6 +20,133 @@ import { aggregateTelemetry, telemetryDaySeries, buildSystemPdf, buildSystemXlsx
 // re-fetch when the tab becomes visible again; never a background poll.
 
 const VERDICT_LABEL = { ok: 'Healthy', warn: 'Watch', bad: 'Needs attention', none: 'No data yet' }
+
+// ── Who's online ───────────────────────────────────────────────────────────
+// Presence heartbeats land in `presence/{userId}` (see src/utils/presence.js);
+// this section joins them with the roster for names and photos. Online means
+// a heartbeat inside the last 5 minutes and no logout stamp. Hovering (or
+// tapping) a person opens their session popover: current tab, device, and
+// the short breadcrumb trail their device reported.
+
+const ONLINE_MS = 5 * 60 * 1000
+const OFF_SHOWN = 10
+
+const TAB_LABELS = {
+  overview: 'Home', stream: 'Stream', dashboard: 'Dashboard', classes: 'Classes',
+  students: 'Students', grades: 'Grades', integrity: 'Grade Integrity',
+  attendance: 'Attendance', activities: 'Activities', assignments: 'Assignments',
+  caseStudies: 'Case Studies', quizzes: 'Quizzes', notifications: 'Notifications',
+  calendar: 'Calendar', onlineClasses: 'Online Classes', enrollment: 'Enrollment',
+  messages: 'Messages', feedback: 'Feedback', system: 'System Reports',
+}
+const tabLabel = k => TAB_LABELS[k] || (k ? k.charAt(0).toUpperCase() + k.slice(1) : '')
+
+const TRAIL_ICONS = { login: LogIn, tab: Activity, submit: FileUp, quiz: ClipboardList, join: Video, leave: Video, msg: MessageSquare, comment: MessageSquare }
+
+function deviceLabel(ua) {
+  const s = String(ua || '')
+  if (!s) return ''
+  const browser = s.includes('Edg') ? 'Edge' : s.includes('OPR') ? 'Opera' : s.includes('Firefox') ? 'Firefox' : s.includes('Chrome') ? 'Chrome' : s.includes('Safari') ? 'Safari' : 'Browser'
+  const os = s.includes('Android') ? 'Android' : (s.includes('iPhone') || s.includes('iPad')) ? 'iOS' : s.includes('Windows') ? 'Windows' : s.includes('Mac') ? 'Mac' : s.includes('Linux') ? 'Linux' : ''
+  return os ? `${browser} on ${os}` : browser
+}
+
+function fmtDur(ms) {
+  const m = Math.max(0, Math.round(ms / 60000))
+  if (m < 1) return 'under a minute'
+  if (m < 60) return `${m} min`
+  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`
+}
+
+function WhoAvatar({ x, size = 36 }) {
+  return (
+    <span className="sysr-who-av" style={{ width: size, height: size }}>
+      {x.photo
+        ? <img src={x.photo} alt="" />
+        : <i>{getInitials(x.name)}</i>}
+      {x.online && <span className="sysr-who-dot" />}
+    </span>
+  )
+}
+
+function PersonPop({ x }) {
+  const ref = useRef(null)
+  const [flip, setFlip] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    if (r.right > window.innerWidth - 8) setFlip(true)
+    else if (r.left < 8) setFlip(false)
+  }, [])
+  const p = x.p || {}
+  const now = Date.now()
+  const trail = [...(p.trail || [])].reverse()
+  const banner = x.online
+    ? `Now in ${tabLabel(p.tab) || 'AcadFlow'}${p.tabAt ? ` · ${fmtDur(now - p.tabAt)}` : ''}${p.since ? ` · online for ${fmtDur(now - p.since)}` : ''}${p.call ? ' · in a live class' : ''}`
+    : x.at
+      ? `Last seen ${relativeTime(x.at)}${p.tab ? ` · was in ${tabLabel(p.tab)}` : ''}`
+      : 'No activity recorded yet on this update.'
+  const dev = deviceLabel(p.ua)
+  return (
+    <div className={`sysr-pop${flip ? ' flip' : ''}`} ref={ref} onClick={e => e.stopPropagation()}>
+      <div className="sysr-pop-head">
+        <WhoAvatar x={{ ...x, online: false }} size={30} />
+        <div>
+          <b>{x.name}</b>
+          <span>{[x.meta || x.role, dev].filter(Boolean).join(' · ')}</span>
+        </div>
+      </div>
+      <p className={`sysr-pop-banner${x.online ? '' : ' off'}`}>{banner}</p>
+      {trail.length > 0 && (
+        <>
+          <p className="sysr-pop-lab">{x.online ? 'This session' : 'Last session'}</p>
+          {trail.map((e, i) => {
+            const Ic = TRAIL_ICONS[e.k] || Activity
+            return (
+              <div key={`${e.at}-${i}`} className="sysr-pop-tr">
+                <span className="sysr-pop-time">{new Date(e.at).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })}</span>
+                <Ic size={13} aria-hidden="true" />
+                <span>{e.k === 'tab' ? `Opened ${tabLabel(e.t)}` : e.t}</span>
+              </div>
+            )
+          })}
+        </>
+      )}
+      {trail.length === 0 && x.at > 0 && (
+        <p className="sysr-pop-lab">The trail fills in as they use the app.</p>
+      )}
+      <p className="sysr-pop-foot">Updates every few minutes · visible to you only</p>
+    </div>
+  )
+}
+
+function PersonRow({ x, open, onOpen, onClose, chip = false }) {
+  const t = useRef(0)
+  useEffect(() => () => clearTimeout(t.current), [])
+  return (
+    <div
+      className={`${chip ? 'sysr-who-chip' : 'sysr-who-row'}${x.online ? '' : ' off'}`}
+      onMouseEnter={() => { clearTimeout(t.current); onOpen(x.id) }}
+      onMouseLeave={() => { t.current = setTimeout(onClose, 160) }}
+      onClick={() => (open ? onClose() : onOpen(x.id))}
+    >
+      <WhoAvatar x={x} size={chip ? 24 : 36} />
+      <div className="sysr-who-id">
+        <b className="sysr-who-nm">{x.name}</b>
+        {!chip && (
+          <span className="sysr-who-st">
+            {x.online
+              ? `${x.role} · ${Date.now() - x.at < 90000 ? 'active now' : relativeTime(x.at)}`
+              : x.at ? `Last seen ${relativeTime(x.at)}` : 'No data yet'}
+          </span>
+        )}
+        {chip && <span className="sysr-who-st">{x.at ? relativeTime(x.at) : 'no data yet'}</span>}
+      </div>
+      {open && <PersonPop x={x} />}
+    </div>
+  )
+}
 
 // ── Tiny charts (shared tooltip mechanics) ─────────────────────────────────
 // Each chart measures its card slot (ResizeObserver) and draws in TRUE pixel
@@ -185,13 +315,16 @@ function MiniBars({ bars, tip, caption, aria, warnOn }) {
 // ── The tab ────────────────────────────────────────────────────────────────
 
 export default function SystemReportsTab() {
-  const { fetchTelemetry, meetings } = useData()
+  const { fetchTelemetry, fetchPresence, meetings, students, admin } = useData()
   const { toast } = useUI()
   const [days, setDays] = useState(7)
   const [rows, setRows] = useState(null) // null = loading
+  const [pres, setPres] = useState(null) // presence heartbeats (null = loading)
   const [failed, setFailed] = useState(false)
   const [busy, setBusy] = useState('') // `${kind}-${fmt}` while generating
   const [updatedAt, setUpdatedAt] = useState(0)
+  const [popId, setPopId] = useState('') // which person's popover is open
+  const [offAll, setOffAll] = useState(false)
   const loadingRef = useRef(false)
 
   const load = useCallback((d = days, quiet = false) => {
@@ -199,6 +332,10 @@ export default function SystemReportsTab() {
     loadingRef.current = true
     if (!quiet) setRows(null)
     setFailed(false)
+    // Presence rides the same refresh; its failure never blocks telemetry.
+    fetchPresence()
+      .then(p => setPres(p))
+      .catch(() => setPres(prev => prev || []))
     fetchTelemetry(d)
       .then(r => { setRows(r); setUpdatedAt(Date.now()) })
       .catch(() => { setRows(prev => prev || []); setFailed(true) })
@@ -214,6 +351,33 @@ export default function SystemReportsTab() {
     document.addEventListener('visibilitychange', onVis)
     return () => document.removeEventListener('visibilitychange', onVis)
   }, [days]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Join presence heartbeats with the roster (names, photos, course chips).
+  const who = useMemo(() => {
+    const now = Date.now()
+    const byId = new Map((pres || []).map(p => [p.id, p]))
+    const list = [{
+      id: 'admin', name: admin?.name || 'Professor', photo: admin?.photo || null,
+      role: 'Professor', meta: 'Professor', p: byId.get('admin'),
+    }]
+    for (const s of students) {
+      list.push({
+        id: s.id, name: s.name || s.id, photo: s.photo || null, role: 'Student',
+        meta: ['Student', courseShort(s.course), s.section ? `Sec ${s.section}` : ''].filter(Boolean).join(' · '),
+        p: byId.get(s.id),
+      })
+    }
+    const state = list.map(x => {
+      const at = x.p?.at || 0
+      const online = at > 0 && !(x.p?.out) && now - at < ONLINE_MS
+      return { ...x, at, online }
+    })
+    return {
+      online: state.filter(x => x.online).sort((a, b) => b.at - a.at),
+      offline: state.filter(x => !x.online).sort((a, b) => b.at - a.at),
+      any: (pres || []).length > 0,
+    }
+  }, [pres, students, admin])
 
   const sinceTs = Date.now() - days * 86400000
   const agg = useMemo(() => aggregateTelemetry(rows || [], meetings, sinceTs), [rows, meetings]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -398,6 +562,45 @@ export default function SystemReportsTab() {
               <b>{agg.reconTotal}</b>
               <i>{agg.meets.length} classes in range</i>
             </div>
+          </div>
+
+          <div className="card sysr-who">
+            <div className="sysr-who-head">
+              <p className="sysr-card-t"><Users size={16} aria-hidden="true" /> Who's online</p>
+              <div className="sysr-who-pills">
+                <span className="sysr-who-pill on">{who.online.length} online</span>
+                <span className="sysr-who-pill">{who.offline.length} offline</span>
+              </div>
+            </div>
+            <p className="sysr-who-sub">Seen in the last 5 minutes · hover a person for their session trail · updates with Refresh</p>
+            {!who.any && (
+              <p className="sysr-who-none">
+                No presence heartbeats yet. Devices start reporting after they load this update
+                (the presence rules block must be published in the Firebase console).
+              </p>
+            )}
+            {who.online.length > 0 && (
+              <div className="sysr-who-grid">
+                {who.online.map(x => (
+                  <PersonRow key={x.id} x={x} open={popId === x.id} onOpen={setPopId} onClose={() => setPopId('')} />
+                ))}
+              </div>
+            )}
+            {who.offline.length > 0 && (
+              <div className="sysr-who-off">
+                <p className="sysr-pop-lab">Offline</p>
+                <div className="sysr-who-offwrap">
+                  {(offAll ? who.offline : who.offline.slice(0, OFF_SHOWN)).map(x => (
+                    <PersonRow key={x.id} x={x} chip open={popId === x.id} onOpen={setPopId} onClose={() => setPopId('')} />
+                  ))}
+                  {who.offline.length > OFF_SHOWN && (
+                    <button className="sysr-who-more" onClick={() => setOffAll(v => !v)}>
+                      {offAll ? 'Show less' : `+${who.offline.length - OFF_SHOWN} more`}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="sysr-grid">

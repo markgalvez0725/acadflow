@@ -6,6 +6,7 @@ import { genOTP, verifyOTP, consumeOTP } from '@/utils/otp'
 import { isLockedOut, recordFailedAttempt, clearAttempts } from '@/utils/validate'
 import { hasQuickPin, setQuickPin, verifyQuickPin, clearQuickPin } from '@/utils/quickPin'
 import { getFbAuth, getDb } from '@/firebase/firebaseInit'
+import { presStart, presStop } from '@/utils/presence'
 import { ADMIN_EMAIL, studentEmail, studentDocId } from '@/constants/auth'
 
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
@@ -191,6 +192,7 @@ export function AuthProvider({ children }) {
     setLastLogin(prevTs)
     setSessionRole(role)
     setCurrentStudent(studentObj)
+    presStart(role, role === 'admin' ? 'admin' : (studentObj?.id || ''), { fresh: true, since: now })
   }
 
   function _attemptRestore() {
@@ -218,6 +220,7 @@ export function AuthProvider({ children }) {
         // Defer: store the ID and AppRouter/StudentLayout will match it
         setCurrentStudent({ id: sess.studentId, _pending: true })
       }
+      presStart(sess.role, sess.role === 'admin' ? 'admin' : (sess.studentId || ''), { fresh: false, since: sess.loginTime || 0 })
     } catch (e) {}
   }
 
@@ -301,6 +304,7 @@ export function AuthProvider({ children }) {
 
   // ── Logout ──────────────────────────────────────────────────────────────
   const logout = useCallback((reason) => {
+    presStop()
     clearTimeout(sessionTimerRef.current)
     try { const a = getFbAuth(); if (a) signOut(a) } catch (e) {}
     try { localStorage.removeItem(SESSION_KEY) } catch (e) {}

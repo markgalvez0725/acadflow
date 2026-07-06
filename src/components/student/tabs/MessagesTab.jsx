@@ -3,6 +3,7 @@ import { doc, setDoc } from 'firebase/firestore'
 import { useData } from '@/context/DataContext'
 import { useUI } from '@/context/UIContext'
 import { relativeTime, dayLabel, getInitials, fmtTime as timeLabel } from '@/utils/format'
+import { presEvent } from '@/utils/presence'
 import { getStudentMessages } from '@/utils/studentMessages'
 import { groupName, isGroupMessage, groupMembers } from '@/utils/groupChat'
 import ChatMembersModal from '@/components/primitives/ChatMembersModal'
@@ -434,6 +435,7 @@ export default function MessagesTab({ student: s, messages }) {
         // Notify professor of a brand-new conversation (was previously missing).
         notifyAdminMessage(db.current, s.name || s.id, text, 'message', { secure, studentId: s.id })
       }
+      presEvent('msg', 'Sent a message')
     } catch (e) {
       toast('Failed to send: ' + e.message, 'error')
       setReplyText(text) // restore the draft so it isn't lost
