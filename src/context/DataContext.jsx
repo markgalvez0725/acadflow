@@ -20,6 +20,8 @@ import {
 } from '@/firebase/persistence'
 import { fbPushReminderNotif } from '@/firebase/reminders'
 import { rtcCleanupRoom, rtcFetchTranscript, rtcSaveTranscript } from '@/firebase/rtc'
+import { fbFetchTelemetry } from '@/firebase/telemetry'
+import { teleAttach } from '@/utils/telemetry'
 import { buildRecap, transcriptToText } from '@/utils/meetingRecap'
 import { serializeStudents } from '@/utils/attendance'
 import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase, saveSemesterToFirebase, saveLatePolicyToFirebase, saveGradeFloorToFirebase, saveBrandingToFirebase } from '@/firebase/settings'
@@ -309,6 +311,23 @@ export function DataProvider({ children }) {
   }, [fbReady, isAdminSession, messagesLimit])
 
   const loadMoreMessages = useCallback(() => setMessagesLimit(n => n + 120), [])
+
+  // ── Device telemetry (System reports) ────────────────────────────────────
+  // Hand the collector a live db getter once Firebase is up so buffered
+  // signals can flush; expose the admin-side one-shot range fetch.
+  useEffect(() => {
+    if (!fbReady) return
+    teleAttach(() => dbRef.current)
+  }, [fbReady])
+
+  const fetchTelemetry = useCallback(async (days = 7) => {
+    const db = dbRef.current
+    if (!db) return []
+    const d = new Date(Date.now() - Math.max(1, days) * 86400000)
+    const p = n => String(n).padStart(2, '0')
+    const sinceDay = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}`
+    return fbFetchTelemetry(db, sinceDay)
+  }, [])
 
   // ── Persistence helpers exposed to components ──────────────────────────
   // Deferred-purge bookkeeping. A deleted student's full cascade is scheduled to
@@ -1832,7 +1851,7 @@ export function DataProvider({ children }) {
       bulkDemoteAndNudge,
       meetings, setMeetings,
       liveMeetings: meetings.filter(m => m.status === 'live'),
-      saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting, sweepStaleMeetings,
+      saveMeetLink, scheduleMeeting, startInstantMeeting, startMeeting, endMeeting, cancelMeeting, sweepStaleMeetings, fetchTelemetry,
       generateMeetingRecap, fetchMeetingTranscript, saveMeetingRecording, markMeetingRecordingReady,
       patchMeeting, saveClassTranscript,
       caseStudies, saveCaseStudy, deleteCaseStudy,

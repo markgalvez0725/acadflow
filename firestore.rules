@@ -146,6 +146,12 @@ service cloud.firestore {
     // tab. The cron uses the service account, which bypasses these rules.
     match /auditLog/{docId}           { allow read, write: if isAdmin(); }
 
+    // Device telemetry for the System reports tab: every signed-in device
+    // writes ONE small doc per day (id "<deviceId>-<day>") with technical
+    // signals only (errors, timings, meeting quality - no student ids or
+    // content). Only the teacher reads them back.
+    match /telemetry/{docId}          { allow read: if isAdmin(); allow write: if signedIn(); }
+
     // Case studies: professor-only grading tool (students receive the result
     // as normal exam grades on their own student doc).
     match /caseStudies/{docId}        { allow read, write: if isAdmin(); }

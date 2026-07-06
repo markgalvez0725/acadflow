@@ -24,6 +24,18 @@ export function registerServiceWorker() {
     reloading = true
     // The updated worker has claimed this page; reload once so the user always
     // ends up on the deployed version instead of a stale cached bundle.
+    // EXCEPT while a live class is running on this tab (MeetingRoom sets
+    // window.__acadflowInCall): reloading would drop the call for a student
+    // or the whole class for the professor. Wait for the room to close, then
+    // pick up the new build.
+    if (window.__acadflowInCall) {
+      const t = setInterval(() => {
+        if (window.__acadflowInCall) return
+        clearInterval(t)
+        window.location.reload()
+      }, 5000)
+      return
+    }
     window.location.reload()
   })
 

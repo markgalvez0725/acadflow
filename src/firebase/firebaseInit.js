@@ -2,6 +2,7 @@
 import { initializeApp, getApps, deleteApp } from 'firebase/app'
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
 import { getAuth, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth'
+import { teleCount } from '@/utils/telemetry'
 
 /** Hardcoded Firebase config - always available on any device. */
 const HARDCODED_FB_CONFIG = {
@@ -152,12 +153,17 @@ export async function fbInit(fbConfig) {
   }
 }
 
-/** Race a promise against a timeout to avoid hanging writes. */
+/** Race a promise against a timeout to avoid hanging writes. A rejection
+ *  (timeout or Firestore error) also bumps the telemetry saveFail counter
+ *  for the System reports tab, then rethrows untouched. */
 export function fbWithTimeout(promise, ms = FB_WRITE_TIMEOUT) {
   return Promise.race([
     promise,
     new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Firebase write timed out')), ms)
     ),
-  ]);
+  ]).catch(e => {
+    try { teleCount('saveFail') } catch (x) { /* telemetry is a nicety */ }
+    throw e;
+  });
 }

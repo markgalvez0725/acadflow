@@ -5,6 +5,13 @@ import ErrorBoundary from './components/primitives/ErrorBoundary'
 import './styles/globals.css'
 import './styles/design-system.css'
 import { registerServiceWorker } from './pwa/registerSW'
+import { teleInit, teleCount, teleVersion } from './utils/telemetry'
+import { APP_VERSION } from './constants/changelog'
+
+// System-health telemetry: start capturing BEFORE React mounts so even a
+// render crash on boot is recorded. Never throws, never blocks.
+teleInit()
+teleVersion(APP_VERSION)
 
 // The old opt-in frosted-glass overlay (html[data-glass="on"]) was retired in
 // favor of the dedicated frost THEME (data-theme="frost", see design-system.css).
@@ -18,6 +25,7 @@ try { localStorage.removeItem('acadflow_glass') } catch (e) {}
 // new index + chunks. Offline (or on a second failure) we let lazyRetry's
 // in-place recovery screen handle it instead of reload-looping.
 window.addEventListener('vite:preloadError', (event) => {
+  try { teleCount('chunkFail') } catch (e) { /* telemetry is a nicety */ }
   let alreadyReloaded = false
   try { alreadyReloaded = sessionStorage.getItem('af_chunk_reloaded') === '1' } catch (e) {}
   if (alreadyReloaded || navigator.onLine === false) return

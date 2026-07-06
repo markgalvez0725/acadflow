@@ -5,7 +5,7 @@ import { useUI } from '@/context/UIContext'
 import BrandMark from '@/components/primitives/BrandMark'
 import ChangelogModal from '@/components/primitives/ChangelogModal'
 import { APP_VERSION } from '@/constants/changelog'
-import { LayoutDashboard, School, Users, BookOpen, CalendarCheck, Bell, ClipboardList, Settings, LogOut, FileQuestion, Rss, CalendarDays, Video, History, MessageSquare, MessageSquarePlus, ShieldCheck, ListChecks } from 'lucide-react'
+import { LayoutDashboard, School, Users, BookOpen, CalendarCheck, Bell, ClipboardList, Settings, LogOut, FileQuestion, Rss, CalendarDays, Video, History, MessageSquare, MessageSquarePlus, ShieldCheck, ListChecks, Activity } from 'lucide-react'
 
 // Flat, Instagram-style nav list (no section headers).
 const NAV_ITEMS = [
@@ -25,6 +25,7 @@ const NAV_ITEMS = [
   { id: 'calendar',       label: 'Calendar',       Icon: CalendarDays },
   { id: 'feedback',       label: 'Feedback Hub',   Icon: MessageSquarePlus },
   { id: 'audit',          label: 'Audit Log',      Icon: History },
+  { id: 'system',         label: 'System Reports', Icon: Activity },
 ]
 
 export default function AdminSidebar({ onSettingsOpen }) {

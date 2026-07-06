@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext'
 import {
   Search, LayoutDashboard, BookOpen, CalendarCheck, ClipboardList, Bell,
   FileQuestion, Rss, CalendarDays, Video, ClipboardSignature, Users, GraduationCap,
-  Sun, Moon, Snowflake, Download, CornerDownLeft, ArrowUp, ArrowDown, User, Building2, History, ListChecks, MessageSquare, MessageSquarePlus, ShieldCheck,
+  Sun, Moon, Snowflake, Download, CornerDownLeft, ArrowUp, ArrowDown, User, Building2, History, ListChecks, MessageSquare, MessageSquarePlus, ShieldCheck, Activity,
 } from 'lucide-react'
 import { courseShort } from '@/constants/courses'
 
@@ -28,6 +28,7 @@ const ADMIN_TABS = [
   { id: 'onlineClasses', label: 'Online Classes', Icon: Video },
   { id: 'feedback',      label: 'Feedback Hub',   Icon: MessageSquarePlus },
   { id: 'audit',         label: 'Audit Log',      Icon: History },
+  { id: 'system',        label: 'System Reports', Icon: Activity },
 ]
 
 const STUDENT_TABS = [

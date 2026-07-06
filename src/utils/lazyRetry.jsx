@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import ErrorState from '@/components/ds/ErrorState'
+import { teleCount } from '@/utils/telemetry'
 
 // Chunk-load resilience for React.lazy on flaky networks (mobile data).
 //
@@ -30,6 +31,9 @@ async function importWithRetry(importer) {
     }
     if (i < RETRY_DELAYS.length) await sleep(RETRY_DELAYS[i])
   }
+  // Every retry burned: count it for the System reports tab before the
+  // recovery screen takes over.
+  try { teleCount('chunkFail') } catch (e) { /* telemetry is a nicety */ }
   throw lastErr
 }
 

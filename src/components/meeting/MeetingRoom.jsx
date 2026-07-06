@@ -9,6 +9,7 @@ import {
   List, Zap, Activity, X, BarChart2, Shuffle, Clock, HelpCircle, Star, Layers,
 } from 'lucide-react'
 import { useData } from '@/context/DataContext'
+import { teleMeet } from '@/utils/telemetry'
 import { useUI } from '@/context/UIContext'
 import useMeetingRoom from '@/hooks/useMeetingRoom'
 import {
@@ -764,6 +765,35 @@ export default function MeetingRoom({ meeting, self, minimized, onMinimize, onCl
       : 0
   }
   const lateMin = Math.max(0, lateMinRef.current)
+
+  // Telemetry: while a room is mounted (green room, live, or minimized) flag
+  // the tab as in-call so a fresh deploy's service-worker reload WAITS instead
+  // of dropping everyone mid-class; on unmount, report one per-class quality
+  // summary (reconnects, last self quality, relay, peak peers) for the
+  // System reports tab. Scalars are stamped at render time so the unmount
+  // closure never reads stale values.
+  const teleRef = useRef({ mid: '', at: 0, recon: 0, peers: 0, q: '', diag: null })
+  teleRef.current.mid = meeting?.id || teleRef.current.mid
+  teleRef.current.q = selfQuality || teleRef.current.q
+  teleRef.current.diag = getDiagnostics
+  if (ready && !teleRef.current.at) teleRef.current.at = Date.now()
+  useEffect(() => { if (netDown) teleRef.current.recon += 1 }, [netDown])
+  useEffect(() => { teleRef.current.peers = Math.max(teleRef.current.peers, peers.length) }, [peers.length])
+  useEffect(() => {
+    window.__acadflowInCall = true
+    return () => {
+      window.__acadflowInCall = false
+      const t = teleRef.current
+      if (!t.at || !t.mid) return
+      let relay = false
+      try {
+        const d = t.diag && t.diag()
+        relay = !!(d && d.relay > 0)
+      } catch { /* engine already gone */ }
+      teleMeet({ id: t.mid, dur: Math.round((Date.now() - t.at) / 60000), rec: t.recon, q: t.q, relay, peers: t.peers })
+    }
+  }, [])
+
   // One quiet nudge toward the catch-up summary: the companion button gets a
   // badge until the late joiner opens it once (or was not late at all).
   const otlHas = !!(((meeting?.outline || {}).items || []).length || ((meeting?.outline || {}).notes || []).length)

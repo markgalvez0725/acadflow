@@ -51,6 +51,7 @@ const CalendarTab       = lazyRetry(() => import('./tabs/CalendarTab'))
 const OnlineClassesTab  = lazyRetry(() => import('./tabs/OnlineClassesTab'))
 const MessagesTab       = lazyRetry(() => import('./tabs/MessagesTab'))
 const AuditLogTab       = lazyRetry(() => import('./tabs/AuditLogTab'))
+const SystemReportsTab  = lazyRetry(() => import('./tabs/SystemReportsTab'))
 const FeedbackHubTab    = lazyRetry(() => import('./tabs/FeedbackHubTab'))
 const GradeIntegrityTab = lazyRetry(() => import('./tabs/GradeIntegrityTab'))
 
@@ -75,6 +76,7 @@ const TAB_TITLES = {
   onlineClasses:  ['Online Classes', 'Schedule and manage Google Meet sessions for your classes'],
   messages:       ['Messages',       'Conversations with your students'],
   feedback:       ['Feedback Hub',    'Student bug reports, ideas, and requests'],
+  system:         ['System Reports',  'How AcadFlow itself is behaving - stability, performance, reliability'],
 }
 
 export default function AdminLayout() {
@@ -190,6 +192,7 @@ export default function AdminLayout() {
               {adminTab === 'onlineClasses' && <OnlineClassesTab />}
               {adminTab === 'messages'      && <MessagesTab />}
               {adminTab === 'audit'         && <AuditLogTab />}
+              {adminTab === 'system'        && <SystemReportsTab />}
               {adminTab === 'feedback'      && <FeedbackHubTab />}
             </Suspense>
           </TabErrorBoundary>
