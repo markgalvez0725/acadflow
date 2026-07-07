@@ -35,9 +35,13 @@ export default function MaintenanceScreen({ onRevealFaculty }) {
           padding: '40px 28px 32px',
         }}
       >
-        <span onClick={handleLogoTap} style={{ display: 'inline-block', cursor: 'default', WebkitTapHighlightColor: 'transparent' }}>
-          <AcadFlowLogo variant="stacked" size="sm" />
-        </span>
+        {/* Block wrapper: keeps the logo on its own centered line (inline-block
+            siblings otherwise share a line with the status pill below). */}
+        <div>
+          <span onClick={handleLogoTap} style={{ display: 'inline-block', cursor: 'default', WebkitTapHighlightColor: 'transparent' }}>
+            <AcadFlowLogo variant="stacked" size="sm" />
+          </span>
+        </div>
         <div
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 6, margin: '18px auto 14px',

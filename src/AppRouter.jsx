@@ -39,8 +39,16 @@ function BootSplashHider() {
 }
 
 export default function AppRouter() {
-  const { sessionRole, pinLocked } = useAuth()
+  const { sessionRole, pinLocked, logout } = useAuth()
   const { fbReady, maintenanceOn } = useData()
+
+  // Maintenance mode CUTS live student sessions, it doesn't just cover them:
+  // the Firebase Auth sign-out drops every listener and the saved session, so
+  // the device lands on the maintenance screen logged out and must sign in
+  // fresh once the professor lifts the freeze. Admin sessions are untouched.
+  useEffect(() => {
+    if (maintenanceOn && sessionRole === 'student') logout('maintenance')
+  }, [maintenanceOn, sessionRole, logout])
   const { startLoading, stopLoading } = useUI()
   // Faculty/admin sign-in is reached via the /faculty path (not linked from the
   // student login). Inside an installed PWA there's no address bar to type that
