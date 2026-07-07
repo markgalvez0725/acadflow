@@ -92,11 +92,30 @@ function tokenValid() {
   return _token && _token.access_token && Date.now() < _token.expires_at - 60000
 }
 
+// Warm-up: preload the GIS script + token client shortly after this module
+// loads (i.e. whenever a Drive-capable screen mounts). The click-time path
+// then has no script-download await before requestAccessToken, so the popup
+// opens while the click's activation is still valid. Best-effort only - real
+// calls load on demand if this failed.
+if (typeof window !== 'undefined' && CLIENT_ID) {
+  setTimeout(() => { getTokenClient().catch(() => { /* warm-up only */ }) }, 2500)
+}
+
 // interactive=true forces the account/consent popup; false attempts a silent grant.
 function requestToken(interactive) {
   return new Promise((resolve, reject) => {
     getTokenClient().then(client => {
-      _tokenErrCb = err => { _tokenErrCb = null; reject(new Error(err?.type || 'Google sign-in was blocked.')) }
+      _tokenErrCb = err => {
+        _tokenErrCb = null
+        const t = err?.type || ''
+        reject(new Error(
+          t === 'popup_failed_to_open'
+            ? 'Your browser blocked the Google popup. Allow popups for this site, then try again.'
+            : t === 'popup_closed'
+              ? 'The Google window was closed before finishing. Please try again.'
+              : (t || 'Google sign-in was blocked.')
+        ))
+      }
       client.callback = resp => {
         _tokenErrCb = null
         if (resp.error) { reject(new Error(resp.error_description || resp.error)); return }
@@ -110,9 +129,19 @@ function requestToken(interactive) {
 
 async function getToken() {
   if (tokenValid()) return _token.access_token
-  try { return await requestToken(false) }
-  catch { return await requestToken(true) }
+  // ONE popup per user action. With prompt:'' Google shows the account chooser
+  // or consent screen inside that same popup only when it has to. The old
+  // silent-then-consent flow opened two popups back-to-back: the first burned
+  // the click's user activation, so the browser reliably blocked the second
+  // ("GSI_LOGGER: Failed to open popup window").
+  return requestToken(false)
 }
+
+/** Public: acquire (or refresh) the Drive token NOW, while a user click is
+ *  still fresh. Callers with slow pre-upload work (OCR extraction, big reads)
+ *  MUST call this first - a Google popup opened after seconds of awaits no
+ *  longer counts as user-initiated and gets popup-blocked. */
+export function ensureDriveToken() { return getToken() }
 
 async function driveFetch(url, opts = {}) {
   const token = await getToken()
@@ -370,16 +399,14 @@ export function startResumableUpload({ name, mimeType = 'video/webm', folderPath
 // can be previewed. videoMediaMetadata only appears once that processing is
 // done, so it is the "ready to view" signal the status poller watches.
 //
-// The poller runs in the background, so this check must NEVER open a consent
-// popup: it uses the cached token, attempts at most one silent refresh every
-// 5 minutes, and reports "no token" instead of prompting.
+// The poller runs in the background, so this check must NEVER open a popup:
+// cached token or nothing. A GIS "silent" request still opens a popup window,
+// and without a user gesture the browser blocks it - the old
+// refresh-every-5-minutes attempt logged a GSI popup error on every poll.
+// The user-click path (Check now) does the real refresh.
 // Returns: true = processed, false = still processing, null = cannot check now.
-let _lastSilentTry = 0
 async function getTokenSilent() {
-  if (tokenValid()) return _token.access_token
-  if (Date.now() - _lastSilentTry < 300000) return null
-  _lastSilentTry = Date.now()
-  try { return await requestToken(false) } catch { return null }
+  return tokenValid() ? _token.access_token : null
 }
 
 export async function checkDriveVideoProcessed(driveId) {

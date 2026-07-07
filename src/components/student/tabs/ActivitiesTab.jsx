@@ -14,7 +14,7 @@ import SubmissionPreview from '@/components/primitives/SubmissionPreview'
 import RichText from '@/components/primitives/RichText'
 import StudentMeta from '@/components/primitives/StudentMeta'
 import { useRedirectHighlight } from '@/navigation/useRedirectHighlight'
-import { uploadSubmission } from '@/utils/googleDrive'
+import { uploadSubmission, ensureDriveToken } from '@/utils/googleDrive'
 import { extractSubmissionText } from '@/utils/submissionExtract'
 import { activeClassIds } from '@/utils/active'
 import { isValidUrl } from '@/utils/validators'
@@ -212,6 +212,11 @@ export default function ActivitiesTab({ student: s, activities }) {
         contentText = done.contentText
         contentMeta = done.contentMeta
       } else if (file) {
+        // Step 0: get the Drive token NOW, while the Submit click is still
+        //    fresh. The extraction below can take many seconds, and a Google
+        //    popup opened after it no longer counts as user-initiated - the
+        //    browser blocks it and the whole upload dies.
+        await ensureDriveToken()
         // Step 1: read the file's text ON DEVICE (OCR/PDF/DOCX/text) so the
         //    professor's Smart grader can score it later without anyone pasting.
         //    Best-effort: a failure just means we submit without the extracted text.
