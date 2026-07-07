@@ -1,18 +1,30 @@
-import React from 'react'
+import React, { useRef } from 'react'
 import { ShieldCheck, Link, KeyRound, Clock } from 'lucide-react'
 import AcadFlowLogo from '@/components/primitives/AcadFlowLogo'
 
-// Full-freeze maintenance screen shown while the portal is being migrated to
-// its new server. Rendered by AppRouter INSTEAD of every login screen and
-// layout (no session path reaches the app), so no user-initiated Firestore
-// write can happen while the freeze is on. The flag lives in AppRouter
-// (VITE_MAINTENANCE); lifting the freeze is one env flip or one commit.
+// Maintenance screen shown while portal/publicStatus.maintenance is ON
+// (professor toggle in Settings > Maintenance mode). AppRouter renders it
+// instead of the student login and layouts, so no student Firestore write can
+// happen during the migration freeze. The faculty door stays open: /faculty
+// shows the admin login, and - for installed PWAs with no address bar - the
+// same hidden gesture as the student login works here too: tap the logo 5
+// times to reveal the faculty sign-in (onRevealFaculty).
 
 const row = { display: 'flex', gap: 10, alignItems: 'flex-start', margin: 0 }
 const rowText = { fontSize: 13.5, lineHeight: 1.65, color: 'var(--ink2)' }
 const rowIcon = { flex: '0 0 auto', marginTop: 2 }
 
-export default function MaintenanceScreen() {
+export default function MaintenanceScreen({ onRevealFaculty }) {
+  // 5 taps on the logo within 2.5s = reveal the faculty sign-in (same gesture
+  // as the student login screen, so the professor's muscle memory carries over).
+  const taps = useRef({ n: 0, t: 0 })
+  const handleLogoTap = () => {
+    const now = Date.now()
+    if (now - taps.current.t > 2500) taps.current.n = 0
+    taps.current.t = now
+    taps.current.n += 1
+    if (taps.current.n >= 5) { taps.current.n = 0; onRevealFaculty?.() }
+  }
   return (
     <div style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', padding: 20, background: 'var(--bg)' }}>
       <div
@@ -23,7 +35,9 @@ export default function MaintenanceScreen() {
           padding: '40px 28px 32px',
         }}
       >
-        <AcadFlowLogo variant="stacked" size="sm" />
+        <span onClick={handleLogoTap} style={{ display: 'inline-block', cursor: 'default', WebkitTapHighlightColor: 'transparent' }}>
+          <AcadFlowLogo variant="stacked" size="sm" />
+        </span>
         <div
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 6, margin: '18px auto 14px',

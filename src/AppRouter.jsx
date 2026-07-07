@@ -16,13 +16,6 @@ const CommandPalette   = lazyRetry(() => import('@/components/primitives/Command
 const QuickUnlock      = lazyRetry(() => import('@/components/auth/QuickUnlock'))
 const MaintenanceScreen = lazyRetry(() => import('@/components/primitives/MaintenanceScreen'))
 
-// Full-freeze migration gate: while ON, everyone (students AND faculty) gets
-// the maintenance screen instead of any login or layout, so no client write
-// can reach Firestore during the move to the new server. Default is ON; lift
-// it by setting VITE_MAINTENANCE=0 in the Vercel env (then redeploy) or by
-// flipping this default in a commit.
-const MAINTENANCE = String(import.meta.env.VITE_MAINTENANCE ?? '1') !== '0'
-
 // Fades out and removes the instant boot splash baked into index.html. It is
 // rendered INSIDE the Suspense boundary alongside the real screen, so its effect
 // only runs once that screen has actually committed (while the lazy chunk is
@@ -47,7 +40,7 @@ function BootSplashHider() {
 
 export default function AppRouter() {
   const { sessionRole, pinLocked } = useAuth()
-  const { fbReady }     = useData()
+  const { fbReady, maintenanceOn } = useData()
   const { startLoading, stopLoading } = useUI()
   // Faculty/admin sign-in is reached via the /faculty path (not linked from the
   // student login). Inside an installed PWA there's no address bar to type that
@@ -77,13 +70,17 @@ export default function AppRouter() {
     return () => clearTimeout(t)
   }, [fbReady])
 
-  // Migration freeze: render the maintenance screen unconditionally (it does
-  // not wait for Firebase, so it appears even if the backend is unreachable).
-  if (MAINTENANCE) {
+  // Migration freeze (portal/publicStatus.maintenance, toggled by the
+  // professor in Settings > Maintenance mode). Students - signed in or not -
+  // get the maintenance screen; the faculty door stays open: the /faculty
+  // path (or the 5-tap logo gesture, mirrored on the maintenance screen for
+  // installed PWAs) still reaches the admin login, and an admin session runs
+  // the app normally so the toggle can be turned back off.
+  if (maintenanceOn && sessionRole !== 'admin' && !(isAdminPath && !sessionRole)) {
     return (
       <React.Suspense fallback={<LoadingScreen />}>
         <BootSplashHider />
-        <MaintenanceScreen />
+        <MaintenanceScreen onRevealFaculty={() => setFacultyReveal(true)} />
       </React.Suspense>
     )
   }

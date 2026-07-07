@@ -1,5 +1,5 @@
 // ── Portal settings - Firebase-primary (equiv scale, grade weights) ───────
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore'
 import { fbWithTimeout } from './firebaseInit'
 import { DEFAULT_EQ_SCALE } from '@/utils/grades'
 import { encryptEJS } from '@/utils/crypto'
@@ -58,6 +58,32 @@ export async function saveSettingsToFirebase(db, equivScale) {
   await fbWithTimeout(setDoc(doc(db, 'portal', 'settings'), {
     equivScale,
     eqUserDefault,
+  }, { merge: true }));
+}
+
+// ── Public portal status (maintenance switch) ─────────────────────────────
+// portal/publicStatus is the ONLY portal doc readable BEFORE sign-in (it has
+// its own allow-read block in firestore.rules): students must see the
+// maintenance flag from the login screen, where they are not authenticated.
+// Written only by the professor via Settings > Maintenance mode.
+
+/** Live-watch the maintenance flag. Calls cb(bool) immediately and on every
+ *  change. Errors (rules block not published yet, offline) resolve to false
+ *  so the portal NEVER locks itself out by accident. Returns unsubscribe. */
+export function watchMaintenanceFlag(db, cb) {
+  if (!db) return () => {};
+  return onSnapshot(
+    doc(db, 'portal', 'publicStatus'),
+    snap => cb(!!(snap.exists() && snap.data()?.maintenance)),
+    () => cb(false)
+  );
+}
+
+export async function saveMaintenanceToFirebase(db, on) {
+  if (!db) return;
+  await fbWithTimeout(setDoc(doc(db, 'portal', 'publicStatus'), {
+    maintenance: !!on,
+    updatedAt: Date.now(),
   }, { merge: true }));
 }
 

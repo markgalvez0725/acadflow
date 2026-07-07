@@ -26,7 +26,7 @@ import { presAttach, presEvent } from '@/utils/presence'
 import { fbFetchPresence } from '@/firebase/presence'
 import { buildRecap, transcriptToText } from '@/utils/meetingRecap'
 import { serializeStudents } from '@/utils/attendance'
-import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase, saveSemesterToFirebase, saveLatePolicyToFirebase, saveGradeFloorToFirebase, saveBrandingToFirebase } from '@/firebase/settings'
+import { syncSettingsFromFirebase, syncAdminFromFirebase, saveSettingsToFirebase, saveEjsToFirebase, saveSemesterToFirebase, saveLatePolicyToFirebase, saveGradeFloorToFirebase, saveBrandingToFirebase, watchMaintenanceFlag, saveMaintenanceToFirebase } from '@/firebase/settings'
 import { setReportBranding, setReportProfessor } from '@/export/reportTemplate'
 import { DEFAULT_LATE_POLICY, normalizeLatePolicy } from '@/utils/latePenalty'
 import { sendPushToOwners } from '@/firebase/pushTokens'
@@ -110,6 +110,12 @@ export function DataProvider({ children }) {
   const [branding, setBranding]         = useState(null)
   const [admin, setAdmin]               = useState({ user: 'admin', pass: 'Admin@1234', email: 'admin@school.edu', resetPin: null, name: '', photo: null })
 
+  // Migration freeze switch (portal/publicStatus.maintenance). Watched from
+  // BEFORE sign-in (public-read doc) so the login screen can lock students out;
+  // toggled by the professor in Settings > Maintenance mode.
+  const [maintenanceOn, setMaintenanceOn] = useState(false)
+  const _maintUnsubRef = useRef(null)
+
   const _bootstrapping = useRef(false)
   const _authUnsubRef  = useRef(null)
 
@@ -118,7 +124,7 @@ export function DataProvider({ children }) {
     if (_bootstrapping.current) return
     _bootstrapping.current = true
     _bootstrap()
-    return () => { stopListening(); if (_authUnsubRef.current) _authUnsubRef.current() }
+    return () => { stopListening(); if (_authUnsubRef.current) _authUnsubRef.current(); if (_maintUnsubRef.current) _maintUnsubRef.current() }
   }, [])
 
   async function _bootstrap() {
@@ -142,6 +148,10 @@ export function DataProvider({ children }) {
     if (!db) return
     dbRef.current = db
     setFbReady(true)
+
+    // Maintenance flag: attach immediately (NOT auth-gated) - unauthenticated
+    // students on the login screen must see the freeze the moment it flips.
+    _maintUnsubRef.current = watchMaintenanceFlag(db, setMaintenanceOn)
 
     // Load admin info, settings, and start real-time listeners. All Firestore
     // reads happen here so they can be gated behind authentication below.
@@ -260,6 +270,8 @@ export function DataProvider({ children }) {
     if (!db) return false
     dbRef.current = db
     setFbReady(true)
+    if (_maintUnsubRef.current) _maintUnsubRef.current()
+    _maintUnsubRef.current = watchMaintenanceFlag(db, setMaintenanceOn)
     const _isAdmin = isAdminUser()
     const _studentId = currentStudentId()
     setIsAdminSession(_isAdmin)
@@ -781,6 +793,25 @@ export function DataProvider({ children }) {
       throw e
     }
   }, [])
+
+  // Migration freeze toggle (professor-only in the UI; Firestore rules also
+  // restrict the write to the admin). Optimistic set + strict rethrow so the
+  // settings panel can surface a failed flip instead of lying about it.
+  const setMaintenanceMode = useCallback(async (on) => {
+    const next = !!on
+    const prev = maintenanceOn
+    setMaintenanceOn(next)
+    try { await saveMaintenanceToFirebase(dbRef.current, next) } catch (e) {
+      setMaintenanceOn(prev)
+      console.warn('[DataContext] setMaintenanceMode Firebase sync failed:', e.message)
+      throw e
+    }
+    logAudit({
+      action: next ? 'system.maintenanceOn' : 'system.maintenanceOff',
+      target: 'Portal',
+      summary: next ? 'Maintenance mode turned ON (students locked out)' : 'Maintenance mode turned OFF (portal restored)',
+    })
+  }, [maintenanceOn, logAudit])
 
   // Minimum component grade (floor) for activities & quizzes. 0 disables it.
   const saveGradeFloor = useCallback(async (v) => {
@@ -1885,6 +1916,7 @@ export function DataProvider({ children }) {
       buildBackup, restoreBackup,
       semester, saveSemester,
       admin, setAdmin, saveAdmin,
+      maintenanceOn, setMaintenanceMode,
     }}>
       {children}
     </DataContext.Provider>

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
-import { Lightbulb, Download, Upload, ShieldCheck, CalendarDays, KeyRound, Bell, Scale, Clock, DatabaseBackup, Flame, Palette, Building2, Trash2, HardDrive, Info } from 'lucide-react'
+import { Lightbulb, Download, Upload, ShieldCheck, CalendarDays, KeyRound, Bell, Scale, Clock, DatabaseBackup, Flame, Palette, Building2, Trash2, HardDrive, Info, AlertTriangle } from 'lucide-react'
 import SettingsShell from '@/components/primitives/SettingsShell'
 import AboutPanel from '@/components/primitives/AboutPanel'
 import { APP_VERSION } from '@/constants/changelog'
@@ -1032,6 +1032,99 @@ function DataTab() {
   )
 }
 
+// ── Maintenance Mode Tab ──────────────────────────────────────────────────────
+// Migration freeze switch. Writes portal/publicStatus.maintenance (the one
+// world-readable portal doc); every student device reacts live - locked out
+// when ON, restored when OFF. The professor keeps access via /faculty or the
+// 5-tap logo gesture on the maintenance screen itself.
+function MaintenanceTab() {
+  const { maintenanceOn, setMaintenanceMode, fbReady } = useData()
+  const { toast, openDialog } = useUI()
+  const [busy, setBusy] = useState(false)
+
+  async function handleToggle() {
+    if (busy || !fbReady) return
+    const next = !maintenanceOn
+    if (next) {
+      const ok = await openDialog({
+        title: 'Turn on maintenance mode?',
+        msg: 'Every student is locked out of the portal within seconds and sees the "moving to a new home" page. You stay signed in, and can turn it back off here anytime.',
+        type: 'danger',
+        confirmLabel: 'Lock the portal',
+        showCancel: true,
+      })
+      if (!ok) return
+    }
+    setBusy(true)
+    try {
+      await setMaintenanceMode(next)
+      toast(next ? 'Maintenance mode is ON. Students are locked out.' : 'Maintenance mode is OFF. Portal restored.', 'success')
+    } catch (e) {
+      toast('Could not update maintenance mode. Check your connection and try again.', 'error')
+    }
+    setBusy(false)
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.6 }}>
+        Use this while migrating or doing major work on the portal. Students see a
+        full-screen "AcadFlow is moving to a new home" page and cannot sign in, so
+        nothing in the database changes while it is on.
+      </div>
+
+      <div
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+          border: '1px solid var(--border)', background: 'var(--surface2)',
+          borderRadius: 10, padding: '12px 14px',
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--ink)' }}>Portal maintenance</div>
+          <div className="text-xs text-ink3 mt-0.5">Locks the whole portal for students</div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={maintenanceOn}
+          aria-label="Maintenance mode"
+          onClick={handleToggle}
+          disabled={busy || !fbReady}
+          style={{
+            width: 46, height: 26, borderRadius: 999, border: 'none', padding: 0,
+            background: maintenanceOn ? 'var(--accent)' : 'var(--border2)',
+            position: 'relative', cursor: 'pointer', flexShrink: 0,
+            transition: 'background .18s ease', opacity: busy || !fbReady ? .6 : 1,
+          }}
+        >
+          <span style={{
+            position: 'absolute', top: 3, left: maintenanceOn ? 23 : 3,
+            width: 20, height: 20, borderRadius: '50%', background: '#fff',
+            boxShadow: '0 1px 3px rgba(0,0,0,.25)', transition: 'left .18s ease',
+          }} />
+        </button>
+      </div>
+
+      {maintenanceOn && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', background: 'var(--yellow-l)', borderRadius: 10, padding: '10px 12px' }}>
+          <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 2, color: 'var(--yellow)' }} />
+          <span style={{ fontSize: 12.5, lineHeight: 1.6, color: 'var(--ink2)' }}>
+            Maintenance is ON. Students see the migration page and cannot sign in.
+            You stay signed in through the faculty page.
+          </span>
+        </div>
+      )}
+
+      <ul style={{ fontSize: 12.5, lineHeight: 1.8, color: 'var(--ink3)', margin: 0, paddingLeft: 18 }}>
+        <li>Students on the portal are locked out within seconds, no redeploy needed</li>
+        <li>Faculty sign-in stays open at /faculty (or tap the logo 5 times on the locked page)</li>
+        <li>Turning it off restores the portal instantly for everyone</li>
+      </ul>
+    </div>
+  )
+}
+
 // ── Main Modal ────────────────────────────────────────────────────────────────
 // Grouped settings on the shared responsive SettingsShell: a full-height push-nav
 // sheet on mobile, master-detail on tablet/desktop. Each row drills into one of
@@ -1076,6 +1169,7 @@ export default function AdminSettingsModal({ onClose, push }) {
     { title: 'Data and system', rows: [
       { id: 'data',     Icon: DatabaseBackup, label: 'Backup and restore',  sub: 'Download or restore a snapshot', panel: () => <DataTab /> },
       { id: 'firebase', Icon: Flame,          label: 'Firebase connection', sub: 'Database credentials',           panel: () => <FirebaseTab /> },
+      { id: 'maint',    Icon: AlertTriangle,  label: 'Maintenance mode',    sub: 'Lock the portal during migration', panel: () => <MaintenanceTab /> },
     ] },
     { title: 'Appearance', rows: [
       { id: 'theme', Icon: Palette, label: 'Theme', sub: 'Light, dark, or frosted glass', control: <ThemeToggle style={{ position: 'static', width: 36, height: 36, fontSize: 15, flexShrink: 0 }} /> },

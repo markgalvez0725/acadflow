@@ -130,6 +130,12 @@ service cloud.firestore {
     // everyone signed in; written only by the teacher.
     match /portal/{docId}             { allow read: if signedIn(); allow write: if isAdmin(); }
 
+    // Public portal status: the maintenance-mode flag must be readable BEFORE
+    // sign-in (the login screen decides whether to lock students out), so this
+    // ONE portal doc is world-readable. It only ever holds { maintenance,
+    // updatedAt } - never anything sensitive. Writes stay teacher-only.
+    match /portal/publicStatus        { allow read: if true; allow write: if isAdmin(); }
+
     // Online meetings are scheduled and controlled by the teacher.
     match /onlineMeetings/{docId}     { allow read: if signedIn(); allow write: if isAdmin(); }
 
