@@ -14,6 +14,14 @@ const AdminLayout      = lazyRetry(() => import('@/components/admin/AdminLayout'
 const StudentLayout    = lazyRetry(() => import('@/components/student/StudentLayout'))
 const CommandPalette   = lazyRetry(() => import('@/components/primitives/CommandPalette'))
 const QuickUnlock      = lazyRetry(() => import('@/components/auth/QuickUnlock'))
+const MaintenanceScreen = lazyRetry(() => import('@/components/primitives/MaintenanceScreen'))
+
+// Full-freeze migration gate: while ON, everyone (students AND faculty) gets
+// the maintenance screen instead of any login or layout, so no client write
+// can reach Firestore during the move to the new server. Default is ON; lift
+// it by setting VITE_MAINTENANCE=0 in the Vercel env (then redeploy) or by
+// flipping this default in a commit.
+const MAINTENANCE = String(import.meta.env.VITE_MAINTENANCE ?? '1') !== '0'
 
 // Fades out and removes the instant boot splash baked into index.html. It is
 // rendered INSIDE the Suspense boundary alongside the real screen, so its effect
@@ -68,6 +76,17 @@ export default function AppRouter() {
     const t = setTimeout(() => setBootStalled(true), 12000)
     return () => clearTimeout(t)
   }, [fbReady])
+
+  // Migration freeze: render the maintenance screen unconditionally (it does
+  // not wait for Firebase, so it appears even if the backend is unreachable).
+  if (MAINTENANCE) {
+    return (
+      <React.Suspense fallback={<LoadingScreen />}>
+        <BootSplashHider />
+        <MaintenanceScreen />
+      </React.Suspense>
+    )
+  }
 
   // While Firebase boots we render nothing here: the instant #boot-splash overlay
   // (index.html, outside #root) is already covering the screen and keeps animating
