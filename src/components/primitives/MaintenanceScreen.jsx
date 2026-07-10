@@ -1,6 +1,11 @@
 import React, { useRef } from 'react'
-import { ShieldCheck, Link, KeyRound, Clock } from 'lucide-react'
+import { ShieldCheck, Link, KeyRound, Clock, ExternalLink } from 'lucide-react'
 import AcadFlowLogo from '@/components/primitives/AcadFlowLogo'
+
+// The migrated portal's new home. Shown as the main call to action on the
+// maintenance screen now that the move is complete.
+const NEW_PORTAL_URL = 'https://acadflow.csddevs.com/'
+const NEW_PORTAL_LABEL = 'acadflow.csddevs.com'
 
 // Maintenance screen shown while portal/publicStatus.maintenance is ON
 // (professor toggle in Settings > Maintenance mode). AppRouter renders it
@@ -45,18 +50,30 @@ export default function MaintenanceScreen({ onRevealFaculty }) {
         <div
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 6, margin: '18px auto 14px',
-            background: 'var(--yellow-l)', color: 'var(--yellow)', fontSize: 12, fontWeight: 600,
+            background: 'var(--green-l)', color: 'var(--green)', fontSize: 12, fontWeight: 600,
             padding: '5px 14px', borderRadius: 999, fontFamily: 'var(--font-body)',
           }}
         >
-          <Clock size={13} strokeWidth={2.4} /> Scheduled maintenance
+          <Clock size={13} strokeWidth={2.4} /> Migration complete
         </div>
         <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--ink)', margin: '0 0 10px' }}>
-          AcadFlow is moving to a new home
+          AcadFlow has moved to a new home
         </h1>
-        <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, lineHeight: 1.7, color: 'var(--ink2)', margin: '0 0 22px' }}>
-          The portal is being migrated to a new server. Sign-in is temporarily disabled while we transfer everything.
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, lineHeight: 1.7, color: 'var(--ink2)', margin: '0 0 18px' }}>
+          The migration is complete. This address is retired; continue to the new portal below.
         </p>
+        <a
+          href={NEW_PORTAL_URL}
+          style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            background: 'var(--accent)', color: '#fff', textDecoration: 'none',
+            fontFamily: 'var(--font-body)', fontSize: 14.5, fontWeight: 600,
+            padding: '12px 26px', borderRadius: 999, margin: '0 0 22px',
+            boxShadow: 'var(--shadow)',
+          }}
+        >
+          Open the new AcadFlow <ExternalLink size={15} />
+        </a>
         <div
           style={{
             textAlign: 'left', display: 'grid', gap: 10, background: 'var(--bg2)',
@@ -70,11 +87,15 @@ export default function MaintenanceScreen({ onRevealFaculty }) {
           </p>
           <p style={row}>
             <Link size={16} style={{ ...rowIcon, color: 'var(--accent)' }} />
-            <span style={rowText}>Your professor will share the new portal address once it is ready.</span>
+            <span style={rowText}>
+              The new address is{' '}
+              <a href={NEW_PORTAL_URL} style={{ color: 'var(--accent)', fontWeight: 600, textDecoration: 'none' }}>{NEW_PORTAL_LABEL}</a>
+              {' '}- bookmark it or reinstall the app from there.
+            </span>
           </p>
           <p style={row}>
             <KeyRound size={16} style={{ ...rowIcon, color: 'var(--ink3)' }} />
-            <span style={rowText}>You will sign in with the same student number and password.</span>
+            <span style={rowText}>You sign in with the same student number and password.</span>
           </p>
         </div>
         <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--ink3)', margin: 0 }}>
