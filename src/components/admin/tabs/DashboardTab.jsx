@@ -183,9 +183,8 @@ export default function DashboardTab() {
   if (assess.awaitingGrading)
     findings.push({ sev: 'warning', Icon: ClipboardList, source: 'Activities', actionLabel: 'Grade', onAction: () => setAdminTab('activities'),
       text: <><b>{assess.awaitingGrading}</b> submission{assess.awaitingGrading > 1 ? 's' : ''} awaiting grading</> })
-  if (assess.overdueMissing)
-    findings.push({ sev: 'warning', Icon: ClipboardList, source: 'Activities', actionLabel: 'Open', onAction: () => setAdminTab('activities'),
-      text: <><b>{assess.overdueMissing}</b> overdue missing submission{assess.overdueMissing > 1 ? 's' : ''}</> })
+  // (Intentionally NO "overdue missing submissions" finding: an ended activity
+  // with non-submitters is settled by the grading defaults, not a reminder.)
   if (lowAtt.length)
     findings.push({ sev: 'warning', Icon: CalendarCheck, source: 'Attendance', actionLabel: 'Open', onAction: () => setAdminTab('attendance'),
       text: <><b>{lowAtt.length}</b> student{lowAtt.length > 1 ? 's' : ''} below 80% attendance</> })
@@ -194,7 +193,7 @@ export default function DashboardTab() {
       text: <><b>{absenceAlerts.length}</b> on a {ABSENCE_THRESHOLD}+ session absence streak</> })
   if (!isNaN(gwaNum) && gwaNum >= 75)
     findings.push({ sev: 'success', Icon: TrendingUp, source: 'Grades', text: <>Class average <b>{stats.avgGwa}</b> - above passing</> })
-  if (gradedTotal && !assess.awaitingGrading && !assess.overdueMissing)
+  if (gradedTotal && !assess.awaitingGrading)
     findings.push({ sev: 'success', Icon: CheckCircle2, source: 'Activities', text: 'All caught up on grading' })
   if (!isNaN(attNum) && attNum >= 80)
     findings.push({ sev: 'success', Icon: CheckCircle2, source: 'Attendance', text: <>Attendance healthy at <b>{stats.avgAtt}</b></> })
